@@ -1139,7 +1139,7 @@ class Puzzle {
     // - conflicts
     // - all pu_q and pu_a puzzle elements
     // - embedded solution (single and multiple)
-    // 
+    //
     // Currently used for resizing the board.
     // Or in the future to insert or delete a row/col, given the proper translate function.
     translate_puzzle_elements(translate_fn) {
@@ -13484,14 +13484,15 @@ class Puzzle {
         let size = Math.sqrt(iostring.length);
 
         // check all are digits or alphabets (or spacing)
+        const nonAlphaNumError = document.getElementById("sudokuIOFail");
         if (!ignoreNonSquare && !pu.only_alphanumeric(iostring)) {
-            document.getElementById("sudokuIOFail").classList.remove('is_hidden');
+            nonAlphaNumError.classList.remove('is_hidden');
             return "failed";
         } else if (ignoreNonSquare && !(/^[A-Za-z0-9\s]*$/.test(iostring))) {
-            document.getElementById("sudokuIOFail").classList.remove('is_hidden');
+            nonAlphaNumError.classList.remove('is_hidden');
             return "failed";
         } else {
-            document.getElementById("sudokuIOFail").classList.add('is_hidden');
+            nonAlphaNumError.classList.add('is_hidden');
         }
 
         // Data check passed, proceed
@@ -13506,9 +13507,12 @@ class Puzzle {
             c_start = parseInt(document.getElementById("firstcell_column").value) - 1;
         }
 
+        const nonPerfectError = document.getElementById("sudokuIOFailNonPerfect");
         if (!ignoreNonSquare && !Number.isInteger(Math.sqrt(iostring.length))) {
-            document.getElementById("iostring").value = "Error: Number of digits is not a perfect square";
+            nonPerfectError.classList.remove('is_hidden');
             return "failed";
+        } else {
+            nonPerfectError.classList.add('is_hidden');
         }
 
         // Helper method
