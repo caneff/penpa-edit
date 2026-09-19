@@ -13466,13 +13466,15 @@ class Puzzle {
         let pcolor = 1; //black
         let scolor = 9; //blue, 2 for green
 
-        // Replace spaces if user desires. Keep line breaks if using non-square mode.
+        const ignoreNonSquare = document.getElementById("sudokuIgnoreNotSquare").checked;
+
         if (document.getElementById("sudokuIgnoreSpaces").checked) {
-            if (document.getElementById("sudokuIgnoreNotSquare").checked) {
-                iostring = iostring.replace(' ', '');
-            } else {
-                iostring = iostring.replace(/\s/g, '');
-            }
+            // Replace whitespace if user desires.
+            // If using non-square mode, keep newlines.
+            // Previously this only replaced plain spaces but not tabs,
+            // which was problematic when pasting from Google Sheets.
+            const replaceRegex = ignoreNonSquare ? /[^\S\r\n]+/g : /\s/g;
+            iostring = iostring.replace(replaceRegex, '');
         }
 
         // Replace dots with zeros
@@ -13482,10 +13484,10 @@ class Puzzle {
         let size = Math.sqrt(iostring.length);
 
         // check all are digits or alphabets (or spacing)
-        if (!document.getElementById("sudokuIgnoreNotSquare").checked && !pu.only_alphanumeric(iostring)) {
+        if (!ignoreNonSquare && !pu.only_alphanumeric(iostring)) {
             document.getElementById("sudokuIOFail").classList.remove('is_hidden');
             return "failed";
-        } else if (document.getElementById("sudokuIgnoreNotSquare").checked && !(/^[A-Za-z0-9\s]*$/.test(iostring))) {
+        } else if (ignoreNonSquare && !(/^[A-Za-z0-9\s]*$/.test(iostring))) {
             document.getElementById("sudokuIOFail").classList.remove('is_hidden');
             return "failed";
         } else {
@@ -13504,7 +13506,7 @@ class Puzzle {
             c_start = parseInt(document.getElementById("firstcell_column").value) - 1;
         }
 
-        if (!document.getElementById("sudokuIgnoreNotSquare").checked && !Number.isInteger(Math.sqrt(iostring.length))) {
+        if (!ignoreNonSquare && !Number.isInteger(Math.sqrt(iostring.length))) {
             document.getElementById("iostring").value = "Error: Number of digits is not a perfect square";
             return "failed";
         }
@@ -13517,7 +13519,7 @@ class Puzzle {
 
         let colorToUse = this.mode.qa === "pu_q" ? pcolor : scolor;
 
-        if (document.getElementById("sudokuIgnoreNotSquare").checked) {
+        if (ignoreNonSquare) {
             // Ignoring square rule, use line breaks to do import.
             let j = r_start;
             let i = c_start;
