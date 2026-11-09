@@ -5,7 +5,7 @@ How the engineering skills should consume this repo's domain documentation when 
 ## Before exploring, read these
 
 - **`GLOSSARY.md`** at the repo root.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in.
+- **`adr/`** (root, outside `docs/` so Pages does not serve it): read ADRs that touch the area you're about to work in.
 
 If either doesn't exist, **proceed silently**. Don't flag its absence; don't suggest creating it upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
@@ -17,7 +17,7 @@ Single-context repo:
 /
 ├── GLOSSARY.md
 ├── docs/agents.md   (upstream's architecture overview)
-└── docs/adr/        (none yet)
+└── adr/             (decision records)
 ```
 
 ## Use the glossary's vocabulary

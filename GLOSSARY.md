@@ -11,3 +11,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Upstream**: `swaroopg92/penpa-edit`, the Penpa+ this repo forks.
 - **The fork**: this repo, served at `https://caneff.github.io/penpa-edit/`.
 - **Redirect script**: `userscript/penpa-redirect.user.js`, which sends upstream's links to the fork.
+- **Engine**: Penpa+'s puzzle model, grid geometry, importers and checkers: the part of upstream the fork keeps merging. Not "core" or "backend".
+- **Owned file**: an upstream file the fork has taken over, marked `merge=ours`; a merge keeps our side.
+- **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
+- **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
