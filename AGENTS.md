@@ -45,3 +45,9 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 None yet. Upstream's `npm test` is a `nodemon` watch on `test/test_server.js` (snapshot checks under `test/snapshots/`), not a
 one-shot run, and `TESTING.md` lists puzzle links to try by hand. The first code ticket sets up the seam: a one-shot test command, live tests
 on the page in headless Chromium (Playwright) under `live/`, and CI. Until then, name what you ran by hand.
+
+- **Playwright** is an approved dev dependency (Chris, 2026-11-09).
+- **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and
+  the nightly upstream merge (#3) must run unattended (Chris, 2026-11-09).
+- **The test plan** is `research/fork-audit-2026-11.md` § Test plan: each audit bug gets a red test, marked `todo` with its
+  ticket until the fix lands.
