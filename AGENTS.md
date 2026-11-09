@@ -3,7 +3,8 @@
 Chris's fork of Penpa+ (`swaroopg92/penpa-edit`), served by GitHub Pages from `master:/docs` at `https://caneff.github.io/penpa-edit/`.
 Changes are made straight in Penpa+'s source. A Tampermonkey script, `userscript/penpa-redirect.user.js`, sends every
 `swaroopg92.github.io/penpa-edit/` link to the fork with its query and `#` data unchanged, so shared puzzle links open here (Chris,
-2026-11-09). It is for Chris's own use until the upstream sync has run for a couple of weeks; then it may be released.
+2026-11-09). It is for Chris's own use until the upstream sync has run for a couple of weeks; then it may be released, branded
+ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines stay.
 
 - **Read `docs/agents.md` first**: upstream's architecture overview and its four rules for AI agents (minimal modifications, readability, no
   guessing, document new code). They hold here too.
