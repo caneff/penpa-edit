@@ -61,6 +61,9 @@ seam. These come from `sudokupad-scripts`, kept where they apply to Penpa+.
 
 ## Upstream merges
 
+These hold for upstream's files that we still merge, not for files marked `merge=ours` in `.gitattributes`,
+which are ours to rewrite.
+
 14. **Change upstream's lines as little as possible.** Every edited upstream line can
     conflict at the next merge of `swaroopg92/penpa-edit`. Prefer a new file or a new
     function called from one line over rewriting an upstream block, and never

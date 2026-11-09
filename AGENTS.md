@@ -1,16 +1,19 @@
 # penpa-edit (caneff's fork of Penpa+)
 
 Chris's fork of Penpa+ (`swaroopg92/penpa-edit`), served by GitHub Pages from `master:/docs` at `https://caneff.github.io/penpa-edit/`.
-Changes are made straight in Penpa+'s source. A Tampermonkey script, `userscript/penpa-redirect.user.js`, sends every
+The fork is splitting from upstream (Chris, 2026-11-09): upstream's engine files (parsers, grid classes, checkers) keep
+being merged; the UI becomes ours, rebuilt against an engine API; `docs/js/class_p.js` is split step by step into the two.
+The plan is the `/wayfinder` map on the tracker. A Tampermonkey script, `userscript/penpa-redirect.user.js`, sends every
 `swaroopg92.github.io/penpa-edit/` link to the fork with its query and `#` data unchanged, so shared puzzle links open here (Chris,
 2026-11-09). It is for Chris's own use until the upstream sync has run for a couple of weeks; then it may be released, branded
 ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines stay.
 
 - **Read `docs/agents.md` first**: upstream's architecture overview and its four rules for AI agents (minimal modifications, readability, no
   guessing, document new code). They hold here too.
-- **Upstream**: the `upstream` remote is `swaroopg92/penpa-edit`, branch `master`. Its changes are merged into our `master`, never rebased:
-  `CODING_STANDARDS.md` § Upstream merges says how to keep our changes easy to merge. No pull request goes to upstream (Chris,
-  2026-11-09): fixes to Penpa+'s own bugs, such as the Tab counter, are made here.
+- **Upstream**: the `upstream` remote is `swaroopg92/penpa-edit`, branch `master`. Its changes are merged into our `master`, never rebased.
+  A file we own is marked `merge=ours` in `.gitattributes`, so a merge keeps our side and upstream's change to it is ported by hand
+  or dropped (git has no built-in `ours` driver: each clone and CI set `git config merge.ours.driver true`); every other upstream file follows `CODING_STANDARDS.md` § Upstream merges. Nothing goes back to upstream unless it is a
+  trivial port (Chris, 2026-11-09).
 - **Share links point at the fork** (Chris, 2026-11-09). `maketext_baseurl()` in `docs/js/class_p.js` already builds links from
   `location.href`; only its localhost / `file://` branch names upstream's address.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
