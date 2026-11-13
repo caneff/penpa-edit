@@ -23,7 +23,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   named by its mode, sub-mode and style, or an undo or redo. Solve mode checks the answer after every input, so the
   verdict is in every checkpoint and no step runs it.
 - **Checkpoint**: a point in a recording where the replay compares state: after each finished gesture, content key, mode
-  change, undo or redo, and at the end.
+  change, undo or redo, and at the end. The UI driver checks a digit in Surface and the colour change it makes as
+  one, after both.
 - **Engine driver**: replays a recording's steps as the engine calls their inputs made (`live/replay.mjs`).
 - **UI driver**: replays a recording's steps as real mouse and keyboard input on the page; any checkpoint where it
   differs from the engine driver is a UI bug.

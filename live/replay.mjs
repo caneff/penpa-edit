@@ -44,12 +44,13 @@ function surfaceSolveLinkInPage (answerCells) {
   return url.slice(url.indexOf('#'))
 }
 
-// Runs in the page: the page pixel of the centre of the cell at `index` of the center list, as `coord_point` in
-// `main.js` maps it back.
-export function cellPixelInPage (index) {
-  const canvas = document.getElementById('canvas')
-  const point = pu.point[pu.centerlist[index]]
-  return { x: canvas.offsetLeft + point.x - window.scrollX, y: canvas.offsetTop + point.y - window.scrollY }
+// The viewport pixel of the centre of the cell at `index` of the center list.
+export async function cellPixel (page, index) {
+  const board = await page.evaluate((index) => {
+    const { x, y } = pu.point[pu.centerlist[index]]
+    return { x, y }
+  }, index)
+  return page.evaluate(boardPixelInPage, board)
 }
 
 // The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
@@ -71,7 +72,7 @@ export async function openRecordingPage (browser, query) {
 
 // A real click at the centre of the cell at `index` of the center list.
 export async function clickCell (page, index, options) {
-  const { x, y } = await page.evaluate(cellPixelInPage, index)
+  const { x, y } = await cellPixel(page, index)
   await page.mouse.click(x, y, options)
 }
 
@@ -144,13 +145,13 @@ function modeInPage (mode) {
 }
 
 // Switches to a mode step's mode, sub-mode and style, each only when it differs, so a step that repeats the current
-// choice makes no input. `choose` makes the input that chooses each, given the id of its radio button in the mode
-// panel, which `submode_check` and `stylemode_check` take too.
+// choice makes no input. `choose` makes the input that chooses each: `mode` given the mode's name, `submode` and
+// `style` given the id `submode_check` and `stylemode_check` take, which is their radio button's in the mode panel.
 async function switchMode (page, step, choose) {
   // Multicolor keeps its styles under Surface's ids, as `mode_set` reads them.
   const styleIds = step.mode === 'multicolor' ? 'surface' : step.mode
   const now = () => page.evaluate(modeInPage, step.mode)
-  if ((await now()).edit !== step.mode) await choose.mode('mo_' + step.mode)
+  if ((await now()).edit !== step.mode) await choose.mode(step.mode)
   if ((await now()).submode !== step.submode) await choose.submode('sub_' + step.mode + step.submode)
   if ((await now()).style !== step.style) await choose.style('st_' + styleIds + step.style)
   const { submode, style } = await now()
@@ -166,11 +167,16 @@ const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
 
 function startEngineDriver (page) {
   const choose = {
-    mode: (id) => page.evaluate((mode) => pu.mode_set(mode), id.slice('mo_'.length)),
+    mode: (mode) => page.evaluate((mode) => pu.mode_set(mode), mode),
     submode: (id) => page.evaluate((id) => pu.submode_check(id), id),
     style: (id) => page.evaluate((id) => pu.stylemode_check(id), id)
   }
   return (step) => step.kind === 'mode' ? switchMode(page, step, choose) : page.evaluate(applyStepInPage, step)
+}
+
+// Whether a checkpoint follows step `n` (counted from 1) of `steps` under `driver`: the last step always has one.
+function isCheckpoint (driver, steps, n) {
+  return n === steps.length || driver.checkpointAfter(steps[n - 1], steps[n])
 }
 
 // Runs in the page: the viewport pixel of the board point at `x, y` through the canvas's place in the current layout,
@@ -186,8 +192,15 @@ function outsideCanvasInPage () {
   return { x: box.left, y: box.top - 1 }
 }
 
-// The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call outside Sudoku and
-// Multicolor, whose keys `main.js` remaps before the call.
+// The modes whose keys `main.js` remaps before the key call (Sudoku's Shift and Ctrl marks and numpad, Multicolor's
+// colours), and in which a Multicolor style button makes a key call too; the UI driver has no input for their steps.
+const REMAPPED_KEY_MODES = ['sudoku', 'multicolor']
+// How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
+// ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
+const STEP_GAP_MS = 1000
+
+// The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call outside
+// REMAPPED_KEY_MODES.
 function keyOf ({ call, args }) {
   switch (call) {
     case 'key_number':
@@ -213,32 +226,36 @@ function keyOf ({ call, args }) {
 }
 
 // The UI driver: each step as the mouse or keyboard input a solver makes, a pointer step at the page pixel its board
-// units map to through the current layout. A key that also changes the style (a digit in Surface picks a colour) is
-// recorded as a key step and then a mode step, both made by the one key press, so a key step followed by a mode step
-// is checked once, after the mode step.
-const uiDriver = {
+// units map to through the current layout. A digit in Surface picks a colour as well as making its key call, and is
+// recorded as a key step and then a Surface mode step, both made by the one key press, so that pair is checked once,
+// after the mode step.
+export const uiDriver = {
   start: startUiDriver,
-  checkpointAfter: (step, next) => endsGroup(step) && !(step.kind === 'key' && next?.kind === 'mode')
+  checkpointAfter: (step, next) => endsGroup(step) &&
+    !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface')
 }
 
 function startUiDriver (page) {
-  const choose = { mode: click, submode: click, style: click }
-  // The mouse's place and the button it holds down, since a step names only where it ends.
-  let at = null
-  let held = null
+  // Where the mouse is, or null once a click in the mode panel has moved it; and the button a down step holds.
+  let mousePixel = null
+  let pressed = null
+  let stepsMade = 0
 
-  function click (id) {
-    return page.click(`#${id}_lb`)
+  async function clickInPanel (id) {
+    // A missing button would hold the click for Playwright's whole timeout.
+    if (!await page.locator(`#${id}_lb`).count()) throw new Error(`no button ${id}_lb in the mode panel`)
+    await page.click(`#${id}_lb`)
+    mousePixel = null
   }
 
   async function moveTo ({ x, y }) {
     await page.mouse.move(x, y)
-    at = { x, y }
+    mousePixel = { x, y }
   }
 
   // A press or release where the mouse already is, as after the move a real gesture starts with.
   async function moveIfAway (pixel) {
-    if (!at || at.x !== pixel.x || at.y !== pixel.y) await moveTo(pixel)
+    if (!mousePixel || mousePixel.x !== pixel.x || mousePixel.y !== pixel.y) await moveTo(pixel)
   }
 
   async function pointer (step) {
@@ -249,13 +266,14 @@ function startUiDriver (page) {
         await moveIfAway(await page.evaluate(boardPixelInPage, step))
         if (step.ctrl) await page.keyboard.down('Control')
         await page.mouse.down({ button: step.button })
-        held = { button: step.button, ctrl: step.ctrl }
+        pressed = { button: step.button, ctrl: step.ctrl }
         return
       case 'up':
+        if (!pressed) throw new Error('no mouse button is down to release')
         await moveIfAway(await page.evaluate(boardPixelInPage, step))
-        await page.mouse.up({ button: held?.button ?? 'left' })
-        if (held?.ctrl) await page.keyboard.up('Control')
-        held = null
+        await page.mouse.up({ button: pressed.button })
+        if (pressed.ctrl) await page.keyboard.up('Control')
+        pressed = null
         return
       case 'out':
         return moveTo(await page.evaluate(outsideCanvasInPage))
@@ -263,14 +281,33 @@ function startUiDriver (page) {
     throw new Error(`no mouse input for a pointer step of action ${step.action}`)
   }
 
+  async function key (step) {
+    const mode = await page.evaluate(() => pu.mode[pu.mode.qa].edit_mode)
+    if (REMAPPED_KEY_MODES.includes(mode)) throw new Error(`no key input for a key step in ${mode}, whose keys main.js remaps`)
+    return page.keyboard.press(keyOf(step))
+  }
+
+  function mode (step) {
+    return switchMode(page, step, {
+      mode: (name) => clickInPanel('mo_' + name),
+      submode: clickInPanel,
+      style: (id) => {
+        if (step.mode === 'multicolor') throw new Error('no input for a Multicolor style alone: its button makes a key call too')
+        return clickInPanel(id)
+      }
+    })
+  }
+
   return async (step) => {
+    stepsMade++
+    await page.clock.setSystemTime(CLOCK_START.getTime() + stepsMade * STEP_GAP_MS)
     switch (step.kind) {
       case 'pointer':
         return pointer(step)
       case 'key':
-        return page.keyboard.press(keyOf(step))
+        return key(step)
       case 'mode':
-        return switchMode(page, step, choose)
+        return mode(step)
       case 'undo':
         return page.keyboard.press('Control+z')
       case 'redo':
@@ -334,8 +371,10 @@ function stateDiff ({ want, got, wantName, gotName = 'replayed', errors }) {
 
 // What a replay's checkpoints are compared with, as a report names it: the expected file, or the engine driver's
 // replay when the UI driver's is compared with it.
-const AGAINST_EXPECTED = { source: 'the recording', wantName: 'expected', gotName: 'replayed' }
-const AGAINST_ENGINE = { source: 'the engine driver', wantName: 'engine driver', gotName: 'UI driver' }
+const AGAINST_EXPECTED = { source: 'the recording', list: 'the expected file', wantName: 'expected', gotName: 'replayed' }
+const AGAINST_ENGINE = {
+  source: 'the engine driver', list: "the engine driver's replay", wantName: 'engine driver', gotName: 'UI driver'
+}
 
 function failureReport ({ id, step, steps, since, want, got, errors, against }) {
   return [
@@ -379,7 +418,7 @@ export async function replay (browser, recording, {
   const apply = driver.start(page)
   const checkpoints = []
   try {
-    // The board loads after `pu` exists; every later change is a synchronous engine call made below.
+    // The board loads after `pu` exists; every later change is a step's input made below.
     await settle(read)
     let since = []
     for (const [index, step] of steps.entries()) {
@@ -392,10 +431,10 @@ export async function replay (browser, recording, {
         const message = e.message.split('\n')[0].replace(/^page\.evaluate: (Error: )?/, '')
         throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${message}`)
       }
-      if (!driver.checkpointAfter(step, steps[n]) && n < steps.length) continue
+      if (!isCheckpoint(driver, steps, n)) continue
       const want = expected?.[checkpoints.length]
       if (expected && want?.step !== n) {
-        return { checkpoints, report: `${id}: step ${n} is a checkpoint, where the expected file has ${want ? `step ${want.step}` : 'none'}` }
+        return { checkpoints, report: `${id}: step ${n} is a checkpoint, where ${against.list} has ${want ? `step ${want.step}` : 'none'}` }
       }
       // Under the paused clock no page timer runs, so the state after the call is final; `settle` only waits out a
       // mismatch before it is reported.
@@ -407,7 +446,7 @@ export async function replay (browser, recording, {
       since = []
     }
     if (expected && expected.length > checkpoints.length) {
-      return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}` }
+      return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where ${against.list} has ${expected.length}` }
     }
     return { checkpoints, report: finalReport({ id, recording, state: checkpoints.at(-1).state, errors }) }
   } finally {
@@ -422,7 +461,7 @@ export async function compareDrivers (browser, recording, { id = 'recording', se
   const engine = await replay(browser, recording, { id, served, setup })
   if (engine.report) return engine.report
   const { steps } = recording
-  const expected = engine.checkpoints.filter(({ step }) => step === steps.length || uiDriver.checkpointAfter(steps[step - 1], steps[step]))
+  const expected = engine.checkpoints.filter(({ step }) => isCheckpoint(uiDriver, steps, step))
   const ui = await replay(browser, recording, { id, served, setup, driver: uiDriver, expected, against: AGAINST_ENGINE })
   return ui.report
 }
