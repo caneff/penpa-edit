@@ -23,8 +23,9 @@ function deleteCookie(name) {
 }
 
 const UserSettings = {
-    // Cookie Expiry Constant
-    _expDate: 2147483647,
+    // caneff: cookie lifetime in days. Chromium caps a cookie's lifetime at 400 days; a larger count made `Date` invalid
+    // and every cookie a session cookie. The `attemptSave` callbacks are arrow functions so `this` is bound.
+    _expDate: 400,
 
     // Do responsive layout for wider screens
     _responsive_mode: 1,
@@ -511,10 +512,10 @@ const UserSettings = {
             return;
         }
 
-        this.can_save.forEach(function(setting) {
+        this.can_save.forEach((setting) => {
             setCookie(setting, UserSettings[setting], this._expDate);
         });
-        this.gridtype_size.forEach(function(setting) {
+        this.gridtype_size.forEach((setting) => {
             setCookie(setting, UserSettings[setting], this._expDate);
         });
         setCookie("tab_settings", JSON.stringify(getValues('mode_choices')), this._expDate);
