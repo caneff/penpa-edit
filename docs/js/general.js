@@ -27,7 +27,8 @@ async function boot() {
     set_input_patterns();
 
     var urlParam = location.search.substring(1);
-    if (!urlParam && location.hash) {
+    // caneff: a query with no puzzle data (?fbclid=, ?utm_source=) must not hide the hash's puzzle
+    if (!/(^|&)p=/.test(urlParam) && location.hash) {
         urlParam = location.hash.substring(1);
     }
     if (urlParam) {
@@ -43,20 +44,26 @@ async function boot() {
 
 
         // Decrypt puzzle data
-        const hash = PenpaProgress.getHash(paramArray.p);
-        let local_data = await PenpaProgress.tryLoad(hash);
+        // caneff: a link that fails to load shows an error dialog over a blank grid, not a dead page
+        try {
+            const hash = PenpaProgress.getHash(paramArray.p);
+            let local_data = await PenpaProgress.tryLoad(hash);
 
-        if (local_data && local_data.includes('&p=')) {
-            // This is to account for old links and new links together
-            var url;
-            if (local_data.includes("#")) {
-                url = local_data.split('#')[1];
+            if (local_data && local_data.includes('&p=')) {
+                // This is to account for old links and new links together
+                var url;
+                if (local_data.includes("#")) {
+                    url = local_data.split('#')[1];
+                } else {
+                    url = local_data.split('?')[1];
+                }
+                await load(url, type = 'localstorage', origurl = paramArray.p);
             } else {
-                url = local_data.split('?')[1];
+                await load(urlParam);
             }
-            load(url, type = 'localstorage', origurl = paramArray.p);
-        } else {
-            load(urlParam);
+        } catch (e) {
+            create();
+            errorMsg("This link could not be loaded. It may be incomplete or damaged.<br>" + DOMPurify.sanitize(String(e)));
         }
     } else {
         create();
@@ -2047,7 +2054,7 @@ async function load(urlParam, type = 'url', origurl = null) {
         }
     }
     if (rtext_para[17] && rtext_para[17] !== "") {
-        psource = DOMPurify.sanitize(rtext_para[17]);
+        psource = DOMPurify.sanitize(rtext_para[17].replace(/%2C/g, ',')); // caneff: maketext escapes commas in Source
         document.getElementById("puzzlesourcelink").href = psource;
         document.getElementById("puzzlesource").innerHTML = "Source";
         document.getElementById("saveinfosource").value = psource;
@@ -3269,4 +3276,4 @@ if (!String.prototype.startsWith) {
             return this.substring(pos, pos + search.length) === search;
         }
     });
-}
+}
