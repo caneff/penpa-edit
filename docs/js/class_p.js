@@ -7366,6 +7366,13 @@ class Puzzle {
     //
     /////////////////////////////
 
+    // caneff: the order that makes a triangle selection's base its top-left cell (the base ignores orientation); the smallest id is not that cell
+    tri_point_order(a, b) {
+        a = this.point[a].index;
+        b = this.point[b].index;
+        return a[1] - b[1] || a[0] - b[0];
+    }
+
     copy_handler(ev) {
         // Skip handling copy if a target is selected (eg a textbox)
         if (ev.target.id !== "" && ['INPUT', 'TEXTAREA'].includes(ev.target.tagName))
@@ -7385,18 +7392,10 @@ class Puzzle {
 
         // Triangular grid
         if (this.gridtype === "tri") {
-            this.selection.sort((a, b) => {
-                a = this.point[a].index;
-                b = this.point[b].index;
-                if (a[1] == b[1]) {
-                    if (a[0] == b[0])
-                        return a[2] >= b[2];
-                    return a[0] > b[0];
-                }
-                return a[1] > b[1];
-            });
+            // caneff: sort by row and column so selection[0] is the base
+            this.selection.sort((a, b) => this.tri_point_order(a, b));
             let base_point = this.point[this.selection[0]];
-            [base_x, base_y, _] = base_point.index;
+            [base_x, base_y] = base_point.index;
 
             rel_coords = (p) => {
                 let [x, y, t] = this.point[p].index;
@@ -7408,7 +7407,7 @@ class Puzzle {
         }
         // Hexagonal grid
         else if (this.gridtype === "hex") {
-            this.selection.sort((a, b) => a >= b);
+            this.selection.sort((a, b) => a - b); // caneff: a boolean comparator never sorts
             let base_point = this.point[this.selection[0]];
             [base_x, base_y] = base_point.index;
 
@@ -7421,7 +7420,7 @@ class Puzzle {
         }
         // Square grid
         else if (this.grid_is_square()) {
-            this.selection.sort((a, b) => a >= b);
+            this.selection.sort((a, b) => a - b); // caneff: a boolean comparator never sorts
             let base_point = this.point[this.selection[0]];
             [base_x, base_y] = base_point.index;
 
@@ -7604,7 +7603,10 @@ class Puzzle {
         if (clipboard_data.gridtype !== this.gridtype)
             return;
 
-        let [base_x, base_y] = this.point[Math.min(...this.selection)].index;
+        // caneff: the base is the same cell copy used, which on a triangle grid is not the smallest id
+        let base_key = this.gridtype === "tri" ?
+            [...this.selection].sort((a, b) => this.tri_point_order(a, b))[0] : Math.min(...this.selection);
+        let [base_x, base_y] = this.point[base_key].index;
 
         // Create an indexing function for this specific grid type, to convert relative (x, y)
         // coordinates into an absolute point index
