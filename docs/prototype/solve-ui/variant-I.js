@@ -17,7 +17,21 @@
  * desk's card positions scale with it about the cursor; cards themselves keep their size. Loupes are separate canvases
  * redrawn from #canvas (drawn by Penpa+ at 2.5x, class_p.js:98, so a loupe up to 2.5x stays sharp) on every onChange.
  *
+ * Round 2 (judged on Logic Masters genres, not sudoku):
+ *   - The Tools card leads with the puzzle's kit: the 1-4 tools its genre needs (Masyu: "Loop + edge ×", "Loop + cell
+ *     ○ ×"; Fillomino: "Numbers", "Borders + ×"), read from the answer check's options, title and rules. Tab cycles
+ *     them; the card shows the current tool's mouse legend. The twelve modes, the Composite list and a Number tool's
+ *     kinds and styles fold under "All modes".
+ *   - Layout flows: Arrange (and the first layout) packs rules, notes and loupes into columns beside the board, and a
+ *     new loupe goes first under the Tools card, so adding one rarely shrinks the board. While the solver has not
+ *     panned, zoomed or moved a card, adding, closing or collapsing a card re-flows. A card the solver drags leaves the
+ *     flow; one dropped mostly onto the board slides off it; with the layout touched, a new loupe takes the first
+ *     free screen spot. Arrange re-measures until the board really fits above the switcher.
+ *   - A loupe opens at twice the board's current cell size (it was 2.5x of 100%, often barely larger than the board).
+ *
  * Bridge gaps worked around here (reading `pu` / the legacy DOM directly):
+ *   - Kit: no "tools this puzzle needs" call; read pu.get_answercheck_settings().answercheck_opt plus title/rules.
+ *   - Tab: Penpa+ cycles only a link's Tab set; a capture-phase keydown here takes Tab for the kit.
  *   - Shapes: no listShapes(); read from the legacy menu (#mode_symbolul1, ms1_* / ms_* spans), as variant A does.
  *   - Style swatch colours: read from the legacy label's computed background (`<id>_lb`).
  *   - Board px per cell: canvas width / pu.size, to fit the board and to map loupe regions in cell units.
@@ -51,6 +65,113 @@
         move: 'Drag an item to move it.'
     };
     const SUBMODE_FALLBACK = {number: {'3': '1/4', '9': 'Side'}};
+
+    /** Mouse legend per Composite tool: [gesture, effect] (Penpa+ README § Composite; each checked in the r2 run). */
+    const TOOL_LEGEND = {
+        blpo: [['Click', 'shade (again: dot)'], ['Right', 'dot'], ['Drag', 'many']],
+        blwh: [['Click', 'white (again: black)'], ['Right', 'black'], ['Drag', 'many']],
+        linex: [['Drag', 'loop through centres'], ['Right on edge', '× on the edge']],
+        lineox: [['Drag', 'loop through centres'], ['Click cell', '○ (again: ×)'], ['Right cell', '×']],
+        edgex: [['Drag', 'line on edges'], ['Right on edge', '× on the edge'], ['Right drag', 'many ×']],
+        edgexoi: [['Drag', 'line on edges'], ['Right on edge', '×'], ['Click cell', 'inside / outside']],
+        yajilin: [['Click', 'shade'], ['Drag', 'loop'], ['Right', 'dot in cell, × on edge']],
+        star: [['Click', 'star'], ['Right', '×'], ['Right drag', 'many ×']],
+        akari: [['Click', 'bulb'], ['Right', 'dot (no bulb)'], ['Drag', 'many']],
+        battleship: [['Click', 'cycle ● ■ ·'], ['Drag', 'ship end, toward the ship'], ['Right', 'water']]
+    };
+    const MODE_LEGEND = {
+        sudoku: [['Click/drag', 'select'], ['Type', 'digit'], ['Shift / Ctrl', 'corner / centre']],
+        number: [['Click', 'select a cell'], ['Type', 'digit'], ['Del', 'clear']],
+        surface: [['Click/drag', 'paint'], ['Right', 'second colour'], ['Again', 'erase']],
+        line: [['Drag', 'line through centres'], ['Drag again', 'erase']],
+        lineE: [['Drag', 'line on edges'], ['Drag again', 'erase']]
+    };
+
+    /**
+     * The puzzle's kit: the 1-4 tools a solver of this genre needs, main tool first. Read from the answer check's
+     * options (pu.get_answercheck_settings().answercheck_opt: the reliable signal, since genre tags are mostly absent),
+     * then the title and rules for what the check does not say (Yajilin vs Masyu, numbers in Fillomino).
+     * Each: {label, mode, sub (sub-mode or Composite tool), style?}.
+     */
+    function inferKit(B, availableSet) {
+        let opts = [];
+        try {
+            opts = (pu.get_answercheck_settings().answercheck_opt || []).map(String);
+        } catch (err) {
+            opts = [];
+        }
+        const info = B.getInfo();
+        const text = [info.title, info.rules, B.genreTags().join(' ')].join(' ').replace(/<[^>]+>/g, ' ');
+        const says = function(re) {
+            return re.test(text);
+        };
+        const comp = {};
+        B.listComposite().forEach(function(c) {
+            comp[c.name] = true;
+        });
+        const out = [];
+        function add(label, mode, sub, style) {
+            if (!availableSet[mode] || (mode === 'combi' && !comp[sub])) {
+                return false;
+            }
+            if (!out.some(function(t) {
+                return t.mode === mode && String(t.sub) === String(sub);
+            })) {
+                out.push({label: label, mode: mode, sub: sub, style: style});
+            }
+            return true;
+        }
+        const has = function(o) {
+            return opts.indexOf(o) !== -1;
+        };
+        const wantsNumbers = says(/fillomino|place (the )?digits|write (a )?(digit|number)|enter (a )?(digit|number)/i);
+        if (has('akari')) {
+            add('Bulbs + dots', 'combi', 'akari');
+        }
+        if (has('star battle')) {
+            add('Stars + ×', 'combi', 'star');
+        }
+        if (has('circle')) {
+            add('Black / white', 'combi', 'blwh');
+        }
+        if (has('battleship')) {
+            add('Ships + water', 'combi', 'battleship');
+        }
+        if (has('cell loop')) {
+            if (says(/yajilin/i) || (says(/\bshade/i) && !says(/masyu|maysu|pearl|circle/i))) {
+                add('Shade + loop', 'combi', 'yajilin');
+            } else {
+                add('Loop + edge ×', 'combi', 'linex');
+                add('Loop + cell ○ ×', 'combi', 'lineox');
+            }
+            add('Loop', 'line', '1', 3);
+            if (wantsNumbers) {
+                add('Numbers', 'number', '1');
+            }
+        }
+        if (wantsNumbers && !has('cell loop')) {
+            add('Numbers', 'number', '1');
+        }
+        if (has('edge loop')) {
+            const loop = says(/slither|loop/i) && !says(/fillomino|galax|region/i);
+            if (!add(loop ? 'Loop + ×' : 'Borders + ×', 'combi', 'edgex')) {
+                add(loop ? 'Loop' : 'Borders', 'lineE', '1', 3);
+            }
+        }
+        if (has('shading')) {
+            if (!add('Shade + dot', 'combi', 'blpo')) {
+                add('Shade', 'surface', '', 1);
+            }
+        }
+        if (has('number')) {
+            if (availableSet.sudoku && (pu.gridtype === 'sudoku' || !availableSet.number)) {
+                add('Digits', 'sudoku', '1');
+            } else {
+                add('Numbers', 'number', '1');
+            }
+        }
+        return out.slice(0, 4);
+    }
 
     window.PrototypeVariants = window.PrototypeVariants || {};
     window.PrototypeVariants.I = {
@@ -131,6 +252,7 @@
                     item.colBtn = btn('proto-i-cardbtn', '−', function() {
                         card.classList.toggle('is-collapsed');
                         item.colBtn.textContent = card.classList.contains('is-collapsed') ? '+' : '−';
+                        reflow();
                     }, 'Collapse / expand');
                     tools.appendChild(item.colBtn);
                 }
@@ -239,12 +361,21 @@
                     item.onClose(item);
                 }
                 renderCardsMenu();
+                reflow();
+            }
+
+            /** Re-run the layout, keeping card states, while the solver has not moved, panned or zoomed since. */
+            function reflow() {
+                if (!layoutTouched) {
+                    arrange(true);
+                }
             }
 
             function openItem(item) {
                 item.closed = false;
                 place(item);
                 raise(item);
+                reflow();
                 // Bring a desk card back into view if it is off-screen.
                 const r = item.el.getBoundingClientRect();
                 if (!item.pinned && (r.right < 40 || r.left > innerWidth - 40 || r.bottom < BAR_H + 20 || r.top > innerHeight - 40)) {
@@ -262,6 +393,8 @@
                 document.documentElement.classList.add('proto-i-dragging');
             }
             function moveDrag(e) {
+                layoutTouched = true;
+                drag.item.flow = false;
                 const dx = e.clientX - drag.x;
                 const dy = e.clientY - drag.y;
                 const it = drag.item;
@@ -363,20 +496,25 @@
                 marks.appendChild(loupe.mark);
                 item.wx = wx;
                 item.wy = wy;
+                item.flow = true;
                 loupes.push(loupe);
-                // Start at about 2.5 times the board's 100% size, capped to a comfortable card.
-                const fit = Math.min(380 / (region.w * BASE_CELL), 300 / (region.h * BASE_CELL));
-                setLoupeSize(loupe, Math.max(Math.min(2.5, fit), 160 / (region.w * BASE_CELL)));
+                // Start at twice the board's current cells, capped to a card of about 440 x 400 px.
+                const fit = Math.min(440 / (region.w * BASE_CELL), 400 / (region.h * BASE_CELL));
+                setLoupeSize(loupe, Math.max(Math.min(2 * view.cell / BASE_CELL, fit), 160 / (region.w * BASE_CELL)));
                 wireLoupeInput(loupe);
                 place(item);
                 raise(item);
-                // Keep the new card on screen.
-                const r = item.el.getBoundingClientRect();
-                const dx = Math.min(0, innerWidth - GAP - r.right) + Math.max(0, GAP - r.left);
-                const dy = Math.min(0, innerHeight - 70 - r.bottom) + Math.max(0, BAR_H + GAP - r.top);
-                item.wx += dx / zoom();
-                item.wy += dy / zoom();
-                place(item);
+                if (!layoutTouched) {
+                    arrange(true); // the loupe joins the flow beside the board
+                } else if (!placeFree(item)) {
+                    // No free spot: keep the new card on screen, over whatever is there.
+                    const r = item.el.getBoundingClientRect();
+                    const dx = Math.min(0, innerWidth - GAP - r.right) + Math.max(0, GAP - r.left);
+                    const dy = Math.min(0, innerHeight - 70 - r.bottom) + Math.max(0, BAR_H + GAP - r.top);
+                    item.wx += dx / zoom();
+                    item.wy += dy / zoom();
+                    place(item);
+                }
                 placeRegionMarks();
                 renderCardsMenu();
                 return loupe;
@@ -593,7 +731,9 @@
                         zoomAt(view.cell * 1.15, innerWidth / 2, innerHeight / 2);
                     }, 'Zoom in (Ctrl+wheel)'),
                     btn('', 'Fit', fitBoard, 'Fit the board to the free screen space'),
-                    btn('', 'Arrange', arrange, 'Re-run the automatic layout for this puzzle')
+                    btn('', 'Arrange', function() {
+                        arrange(false);
+                    }, 'Lay everything out again for this puzzle (also takes back cards you moved)')
                 ]),
                 el('span', {class: 'proto-i-group'}, [
                     btn('proto-i-btn-accent', '+ Loupe', startPicking, 'Pin a magnified live view of a board region'),
@@ -646,6 +786,7 @@
 
             /** Zoom the desk about a screen point: that point stays put; cards keep their size. */
             function zoomAt(px, sx, sy) {
+                layoutTouched = true;
                 const w = screenToWorld(sx, sy);
                 setCell(px);
                 view.panX = sx - w.x * zoom();
@@ -699,34 +840,95 @@
                 loupes.forEach(drawLoupe);
             }
 
-            /**
-             * The automatic first layout. Tools pinned top-left; the board as large as fits beside it; rules and notes
-             * stacked to the board's right when there is room for a 320 px column, otherwise below the board on the desk.
-             */
-            function arrange() {
-                [toolsItem, rulesItem, notesItem].forEach(function(it) {
-                    it.closed = false;
-                    it.el.classList.remove('is-collapsed');
-                    if (it.colBtn) {
-                        it.colBtn.textContent = '−';
+            /** Set the cell size as large as fits w x h (capped), re-measuring until the board card really fits. */
+            function fitCell(w, h, cap) {
+                let c = Math.min(cellToFit(w, h), cap);
+                for (let i = 0; i < 5; i++) {
+                    setCell(c);
+                    placeAll();
+                    if (boardItem.el.offsetWidth <= w && boardItem.el.offsetHeight <= h) {
+                        return;
                     }
+                    c = Math.min(c - 1, cellToFit(w, h));
+                }
+            }
+
+            /**
+             * The automatic layout ("Arrange"). Tools pinned top-left. The flowing cards (rules, loupes, notes, in that
+             * order) stack into columns of screen height to the board's right; the board takes the rest, as large as
+             * fits. A card the solver drags leaves the flow (it stays where it was put) until the next Arrange.
+             */
+            let layoutTouched = false;
+            function flowCards() {
+                return [rulesItem].concat(loupes.map(function(l) {
+                    return l.item;
+                }), [notesItem]).filter(function(it) {
+                    return !it.closed && it.flow !== false && !it.pinned;
                 });
-                toolsItem.pinned = true;
-                toolsItem.sx = GAP;
-                toolsItem.sy = BAR_H + GAP;
-                rulesItem.pinned = false;
-                notesItem.pinned = false;
-                [toolsItem, rulesItem, notesItem].forEach(updatePinLabel);
+            }
+            function arrange(keepManual) {
+                if (!keepManual) {
+                    [toolsItem, rulesItem, notesItem].forEach(function(it) {
+                        it.closed = false;
+                        it.el.classList.remove('is-collapsed');
+                        if (it.colBtn) {
+                            it.colBtn.textContent = '−';
+                        }
+                    });
+                    items.forEach(function(it) {
+                        it.flow = true;
+                    });
+                    toolsItem.pinned = true;
+                    toolsItem.sx = GAP;
+                    toolsItem.sy = BAR_H + GAP;
+                    rulesItem.pinned = false;
+                    notesItem.pinned = false;
+                    loupes.forEach(function(l) {
+                        l.item.pinned = false;
+                        updatePinLabel(l.item);
+                    });
+                    [toolsItem, rulesItem, notesItem].forEach(updatePinLabel);
+                }
+                layoutTouched = false;
                 view.panX = 0;
                 view.panY = 0;
-                place(toolsItem);
-                const left = GAP + toolsItem.el.offsetWidth + GAP;
-                const colW = 320;
-                const top = BAR_H + GAP;
-                const availW = innerWidth - left - colW - 2 * GAP;
-                const availH = innerHeight - top - BOTTOM;
-                setCell(Math.min(cellToFit(availW, availH), 64));
                 placeAll();
+                const top = BAR_H + GAP;
+                const availH = innerHeight - top - BOTTOM;
+                // The left column holds the pinned Tools card and, under it, loupes that fit; the rest of the flowing
+                // cards pack into columns of screen height to the board's right.
+                const toolsOpen = !toolsItem.closed && toolsItem.pinned;
+                const leftCol = {w: toolsOpen ? toolsItem.el.offsetWidth : 0, h: toolsOpen ? toolsItem.el.offsetHeight : -GAP,
+                    cards: []};
+                const cols = [];
+                let col = null;
+                const cards = flowCards();
+                cards.filter(function(it) {
+                    return it.kind !== 'loupe';
+                }).concat(cards.filter(function(it) {
+                    return it.kind === 'loupe';
+                })).forEach(function(it) {
+                    const h = it.el.offsetHeight;
+                    if (it.kind === 'loupe' && leftCol.h + GAP + h <= availH && it.el.offsetWidth <= 460) {
+                        leftCol.cards.push(it);
+                        leftCol.h += GAP + h;
+                        leftCol.w = Math.max(leftCol.w, it.el.offsetWidth);
+                        return;
+                    }
+                    if (!col || col.h + GAP + h > availH) {
+                        col = {w: 0, h: -GAP, cards: []};
+                        cols.push(col);
+                    }
+                    col.cards.push(it);
+                    col.h += GAP + h;
+                    col.w = Math.max(col.w, it.el.offsetWidth);
+                });
+                const left = GAP + (leftCol.w ? leftCol.w + GAP : 0);
+                const colsW = cols.reduce(function(a, c) {
+                    return a + c.w + GAP;
+                }, 0);
+                const availW = innerWidth - left - colsW - GAP;
+                fitCell(availW, availH, 64);
                 const bw = boardItem.el.offsetWidth;
                 const bh = boardItem.el.offsetHeight;
                 const bx = left + Math.max(0, (availW - bw) / 2);
@@ -734,16 +936,83 @@
                 const z = zoom();
                 boardItem.wx = bx / z;
                 boardItem.wy = by / z;
-                const cx = bx + bw + GAP;
-                rulesItem.wx = cx / z;
-                rulesItem.wy = top / z;
-                placeAll();
-                const rh = Math.min(rulesItem.el.offsetHeight, innerHeight * 0.55);
-                notesItem.wx = cx / z;
-                notesItem.wy = (top + rh + GAP) / z;
+                let ly = top + (toolsOpen ? toolsItem.el.offsetHeight + GAP : 0);
+                leftCol.cards.forEach(function(it) {
+                    it.wx = GAP / z;
+                    it.wy = ly / z;
+                    ly += it.el.offsetHeight + GAP;
+                });
+                let x = bx + bw + GAP;
+                cols.forEach(function(c) {
+                    let y = top;
+                    c.cards.forEach(function(it) {
+                        it.wx = x / z;
+                        it.wy = y / z;
+                        y += it.el.offsetHeight + GAP;
+                    });
+                    x += c.w + GAP;
+                });
                 placeAll();
                 loupes.forEach(drawLoupe);
                 renderCardsMenu();
+            }
+
+            /** Card rects on screen, except `skip`. */
+            function cardRects(skip) {
+                return items.filter(function(it) {
+                    return it !== skip && !it.closed;
+                }).map(function(it) {
+                    return it.el.getBoundingClientRect();
+                });
+            }
+            function overlaps(a, b, pad) {
+                return a.left < b.right + pad && b.left < a.right + pad && a.top < b.bottom + pad && b.top < a.bottom + pad;
+            }
+
+            /** Move a desk card to the first screen spot (right of the board first) where it overlaps nothing. */
+            function placeFree(item) {
+                const w = item.el.offsetWidth;
+                const h = item.el.offsetHeight;
+                const others = cardRects(item);
+                const br = boardItem.el.getBoundingClientRect();
+                const xs = [];
+                for (let x = Math.round(br.right + GAP); x + w <= innerWidth - GAP; x += 20) {
+                    xs.push(x);
+                }
+                for (let x = Math.round(br.left - GAP - w); x >= GAP; x -= 20) {
+                    xs.push(x);
+                }
+                for (let k = 0; k < xs.length; k++) {
+                    for (let y = BAR_H + GAP; y + h <= innerHeight - BOTTOM; y += 20) {
+                        const r = {left: xs[k], top: y, right: xs[k] + w, bottom: y + h};
+                        if (!others.some(function(o) {
+                            return overlaps(r, o, GAP / 2);
+                        })) {
+                            const p = screenToWorld(r.left, r.top);
+                            item.wx = p.x;
+                            item.wy = p.y;
+                            place(item);
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            /** A desk card dropped mostly onto the board slides off it, to the nearer side. */
+            function nudgeOffBoard(item) {
+                const r = item.el.getBoundingClientRect();
+                const b = boardItem.el.getBoundingClientRect();
+                const ix = Math.max(0, Math.min(r.right, b.right) - Math.max(r.left, b.left));
+                const iy = Math.max(0, Math.min(r.bottom, b.bottom) - Math.max(r.top, b.top));
+                if (ix * iy < 0.25 * r.width * r.height) {
+                    return;
+                }
+                const toRight = b.right + GAP - r.left;
+                const toLeft = b.left - GAP - r.right;
+                const dx = Math.abs(toRight) < Math.abs(toLeft) ? toRight : toLeft;
+                item.wx += dx / zoom();
+                place(item);
             }
 
             // ---- Pan: Space-drag, middle-drag, left-drag on bare desk, plain wheel -----------------------------
@@ -805,6 +1074,7 @@
             }, true);
             window.addEventListener('mousemove', function(e) {
                 if (pan) {
+                    layoutTouched = true;
                     view.panX = pan.px + e.clientX - pan.x;
                     view.panY = pan.py + e.clientY - pan.y;
                     placeAll();
@@ -820,6 +1090,9 @@
                     e.stopPropagation();
                 }
                 if (drag) {
+                    if (drag.item !== boardItem && !drag.item.pinned && drag.item.flow === false) {
+                        nudgeOffBoard(drag.item);
+                    }
                     drag = null;
                     document.documentElement.classList.remove('proto-i-dragging');
                 }
@@ -851,6 +1124,7 @@
                     return;
                 }
                 e.preventDefault();
+                layoutTouched = true;
                 const k = e.deltaMode === 1 ? 20 : 1;
                 view.panX -= (e.shiftKey ? e.deltaY : e.deltaX) * k;
                 view.panY -= (e.shiftKey ? 0 : e.deltaY) * k;
@@ -865,6 +1139,7 @@
                     }
                 });
                 placeAll();
+                reflow();
             });
 
             // ---- Tools card contents --------------------------------------------------------------------------
@@ -937,17 +1212,120 @@
                 return groups;
             }
 
+            // ---- The puzzle's kit: its 1-4 tools, Tab cycles them ------------------------------------------------
+            const kit = inferKit(B, availableSet);
+            function applyTool(t) {
+                if (B.getMode().mode !== t.mode) {
+                    B.setMode(t.mode);
+                }
+                if (t.mode === 'combi') {
+                    B.setComposite(t.sub);
+                } else if (t.sub) {
+                    B.setSubmode(t.sub);
+                }
+                if (t.style !== undefined && String(B.getMode().style) !== String(t.style)) {
+                    B.setStyle(t.style);
+                }
+            }
+            function isCurrent(t, m) {
+                return t.mode === m.mode && (t.sub === '' || t.sub === undefined || String(t.sub) === String(m.submode));
+            }
+            function kitIndex() {
+                const m = B.getMode();
+                return kit.findIndex(function(t) {
+                    return isCurrent(t, m);
+                });
+            }
+            if (kit.length && kitIndex() !== 0) {
+                applyTool(kit[0]); // start on the genre's main tool, whatever mode the link was saved in
+            }
+            if (kit.length > 1) {
+                // Penpa+ cycles only a link's Tab set (main.js:695); here Tab cycles the kit instead.
+                window.addEventListener('keydown', function(e) {
+                    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey || editable(e.target) ||
+                        document.querySelector('.swal2-container')) {
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const cur = kitIndex();
+                    const n = kit.length;
+                    applyTool(kit[cur === -1 ? 0 : (cur + (e.shiftKey ? n - 1 : 1)) % n]);
+                }, true);
+            }
+            let allModesOpen = !kit.length;
+            let toolListOpen = false;
+
+            function legendBox(rows) {
+                const box = el('div', {class: 'proto-i-legend'});
+                (rows || []).forEach(function(r) {
+                    box.appendChild(el('span', {class: 'proto-i-legend-g'}, [r[0]]));
+                    box.appendChild(el('span', {class: 'proto-i-legend-e'}, [r[1]]));
+                });
+                return box;
+            }
+
+            function foldHead(label, open, onToggle) {
+                const b = btn('proto-i-fold' + (open ? ' is-open' : ''), (open ? '▾ ' : '▸ ') + label, onToggle);
+                return b;
+            }
+
             function renderTools(m) {
                 toolsBody.textContent = '';
                 const mode = m.mode;
-                toolsBody.appendChild(choiceRow(null, available.map(function(x) {
-                    return {value: x.mode, label: x.label};
-                }), mode, B.setMode, 'proto-i-modes'));
+                if (kit.length) {
+                    const kitRow = el('div', {class: 'proto-i-kit'});
+                    kitRow.appendChild(el('div', {class: 'proto-i-rowlabel'},
+                        [kit.length > 1 ? 'This puzzle · Tab cycles' : 'This puzzle']));
+                    kit.forEach(function(t) {
+                        const on = isCurrent(t, m);
+                        const legend = t.mode === 'combi' ? TOOL_LEGEND[t.sub] : MODE_LEGEND[t.mode];
+                        const b = btn('proto-i-kitbtn' + (on ? ' is-on' : ''), '', function() {
+                            applyTool(t);
+                        }, (legend || []).map(function(r) {
+                            return r[0] + ': ' + r[1];
+                        }).join('\n'));
+                        b.appendChild(el('span', {class: 'proto-i-kitlabel'}, [t.label]));
+                        kitRow.appendChild(b);
+                    });
+                    toolsBody.appendChild(kitRow);
+                }
+                const curLegend = mode === 'combi' ? TOOL_LEGEND[m.submode] : MODE_LEGEND[mode];
+                if (curLegend) {
+                    toolsBody.appendChild(legendBox(curLegend));
+                }
+                if (kit.length) {
+                    toolsBody.appendChild(foldHead('All modes · now ' + (availableSet[mode] ? availableSet[mode].label : mode),
+                        allModesOpen, function() {
+                            allModesOpen = !allModesOpen;
+                            renderTools(B.getMode());
+                        }));
+                }
+                if (allModesOpen) {
+                    toolsBody.appendChild(choiceRow(null, available.map(function(x) {
+                        return {value: x.mode, label: x.label};
+                    }), mode, B.setMode, 'proto-i-modes'));
+                }
 
-                if (mode === 'combi') {
-                    toolsBody.appendChild(choiceRow('Tool', B.listComposite().map(function(c) {
+                if (mode === 'combi' && !allModesOpen) {
+                    // The kit names the tool; the full Composite list lives under "All modes".
+                } else if (mode === 'combi') {
+                    const list = B.listComposite().map(function(c) {
                         return {value: c.name, label: c.label};
-                    }), m.submode, B.setComposite, 'proto-i-grid2'));
+                    });
+                    const cur = list.find(function(c) {
+                        return c.value === m.submode;
+                    });
+                    toolsBody.appendChild(foldHead('Composite tool: ' + (cur ? cur.label : m.submode), toolListOpen, function() {
+                        toolListOpen = !toolListOpen;
+                        renderTools(B.getMode());
+                    }));
+                    if (toolListOpen) {
+                        toolsBody.appendChild(choiceRow(null, list, m.submode, function(v) {
+                            toolListOpen = false;
+                            B.setComposite(v);
+                        }, 'proto-i-grid2'));
+                    }
                 } else if (mode === 'symbol') {
                     const groups = shapeGroups();
                     const curGroup = groups.find(function(g) {
@@ -965,7 +1343,8 @@
                     }
                 } else if (mode !== 'surface' && mode !== 'multicolor') {
                     const subs = submodeItems(mode);
-                    if (subs.length > 1) {
+                    // With the kit folded, a Number tool shows only colour and pad; its kinds live under All modes.
+                    if (subs.length > 1 && (allModesOpen || mode === 'sudoku')) {
                         toolsBody.appendChild(choiceRow(mode === 'sudoku' ? 'Enter as' : 'Kind', subs, m.submode, B.setSubmode));
                     }
                 }
@@ -980,7 +1359,7 @@
                     toolsBody.appendChild(choiceRow(mode === 'surface' || mode === 'multicolor' ? 'Colour' : 'Colour',
                         colours, m.style, B.setStyle, 'proto-i-swatches'));
                 }
-                if (looks.length && mode !== 'symbol') {
+                if (looks.length && mode !== 'symbol' && allModesOpen) {
                     toolsBody.appendChild(choiceRow('Style', looks, m.style, B.setStyle));
                 }
                 if (mode === 'sudoku' || mode === 'number' || mode === 'symbol') {
@@ -995,7 +1374,9 @@
                     }, 'Clear the selected cells'));
                     toolsBody.appendChild(pad);
                 }
-                toolsBody.appendChild(el('div', {class: 'proto-i-hint'}, [HINTS[mode] || '']));
+                if (!curLegend) {
+                    toolsBody.appendChild(el('div', {class: 'proto-i-hint'}, [HINTS[mode] || '']));
+                }
                 const lb = availableSet[mode] ? availableSet[mode].label : mode;
                 toolsItem.titleEl.textContent = 'Tools · ' + lb;
             }
@@ -1051,7 +1432,7 @@
             });
             render(B.getState(), 'init');
             requestAnimationFrame(function() {
-                arrange();
+                arrange(false);
             });
 
             // Test hook for the prototype's headless checks: read-only view of the desk.
