@@ -3016,6 +3016,8 @@ function decode_puzzlink(url) {
             break;
     }
 
+    puzzlink_check_clues(pu); // caneff: a cut-off clue throws here, before the code below touches the page (#18)
+
     // Set PenpaLite
     // document.getElementById('advance_button').value = "1";
     document.getElementById("mode_break").classList.add('is_hidden');

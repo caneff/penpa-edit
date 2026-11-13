@@ -1949,8 +1949,10 @@ async function import_url(urlstring) {
                 selectBox.setValue(UserSettings.tab_settings);
             }
         } else if (urlstring.match(/\/puzz.link\/p\?|pzprxs\.vercel\.app\/p\?|\/pzv\.jp\/p(\.html)?\?/)) {
-            decode_puzzlink(urlstring);
-            document.getElementById("modal-load").style.display = 'none';
+            // caneff: a failed import keeps the dialog open (#18)
+            if (import_puzzlink(urlstring)) {
+                document.getElementById("modal-load").style.display = 'none';
+            }
         } else {
             Swal.fire({
                 html: PenpaText.get('invalid_url'),
