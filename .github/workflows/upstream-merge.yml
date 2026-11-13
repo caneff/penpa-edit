@@ -1,0 +1,88 @@
+name: Upstream merge
+
+# Merges upstream Penpa+ into master with a merge commit and pushes only when both test suites pass on the merged
+# tree; master:/docs is what Pages serves, so the push publishes. A conflict, a red run or a refused push pushes
+# nothing and files one issue, or comments on it while it is open.
+on:
+  schedule:
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency: upstream-merge
+
+env:
+  REPORT: ${{ github.workspace }}/../upstream-merge-report.md
+  TEST_LOG: ${{ github.workspace }}/../upstream-merge-test.log
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: master
+          fetch-depth: 0
+      - name: Fetch upstream and set the bot's commit identity
+        run: |
+          git remote add upstream https://github.com/swaroopg92/penpa-edit.git
+          git fetch upstream master
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - id: merge
+        name: Merge upstream/master
+        shell: bash
+        run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT"
+      - if: steps.merge.outputs.merged == 'true'
+        uses: ./.github/actions/setup-tests
+      - id: tests
+        if: steps.merge.outputs.merged == 'true'
+        name: npm test && npm run test:live
+        shell: bash
+        run: |
+          status=0
+          npm test 2>&1 | tee "$TEST_LOG" || status=1
+          npm run test:live 2>&1 | tee -a "$TEST_LOG" || status=1
+          exit "$status"
+      - id: push
+        if: steps.merge.outputs.merged == 'true'
+        run: git push origin HEAD:master
+      - name: Run summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          if [[ '${{ steps.merge.outputs.merged }}' == false ]]; then
+            echo 'Upstream has nothing new.' >>"$GITHUB_STEP_SUMMARY"
+          fi
+          # The report is absent when a step before the merge failed; the issue step says so.
+          if [[ -f $REPORT ]]; then cat "$REPORT" >>"$GITHUB_STEP_SUMMARY"; fi
+      - if: failure()
+        name: File or comment on the issue
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          body="$RUNNER_TEMP/issue-body.md"
+          {
+            if [[ '${{ steps.merge.outcome }}' == failure ]]; then
+              echo 'The merge of upstream/master failed; nothing was pushed.'
+            elif [[ '${{ steps.tests.outcome }}' == failure ]]; then
+              echo 'The merged tree failed `npm test && npm run test:live`; nothing was pushed.'
+              echo
+              echo '## Failing tests'
+              echo
+              bash .github/scripts/failing-tests.sh "$TEST_LOG"
+            elif [[ '${{ steps.push.outcome }}' == failure ]]; then
+              echo 'The push to master was refused; nothing was pushed. Either master moved during the run, or upstream'
+              echo 'changed `.github/workflows/`, which the workflow token cannot push.'
+            else
+              echo 'A step before the merged tree was tested failed; nothing was pushed.'
+            fi
+            echo
+            if [[ -f $REPORT ]]; then cat "$REPORT"; echo; fi
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          } >"$body"
+          bash .github/scripts/file-issue-once.sh 'Nightly upstream merge failed' "$body"
