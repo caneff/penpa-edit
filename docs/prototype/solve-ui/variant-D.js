@@ -2,119 +2,144 @@
  * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant D, "Radial menu".
  * Owned by variant D's builder: this file and variant-D.css only. See README.md for the contract.
  *
- * The idea: no toolbar. Hold Space (or press and hold the right mouse button) and a two-level marking menu opens
- * at the pointer. Ring 1 holds the six mode families (GLOSSARY.md, Mode family) at fixed compass directions; flick
- * toward one, then flick again (a zig-zag) into ring 2, its tools at the 8 compass points. Release to commit.
- * Flicks done before the dwell delay never draw the menu (a marking menu, Kurtenbach 1993): the stroke is
- * recognised from its shape on release. A short flick commits the family's last-used tool; a long straight flick
- * commits the tool that sits in the family's own direction (its primary). Press and release without moving leaves
- * the menu open for clicking. A minimal pill in the top-left corner names the current mode; undo, redo and the
- * answer check sit in the top-right corner.
+ * The idea: no toolbar. Hold Space, or press the middle mouse button and drag, and a two-level marking menu opens
+ * at the pointer. Ring 1 holds eight roles at fixed compass points, the same on every puzzle so a flick is
+ * learnable once: N Number, NE Genre (the puzzle's own object: star, bulb, ship, yin-yang circle), E Loop (lines
+ * through cells), SE Colour, S Shade, SW Stamp, W Edge (lines on cell borders), NW All tools. What sits in each
+ * role is chosen per puzzle from what it needs: the answer check, the genre tags, the title and rules, and the
+ * modes the link shows. On a Slitherlink, W is Composite "Edge x"; on a Fillomino, W is the same but N is the
+ * value tool; on a Galaxies link with no Composite, W is plain Edge. Roles the puzzle needs are lit, the rest dim,
+ * roles with nothing available are blank. A straight flick always commits the role's pick for this puzzle (never
+ * "last used": a flick that changes meaning is not learnable); a zig-zag picks an alternative from the role's
+ * second ring, whose compass points are the same on every puzzle. Flicks done before the
+ * dwell delay never draw the menu (a marking menu, Kurtenbach 1993). Press and release without moving (or a
+ * middle click) leaves the menu up for clicking. The right button is left to Penpa+: every Composite tool uses it
+ * for its second mark (x, dot, water). A pill in the top-left names the current tool and its mouse grammar.
  *
  * Claim tested: speed comes from muscle memory, and a radial flick is learnable.
  *
- * Bridge gaps worked around here (read pu / dispatch events directly):
- *  - Right button: Penpa acts on mousedown, so a right press is held back for HOLD_MS; a quick right click or a
- *    right drag that starts early is replayed to #canvas as synthetic events (bridge.pointer cannot hand over a
- *    drag that the real mouse continues).
- *  - Number sub-modes 3 and 9 have image labels (empty text in listSubmodes); named here as 1/4 and Side.
- *  - No "current Composite tool label" call; read from listComposite().
+ * Bridge gaps worked around here (read pu / the legacy DOM directly):
+ *  - No "what does this puzzle need" call: the answer-check text (answerCheckInfo, HTML) is parsed with regexes.
+ *  - setMode restores a mode's last style, which a setter may have left non-green; the answer check wants green
+ *    lines and edges, so Line / Edge items set style 3 themselves.
+ *  - listComposite() lists every Composite tool even when the link hides Composite (Galaxies, the sudoku);
+ *    Composite items are only offered when listModes() has 'combi'.
+ *  - Number sub-modes 3 and 9 have image labels (empty text in listSubmodes).
+ *  - onChange does not fire when setComposite / setShape switches tool inside Composite / Shape; the pill is
+ *    refreshed by hand after every pick.
+ *  - Composite's right-click on a cell centre in Line x does nothing, so Masyu has no cell-exclusion mark in its
+ *    Loop pick; the Loop ring's S slot (Yajilin: line + right-click dot) or the Shade flick (Black/dot) give one.
+ *  - No Shape list call: the Stamp ring names a few legacy shape ids (circle_L, square_L, ox_B, ...).
  */
 (function() {
     'use strict';
 
     // ---- Geometry and timing (px, ms) -------------------------------------------------------------------------
     const R_DEAD = 12;       // release inside this = no stroke (tap / sticky menu)
-    const R_FAMILY = 30;     // stroke must leave this radius to pick a family
+    const R_ROLE = 30;       // stroke must leave this radius to pick a role
     const R_SUB = 28;        // second segment must be this long to pick a ring-2 tool
-    const R_STRAIGHT = 130;  // a straight stroke this long picks the tool in the family's own direction
-    const CORNER_EXCESS = 8;
-    const RING1_R = 78;      // where ring-1 bubbles are drawn
-    const RING2_R = 92;
-    const RING2_OPEN = 110;  // visible menu: crossing this distance opens ring 2 at the pointer
+    const CORNER_EXCESS = 10;
+    const RING1_R = 110;     // where ring-1 bubbles are drawn
+    const RING2_R = 104;
+    const RING2_OPEN = 134;  // visible menu: crossing this distance opens ring 2 at the pointer
     const DWELL_MS = 260;    // pause this long and the menu shows
-    const HOLD_MS = 180;     // right button: hold this long before it becomes the menu
 
-    // Compass slots for ring 2: 0 = N, 1 = NE, ... 7 = NW. Ring 1 uses 6 sectors of 60 degrees, 0 = N.
-    // Each family's primary tool sits in ring 2 at the compass point nearest the family's own direction, so a long
-    // straight flick picks it.
-    const FAMILIES = [
-        {key: 'value', label: 'Value', color: '#5aa9ff', items: [
-            {label: 'Sudoku', sub: 'Normal', mode: 'sudoku', submode: 1},
-            {label: 'Sudoku', sub: 'Corner', mode: 'sudoku', submode: 2},
-            {label: 'Sudoku', sub: 'Centre', mode: 'sudoku', submode: 3},
-            {label: 'Number', sub: 'Candidates', mode: 'number', submode: 7},
-            {label: 'Number', sub: 'Normal', mode: 'number', submode: 1},
-            {label: 'Number', sub: 'Side', mode: 'number', submode: 9},
-            {label: 'Number', sub: 'Long', mode: 'number', submode: 8},
-            {label: 'Number', sub: '1/4', mode: 'number', submode: 3}
-        ]},
-        {key: 'paint', label: 'Paint', color: '#f0a040', items: [
-            {label: 'Shade', sub: 'Light grey', mode: 'surface', style: 3, swatch: '#ccc'},
-            {label: 'Shade', sub: 'Dark grey', mode: 'surface', style: 1, swatch: '#444'},
-            {label: 'Shade', sub: 'Grey', mode: 'surface', style: 8, swatch: '#999'},
-            {label: 'Shade', sub: 'Green', mode: 'surface', style: 2, swatch: '#8c8'},
-            {label: 'Shade', sub: 'Yellow', mode: 'surface', style: 7, swatch: '#ee6'},
-            {label: 'Shade', sub: 'Blue', mode: 'surface', style: 5, swatch: '#8bf'},
-            {label: 'Shade', sub: 'Red', mode: 'surface', style: 6, swatch: '#f88'},
-            {label: 'Multicolor', sub: 'select + digit', mode: 'multicolor'}
-        ]},
-        {key: 'path', label: 'Path', color: '#59d18b', items: [
-            {label: 'Line', sub: 'Free', mode: 'line', submode: 3},
-            {label: 'Line', sub: 'Diagonal', mode: 'line', submode: 2},
-            {label: 'Line', sub: 'Middle', mode: 'line', submode: 5},
-            {label: 'Line', sub: 'Normal', mode: 'line', submode: 1},
-            {label: 'Edge', sub: 'Normal', mode: 'lineE', submode: 1},
-            {label: 'Edge', sub: 'Helper (x)', mode: 'lineE', submode: 4},
-            {label: 'Wall', sub: '', mode: 'wall'},
-            {label: 'Line', sub: 'Helper (x)', mode: 'line', submode: 4}
-        ]},
-        {key: 'genre', label: 'Genre', color: '#e070d0', items: [
-            {label: 'Black/dot', combi: 'blpo'},
-            {label: 'Star', combi: 'star'},
-            {label: 'Tents', combi: 'tents'},
-            {label: 'Akari', combi: 'akari'},
-            {label: 'Line/x', combi: 'linex'},
-            {label: 'Yajilin', combi: 'yajilin'},
-            {label: 'Edge/x', combi: 'edgex'},
-            {label: 'More...', more: true}
-        ]},
-        {key: 'stamp', label: 'Stamp', color: '#c8a0ff', items: [
-            {label: 'Thermo', mode: 'special', submode: 'thermo'},
-            {label: 'Square', shape: 'square_L'},
-            {label: 'O / X', shape: 'ox_B'},
-            {label: 'Cage', sub: 'Killer', mode: 'cage', submode: 1},
-            {label: 'Cage', sub: 'Free', mode: 'cage', submode: 2},
-            {label: 'Circle', shape: 'circle_L'},
-            {label: 'Arrow', mode: 'special', submode: 'arrows'},
-            {label: 'Triangle', shape: 'triup_L'}
-        ]},
-        {key: 'move', label: 'Move', color: '#a0a8b8', items: [
-            null,
-            null,
-            {label: 'Move', sub: 'Numbers', mode: 'move', submode: 2},
-            null,
-            null,
-            null,
-            {label: 'Move', sub: 'Shapes', mode: 'move', submode: 3},
-            {label: 'Move', sub: 'All', mode: 'move', submode: 1}
-        ]}
-    ];
-    const FAMILY_OF_MODE = {
-        sudoku: 0, number: 0, surface: 1, multicolor: 1, line: 2, lineE: 2, wall: 2,
-        combi: 3, symbol: 4, special: 4, cage: 4, move: 5
-    };
-    const MODE_LABEL = {
-        sudoku: 'Sudoku', number: 'Number', surface: 'Shade', multicolor: 'Multicolor', line: 'Line', lineE: 'Edge',
-        wall: 'Wall', combi: 'Genre', symbol: 'Shape', special: 'Special', cage: 'Cage', move: 'Move'
-    };
     const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const ARROW = ['↑', '↗', '→', '↘', '↓', '↙', '←', '↖'];
+
+    // ---- Tool catalogue ---------------------------------------------------------------------------------------
+    // `how` is the tool's mouse grammar, shown in the pill (Penpa+ README § Composite, research/penpa-mode-key-map.md).
+    const T = {
+        sudoku1: {label: 'Digit', sub: 'Sudoku', mode: 'sudoku', submode: 1, how: 'select · type 1-9'},
+        sudoku3: {label: 'Centre', sub: 'pencil', mode: 'sudoku', submode: 3, how: 'select · type'},
+        sudoku2: {label: 'Corner', sub: 'pencil', mode: 'sudoku', submode: 2, how: 'select · type'},
+        number1: {label: 'Number', sub: 'Normal', mode: 'number', submode: 1, how: 'click cell · type'},
+        number7: {label: 'Candidates', sub: 'Number', mode: 'number', submode: 7, how: 'click cell · type'},
+        number5: {label: 'Small', sub: 'Number S', mode: 'number', submode: 5, how: 'click cell · type'},
+        number8: {label: 'Long', sub: 'Number', mode: 'number', submode: 8, how: 'click cell · type'},
+
+        blwh: {label: 'Yin-Yang', sub: '○ ●', combi: 'blwh', how: 'click ○, again ● · right ●'},
+        star: {label: 'Star', sub: '★ ×', combi: 'star', how: 'click ★ · right × · right on edge: dot'},
+        akari: {label: 'Bulb', sub: 'Akari', combi: 'akari', how: 'click bulb · right dot / ×'},
+        battleship: {label: 'Ships', sub: 'Battleship', combi: 'battleship', how: 'click cycles ● ■ · drag: ship end · right: water'},
+        tents: {label: 'Tents', combi: 'tents', how: 'click tent · drag line · right ×'},
+        mines: {label: 'Mines', combi: 'mines', how: 'click mine · right ×'},
+        doublemines: {label: '2 Mines', combi: 'doublemines', how: 'click 1, 2 mines · right ×'},
+        magnets: {label: 'Magnets', combi: 'magnets', how: 'click + − ■'},
+
+        linex: {label: 'Loop', sub: 'line + ×', combi: 'linex', how: 'drag: line · right: × on edge, dot in cell'},
+        yajilin: {label: 'Yajilin', sub: '■ + loop', combi: 'yajilin', how: 'click ■ · drag: line · right: dot / ×'},
+        lineox: {label: 'Line OX', combi: 'lineox', how: 'click ○, again × · drag: line'},
+        linedir: {label: 'Line <>', sub: 'directed', combi: 'linedir', how: 'drag: line · right on edge: × < >'},
+        line1: {label: 'Line', sub: 'plain', mode: 'line', submode: 1, style: 3, how: 'drag: line'},
+        line4: {label: 'Line ×', sub: 'helper', mode: 'line', submode: 4, how: 'click edge: ×'},
+        line3: {label: 'Line', sub: 'free', mode: 'line', submode: 3, style: 3, how: 'drag: line'},
+        hashi: {label: 'Hashi', combi: 'hashi', how: 'drag: bridge, again: double'},
+
+        edgex: {label: 'Edge', sub: 'edge + ×', combi: 'edgex', how: 'drag: edge · right: ×'},
+        lineE1: {label: 'Edge', sub: 'plain', mode: 'lineE', submode: 1, style: 3, how: 'drag: edge'},
+        lineE4: {label: 'Edge ×', sub: 'helper', mode: 'lineE', submode: 4, how: 'click edge: ×'},
+        edgexoi: {label: 'Edge IO', sub: 'in / out', combi: 'edgexoi', how: 'drag: edge · right ×'},
+        wall: {label: 'Wall', mode: 'wall', how: 'drag: wall'},
+        edgesub: {label: 'Edge aux', combi: 'edgesub', how: 'drag'},
+
+        blpo: {label: 'Shade', sub: '■ + dot', combi: 'blpo', how: 'click ■, again dot · right dot'},
+        surf1: {label: 'Dark grey', mode: 'surface', style: 1, swatch: '#444', how: 'click / drag · right: 2nd colour'},
+        surf8: {label: 'Grey', mode: 'surface', style: 8, swatch: '#999', how: 'click / drag · right: 2nd colour'},
+        surf3: {label: 'Light grey', mode: 'surface', style: 3, swatch: '#ccc', how: 'click / drag · right: 2nd colour'},
+        surf4: {label: 'Black', mode: 'surface', style: 4, swatch: '#000', how: 'click / drag · right: 2nd colour'},
+        shaka: {label: 'Shakashaka', combi: 'shaka', how: 'pull: triangle · click dot'},
+
+        multi: {label: 'Multicolor', sub: 'select + 1-9', mode: 'multicolor', how: 'select · type 1-9'},
+        surf7: {label: 'Yellow', mode: 'surface', style: 7, swatch: '#ee6', how: 'click / drag'},
+        surf2: {label: 'Green', mode: 'surface', style: 2, swatch: '#8c8', how: 'click / drag'},
+        surf5: {label: 'Blue', mode: 'surface', style: 5, swatch: '#8bf', how: 'click / drag'},
+        surf6: {label: 'Red', mode: 'surface', style: 6, swatch: '#f88', how: 'click / drag'},
+        surf9: {label: 'Pink', mode: 'surface', style: 9, swatch: '#f9c', how: 'click / drag'},
+        surf10: {label: 'Orange', mode: 'surface', style: 10, swatch: '#fa5', how: 'click / drag'},
+
+        circle: {label: 'Circle', shape: 'circle_L', how: 'click cell · digit = variant'},
+        square: {label: 'Square', shape: 'square_L', how: 'click cell · digit = variant'},
+        ox: {label: 'O / X', shape: 'ox_B', how: 'click cycles'},
+        tri: {label: 'Triangle', shape: 'triup_L', how: 'click cell'},
+        thermo: {label: 'Thermo', mode: 'special', submode: 'thermo', how: 'drag'},
+        arrow: {label: 'Arrow', mode: 'special', submode: 'arrows', how: 'drag'},
+        cage1: {label: 'Cage', sub: 'Killer', mode: 'cage', submode: 1, how: 'drag'},
+        move: {label: 'Move', mode: 'move', submode: 1, how: 'drag an item'}
+    };
+    Object.keys(T).forEach(function(k) {
+        T[k].id = k;
+    });
+
+    /**
+     * The eight roles. `slots` is ring 2, by compass point; it is the same on every puzzle (an empty or unavailable
+     * slot stays blank) so a zig-zag means the same thing everywhere. The role's own pick for this puzzle comes from
+     * pickFor() and is what a straight flick commits until another tool in the role is used.
+     */
+    const ROLES = [
+        {key: 'number', label: 'Number', color: '#5aa9ff',
+            slots: [T.sudoku1, T.number7, T.sudoku3, T.number8, T.number1, T.number5, T.sudoku2, null]},
+        {key: 'genre', label: 'Genre', color: '#e070d0',
+            slots: [T.star, T.akari, T.battleship, T.blwh, T.tents, T.mines, T.doublemines, T.magnets]},
+        {key: 'loop', label: 'Loop', color: '#59d18b',
+            slots: [T.linex, T.linedir, T.line1, T.line4, T.yajilin, T.line3, T.lineox, T.hashi]},
+        {key: 'colour', label: 'Colour', color: '#f0c040',
+            slots: [T.multi, T.surf7, T.surf2, T.surf5, T.surf6, T.surf9, T.surf10, null]},
+        {key: 'shade', label: 'Shade', color: '#c0c6d0',
+            slots: [T.blpo, T.surf3, T.surf8, T.surf1, T.surf4, null, T.shaka, null]},
+        {key: 'stamp', label: 'Stamp', color: '#c8a0ff',
+            slots: [T.circle, T.square, T.ox, T.tri, T.thermo, T.arrow, T.cage1, T.move]},
+        {key: 'edge', label: 'Edge', color: '#ff9a5a',
+            slots: [T.edgex, T.edgexoi, T.lineE1, T.lineE4, T.wall, T.edgesub, null, null]},
+        {key: 'all', label: 'All…', color: '#a0a8b8', slots: []}
+    ];
+    const ALL = 7;
 
     let B, H;
-    let root, overlay, svg, trail, pill, toastEl, morePanel;
+    let root, overlay, svg, trail, pill, toastEl, hintEl, allPanel;
     let g = null;               // the gesture in progress, or the open sticky menu
     let mouse = {x: 800, y: 450};
-    const lastItem = {};        // family index -> item last used in it
+    let kit = null;             // what this puzzle needs, from analyse()
 
     // ---- Small helpers ----------------------------------------------------------------------------------------
     function dist(a, b) {
@@ -123,9 +148,6 @@
     /** Compass angle in degrees, 0 = up, clockwise. */
     function angle(a, b) {
         return (Math.atan2(b.x - a.x, a.y - b.y) * 180 / Math.PI + 360) % 360;
-    }
-    function sector6(deg) {
-        return Math.round(deg / 60) % 6;
     }
     function sector8(deg) {
         return Math.round(deg / 45) % 8;
@@ -138,9 +160,9 @@
         return H.el(tag, attrs, children);
     }
 
-    // ---- What is available for this puzzle -------------------------------------------------------------------
-    let avail = null;
-    function computeAvail() {
+    // ---- What this puzzle offers and needs -------------------------------------------------------------------
+    /** Read the link: modes shown, answer check, genre words. Sets `kit`. */
+    function analyse() {
         const modes = new Set(B.listModes().map(function(m) {
             return m.mode;
         }));
@@ -150,57 +172,90 @@
                 return String(s.value);
             }));
         });
-        const styles = new Set(B.listStyles('surface').map(function(s) {
-            return s.value;
-        }));
         const combis = modes.has('combi') ? B.listComposite() : [];
-        avail = {modes: modes, subs: subs, styles: styles, combis: combis, combiNames: new Set(combis.map(function(c) {
+        const info = B.getInfo();
+        const words = (B.genreTags().join(' ') + ' ' + (info.title || '') + ' ' + (info.rules || '')).toLowerCase();
+        const check = (B.answerCheckInfo() || '').replace(/<[^>]+>/g, ' ');
+        const pu = window.pu;
+        const square = pu && (pu.gridtype === 'square' || pu.gridtype === 'sudoku' || pu.gridtype === 'kakuro');
+        const need = {
+            edge: /Edge must/i.test(check),
+            line: /Line must/i.test(check),
+            shade: /Shade cells/i.test(check),
+            numbers: /Numbers must/i.test(check),
+            bulbs: /Light bulbs/i.test(check) || /\bakari\b/.test(words),
+            stars: /\bStars\b/.test(check) || /star ?battle/.test(words),
+            ships: /Battleship/i.test(check) || /\bships?\b|battleship/.test(words),
+            circles: /White and Black circles/i.test(check) || /yin.?yang/.test(words),
+            yajilin: /yajilin/.test(words),
+            loop: /\bloop\b/.test(words),
+            fillo: /fillomino|region sizes?|size of the region/.test(words)
+        };
+        kit = {modes: modes, subs: subs, combis: combis, combiNames: new Set(combis.map(function(c) {
             return c.name;
-        }))};
+        })), need: need, square: square};
+        const has = function(item) {
+            return item && itemEnabled(item);
+        };
+        const first = function() {
+            for (let i = 0; i < arguments.length; i++) {
+                if (has(arguments[i])) {
+                    return arguments[i];
+                }
+            }
+            return null;
+        };
+        // Each role's pick for this puzzle, and whether the puzzle needs the role.
+        kit.pick = [
+            square ? first(T.sudoku1, T.number1) : first(T.number1, T.sudoku1),
+            first(need.stars && T.star, need.bulbs && T.akari, need.ships && T.battleship, need.circles && T.blwh),
+            first(need.yajilin && T.yajilin, T.linex, T.line1),
+            first(T.multi, T.surf7),
+            first(T.blpo, T.surf8),
+            first(T.circle),
+            first(T.edgex, T.lineE1),
+            null
+        ];
+        if (!kit.pick[1]) {
+            kit.pick[1] = ROLES[1].slots.find(has) || null;
+        }
+        kit.needed = [
+            need.numbers || need.fillo || pu.gridtype === 'sudoku' || (B.getMode().mode === 'sudoku' && !need.edge),
+            need.stars || need.bulbs || need.ships || need.circles,
+            need.line,
+            false,
+            need.shade && !need.ships,
+            false,
+            need.edge,
+            false
+        ];
     }
     function itemEnabled(item) {
         if (!item) {
             return false;
         }
-        if (item.more) {
-            return avail.combis.length > 0;
-        }
         if (item.combi) {
-            return avail.combiNames.has(item.combi);
+            return kit.combiNames.has(item.combi);
         }
         if (item.shape) {
-            return avail.modes.has('symbol');
+            return kit.modes.has('symbol');
         }
-        if (!avail.modes.has(item.mode)) {
+        if (!kit.modes.has(item.mode)) {
             return false;
         }
-        if (item.submode != null && avail.subs[item.mode] && avail.subs[item.mode].size > 0) {
-            return avail.subs[item.mode].has(String(item.submode));
-        }
-        if (item.style != null) {
-            return avail.styles.has(item.style);
+        if (item.submode != null && kit.subs[item.mode] && kit.subs[item.mode].size > 0) {
+            return kit.subs[item.mode].has(String(item.submode));
         }
         return true;
     }
-    function familyEnabled(fi) {
-        return FAMILIES[fi].items.some(itemEnabled);
+    function roleEnabled(ri) {
+        return ri === ALL || ROLES[ri].slots.some(itemEnabled);
     }
-    function familyDefault(fi) {
-        const last = lastItem[fi];
-        if (last && itemEnabled(last) && !last.more) {
-            return last;
-        }
-        // No history yet: the primary (the slot in the family's own direction), else the first one that works here.
-        const primary = FAMILIES[fi].items[sector8(fi * 60)];
-        if (itemEnabled(primary) && !primary.more) {
-            return primary;
-        }
-        return FAMILIES[fi].items.find(function(it) {
-            return itemEnabled(it) && !it.more;
-        }) || null;
+    function roleTool(ri) {
+        return kit.pick[ri] || ROLES[ri].slots.find(itemEnabled) || null;
     }
     function itemMatches(item, st) {
-        if (!item || item.more) {
+        if (!item) {
             return false;
         }
         if (item.combi) {
@@ -215,17 +270,28 @@
         if (item.submode != null && String(item.submode) !== st.submode) {
             return false;
         }
-        if (item.style != null && item.style !== st.style) {
+        if (item.mode === 'surface' && item.style != null && item.style !== st.style) {
             return false;
         }
         return true;
+    }
+    function roleOf(st) {
+        for (let ri = 0; ri < ALL; ri++) {
+            const item = ROLES[ri].slots.find(function(it) {
+                return itemMatches(it, st);
+            });
+            if (item) {
+                return {ri: ri, item: item};
+            }
+        }
+        return null;
     }
     function itemLabel(item) {
         return item.sub ? item.label + ' · ' + item.sub : item.label;
     }
 
     // ---- Applying a tool --------------------------------------------------------------------------------------
-    function apply(item, fi) {
+    function apply(item, ri) {
         if (item.combi) {
             B.setComposite(item.combi);
         } else if (item.shape) {
@@ -239,14 +305,14 @@
                 B.setStyle(item.style);
             }
         }
-        lastItem[fi] = item;
+        updatePill(B.getState()); // onChange misses a Composite-to-Composite or Shape-to-Shape switch
         flashPill();
-        toast(itemLabel(item), FAMILIES[fi].color);
+        toast(itemLabel(item), ri != null ? ROLES[ri].color : '#888');
     }
 
     // ---- Stroke recognition (hidden menu) ---------------------------------------------------------------------
     /**
-     * Recognise a stroke from its points: {family, sub} where sub is a compass slot or null.
+     * Recognise a stroke from its points: {role, sub} where sub is a compass slot or null.
      * A corner is the point P that maximises |OP| + |PE| - |OE| (handles side turns and reversals).
      */
     function recognize(o, pts) {
@@ -254,8 +320,8 @@
         pts.forEach(function(p) {
             far = Math.max(far, dist(o, p));
         });
-        if (far < R_FAMILY || pts.length === 0) {
-            return {family: null, sub: null, far: far};
+        if (far < R_ROLE || pts.length === 0) {
+            return {role: null, sub: null, far: far};
         }
         const e = pts[pts.length - 1];
         const oe = dist(o, e);
@@ -268,15 +334,14 @@
                 best = p;
             }
         });
-        if (best && bestEx > CORNER_EXCESS && dist(o, best) > R_FAMILY && dist(best, e) > R_SUB) {
-            return {family: sector6(angle(o, best)), sub: sector8(angle(best, e)), corner: best, far: far};
+        if (best && bestEx > CORNER_EXCESS && dist(o, best) > R_ROLE && dist(best, e) > R_SUB) {
+            return {role: sector8(angle(o, best)), sub: sector8(angle(best, e)), corner: best, far: far};
         }
-        if (oe < R_FAMILY) {
+        if (oe < R_ROLE) {
             // Went out and came back without a clear second segment: cancel.
-            return {family: null, sub: null, far: far};
+            return {role: null, sub: null, far: far};
         }
-        const a = angle(o, e);
-        return {family: sector6(a), sub: oe > R_STRAIGHT ? sector8(a) : null, far: far};
+        return {role: sector8(angle(o, e)), sub: null, far: far};
     }
 
     // ---- The visible menu ------------------------------------------------------------------------------------
@@ -290,7 +355,7 @@
         if (opts.swatch) {
             b.appendChild(el('span', {class: 'proto-d-swatch', style: 'background:' + opts.swatch}, []));
         }
-        b.appendChild(document.createTextNode(text));
+        b.appendChild(el('span', {class: 'proto-d-text'}, [text]));
         if (opts.subtext) {
             b.appendChild(el('span', {class: 'proto-d-subtext'}, [opts.subtext]));
         }
@@ -315,67 +380,77 @@
             return;
         }
         const st = B.getMode();
+        const cur = roleOf(st);
         const o = g.origin;
         const prov = provisional();
-        const fi = g.c ? (g.sticky ? g.family : prov.family) : null;
-        if (fi == null || !g.c) {
-            // Ring 1: the six families around the origin.
+        const ri = g.c ? (g.sticky ? g.role : prov.role) : null;
+        if (ri == null || !g.c) {
+            // Ring 1: the eight roles around the origin; each shows the tool a straight flick commits.
             const hub = el('div', {class: 'proto-d-hub'}, []);
             hub.style.left = o.x + 'px';
             hub.style.top = o.y + 'px';
             overlay.appendChild(hub);
-            FAMILIES.forEach(function(f, i) {
-                const d = dir(i * 60, RING1_R);
-                const on = familyEnabled(i);
+            ROLES.forEach(function(r, i) {
+                const d = dir(i * 45, RING1_R);
+                const on = roleEnabled(i);
+                const tool = i === ALL ? null : roleTool(i);
                 const cls = ['proto-d-ring1'];
                 if (!on) {
                     cls.push('is-off');
+                } else if (kit.needed[i]) {
+                    cls.push('is-need');
                 }
-                if (prov.family === i) {
+                if (prov.role === i) {
                     cls.push('is-hot');
                 }
-                if (FAMILY_OF_MODE[st.mode] === i) {
+                if (cur && cur.ri === i) {
                     cls.push('is-current');
                 }
-                bubble({x: o.x + d.x, y: o.y + d.y}, f.label, {
-                    cls: cls.join(' '), color: f.color,
+                bubble({x: o.x + d.x, y: o.y + d.y}, r.label, {
+                    cls: cls.join(' '), color: r.color,
+                    subtext: on ? (i === ALL ? 'every tool' : (tool ? tool.label : '')) : '',
                     onclick: g.sticky && on ? function() {
-                        g.family = i;
-                        g.c = {x: o.x + d.x * 1.6, y: o.y + d.y * 1.6};
+                        if (i === ALL) {
+                            close();
+                            showAll();
+                            return;
+                        }
+                        g.role = i;
+                        g.c = {x: o.x + d.x * 1.7, y: o.y + d.y * 1.7};
                         render();
                     } : null
                 });
             });
         } else {
-            // Ring 2 replaces ring 1 (a hierarchical marking menu): the family's tools around the turn point.
-            const f = FAMILIES[fi];
+            // Ring 2 replaces ring 1 (a hierarchical marking menu): the role's tools around the turn point.
+            const r = ROLES[ri];
             const c = g.c;
-            const hub2 = el('div', {class: 'proto-d-hub proto-d-hub2'}, [f.label]);
+            const hub2 = el('div', {class: 'proto-d-hub proto-d-hub2'}, [r.label]);
             hub2.style.left = c.x + 'px';
             hub2.style.top = c.y + 'px';
-            hub2.style.setProperty('--fam', f.color);
+            hub2.style.setProperty('--fam', r.color);
             if (g.sticky) {
-                hub2.title = 'Back to the families';
+                hub2.title = 'Back to the roles';
                 hub2.addEventListener('mousedown', function(e) {
                     e.preventDefault();
                     e.stopPropagation();
                 });
                 hub2.addEventListener('click', function() {
-                    g.family = null;
+                    g.role = null;
                     g.c = null;
                     render();
                 });
             }
             overlay.appendChild(hub2);
             const link = el('div', {class: 'proto-d-link'}, []);
-            const len = dist(o, c);
             link.style.left = o.x + 'px';
             link.style.top = o.y + 'px';
-            link.style.width = len + 'px';
+            link.style.width = dist(o, c) + 'px';
             link.style.transform = 'rotate(' + (angle(o, c) - 90) + 'deg)';
-            link.style.setProperty('--fam', f.color);
+            link.style.setProperty('--fam', r.color);
             overlay.appendChild(link);
-            f.items.forEach(function(item, si) {
+            const def = roleTool(ri);
+            r.slots.forEach(function(item, si) {
                 if (!item) {
                     return;
                 }
@@ -391,15 +466,14 @@
                 if (itemMatches(item, st)) {
                     cls.push('is-current');
                 }
-                if (!g.sticky && prov.sub == null && familyDefault(fi) === item) {
+                if (item === def) {
                     cls.push('is-default');
                 }
                 bubble({x: c.x + d.x, y: c.y + d.y}, item.label, {
-                    cls: cls.join(' '), color: f.color, swatch: item.swatch, subtext: item.sub || '',
+                    cls: cls.join(' '), color: r.color, swatch: item.swatch, subtext: item.sub || '',
                     onclick: g.sticky && on ? function() {
-                        const pos = {x: c.x + d.x, y: c.y + d.y};
                         close();
-                        commitItem(item, fi, pos);
+                        apply(item, ri);
                     } : null
                 });
             });
@@ -408,10 +482,10 @@
     /** The selection the visible menu currently shows. */
     function provisional() {
         if (!g) {
-            return {family: null, sub: null};
+            return {role: null, sub: null};
         }
         if (g.sticky) {
-            return {family: g.family != null ? g.family : null, sub: null};
+            return {role: g.role != null ? g.role : null, sub: null};
         }
         const p = g.pts.length ? g.pts[g.pts.length - 1] : g.origin;
         if (!g.visible) {
@@ -421,27 +495,27 @@
             if (dist(g.origin, p) < R_DEAD) {
                 // Back at the origin: back out to ring 1.
                 g.c = null;
-                g.family = null;
+                g.role = null;
             } else {
-                return {family: g.family, sub: dist(g.c, p) > R_SUB ? sector8(angle(g.c, p)) : null};
+                return {role: g.role, sub: dist(g.c, p) > R_SUB ? sector8(angle(g.c, p)) : null};
             }
         }
         const d = dist(g.origin, p);
-        if (d < R_FAMILY) {
-            return {family: null, sub: null};
+        if (d < R_ROLE) {
+            return {role: null, sub: null};
         }
-        const fi = sector6(angle(g.origin, p));
-        if (d > RING2_OPEN && familyEnabled(fi)) {
-            g.family = fi;
+        const ri = sector8(angle(g.origin, p));
+        if (d > RING2_OPEN && ri !== ALL && roleEnabled(ri)) {
+            g.role = ri;
             g.c = {x: p.x, y: p.y};
         }
-        return {family: fi, sub: null};
+        return {role: ri, sub: null};
     }
 
     // ---- Gesture lifecycle -----------------------------------------------------------------------------------
     function start(source, x, y) {
-        hideMore();
-        g = {source: source, origin: {x: x, y: y}, pts: [], visible: false, sticky: false, c: null, family: null};
+        hideAll();
+        g = {source: source, origin: {x: x, y: y}, pts: [], visible: false, sticky: false, c: null, role: null};
         trail.setAttribute('points', x + ',' + y);
         svg.classList.add('is-on');
         armDwell();
@@ -458,16 +532,16 @@
             const r = recognize(g.origin, g.pts);
             g.visible = true;
             overlay.classList.add('is-on');
-            if (r.family != null && familyEnabled(r.family)) {
+            if (r.role != null && r.role !== ALL && roleEnabled(r.role)) {
                 // Paused after a fast first flick: open ring 2 where the pointer is.
-                g.family = r.family;
+                g.role = r.role;
                 g.c = g.pts.length ? g.pts[g.pts.length - 1] : g.origin;
             }
         } else if (!g.c) {
             const p = g.pts.length ? g.pts[g.pts.length - 1] : g.origin;
-            const fi = dist(g.origin, p) > R_FAMILY ? sector6(angle(g.origin, p)) : null;
-            if (fi != null && familyEnabled(fi)) {
-                g.family = fi;
+            const ri = dist(g.origin, p) > R_ROLE ? sector8(angle(g.origin, p)) : null;
+            if (ri != null && ri !== ALL && roleEnabled(ri)) {
+                g.role = ri;
                 g.c = {x: p.x, y: p.y};
             }
         }
@@ -490,7 +564,17 @@
             render();
         }
     }
-    /** Pointer released / Space released. Returns 'tap' when nothing was stroked and no menu shown. */
+    function openSticky() {
+        g.visible = true;
+        g.sticky = true;
+        g.role = null;
+        g.c = null;
+        clearTimeout(g.dwell);
+        overlay.classList.add('is-on', 'is-sticky');
+        svg.classList.remove('is-on');
+        render();
+    }
+    /** Pointer / Space released. Returns 'tap' when nothing was stroked and no menu shown. */
     function end() {
         if (!g || g.sticky) {
             return null;
@@ -500,53 +584,44 @@
         const far = g.pts.reduce(function(m, p) {
             return Math.max(m, dist(g.origin, p));
         }, 0);
-        const wasVisible = g.visible;
         const endPos = g.pts.length ? g.pts[g.pts.length - 1] : g.origin;
         if (far < R_DEAD) {
-            if (wasVisible) {
+            if (g.visible || g.source === 'middle') {
                 // Classic marking menu: press-and-release without moving leaves the menu up for clicking.
-                g.sticky = true;
-                g.family = null;
-                g.c = null;
-                overlay.classList.add('is-sticky');
-                svg.classList.remove('is-on');
-                render();
+                openSticky();
                 return 'sticky';
             }
             close();
             return 'tap';
         }
-        const fi = prov.family;
+        const ri = prov.role;
         close();
-        if (fi == null) {
+        if (ri == null) {
             return 'cancel';
         }
-        if (!familyEnabled(fi)) {
-            toast(FAMILIES[fi].label + ': nothing for this puzzle', '#888', endPos);
+        if (ri === ALL) {
+            showAll(endPos);
+            return 'commit';
+        }
+        if (!roleEnabled(ri)) {
+            toast(ROLES[ri].label + ': nothing for this puzzle', '#888', endPos);
             return 'cancel';
         }
         if (prov.sub != null) {
-            const item = FAMILIES[fi].items[prov.sub];
+            const item = ROLES[ri].slots[prov.sub];
             if (!item || !itemEnabled(item)) {
-                toast(FAMILIES[fi].label + ' ' + COMPASS[prov.sub] + ': ' + (item ? itemLabel(item) + ' not here' : 'empty'),
+                toast(ROLES[ri].label + ' ' + COMPASS[prov.sub] + ': ' + (item ? itemLabel(item) + ' not here' : 'empty'),
                     '#888', endPos);
                 return 'cancel';
             }
-            commitItem(item, fi, endPos);
+            apply(item, ri);
             return 'commit';
         }
-        const def = familyDefault(fi);
-        if (def) {
-            commitItem(def, fi, endPos);
+        const tool = roleTool(ri);
+        if (tool) {
+            apply(tool, ri);
         }
         return 'commit';
-    }
-    function commitItem(item, fi, pos) {
-        if (item.more) {
-            showMore(pos);
-            return;
-        }
-        apply(item, fi);
     }
     function close() {
         if (g) {
@@ -558,89 +633,119 @@
         clearOverlay();
     }
 
-    // ---- "More..." Composite list ----------------------------------------------------------------------------
-    function showMore(pos) {
-        hideMore();
-        morePanel = el('div', {class: 'proto-d-more'}, [el('div', {class: 'proto-d-more-title'}, ['Genre tools'])]);
+    // ---- "All" panel: every tool the link offers, grouped by role, then the rest of Composite ------------------
+    function showAll(pos) {
+        hideAll();
+        pos = pos || {x: window.innerWidth / 2, y: window.innerHeight / 2};
+        allPanel = el('div', {class: 'proto-d-all'}, []);
         const cur = B.getMode();
-        avail.combis.forEach(function(c) {
-            const btn = el('button', {class: 'proto-d-more-item' + (cur.mode === 'combi' && cur.submode === c.name ? ' is-current' : '')},
-                [c.label || c.name]);
+        const used = new Set();
+        const addBtn = function(col, item, ri) {
+            const btn = el('button', {class: 'proto-d-all-item' + (itemMatches(item, cur) ? ' is-current' : '')}, []);
+            if (item.swatch) {
+                btn.appendChild(el('span', {class: 'proto-d-swatch', style: 'background:' + item.swatch}, []));
+            }
+            btn.appendChild(document.createTextNode(itemLabel(item)));
             btn.addEventListener('mousedown', function(e) {
                 e.stopPropagation();
             });
             btn.addEventListener('click', function() {
-                hideMore();
-                B.setComposite(c.name);
-                lastItem[3] = {label: c.label || c.name, combi: c.name};
-                flashPill();
-                toast(c.label || c.name, FAMILIES[3].color);
+                hideAll();
+                apply(item, ri);
             });
-            morePanel.appendChild(btn);
+            col.appendChild(btn);
+        };
+        ROLES.forEach(function(r, ri) {
+            if (ri === ALL) {
+                return;
+            }
+            const items = r.slots.filter(itemEnabled);
+            if (!items.length) {
+                return;
+            }
+            const col = el('div', {class: 'proto-d-all-col'}, [
+                el('div', {class: 'proto-d-all-title', style: 'color:' + r.color}, [ARROW[ri] + ' ' + r.label])
+            ]);
+            items.forEach(function(item) {
+                used.add(item.combi || '');
+                addBtn(col, item, ri);
+            });
+            allPanel.appendChild(col);
         });
-        root.appendChild(morePanel);
-        const r = morePanel.getBoundingClientRect();
-        morePanel.style.left = Math.max(8, Math.min(window.innerWidth - r.width - 8, pos.x - r.width / 2)) + 'px';
-        morePanel.style.top = Math.max(8, Math.min(window.innerHeight - r.height - 60, pos.y - r.height / 2)) + 'px';
+        const rest = kit.combis.filter(function(c) {
+            return !used.has(c.name);
+        });
+        if (rest.length) {
+            const col = el('div', {class: 'proto-d-all-col'}, [el('div', {class: 'proto-d-all-title'}, ['Other Composite'])]);
+            rest.forEach(function(c) {
+                addBtn(col, {label: c.label || c.name, combi: c.name, how: 'Composite tool'}, null);
+            });
+            allPanel.appendChild(col);
+        }
+        root.appendChild(allPanel);
+        const r = allPanel.getBoundingClientRect();
+        allPanel.style.left = Math.max(8, Math.min(window.innerWidth - r.width - 8, pos.x - r.width / 2)) + 'px';
+        allPanel.style.top = Math.max(56, Math.min(window.innerHeight - r.height - 60, pos.y - r.height / 2)) + 'px';
     }
-    function hideMore() {
-        if (morePanel) {
-            morePanel.remove();
-            morePanel = null;
+    function hideAll() {
+        if (allPanel) {
+            allPanel.remove();
+            allPanel = null;
         }
     }
 
-    // ---- Pill, corner actions, toast --------------------------------------------------------------------------
-    function describeMode(st) {
-        const fi = FAMILY_OF_MODE[st.mode];
-        let label = MODE_LABEL[st.mode] || st.mode;
-        let sub = '';
+    // ---- Pill, hint, corner actions, toast --------------------------------------------------------------------
+    function describe(st) {
+        const rr = roleOf(st);
+        if (rr) {
+            return {ri: rr.ri, label: itemLabel(rr.item), how: rr.item.how || ''};
+        }
         if (st.mode === 'combi') {
-            const c = avail.combis.find(function(x) {
+            const c = kit.combis.find(function(x) {
                 return x.name === st.submode;
             });
-            label = c ? c.label : st.submode;
-        } else if (st.mode === 'symbol') {
-            sub = st.submode.replace(/_/g, ' ');
-        } else if (st.mode === 'surface' || st.mode === 'multicolor') {
-            const s = B.listStyles('surface').find(function(x) {
-                return x.value === st.style;
-            });
-            const item = FAMILIES[1].items.find(function(it) {
-                return it && it.style === st.style;
-            });
-            sub = item ? item.sub : (s ? s.label : '');
-        } else {
-            const s = B.listSubmodes(st.mode).find(function(x) {
-                return String(x.value) === st.submode;
-            });
-            const item = fi != null && FAMILIES[fi].items.find(function(it) {
-                return itemMatches(it, st);
-            });
-            sub = item ? item.sub : (s ? s.label : '');
+            return {ri: null, label: c ? c.label : st.submode, how: ''};
         }
-        return {fi: fi, label: label, sub: sub};
+        if (st.mode === 'symbol') {
+            return {ri: 5, label: 'Shape · ' + st.submode.replace(/_/g, ' '), how: 'click cell'};
+        }
+        const s = B.listSubmodes(st.mode).find(function(x) {
+            return String(x.value) === st.submode;
+        });
+        return {ri: null, label: st.mode + (s && s.label ? ' · ' + s.label : ''), how: ''};
     }
     function updatePill(state) {
-        const d = describeMode(state);
-        const color = d.fi != null ? FAMILIES[d.fi].color : '#888';
+        const d = describe(state);
+        const color = d.ri != null ? ROLES[d.ri].color : '#888';
         pill.style.setProperty('--fam', color);
-        pill.querySelector('.proto-d-pill-fam').textContent = d.fi != null ? FAMILIES[d.fi].label : '';
-        pill.querySelector('.proto-d-pill-mode').textContent = d.label + (d.sub ? ' · ' + d.sub : '');
+        pill.querySelector('.proto-d-pill-fam').textContent = d.ri != null ? ARROW[d.ri] + ' ' + ROLES[d.ri].label : 'Tool';
+        pill.querySelector('.proto-d-pill-mode').textContent = d.label;
+        pill.querySelector('.proto-d-pill-how').textContent = d.how;
         root.querySelector('.proto-d-undo').disabled = !state.canUndo;
         root.querySelector('.proto-d-redo').disabled = !state.canRedo;
         const chk = root.querySelector('.proto-d-check');
         chk.disabled = !state.hasAnswerCheck;
         chk.title = state.hasAnswerCheck ? 'Check the answer' : 'This puzzle has no answer check';
-        // Track last-used tools per family from whatever changed the mode (keys, Tab, the menu).
-        if (d.fi != null) {
-            const item = FAMILIES[d.fi].items.find(function(it) {
-                return itemMatches(it, state);
-            });
-            if (item) {
-                lastItem[d.fi] = item;
+        chk.classList.toggle('is-solved', !!state.solved);
+        renderHint();
+    }
+    /** Under the pill: the flicks this puzzle needs, as arrows, so the solver learns its two or three directions. */
+    function renderHint() {
+        hintEl.textContent = '';
+        hintEl.appendChild(el('span', {}, [
+            el('kbd', {}, ['Space']), ' or ', el('kbd', {}, ['middle-drag']), ' + flick, this puzzle:'
+        ]));
+        ROLES.forEach(function(r, ri) {
+            if (ri === ALL || !kit.needed[ri] || !roleEnabled(ri)) {
+                return;
             }
-        }
+            const tool = roleTool(ri);
+            const chip = el('span', {class: 'proto-d-hint-chip', style: '--fam:' + r.color}, [
+                el('b', {}, [ARROW[ri]]), ' ' + r.label + (tool && tool.label !== r.label ? ': ' + tool.label : '')
+            ]);
+            hintEl.appendChild(chip);
+        });
+        hintEl.appendChild(el('span', {class: 'proto-d-hint-more'}, ['↖ All']));
     }
     function flashPill() {
         pill.classList.remove('is-flash');
@@ -694,9 +799,9 @@
         if (!e.isTrusted) {
             return;
         }
-        if (e.key === 'Escape' && (g || morePanel)) {
+        if (e.key === 'Escape' && (g || allPanel)) {
             close();
-            hideMore();
+            hideAll();
             e.stopImmediatePropagation();
             e.preventDefault();
             return;
@@ -738,85 +843,47 @@
         }
     }
 
-    // Right button: held back until we know whether it is a click, a drag (both go to Penpa+) or the menu.
-    let rp = null;
-    function fireCanvas(type, x, y, buttons, ev) {
-        const canvas = document.getElementById('canvas');
-        canvas.dispatchEvent(new MouseEvent(type, {
-            bubbles: true, cancelable: true, view: window,
-            clientX: x - window.scrollX, clientY: y - window.scrollY, button: 2, buttons: buttons,
-            ctrlKey: ev.ctrlKey, shiftKey: ev.shiftKey, altKey: ev.altKey
-        }));
-    }
+    // Middle button: Penpa+ ignores it in solve mode (main.js:106, 153, 188), so it is free for the menu.
+    // Right button stays Penpa+'s: Composite's second mark (x, dot, water) and Surface's second colour.
     function onMouseDown(e) {
         if (!e.isTrusted) {
             return;
         }
-        if (g && g.sticky && !e.target.closest('.proto-d-bubble')) {
+        if (g && g.sticky && !e.target.closest('.proto-d-bubble, .proto-d-hub2')) {
             close();
             e.stopImmediatePropagation();
             e.preventDefault();
             return;
         }
-        if (morePanel && !e.target.closest('.proto-d-more')) {
-            hideMore();
+        if (allPanel && !e.target.closest('.proto-d-all')) {
+            hideAll();
         }
-        if (e.button !== 2 || g || dialogOpen()) {
+        if (e.button !== 1 || g || dialogOpen()) {
             return;
         }
-        const onBoard = e.target.id === 'canvas';
-        if (!onBoard && !e.target.closest('.proto-d-root')) {
+        if (e.target.id !== 'canvas' && !e.target.closest('.proto-d-root')) {
             return;
         }
         e.stopImmediatePropagation();
-        e.preventDefault();
-        rp = {x: e.pageX, y: e.pageY, onBoard: onBoard, ev: e, armed: false, passed: false};
-        rp.timer = setTimeout(function() {
-            if (rp && !rp.passed) {
-                rp.armed = true;
-                start('right', rp.x, rp.y);
-                onDwell(); // holding is the deliberate path: show at once
-            }
-        }, HOLD_MS);
+        e.preventDefault(); // no autoscroll
+        start('middle', e.pageX, e.pageY);
     }
     function onMouseMove(e) {
         mouse = {x: e.pageX, y: e.pageY};
-        if (rp && !rp.armed && !rp.passed && dist(rp, mouse) > 4) {
-            // A right drag started before the hold delay: hand it to Penpa+ (right-drag painting, x lines).
-            clearTimeout(rp.timer);
-            rp.passed = true;
-            if (rp.onBoard) {
-                fireCanvas('mousedown', rp.x, rp.y, 2, rp.ev);
-            }
-            return;
-        }
         if (g) {
             move(e.pageX, e.pageY);
         }
     }
     function onMouseUp(e) {
-        if (!e.isTrusted || e.button !== 2 || !rp) {
+        if (!e.isTrusted || e.button !== 1 || !g || g.source !== 'middle') {
             return;
-        }
-        const r = rp;
-        rp = null;
-        clearTimeout(r.timer);
-        if (r.passed) {
-            return; // the real mouseup goes on to Penpa+
         }
         e.stopImmediatePropagation();
         e.preventDefault();
-        if (!r.armed) {
-            if (r.onBoard) {
-                fireCanvas('mousedown', r.x, r.y, 2, r.ev);
-                fireCanvas('mouseup', r.x, r.y, 0, r.ev);
-            }
-            return;
-        }
         end();
     }
-    function onContextMenu(e) {
-        if (e.target.id === 'canvas' || e.target.closest('.proto-d-root') || g) {
+    function onAuxClick(e) {
+        if (e.button === 1) {
             e.preventDefault();
         }
     }
@@ -836,7 +903,7 @@
         B.setCellSize(px);
     }
 
-    function build(ctx) {
+    function build() {
         root = el('div', {class: 'proto-d-root'}, []);
         const stage = el('div', {class: 'proto-d-stage'}, []);
         root.appendChild(stage);
@@ -844,21 +911,17 @@
         H.hideLegacy();
 
         const info = B.getInfo();
-        pill = el('div', {class: 'proto-d-pill', title: 'Current mode. Click for the menu; or hold Space / right mouse anywhere.'}, [
+        pill = el('div', {class: 'proto-d-pill', title: 'Current tool. Click for the menu; or hold Space / drag the middle button anywhere.'}, [
             el('span', {class: 'proto-d-pill-dot'}, []),
             el('span', {class: 'proto-d-pill-fam'}, []),
             el('span', {class: 'proto-d-pill-mode'}, []),
+            el('span', {class: 'proto-d-pill-how'}, []),
             el('span', {class: 'proto-d-pill-timer'}, [])
         ]);
         pill.addEventListener('click', function() {
             const r = document.getElementById('canvas').getBoundingClientRect();
             start('pill', r.left + r.width / 2 + window.scrollX, r.top + r.height / 2 + window.scrollY);
-            g.visible = true;
-            g.sticky = true;
-            clearTimeout(g.dwell);
-            overlay.classList.add('is-on', 'is-sticky');
-            svg.classList.remove('is-on');
-            render();
+            openSticky();
         });
         const corner = el('div', {class: 'proto-d-corner'}, [
             el('button', {class: 'proto-d-btn proto-d-undo', title: 'Undo (Ctrl+Z)', onclick: function() {
@@ -876,11 +939,9 @@
             B.showRules();
         });
         title.title = 'Rules';
-        const hint = el('div', {class: 'proto-d-hint'}, [
-            'Hold ', el('kbd', {}, ['Space']), ' or right mouse for tools'
-        ]);
-        hint.title = 'Flick toward a family, flick again toward a tool, release. Pause to see the menu. ' +
-            'A short flick picks the family\'s last tool. Tap Space still clears a cell.';
+        hintEl = el('div', {class: 'proto-d-hint'}, []);
+        hintEl.title = 'Flick toward a role and release. Zig-zag for the role\'s other tools. Pause to see the menu. ' +
+            'Middle click opens it for clicking. Tap Space still clears a cell.';
         overlay = el('div', {class: 'proto-d-overlay'}, []);
         svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('class', 'proto-d-trail');
@@ -890,7 +951,7 @@
         root.appendChild(pill);
         root.appendChild(title);
         root.appendChild(corner);
-        root.appendChild(hint);
+        root.appendChild(hintEl);
         root.appendChild(svg);
         root.appendChild(overlay);
         root.appendChild(toastEl);
@@ -905,8 +966,8 @@
         mount(ctx) {
             B = ctx.bridge;
             H = ctx.helpers;
-            computeAvail();
-            build(ctx);
+            analyse();
+            build();
             fitBoard();
             window.addEventListener('resize', fitBoard);
 
@@ -915,7 +976,12 @@
             window.addEventListener('mousedown', onMouseDown, true);
             window.addEventListener('mousemove', onMouseMove, true);
             window.addEventListener('mouseup', onMouseUp, true);
-            window.addEventListener('contextmenu', onContextMenu, true);
+            window.addEventListener('auxclick', onAuxClick, true);
+            window.addEventListener('contextmenu', function(e) {
+                if (g) {
+                    e.preventDefault();
+                }
+            }, true);
             window.addEventListener('blur', function() {
                 if (g && !g.sticky) {
                     close();
