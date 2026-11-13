@@ -271,46 +271,51 @@ html.proto-variant-G #dvique {
     width: auto !important;
 }
 
-/* The branch tint: a coloured wash over the board that lets clicks through. */
-.proto-g-tint {
+/* The overlay: marks made inside a What-if, outlined in the branch's colour, and the hovered move. */
+.proto-g-overlay {
     position: absolute;
     inset: 0;
-    border-radius: 6px;
     pointer-events: none;
-    background: var(--bc);
-    opacity: 0;
-    mix-blend-mode: multiply;
+    overflow: visible;
 }
 
-.proto-g-app.is-branch .proto-g-tint {
-    opacity: .28;
+.proto-g-mark.is-cell {
+    fill-opacity: .16;
+    stroke-width: 3;
 }
 
-.proto-g-ring {
-    position: absolute;
-    pointer-events: none;
-    border: 3px solid #ff4fa3;
-    border-radius: 6px;
-    box-shadow: 0 0 0 2px rgba(255, 255, 255, .8);
+.proto-g-mark.is-seg {
+    stroke-opacity: .45;
+    stroke-linecap: round;
+}
+
+.proto-g-mark.is-dot {
+    fill-opacity: .55;
+}
+
+.proto-g-hover.is-cell {
+    fill-opacity: .1;
+    stroke-width: 3;
+}
+
+.proto-g-hover.is-seg {
+    stroke-opacity: .6;
+    stroke-linecap: round;
+}
+
+.proto-g-hover.is-dot {
+    fill-opacity: .7;
 }
 
 .proto-g-banner {
     --bc: #f2b84b;
-    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 12px;
-    height: 34px;
-    box-sizing: border-box;
-    padding: 0 4px 0 4px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--bc) 16%, var(--panel));
-    border: 1px solid var(--bc);
+    gap: 6px;
 }
 
 .proto-g-banner[hidden] {
-    display: flex; /* keep its row, so the board does not move when a branch opens */
-    visibility: hidden;
+    display: none;
 }
 
 .proto-g-banner-tag {
@@ -551,7 +556,6 @@ html.proto-variant-G #dvique {
 
 .proto-g-empty[hidden],
 .proto-g-tip[hidden],
-.proto-g-ring[hidden],
 .proto-g-toast[hidden] {
     display: none;
 }
@@ -571,4 +575,92 @@ html.proto-variant-G #dvique {
 
 .proto-g-toast:empty {
     display: none;
+}
+
+/* ---- Round 2: genre kit, mode row, legend, multi-step ticks --------------------------------------------------- */
+.proto-g-kit {
+    display: flex;
+    gap: 4px;
+}
+
+.proto-g-kitbtn {
+    font-weight: 600;
+    padding: 5px 14px;
+    border-bottom: 3px solid var(--fam);
+}
+
+.proto-g-kitbtn.is-on {
+    background: #2d3a52;
+    border-color: #5aa9ff;
+    border-bottom-color: var(--fam);
+    color: #fff;
+}
+
+.proto-g-allmodes {
+    color: var(--muted);
+}
+
+.proto-g-app.show-modes .proto-g-allmodes {
+    color: var(--text);
+    border-color: #5aa9ff;
+}
+
+.proto-g-moderow {
+    display: none;
+    margin-top: 6px;
+}
+
+.proto-g-app.show-modes .proto-g-moderow {
+    display: flex;
+}
+
+.proto-g-toolrow {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-top: 6px;
+    min-height: 30px;
+}
+
+.proto-g-toolrow .proto-g-tools {
+    margin-top: 0;
+}
+
+.proto-g-legend {
+    color: #c9d1de;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: #0d0f12;
+    white-space: nowrap;
+}
+
+.proto-g-legend:empty {
+    display: none;
+}
+
+.proto-g-tick.is-multi::after {
+    content: "";
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    bottom: -4px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--c);
+}
+
+.proto-g-toolrow:has(.proto-g-tools:empty) {
+    display: none;
+}
+
+.proto-g-strip-right {
+    gap: 8px;
+}
+
+.proto-g-toprow .proto-g-legend {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
