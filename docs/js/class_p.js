@@ -1939,18 +1939,18 @@ class Puzzle {
 
         // Puzzle title
         let titleinfo = document.getElementById("saveinfotitle").value;
-        text += "," + "Title: " + HEADER_TEXT.line.encode(titleinfo); // caneff: round-trips %2C (#21)
+        text += "," + "Title: " + HEADER_TEXT.line.encode(titleinfo); // caneff: header text escapes live in header_text.js (#21)
 
         // Puzzle author
         let authorinfo = document.getElementById("saveinfoauthor").value;
-        text += "," + "Author: " + HEADER_TEXT.line.encode(authorinfo); // caneff: round-trips %2C (#21)
+        text += "," + "Author: " + HEADER_TEXT.line.encode(authorinfo); // caneff: header text escapes live in header_text.js (#21)
 
         // Puzzle Source
-        text += "," + HEADER_TEXT.line.encode(document.getElementById("saveinfosource").value); // caneff: a comma shifts the header, %2C must round-trip (#21)
+        text += "," + HEADER_TEXT.line.encode(document.getElementById("saveinfosource").value); // caneff: a comma shifts the header, so Source is escaped too (#21)
 
         // Puzzle Rules
         let ruleinfo = document.getElementById("saveinforules").value;
-        text += "," + HEADER_TEXT.rules.encode(ruleinfo); // caneff: round-trips %2C (#21)
+        text += "," + HEADER_TEXT.rules.encode(ruleinfo); // caneff: header text escapes live in header_text.js (#21)
 
         // Border button status
         let border_status = UserSettings.draw_edges ? 'ON' : 'OFF';

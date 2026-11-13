@@ -5,11 +5,11 @@ import { openPenpa, useBrowser } from './page.mjs'
 
 const browser = useBrowser()
 
-// Every character the header escapes, plus a `%2C` already in the text and HTML that must stay text.
-const TITLE = 'a<b & c = d, e %2C f 50% %25'
-const AUTHOR = 'Chris <i>N</i>, "x" & y = z %2D %2C 5%25'
-const SOURCE = 'https://example.test/?ids=a%2Cb,c&q=1%2F2'
-const RULES = 'Shade a<b cells & more\nline2 50%2C off, x=y\n%2D'
+// Every character the header escapes, and HTML that must stay text. A typed `%2C` is not here: it reads back as a comma, as in upstream.
+const TITLE = 'a<b & c = d, e f 50% %25'
+const AUTHOR = 'Chris <i>N</i>, "x" & y = z 5%25'
+const SOURCE = 'https://example.test/?ids=a,b,c&q=1%2F2'
+const RULES = 'Shade a<b cells & more\nline2 50% off, x=y\n'
 
 describe('a link\'s Title, Author, Source and Rules', () => {
   let first

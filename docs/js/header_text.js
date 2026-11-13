@@ -1,8 +1,9 @@
 // caneff: how a link's header carries the text of Title, Author, Source and Rules (#21).
-// The header is comma separated, so a comma becomes `%2C`; `%` becomes `%25` so a `%2C` typed in the text survives.
-const HEADER_ESCAPES = { '%': '%25', ',': '%2C', '\n': '%2D', '&': '%2E', '=': '%2F' };
+// The header is comma separated, so a comma becomes `%2C`. `%` is not escaped, to keep upstream's link format, so a
+// `%2C` typed in the text reads back as a comma, as in upstream (Chris, 2026-11-13).
+const HEADER_ESCAPES = { ',': '%2C', '\n': '%2D', '&': '%2E', '=': '%2F' };
 
-// The encoder and decoder for the characters `chars` escape, each one pass so the `%` an escape adds is never escaped again.
+// The encoder and decoder for the characters `chars` escape, each one pass.
 function header_codec(chars) {
     const code_of = Object.fromEntries([...chars].map((c) => [c, HEADER_ESCAPES[c]]));
     const char_of = Object.fromEntries(Object.entries(code_of).map(([c, code]) => [code, c]));
@@ -15,7 +16,7 @@ function header_codec(chars) {
 }
 
 // Title, Author and Source carry only the characters that break the header; Rules also carries newline, `&` and `=`.
-const HEADER_TEXT = { line: header_codec('%,'), rules: header_codec('%,\n&=') };
+const HEADER_TEXT = { line: header_codec(','), rules: header_codec(',\n&=') };
 
 // `text` as HTML element content, with each newline a line break.
 function header_text_to_html(text) {
