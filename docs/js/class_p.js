@@ -13485,6 +13485,8 @@ class Puzzle {
 
         // check all are digits or alphabets (or spacing)
         const nonAlphaNumError = document.getElementById("sudokuIOFail");
+        // caneff: a failure here returns before the perfect-square check, which would leave its old error showing
+        document.getElementById("sudokuIOFailNonPerfect").classList.add('is_hidden');
         if (!ignoreNonSquare && !pu.only_alphanumeric(iostring)) {
             nonAlphaNumError.classList.remove('is_hidden');
             return "failed";

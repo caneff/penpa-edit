@@ -11,16 +11,9 @@ class IO {
      * @param {string} loadUrl URL to attempt to parse for puzzle data.
      */
     getPuzzleDataFromUrl = function (loadUrl) {
-        const urlAsUrl = new URL(loadUrl);
-        let puzzleData;
-
-        if (loadUrl.includes("#")) {
-            puzzleData = urlAsUrl.hash.split("#")[1];
-        } else {
-            puzzleData = urlAsUrl.search.split("?")[1];
-        }
-
-        return puzzleData;
+        // caneff: new URL() throws on a link pasted without "https://"; slice the string instead
+        const separatorAt = loadUrl.includes("#") ? loadUrl.indexOf("#") : loadUrl.indexOf("?");
+        return separatorAt === -1 ? undefined : loadUrl.slice(separatorAt + 1);
     };
 };
 

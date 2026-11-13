@@ -444,6 +444,7 @@ const UserSettings = {
         this._warn_long_links = parseBooleanish(newValue);
         document.getElementById("warn_long_links_dropdown").value = this._warn_long_links ? 1 : 0;
         document.getElementById("warn_long_links_chk").checked = this._warn_long_links ? 'checked' : null;
+        this.attemptSave(); // caneff: upstream PR 229 never saved this setting, so OFF was lost on reload
     },
     get warn_long_links() {
         return this._warn_long_links;
