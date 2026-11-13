@@ -31,6 +31,8 @@
  *      A "Recent" row under the mode field: up to 5 recently used modes, most recent first, without the current mode
  *      or pinned ones; a button lands on its mode as a pin does, its pin icon pins it; not in the Tab cycle; kept per
  *      puzzle under `proto-L-recent-v1:<hash of p=>`.
+ *      Pins keep their own sub-mode (`proto-L-pinsub-v1:`): a pick in the Tool card picker never changes a pin
+ *      (see the comment above pinSub).
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
@@ -59,6 +61,7 @@
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v1:';
     const LS_RECENT = 'proto-L-recent-v1:';
+    const LS_PINSUB = 'proto-L-pinsub-v1:';
     const TOP = 44;
 
     const MODE_NAME = {
@@ -711,20 +714,84 @@
 
             const seed = seedPins();
             let pins = readJSON(pinKey, null) || seed.pins.slice();
-            let lastPin = -1;
+            /*
+             * Round 3 fix (Chris: "changing tool on the tool window shouldn't change a pin if selected"). Penpa keeps one
+             * sub-mode per mode, so with Composite pinned, picking another Composite tool in the picker rewrote what the
+             * pin lands on. Now each pin keeps its own sub-mode (pinSub), and `onPin` says which pin the solver is on:
+             *   - landing on a pin (Tab, chip click, preset) sets onPin and restores the pin's sub-mode;
+             *   - a pick in the Tool card's picker leaves onPin only if it picked exactly the pin's tool; the pin list
+             *     and pinSub never change;
+             *   - while on a pin, a sub-mode change by the sub-mode control or a key updates pinSub (a pin is a mode
+             *     and follows its last use, as ruled); styles are Penpa's per-mode memory, so a pin always shows and
+             *     lands on its mode's last style;
+             *   - Tab from a tool that is not on a pin goes to the pin after the last pin used.
+             */
+            const pinSubKey = LS_PINSUB + puzzleKey();
+            let pinSub = readJSON(pinSubKey, null) || {};
+            pins.forEach(function(mode) {
+                if (pinSub[mode] == null) {
+                    pinSub[mode] = remembered(mode).sub;
+                }
+            });
+            let onPin = pins.indexOf(B.getMode().mode) !== -1 ? B.getMode().mode : null;
+            let lastPinMode = onPin;
+            let trackedMode = B.getMode().mode;
+            let picked = false;
 
             function savePins() {
                 writeJSON(pinKey, pins);
+                writeJSON(pinSubKey, pinSub);
+            }
+
+            function resetPinSubs() {
+                pinSub = {};
+                pins.forEach(function(mode) {
+                    pinSub[mode] = remembered(mode).sub;
+                });
+            }
+
+            function landOnPin(mode) {
+                onPin = mode;
+                lastPinMode = mode;
+                if (B.getMode().mode !== mode) {
+                    B.setMode(mode);
+                }
+                const s = pinSub[mode];
+                if (s != null && s !== '' && remembered(mode).sub !== String(s)) {
+                    applySub(mode, s);
+                }
+            }
+
+            /** Called on every bridge change, before rendering: keeps onPin and the active pin's sub-mode current. */
+            function trackPin(m) {
+                if (m.mode !== trackedMode) {
+                    if (!picked) {
+                        onPin = pins.indexOf(m.mode) !== -1 ? m.mode : null; // legacy keys, Recent, ...
+                    }
+                    trackedMode = m.mode;
+                }
+                picked = false;
+                if (onPin && onPin === m.mode && String(pinSub[onPin]) !== m.submode) {
+                    pinSub[onPin] = m.submode;
+                    savePins();
+                }
+                if (onPin) {
+                    lastPinMode = onPin;
+                }
             }
 
             function pinMode(mode, sub) {
+                const cur = B.getMode();
                 if (pins.indexOf(mode) === -1) {
                     pins.push(mode);
-                    savePins();
                 }
-                if (B.getMode().mode !== mode) {
+                pinSub[mode] = sub != null ? sub : (cur.mode === mode ? cur.submode : remembered(mode).sub);
+                if (cur.mode !== mode) {
                     prime(mode, sub); // pinning the current mode must not change its sub-mode
+                } else if (String(pinSub[mode]) === cur.submode) {
+                    onPin = lastPinMode = mode;
                 }
+                savePins();
                 renderAll(true);
             }
 
@@ -732,6 +799,13 @@
                 pins = pins.filter(function(p) {
                     return p !== mode;
                 });
+                delete pinSub[mode];
+                if (onPin === mode) {
+                    onPin = null;
+                }
+                if (lastPinMode === mode) {
+                    lastPinMode = null;
+                }
                 savePins();
                 renderAll(true);
             }
@@ -740,16 +814,14 @@
                 if (!pins.length) {
                     return;
                 }
-                const cur = pins.indexOf(B.getMode().mode);
-                const from = cur !== -1 ? cur : lastPin;
+                const from = pins.indexOf(onPin || lastPinMode);
                 let next;
                 if (from === -1) {
                     next = dir > 0 ? 0 : pins.length - 1;
                 } else {
                     next = (from + dir + pins.length) % pins.length;
                 }
-                lastPin = next;
-                B.setMode(pins[next]);
+                landOnPin(pins[next]);
             }
 
             function applyPreset(p) {
@@ -766,9 +838,14 @@
                     return;
                 }
                 pins = list;
+                resetPinSubs();
+                p.pins.forEach(function(pin) {
+                    if (pin[1] != null && pins.indexOf(pin[0]) !== -1) {
+                        pinSub[pin[0]] = pin[1];
+                    }
+                });
                 savePins();
-                lastPin = 0;
-                B.setMode(pins[0]);
+                landOnPin(pins[0]);
                 renderAll(true);
             }
 
@@ -793,7 +870,7 @@
                     return p.name !== name;
                 });
                 list.push({name: name, pins: pins.map(function(m) {
-                    return [m, m === 'surface' || m === 'multicolor' || m === 'wall' ? null : remembered(m).sub];
+                    return [m, m === 'surface' || m === 'multicolor' || m === 'wall' ? null : pinSub[m]];
                 })});
                 writeJSON(LS_PRESETS, list);
                 presetName.value = '';
@@ -809,8 +886,9 @@
                 const strip = el('div', {class: 'proto-l-pins'});
                 pins.forEach(function(mode, i) {
                     const r = remembered(mode);
-                    const detail = [subName(mode, r.sub), styleName(mode, r.style)].filter(Boolean).join(' · ');
-                    const chip = el('div', {class: 'proto-l-pin' + (mode === m.mode ? ' is-on' : ''), draggable: 'true',
+                    const detail = [subName(mode, pinSub[mode]), styleName(mode, r.style)].filter(Boolean).join(' · ');
+                    const on = mode === m.mode && onPin === mode;
+                    const chip = el('div', {class: 'proto-l-pin' + (on ? ' is-on' : ''), draggable: 'true',
                         'data-mode': mode, title: 'Click: switch. Drag: reorder.'}, [
                         el('span', {class: 'proto-l-pinnum'}, [String(i + 1)]),
                         el('span', {class: 'proto-l-pinname'}, [MODE_NAME[mode] || mode]),
@@ -829,8 +907,7 @@
                         if (e.target.closest('button')) {
                             return;
                         }
-                        lastPin = i;
-                        B.setMode(mode);
+                        landOnPin(mode);
                     });
                     chip.addEventListener('dragstart', function(e) {
                         dragPin = mode;
@@ -899,6 +976,8 @@
                     }, 'Pin the current mode'),
                     btn('', 'Reset', function() {
                         pins = seed.pins.slice();
+                        resetPinSubs();
+                        onPin = pins.indexOf(B.getMode().mode) !== -1 ? B.getMode().mode : null;
                         savePins();
                         renderAll(true);
                     }, 'Back to the link\'s own pins')
@@ -940,7 +1019,7 @@
                     ]));
                 });
                 b.appendChild(rows);
-                const pinned = pins.indexOf(m.mode) !== -1;
+                const pinned = onPin === m.mode;
                 b.appendChild(el('div', {class: 'proto-l-note'}, [pinned ? 'Pinned: Tab moves on to the next pin.' :
                     'Not pinned: Tab returns to the pins.']));
             }
@@ -1179,14 +1258,22 @@
                 });
             }
 
+            /** A pick never changes the pin list; it stays on a pin only if it picked exactly that pin's tool. */
             function pickEntry(e) {
+                picked = true;
                 if (B.getMode().mode !== e.mode) {
                     B.setMode(e.mode);
                 }
                 if (e.sub != null) {
                     applySub(e.mode, e.sub);
                 }
+                const now = B.getMode();
+                onPin = pins.indexOf(now.mode) !== -1 && String(pinSub[now.mode]) === now.submode ? now.mode : null;
+                if (onPin) {
+                    lastPinMode = onPin;
+                }
                 pickInput.blur();
+                renderAll(true);
             }
 
             function renderPicker() {
@@ -1384,6 +1471,7 @@
             let lastKey = '';
             function renderAll(force) {
                 const m = B.getMode();
+                trackPin(m);
                 const key = m.mode + '|' + m.submode + '|' + m.style;
                 if (!force && key === lastKey) {
                     return;
