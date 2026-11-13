@@ -9,7 +9,7 @@ function engineState ({ pu_a = {}, pu_a_col = {} } = {}) {
   return {
     pu_a: board(pu_a),
     pu_a_col: board(pu_a_col),
-    mode: { qa: 'pu_a', edit_mode: 'number', submode: '1', style: 2 },
+    mode: { qa: 'pu_a', edit_mode: 'number', submode: '1', style: 2, orientation: 'R' },
     selection: [],
     conflict_cells: [],
     sol_flag: 0
@@ -32,7 +32,7 @@ describe('canonicalState', () => {
     const state = engineState({
       pu_a: { command_undo: [['surface', 12, 1, 'pu_a', 1], ['surface', 13, 1, 'pu_a', 2]], command_redo: [['surface', 14, 1, 'pu_a', 3]] }
     })
-    assert.deepEqual(canonicalState(state).split('\n').filter((l) => l.startsWith('pu_a.command_')), [
+    assert.deepEqual(canonicalState(state).split('\n').filter((l) => /^pu_a\.command_(undo|redo)/.test(l)), [
       'pu_a.command_redo.length = 1',
       'pu_a.command_undo.length = 2'
     ])
@@ -50,17 +50,28 @@ describe('canonicalState', () => {
     assert.deepEqual(lines.map((l) => l.split(' = ')[0]), thermo.map((_, i) => `pu_a.thermo.${i}`))
   })
 
-  it('writes the mode, sub-mode, style, selection, conflicts and answer-check verdict', () => {
+  it('writes the mode, sub-mode, style, orientation, selection, conflicts and answer-check verdict', () => {
     const state = { ...engineState(), selection: [40, 41], conflict_cells: [12, 30], sol_flag: 1 }
     assert.deepEqual(canonicalState(state).split('\n').filter((l) => !l.startsWith('pu_a')), [
       'mode.qa = "pu_a"',
       'mode.edit_mode = "number"',
       'mode.submode = "1"',
       'mode.style = 2',
+      'mode.orientation = "R"',
       'selection = [40,41]',
       'conflict_cells = [12,30]',
       'sol_flag = 1',
       ''
     ])
+  })
+
+  it('sorts the keys of an object inside an entry', () => {
+    const state = engineState({ pu_a: { symbol: { 7: { shape: 'circle', color: 2 } } } })
+    assert.match(canonicalState(state), /^pu_a\.symbol\.7 = \{"color":2,"shape":"circle"\}$/m)
+  })
+
+  it('writes an empty object or array as one line, so it reads apart from a missing one', () => {
+    const lines = canonicalState(engineState({ pu_a: { surface: {}, thermo: [] } })).split('\n')
+    assert.deepEqual(lines.filter((l) => /^pu_a\.(surface|thermo)/.test(l)), ['pu_a.surface = {}', 'pu_a.thermo = []'])
   })
 })

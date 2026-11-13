@@ -1,8 +1,8 @@
-// Canonical state (`live/canonical-state.mjs`) read from a live page: two loads agree, a moved digit moves one line,
-// and a duplicate link reopens to the same state.
+// Canonical state (`live/canonical-state.mjs`) read from a live page: two loads agree, it holds the page's values, a
+// moved digit moves one line, and a duplicate link reopens to the same state.
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
-import { canonicalState, readEngineState } from './canonical-state.mjs'
+import { canonicalState, readEngineState, REPLAY_TIMESTAMP } from './canonical-state.mjs'
 import { openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -15,13 +15,12 @@ const OTHER_CELL = 2
 // A timer reading far from a fresh page's, in seconds.
 const LATE_SECONDS = 30
 
-// Runs in the page. Builds a 4x4 classic sudoku with one given and a one-digit author's answer, and returns its solve
-// link's `#` part.
+// Runs in the page. Builds a 4x4 grid with one given and a one-digit author's answer, and returns its solve link's `#`
+// part.
 function solveLinkInPage ({ given, answer }) {
   document.getElementById('nb_size1').value = 4
   document.getElementById('nb_size2').value = 4
   create_newboard()
-  pu.user_tags = ['classic']
   pu.pu_q.number[pu.centerlist[given]] = [1, 1, '1']
   pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
   const url = pu.maketext_solve_solution()
@@ -37,7 +36,6 @@ function typeDigitInPage ({ index, digit }) {
   pu.redraw()
 }
 
-// Opens the solve link and returns its page once the given has loaded.
 async function openSolve (query) {
   const opened = await openPenpa(browser(), query)
   const givens = await settle(() => opened.page.evaluate(() => Object.keys(pu.pu_q.number).length), 1)
@@ -46,6 +44,8 @@ async function openSolve (query) {
 }
 
 const read = (page) => page.evaluate(readEngineState).then(canonicalState)
+// The line `key` writes in a canonical state.
+const lineOf = (key) => (state) => state.split('\n').find((l) => l.startsWith(`${key} = `))
 
 describe('canonical state on a live page', () => {
   let query
@@ -70,13 +70,39 @@ describe('canonical state on a live page', () => {
       const stamps = []
       for (const { page } of [first, second]) {
         await page.evaluate(typeDigitInPage, { index: OTHER_CELL, digit: '3' })
-        stamps.push(await page.evaluate(() => pu.pu_a.command_replay.__a[0][5]))
+        stamps.push(await page.evaluate((at) => pu.pu_a.command_replay.__a[0][at], REPLAY_TIMESTAMP))
       }
       assert.notEqual(stamps[0], stamps[1], 'the replay timestamps differ (the premise)')
       assert.equal(await read(second.page), await read(first.page))
     } finally {
       await first.context.close()
       await second.context.close()
+    }
+  })
+
+  // A solve link carries no genre tags, so the page is tagged here for its conflict check to run.
+  it('writes the answer, mode, selection, conflicts and verdict the page holds', async () => {
+    const { context, page } = await openSolve(query)
+    try {
+      await page.evaluate(() => { pu.user_tags = ['classic'] })
+      await page.evaluate(typeDigitInPage, { index: OTHER_CELL, digit: '1' })
+      const [given, typed] = await page.evaluate((cells) => cells.map((i) => pu.centerlist[i]), [GIVEN_CELL, OTHER_CELL])
+      const lines = (await read(page)).split('\n')
+      const expected = [
+        `pu_a.number.${typed} = ["1",2,"1"]`,
+        'pu_a_col.command_undo.length = 1',
+        'mode.qa = "pu_a"',
+        'mode.edit_mode = "number"',
+        'mode.submode = "1"',
+        'mode.style = 2',
+        'mode.orientation = "R"',
+        `selection = [${typed}]`,
+        `conflict_cells = [${given},${typed}]`,
+        'sol_flag = 0'
+      ]
+      assert.deepEqual(expected.filter((l) => !lines.includes(l)), [], 'every expected line is written')
+    } finally {
+      await context.close()
     }
   })
 
@@ -103,13 +129,15 @@ describe('canonical state on a live page', () => {
     }
   })
 
-  // A duplicate link carries no selection, so the copy opens with none.
+  // A duplicate link carries no selection (`maketext_duplicate` writes none), so the copy opens with none: today's
+  // engine behaviour, pinned here.
   it('reopens a solved board from its duplicate link to the same state but the selection', async () => {
     const source = await openSolve(query)
     let copy
     try {
       await source.page.evaluate(typeDigitInPage, { index: ANSWER_CELL, digit: '2' })
-      assert.equal(await settle(() => source.page.evaluate(() => pu.sol_flag), 1), 1, 'the board is solved (the premise)')
+      const solved = await settle(() => read(source.page).then(lineOf('sol_flag')), 'sol_flag = 1')
+      assert.equal(solved, 'sol_flag = 1', 'the board is solved (the premise)')
       const state = await read(source.page)
       assert.match(state, /^selection = \[\d+\]$/m, 'a cell is selected (the premise)')
       const link = await source.page.evaluate(() => {
