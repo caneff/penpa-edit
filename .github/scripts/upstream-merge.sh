@@ -1,46 +1,62 @@
 #!/usr/bin/env bash
-# Merges <upstream-ref> into the checked-out branch with a merge commit, writing a Markdown report to <report-file>:
-# the upstream commits that touched a file we own (merge=ours), and on a conflict the conflicting files.
-# Writes merged=true|false to $GITHUB_OUTPUT; exits non-zero on a conflict, with no merge left in progress.
+# A failed merge exits non-zero with no merge left in progress; the report says whether it conflicted.
 # Usage: upstream-merge.sh <upstream-ref> <report-file>
 set -euo pipefail
 upstream=$1
 report=$2
-output=${GITHUB_OUTPUT:-/dev/null}
 : >"$report"
 
 if git merge-base --is-ancestor "$upstream" HEAD; then
-  echo "merged=false" >>"$output"
+  echo "merged=false" >>"$GITHUB_OUTPUT"
   exit 0
 fi
 
-# Git has no built-in `ours` driver; without this a merge=ours file is text-merged and takes upstream's change.
+# Git has no built-in `ours` driver; without this a merge=ours file both sides changed is text-merged.
 git config merge.ours.driver true
 
-# Attributes are read from our working tree, so a file is ours by our .gitattributes, not upstream's.
-base=$(git merge-base HEAD "$upstream")
-mapfile -t owned < <(git diff --name-only "$base" "$upstream" | git check-attr --stdin merge | sed -n 's/: merge: ours$//p')
-owned_commits=
-if ((${#owned[@]})); then
-  owned_commits=$(git log --format='- %h %s' "HEAD..$upstream" -- "${owned[@]}")
+# Every file an upstream commit touched, not the net diff, so a change upstream later undid is still reported.
+# Attributes come from our working tree: a file is ours by our .gitattributes.
+touched=$(git -c core.quotePath=false log --format= --name-only "HEAD..$upstream" | sed '/^$/d' | sort -u)
+owned=
+if [[ -n $touched ]]; then
+  owned=$(git check-attr --stdin merge <<<"$touched" | sed -n 's/: merge: ours$//p')
 fi
-if [[ -n $owned_commits ]]; then
-  owned_section=$(printf '%s\n\n%s\n\n%s' \
-    "## Upstream commits that touched a file we own (merge=ours)" \
-    "Port each by hand or drop it." \
-    "$owned_commits")
+owned_section=
+if [[ -n $owned ]]; then
+  mapfile -t owned_files <<<"$owned"
+  owned_section=$(cat <<EOF
+## Upstream commits that touched a file we own (merge=ours)
+
+Our side of each file was kept: port each change by hand or drop it.
+
+$(git log --full-history --no-merges --format='- %h %s' "HEAD..$upstream" -- "${owned_files[@]}")
+EOF
+)
   printf '%s\n\n' "$owned_section" >>"$report"
 fi
 
-message=(-m "Merge $upstream")
-[[ -n $owned_commits ]] && message+=(-m "$owned_section")
-if ! git merge --no-ff "${message[@]}" "$upstream"; then
-  {
-    echo "## The merge conflicted"
-    echo
-    git diff --name-only --diff-filter=U | sed 's/.*/- `&`/'
-  } >>"$report"
-  git merge --abort
+if ! git merge --no-ff --no-commit "$upstream"; then
+  conflicted=$(git diff --name-only --diff-filter=U)
+  if [[ -n $conflicted ]]; then
+    printf '## The merge conflicted\n\n%s\n' "$(sed 's/.*/- `&`/' <<<"$conflicted")" >>"$report"
+  else
+    printf '## The merge failed with no conflicting file\n\nRead the run.\n' >>"$report"
+  fi
+  # A merge git refused before starting leaves nothing to abort.
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null; then git merge --abort; fi
   exit 1
 fi
-echo "merged=true" >>"$output"
+
+# The driver runs only when both sides changed a file, so a file only upstream changed or added still came in.
+for file in ${owned:+"${owned_files[@]}"}; do
+  if git cat-file -e "HEAD:$file" 2>/dev/null; then
+    git checkout HEAD -- "$file"
+  else
+    git rm -q -f -- "$file"
+  fi
+done
+
+message=(-m "Merge $upstream")
+if [[ -n $owned_section ]]; then message+=(-m "$owned_section"); fi
+git commit -q "${message[@]}"
+echo "merged=true" >>"$GITHUB_OUTPUT"

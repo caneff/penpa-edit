@@ -2,15 +2,16 @@
 // stub `gh`. The workflow's own wiring (permissions, step order, the push) is proven only by a workflow_dispatch run.
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, it } from 'node:test'
 
-const MERGE_SCRIPT = fileURLToPath(new URL('../.github/scripts/upstream-merge.sh', import.meta.url))
-const FILE_ISSUE_SCRIPT = fileURLToPath(new URL('../.github/actions/file-issue-once/file-issue-once.sh', import.meta.url))
-const FAILING_TESTS_SCRIPT = fileURLToPath(new URL('../.github/scripts/failing-tests.sh', import.meta.url))
+const script = (name) => fileURLToPath(new URL(`../.github/scripts/${name}`, import.meta.url))
+const MERGE_SCRIPT = script('upstream-merge.sh')
+const FILE_ISSUE_SCRIPT = script('file-issue-once.sh')
+const FAILING_TESTS_SCRIPT = script('failing-tests.sh')
 const UPSTREAM = 'upstream-master'
 
 // No global or system git config, so a merge driver configured on this box cannot help the script.
@@ -33,30 +34,34 @@ function commit (dir, files, message) {
   return git(dir, 'rev-parse', 'HEAD')
 }
 
-// A repo on `master` whose base commit holds `base`, with `ours` committed on master and `theirs` on the upstream branch.
-function scratchRepo ({ base, ours, theirs }) {
+// `theirs` is one commit's files, or a list of them committed in order as "upstream change 1", "upstream change 2", ...
+function scratchRepo ({ base, ours, theirs = [] }) {
   const dir = mkdtempSync(join(tmpdir(), 'upstream-merge-'))
   git(dir, 'init', '-q', '-b', 'master')
   commit(dir, base, 'base')
   git(dir, 'branch', UPSTREAM)
   const oursTip = ours ? commit(dir, ours, 'ours') : git(dir, 'rev-parse', 'HEAD')
   git(dir, 'checkout', '-q', UPSTREAM)
-  const theirsTip = theirs ? commit(dir, theirs, 'upstream change') : git(dir, 'rev-parse', 'HEAD')
+  const theirsTips = (Array.isArray(theirs) ? theirs : [theirs])
+    .map((files, i, all) => commit(dir, files, all.length === 1 ? 'upstream change' : `upstream change ${i + 1}`))
   git(dir, 'checkout', '-q', 'master')
-  return { dir, oursTip, theirsTip }
+  return { dir, oursTip, theirsTip: theirsTips.at(-1), theirsTips }
 }
 
-// Runs the merge script in `dir`; returns its exit status, its report and its GITHUB_OUTPUT lines.
 function runMerge (dir) {
-  const report = join(dir, '..', `${dir.split('/').pop()}-report.md`)
-  const output = join(dir, '..', `${dir.split('/').pop()}-output`)
+  const report = `${dir}-report.md`
+  const output = `${dir}-output`
   writeFileSync(output, '')
   const { status, stderr } = spawnSync('bash', [MERGE_SCRIPT, UPSTREAM, report], {
     cwd: dir, env: { ...GIT_ENV, GITHUB_OUTPUT: output }, encoding: 'utf8'
   })
-  const read = (file) => { try { return readFileSync(file, 'utf8') } catch { return '' } }
-  return { status, stderr, report: read(report), output: read(output) }
+  return { status, stderr, report: readFileSync(report, 'utf8'), output: readFileSync(output, 'utf8') }
 }
+
+// The sha listed on the line `- <sha> <subject>` of `text`, or null.
+const listedSha = (text, subject) => text.match(new RegExp(`^- ([0-9a-f]{7,}) ${subject}$`, 'm'))?.[1] ?? null
+
+const OWNED_BASE = { '.gitattributes': 'ui.js merge=ours\n', 'engine.js': 'engine\n', 'ui.js': 'ui\n' }
 
 describe('the upstream merge script', () => {
   it('merges upstream with a merge commit whose second parent is upstream\'s tip', () => {
@@ -89,6 +94,7 @@ describe('the upstream merge script', () => {
     })
     const { status, report } = runMerge(dir)
     assert.notEqual(status, 0)
+    assert.match(report, /^## The merge conflicted$/m)
     assert.match(report, /^- `engine\.js`$/m)
     assert.match(report, /^- `grid\.js`$/m)
     assert.doesNotMatch(report, /calm\.js/)
@@ -96,9 +102,19 @@ describe('the upstream merge script', () => {
     assert.equal(git(dir, 'status', '--porcelain'), '')
   })
 
+  it('reports a merge that failed without a conflict as a failure, not a conflict', () => {
+    const { dir, oursTip } = scratchRepo({ base: { 'engine.js': 'engine\n' }, theirs: { 'new.js': 'theirs\n' } })
+    writeFileSync(join(dir, 'new.js'), 'untracked here\n')
+    const { status, report } = runMerge(dir)
+    assert.notEqual(status, 0)
+    assert.match(report, /^## The merge failed with no conflicting file$/m)
+    assert.doesNotMatch(report, /conflicted/)
+    assert.equal(git(dir, 'rev-parse', 'HEAD'), oursTip)
+  })
+
   it('keeps our side of a merge=ours file with no driver configured outside the repo, and reports the upstream commit', () => {
     const { dir, theirsTip } = scratchRepo({
-      base: { '.gitattributes': 'ui.js merge=ours\n', 'engine.js': 'engine\n', 'ui.js': 'ui\n' },
+      base: OWNED_BASE,
       ours: { 'ui.js': 'our ui\n' },
       theirs: { 'engine.js': 'new engine\n', 'ui.js': 'their ui\n' }
     })
@@ -107,28 +123,68 @@ describe('the upstream merge script', () => {
     assert.equal(readFileSync(join(dir, 'ui.js'), 'utf8'), 'our ui\n')
     assert.equal(readFileSync(join(dir, 'engine.js'), 'utf8'), 'new engine\n')
     for (const [where, text] of [['report', report], ['merge commit message', git(dir, 'log', '-1', '--format=%B')]]) {
-      const listed = text.match(/^- ([0-9a-f]{7,}) upstream change$/m)
-      assert.ok(listed, `the ${where} lists no upstream commit:\n${text}`)
-      assert.equal(theirsTip.startsWith(listed[1]), true, `the ${where} lists ${listed[1]}, not ${theirsTip}`)
+      const sha = listedSha(text, 'upstream change')
+      assert.ok(sha, `the ${where} lists no upstream commit:\n${text}`)
+      assert.equal(theirsTip.startsWith(sha), true, `the ${where} lists ${sha}, not ${theirsTip}`)
     }
+  })
+
+  it('keeps our side of a merge=ours file that only upstream changed', () => {
+    const { dir } = scratchRepo({
+      base: OWNED_BASE,
+      ours: { 'engine.js': 'our engine\n' },
+      theirs: { 'ui.js': 'their ui\n' }
+    })
+    const { status, stderr } = runMerge(dir)
+    assert.equal(status, 0, stderr)
+    assert.equal(readFileSync(join(dir, 'ui.js'), 'utf8'), 'ui\n')
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
+  it('keeps a merge=ours file absent when upstream adds it', () => {
+    const { dir } = scratchRepo({
+      base: { '.gitattributes': 'ui.js merge=ours\n', 'engine.js': 'engine\n' },
+      theirs: { 'ui.js': 'their ui\n', 'engine.js': 'new engine\n' }
+    })
+    const { status, stderr } = runMerge(dir)
+    assert.equal(status, 0, stderr)
+    assert.equal(existsSync(join(dir, 'ui.js')), false)
+    assert.equal(readFileSync(join(dir, 'engine.js'), 'utf8'), 'new engine\n')
+    assert.equal(git(dir, 'status', '--porcelain'), '')
+  })
+
+  it('reports each upstream commit that touched a merge=ours file, even when a later one undid it', () => {
+    const { dir, theirsTips } = scratchRepo({
+      base: OWNED_BASE,
+      theirs: [{ 'ui.js': 'their ui\n' }, { 'ui.js': 'ui\n', 'engine.js': 'new engine\n' }]
+    })
+    const { status, stderr, report } = runMerge(dir)
+    assert.equal(status, 0, stderr)
+    theirsTips.forEach((tip, i) => {
+      const sha = listedSha(report, `upstream change ${i + 1}`)
+      assert.ok(sha && tip.startsWith(sha), `the report does not list upstream change ${i + 1}:\n${report}`)
+    })
   })
 })
 
-// A `gh` on PATH that answers `issue list` with `openIssues` ("<number>\t<title>" lines) and logs every call's arguments.
-function runFileIssueOnce ({ title, body, openIssues }) {
+// A stub `gh` on PATH answers `issue list` with `openIssues` ("<number>\t<title>" lines), or fails it when `listFails`.
+function runFileIssueOnce ({ title, body, openIssues = '', listFails = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'file-issue-once-'))
   const log = join(dir, 'calls.jsonl')
+  const bodyFile = join(dir, 'body.md')
+  writeFileSync(bodyFile, body)
+  writeFileSync(log, '')
   writeFileSync(join(dir, 'open-issues'), openIssues)
   writeFileSync(join(dir, 'gh'), `#!/usr/bin/env bash
 node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)) + "\\n")' -- "$@" >>"${log}"
-if [[ $1 == issue && $2 == list ]]; then cat "${join(dir, 'open-issues')}"; fi
+if [[ $1 == issue && $2 == list ]]; then ${listFails ? 'exit 1' : `cat "${join(dir, 'open-issues')}"`}; fi
 `, { mode: 0o755 })
-  const { status, stderr } = spawnSync('bash', [FILE_ISSUE_SCRIPT], {
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: 'owner/repo', TITLE: title, BODY: body },
+  const { status, stderr } = spawnSync('bash', [FILE_ISSUE_SCRIPT, title, bodyFile], {
+    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: 'owner/repo' },
     encoding: 'utf8'
   })
-  assert.equal(status, 0, stderr)
-  return readFileSync(log, 'utf8').trim().split('\n').map((line) => JSON.parse(line)).filter(([, verb]) => verb !== 'list')
+  const calls = readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
+  return { status, stderr, writes: calls.filter(([, verb]) => verb !== 'list') }
 }
 
 const TITLE = 'Nightly upstream merge failed'
@@ -136,17 +192,24 @@ const BODY = 'The merge conflicted in `a.js`.'
 
 describe('file-issue-once', () => {
   it('files a bug, needs-info issue when none with the title is open', () => {
-    const calls = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n` })
-    assert.deepEqual(calls, [['issue', 'create', '--repo', 'owner/repo', '--label', 'bug,needs-info', '--title', TITLE, '--body', BODY]])
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n` })
+    assert.equal(status, 0, stderr)
+    assert.deepEqual(writes, [['issue', 'create', '--repo', 'owner/repo', '--label', 'bug,needs-info', '--title', TITLE, '--body', BODY]])
   })
 
   it('comments on the open issue with exactly the title instead of filing another', () => {
-    const calls = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n42\t${TITLE}\n` })
-    assert.deepEqual(calls, [['issue', 'comment', '42', '--repo', 'owner/repo', '--body', BODY]])
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n42\t${TITLE}\n` })
+    assert.equal(status, 0, stderr)
+    assert.deepEqual(writes, [['issue', 'comment', '42', '--repo', 'owner/repo', '--body', BODY]])
+  })
+
+  it('fails and writes nothing when the open issues cannot be listed', () => {
+    const { status, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listFails: true })
+    assert.notEqual(status, 0)
+    assert.deepEqual(writes, [])
   })
 })
 
-// The extractor's Markdown list for `log`, written to a file as the workflow writes the test run's output.
 function failingTests (log) {
   const file = join(mkdtempSync(join(tmpdir(), 'failing-tests-')), 'test.log')
   writeFileSync(file, log)

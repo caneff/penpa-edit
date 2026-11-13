@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Prints a Markdown list of the failing tests in <log>, the output of `node --test` run without a TTY.
-# Reads the runner's closing "failing tests:" block: a "test at <file:line:col>" line, then "✖ <title> (<duration>)".
-# A todo test that fails is listed there with ⚠ and is skipped.
+# Node's non-TTY report closes with a "failing tests:" block of "test at <file:line:col>" then "✖ <title> (<duration>)";
+# a failing todo test is listed there with ⚠ instead.
 # Usage: failing-tests.sh <log>
 set -euo pipefail
 names=$(awk '
