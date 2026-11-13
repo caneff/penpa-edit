@@ -62,6 +62,13 @@ const PLANTS = [
     raises: /planted redo/
   },
   {
+    invariant: 'no page error in making the Clone link',
+    from: /(\r?\n {4}maketext_duplicate\(\) \{\r?\n)/,
+    to: '$1        console.error("planted clone");\n',
+    failure: /^step \d+ \(.*\), in making the Clone link,: page error: console\.error: planted clone$/,
+    raises: /planted clone/
+  },
+  {
     // C15's shape: the answer check redraws from inside `redraw`.
     invariant: 'one draw() per redraw()',
     from: /(\r?\n {20}this\.check_solution\(\);\r?\n)/,
