@@ -1,13 +1,485 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant I styles. Owned by variant I's builder. */
-.proto-i-banner {
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant I, "Desk". Owned by variant I's builder. */
+html.proto-variant-I,
+html.proto-variant-I body {
+    background: #15171c;
+    overflow: hidden;
+}
+
+.proto-i-root {
     position: fixed;
+    inset: 0;
+    z-index: 5;
+    font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: #dfe3ea;
+}
+
+/* ---- Desk ------------------------------------------------------------------------------------------------------- */
+.proto-i-desk {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    background-color: #1b1e24;
+    background-image: radial-gradient(circle, #343944 1.2px, transparent 1.3px);
+    cursor: default;
+}
+.proto-i-world {
+    position: absolute;
+    left: 0;
     top: 0;
+    width: 0;
+    height: 0;
+}
+.proto-i-hud {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 20;
+}
+.proto-i-hud > * {
+    pointer-events: auto;
+}
+.proto-i-root.is-panready .proto-i-desk,
+.proto-i-root.is-panready .proto-i-desk * {
+    cursor: grab !important;
+}
+.proto-i-root.is-panning,
+.proto-i-root.is-panning * {
+    cursor: grabbing !important;
+}
+html.proto-i-dragging,
+html.proto-i-dragging * {
+    cursor: move !important;
+    user-select: none;
+}
+
+/* ---- Cards ------------------------------------------------------------------------------------------------------ */
+.proto-i-card {
+    position: absolute;
+    background: #252a33;
+    border: 1px solid #39404d;
+    border-radius: 8px;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .45);
+    display: flex;
+    flex-direction: column;
+    min-width: 140px;
+}
+.proto-i-card.is-pinned {
+    border-color: #5a6b8a;
+    box-shadow: 0 10px 34px rgba(0, 0, 0, .6), 0 0 0 1px rgba(110, 150, 220, .25);
+}
+.proto-i-cardhead {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 10px;
+    background: #2e3440;
+    border-radius: 8px 8px 0 0;
+    cursor: move;
+    user-select: none;
+    min-height: 26px;
+}
+.proto-i-card.is-collapsed .proto-i-cardhead {
+    border-radius: 8px;
+}
+.proto-i-cardtitle {
+    flex: 1;
+    font-weight: 600;
+    font-size: 12px;
+    letter-spacing: .02em;
+    color: #c9d1de;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.proto-i-cardtools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+.proto-i-cardbody {
+    overflow: auto;
+}
+.proto-i-card.is-collapsed .proto-i-cardbody {
+    display: none;
+}
+.proto-i-btn.proto-i-cardbtn {
+    min-width: 22px;
+    height: 20px;
+    padding: 0 5px;
+    font-size: 12px;
+    background: transparent;
+    border-color: transparent;
+    color: #9aa6b8;
+}
+.proto-i-btn.proto-i-cardbtn:hover {
+    background: #3a4250;
+    color: #fff;
+}
+.proto-i-maglabel {
+    font-size: 11px;
+    color: #9aa6b8;
+    min-width: 30px;
+    text-align: center;
+}
+
+/* Board card: white paper under the canvas. */
+.proto-i-card-board {
+    background: #fff;
+    border-color: #4a5160;
+}
+.proto-i-card-board .proto-i-cardhead {
+    background: #2e3440;
+}
+.proto-i-boardslot {
+    position: relative;
+    padding: 8px;
+    overflow: visible;
+}
+.proto-i-card-board .proto-i-cardbody {
+    overflow: visible;
+}
+html.proto-variant-I #dvique {
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    width: auto !important;
+}
+.proto-i-marks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+.proto-i-mark {
+    position: absolute;
+    border: 2px dashed #3d7cf0;
+    border-radius: 3px;
+    box-sizing: border-box;
+    background: rgba(61, 124, 240, .05);
+}
+.proto-i-mark span {
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    transform: translateY(-100%);
+    background: #3d7cf0;
+    color: #fff;
+    font: 600 10px/1 system-ui, sans-serif;
+    padding: 2px 4px;
+    border-radius: 3px 3px 0 0;
+}
+
+/* Rules */
+.proto-i-card-rules .proto-i-cardbody {
+    max-height: 52vh;
+    resize: vertical;
+}
+.proto-i-rules {
+    padding: 10px 12px 12px;
+}
+.proto-i-ptitle {
+    font-size: 15px;
+    font-weight: 650;
+    color: #fff;
+}
+.proto-i-byline {
+    color: #9aa6b8;
+    font-size: 12px;
+}
+.proto-i-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0;
+}
+.proto-i-chip {
+    font-size: 11px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    background: #353c49;
+    color: #b8c2d3;
+}
+.proto-i-chip.is-on {
+    background: #23513a;
+    color: #9be3b9;
+}
+.proto-i-rulestext {
+    font-size: 13.5px;
+    line-height: 1.5;
+    color: #e4e8ef;
+}
+
+/* Notes */
+.proto-i-notes {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 150px;
+    height: 170px;
+    resize: vertical;
+    border: 0;
+    border-radius: 0 0 8px 8px;
+    padding: 10px 12px;
+    background: #2a2f22;
+    color: #f1ecc9;
+    font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    outline: none;
+}
+.proto-i-card-notes {
+    border-color: #555a3d;
+}
+.proto-i-notes:focus {
+    box-shadow: inset 0 0 0 2px #b4a64a;
+}
+
+/* Loupes */
+.proto-i-card-loupe {
+    border-color: #3d7cf0;
+}
+.proto-i-card-loupe .proto-i-cardhead {
+    background: #263552;
+}
+.proto-i-loupecanvas {
+    display: block;
+    border-radius: 0 0 7px 7px;
+    cursor: crosshair;
+}
+.proto-i-picker {
+    position: fixed;
+    inset: 0;
+    z-index: 900;
+    cursor: crosshair;
+    background: rgba(10, 14, 22, .25);
+}
+.proto-i-picker[hidden] {
+    display: none;
+}
+.proto-i-pickerhint {
+    position: absolute;
+    top: 52px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
+    background: #3d7cf0;
     color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    pointer-events: none;
+}
+.proto-i-pickrect {
+    position: absolute;
+    display: none;
+    border: 2px dashed #3d7cf0;
+    background: rgba(61, 124, 240, .15);
+    pointer-events: none;
+}
+
+/* ---- Tools card ------------------------------------------------------------------------------------------------- */
+.proto-i-tools {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.proto-i-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.proto-i-rowlabel {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #8792a5;
+}
+.proto-i-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+.proto-i-modes .proto-i-choices {
+    padding-bottom: 6px;
+    border-bottom: 1px solid #39404d;
+}
+.proto-i-grid2 .proto-i-choices {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+.proto-i-scrollrow .proto-i-choices {
+    max-height: 180px;
+    overflow: auto;
+}
+.proto-i-btn.proto-i-choice {
+    height: 24px;
+    padding: 0 7px;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.proto-i-btn.proto-i-swatch {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: var(--sw);
+    border: 1px solid rgba(255, 255, 255, .25);
+    color: #000;
+    font-size: 10px;
+    text-shadow: 0 0 2px #fff;
+}
+.proto-i-btn.proto-i-swatch.is-on {
+    outline: 2px solid #fff;
+    outline-offset: 1px;
+}
+.proto-i-pad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3px;
+}
+.proto-i-btn.proto-i-key {
+    height: 32px;
+    font-size: 16px;
+    font-weight: 600;
+}
+.proto-i-key-wide {
+    grid-column: span 2;
+}
+.proto-i-hint {
+    font-size: 11.5px;
+    color: #8f9bb0;
+}
+
+/* ---- Buttons ---------------------------------------------------------------------------------------------------- */
+.proto-i-btn {
+    height: 28px;
+    padding: 0 10px;
+    border: 1px solid #434b5a;
+    border-radius: 5px;
+    background: #2f3541;
+    color: #e2e6ee;
+    font: inherit;
+    cursor: pointer;
+}
+.proto-i-btn:hover {
+    background: #3a4250;
+}
+.proto-i-btn:disabled {
+    opacity: .4;
+    cursor: default;
+}
+.proto-i-btn.is-on {
+    background: #3d7cf0;
+    border-color: #6a9cff;
+    color: #fff;
+}
+.proto-i-btn-accent {
+    background: #24427a;
+    border-color: #3d7cf0;
+}
+.proto-i-btn-check {
+    background: #23513a;
+    border-color: #3b8a60;
+}
+
+/* ---- Top bar ---------------------------------------------------------------------------------------------------- */
+.proto-i-bar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 44px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 12px;
+    background: rgba(20, 23, 29, .94);
+    border-bottom: 1px solid #2e3440;
+    backdrop-filter: blur(4px);
+}
+.proto-i-brand {
+    font-weight: 650;
+    color: #fff;
+    max-width: 260px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.proto-i-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.proto-i-spacer {
+    flex: 1;
+}
+.proto-i-timer {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    min-width: 64px;
+    text-align: right;
+    margin-right: 4px;
+}
+.proto-i-hist,
+.proto-i-zoom {
+    font-size: 12px;
+    color: #8f9bb0;
+    min-width: 40px;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+.proto-i-status {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.proto-i-status:empty {
+    display: none;
+}
+.proto-i-status.is-solved {
+    background: #23513a;
+    color: #9be3b9;
+}
+.proto-i-status.is-wrong {
+    background: #5a2a2a;
+    color: #ffb3b3;
+}
+.proto-i-status.is-none {
+    background: #353c49;
+    color: #b8c2d3;
+}
+.proto-i-wrap {
+    position: relative;
+}
+.proto-i-menu {
+    position: absolute;
+    top: 32px;
+    right: 0;
+    min-width: 200px;
+    padding: 4px;
+    background: #252a33;
+    border: 1px solid #434b5a;
+    border-radius: 6px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.proto-i-menu[hidden] {
+    display: none;
+}
+.proto-i-btn.proto-i-menuitem {
+    text-align: left;
+    background: transparent;
+    border-color: transparent;
+}
+.proto-i-btn.proto-i-menuitem:hover {
+    background: #3a4250;
+}
+.proto-i-btn.proto-i-menuitem.is-on {
+    background: transparent;
+    color: #e2e6ee;
+}
+.proto-i-danger {
+    color: #ff9d9d !important;
 }
