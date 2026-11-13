@@ -217,18 +217,20 @@ describe('the UI driver', () => {
     assert.equal(await compareDrivers(browser(), recording, { id: 'number-keys' }), null)
   })
 
-  // In Sudoku, Delete clears the cell and Space does not, so the two keys' codes are told apart.
+  // In Sudoku's normal sub-mode Delete clears a cell's corner marks and Space does not (`key_space` in class_p.js), so
+  // the two keys' codes are told apart.
   it('replays a recorded Sudoku entry with Delete through the keyboard to the engine driver\'s states', async () => {
     const { state, recording } = await record(query, async (page) => {
       await page.click('#mo_sudoku_lb')
+      await page.click('#sub_sudoku2_lb')
       await clickCell(page, DRAG_FROM)
       await page.keyboard.press('5')
-      await page.keyboard.press('ArrowRight')
-      await page.keyboard.press('6')
+      await page.click('#sub_sudoku1_lb')
       await page.keyboard.press('Delete')
     })
     assert.ok(recording.steps.some((s) => s.call === 'key_space' && s.args[0] === 46), 'the recording holds Delete (the premise)')
-    assert.equal(state.match(/^pu_a\.number\.\d+ = /gm)?.length, 1, 'Delete cleared the second digit (the premise)')
+    assert.doesNotMatch(state, /^pu_a\.numberS\.\d+ = /m, 'Delete cleared the corner mark (the premise)')
+    assert.ok(recording.steps.some((s) => s.call === 'key_number' && s.args[0] === '5'), 'the recording holds the mark (the premise)')
     assert.equal(await compareDrivers(browser(), recording, { id: 'sudoku-delete' }), null)
   })
 
