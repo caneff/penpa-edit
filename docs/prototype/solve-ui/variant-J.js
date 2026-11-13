@@ -13,8 +13,15 @@
  *     click or drag touched, outlined on the board. The palette sits beside it with the brush (primary / secondary, e.g.
  *     Line or x, Shade or Dot; the secondary brush makes a left drag act as Penpa+'s right drag), colour swatches,
  *     sub-modes, and "Undo stroke" (removes that whole gesture, however many history steps it made).
- *   - Always: a mode chip (switch mode, pick a Composite tool), Undo, Redo, Check.
- * With nothing selected the palette idles, shrunk to its header and footer, beside the board.
+ *   - Always: the puzzle's KIT (round 2), its 2-5 tools on top (Alt+1..5), each one Penpa+ Composite tool or mode
+ *     picked from what the answer check compares, the title and the rules (buildKit below): Slitherlink Loop (Edge x),
+ *     Masyu Loop (Line x), Yajilin Shade + loop, Nurikabe Shade (Black / dot), Yin-Yang Circles, Star Battle Stars,
+ *     Galaxies Borders + Shade, Fillomino Borders + Sizes, Akari Bulbs (+ Shade for Statue Park), Battleships Ships,
+ *     hex Akari Bulbs + Letters (R G B pad); plus Colour. The page starts on the kit's first tool. "All modes" opens
+ *     every mode and Composite tool. Alt+Q swaps the brush. Undo, Redo, Check.
+ * With nothing selected the palette idles, shrunk to its header and footer, beside the board. Placement defaults to the
+ * edge rail (just off the board at the work's height); the pin switches to beside-the-work.
+ * Penpa+'s floating number panel is hidden (the palette's pad replaces it).
  *
  * The claim it tests: the palette should come to the work, not sit in a corner.
  *
@@ -27,6 +34,10 @@
  *   - No list of what each Composite tool's left / right buttons do: a small table below (Penpa+ README § Composite).
  *   - Shape mode has no shape picker here (no listShapes()); digits pick the current shape's variants.
  *   - history() lags one frame; stroke bookkeeping reads it after a timeout.
+ *   - No answer-check options in the bridge (answerCheckInfo() is HTML only): the kit reads
+ *     pu.get_answercheck_settings().answercheck_opt; the hex Akari's letters come from parsing pu.solution.
+ *   - No "what each Composite tool does" or genre-to-tool map in the bridge: the kit table lives here.
+ *   - setMode() opens modes the link's Penpa Lite hides (Galaxies shows no Composite yet uses Edge x / Black dot).
  */
 (function() {
     'use strict';
@@ -36,7 +47,7 @@
         linex: ['Line', '×'], lineox: ['Line / O', '×'], linedir: ['Line', '×'], edgex: ['Edge', '×'],
         edgexoi: ['Edge', '×'], edgesub: ['Edge', '×'], yajilin: ['Shade / Loop', 'Dot / ×'],
         blpo: ['Shade', 'Dot'], blwh: ['White', 'Black'], shaka: ['Shade', 'Dot'], star: ['Star', '×'],
-        tents: ['Tent', '×'], mines: ['Mine', '×'], doublemines: ['Mine', '×'], akari: ['Light', 'Dot'],
+        tents: ['Tent', '×'], mines: ['Mine', '×'], doublemines: ['Mine', '×'], akari: ['Bulb', 'Dot'],
         hashi: ['Bridge', '—'], battleship: ['Ship', 'Water'], magnets: ['+ / −', '×'], rassisillai: ['Line', '×']
     };
 
@@ -49,6 +60,116 @@
         {key: 'm', label: 'Centre', mode: 'sudoku', sub: '3', hint: 'C'},
         {key: 'k', label: 'Colour', mode: 'multicolor', hint: 'V'}
     ];
+
+    /**
+     * The puzzle's kit: the 2-5 tools a solver of this genre needs, read from what the answer check compares
+     * (pu.get_answercheck_settings().answercheck_opt), the title and the rules; genre tags are absent on most links.
+     * A tool is {label, mode, sub?, style?, tip}. Most genres are one Composite tool (left = main mark, right =
+     * helper); combined gestures (Yajilin: click shades, drag draws the loop) stay one tool.
+     */
+    function buildKit(B) {
+        const info = B.getInfo();
+        const text = ((info.title || '') + ' ' + (info.rules || '')).toLowerCase();
+        let ac = [];
+        try {
+            ac = pu.get_answercheck_settings().answercheck_opt || [];
+        } catch (e) {
+            ac = [];
+        }
+        const kit = [];
+        const add = function(t) {
+            if (!kit.some(function(k) {
+                return k.mode === t.mode && String(k.sub) === String(t.sub);
+            })) {
+                kit.push(t);
+            }
+        };
+        const regions = /fillomino|galax|tentaisho|divide the grid|regions?\b/.test(text);
+        ac.forEach(function(opt) {
+            if (opt === 'edge loop' || opt === 'edge loop exact') {
+                add(regions ? {label: 'Borders', mode: 'combi', sub: 'edgex', tip: 'Drag along edges: border; × brush: not a border'} :
+                    {label: 'Loop', mode: 'combi', sub: 'edgex', tip: 'Drag along edges: loop; × brush: crossed-out edge'});
+            } else if (opt === 'cell loop' || opt === 'cell loop exact') {
+                if (/yajilin/.test(text) || (/shade/.test(text) && !/masyu|circle/.test(text))) {
+                    add({label: 'Shade + loop', mode: 'combi', sub: 'yajilin', tip: 'Click: shade; drag: loop. Dot brush: dot in cell, × on edges'});
+                } else {
+                    add({label: 'Loop', mode: 'combi', sub: 'linex', tip: 'Drag through cells: loop; × brush: crossed-out edge'});
+                }
+            } else if ((opt === 'shading' || opt === 'shading exact color') && ac.indexOf('battleship') === -1) {
+                // (Battleships checks shading OR ships; the Ships tool's segments and water cover it.)
+                add({label: 'Shade', mode: 'combi', sub: 'blpo', tip: 'Click / drag: shade; Dot brush: unshaded dot'});
+            } else if (opt === 'circle') {
+                add({label: 'Circles', mode: 'combi', sub: 'blwh', tip: 'White brush / Black brush; click again to swap'});
+            } else if (opt === 'star battle') {
+                add({label: 'Stars', mode: 'combi', sub: 'star', tip: 'Click: star; × brush: cross out (drag for many)'});
+            } else if (opt === 'akari') {
+                add({label: 'Bulbs', mode: 'combi', sub: 'akari', tip: 'Click: bulb; Dot brush: no bulb here'});
+            } else if (opt === 'battleship') {
+                add({label: 'Ships', mode: 'combi', sub: 'battleship', tip: 'Click cycles segment / water; drag out from a cell for an end piece; Water brush: drag for many'});
+            } else if (opt === 'tents') {
+                add({label: 'Tents', mode: 'combi', sub: 'tents', tip: 'Click: tent; × brush: no tent'});
+            } else if (opt === 'minesweeper') {
+                add({label: 'Mines', mode: 'combi', sub: 'mines', tip: 'Click: mine; × brush: safe'});
+            } else if (opt === 'magnets') {
+                add({label: 'Magnets', mode: 'combi', sub: 'magnets', tip: 'Click: + / −; × brush: empty'});
+            } else if (opt === 'shakashaka') {
+                add({label: 'Triangles', mode: 'combi', sub: 'shaka', tip: 'Drag from a corner: triangle; Dot brush: empty'});
+            } else if (opt === 'wall') {
+                add({label: 'Walls', mode: 'wall', sub: '1', tip: 'Drag along cell centres: wall'});
+            } else if (opt === 'number') {
+                add(pu.gridtype === 'sudoku' ? {label: 'Digits', mode: 'sudoku', sub: '1', tip: 'Select cells, type'} :
+                    {label: letters(B).length ? 'Letters' : 'Numbers', mode: 'number', sub: '1', tip: 'Click a cell, type'});
+            }
+        });
+        // Helpers a solver of the genre writes though the check ignores them.
+        if (/fillomino/.test(text)) {
+            add({label: 'Sizes', mode: 'number', sub: '1', tip: 'Click a cell, type its region size'});
+        }
+        if (/galax|tentaisho/.test(text) && !kit.some(function(k) {
+            return k.sub === 'blpo';
+        })) {
+            add({label: 'Shade', mode: 'combi', sub: 'blpo', tip: 'Click / drag: shade; Dot brush: dot'});
+        }
+        if (!kit.length) {
+            add({label: 'Digits', mode: 'sudoku', sub: '1', tip: 'Select cells, type'});
+        }
+        // The genre's own mark first (loop, borders, stars, bulbs, ships), then shading, then values.
+        const rank = function(k) {
+            return k.sub === 'blpo' ? 1 : (k.mode === 'number' || k.mode === 'sudoku') ? 2 : 0;
+        };
+        kit.sort(function(a, b) {
+            return rank(a) - rank(b);
+        });
+        // Colour is the free-form helper every genre gets (pencil-colouring areas), last; Sudoku has its own tab.
+        if (!kit.some(function(k) {
+            return k.mode === 'sudoku';
+        })) {
+            add({label: 'Colour', mode: 'surface', helper: true, tip: 'Paint cells; the swatch picks the colour'});
+        }
+        return kit.slice(0, 5);
+    }
+
+    /** Letters the solution uses as values (e.g. R G B in the hex Akari), so the pad offers them. */
+    function letters(B) {
+        let out = [];
+        try {
+            const m = String(pu.solution).match(/(^|,)([A-Z])(?=,|$)/g) || [];
+            out = m.map(function(x) {
+                return x.replace(',', '');
+            });
+        } catch (e) {
+            out = [];
+        }
+        out = out.filter(function(x, i) {
+            return out.indexOf(x) === i;
+        }).sort();
+        // Colour letters read in RGB order, not alphabetically.
+        return out.every(function(x) {
+            return 'RGB'.indexOf(x) !== -1;
+        }) ? ['R', 'G', 'B'].filter(function(x) {
+                return out.indexOf(x) !== -1;
+            }) : out;
+    }
 
     const GAP = 14;         // px between the work and the palette
     const MARGIN = 8;       // px from the window edge
@@ -204,8 +325,10 @@
                 return SELECT_MODES.indexOf(B.getMode().mode) === -1;
             }
 
+            /** The board point under the pointer that the current tool acts on (a cell, an edge or a vertex). */
             function cellAt(e) {
-                return B.pageToPoint(e.pageX, e.pageY, [0]);
+                const p = B.pageToPoint(e.pageX, e.pageY);
+                return p === null ? B.pageToPoint(e.pageX, e.pageY, [0]) : p;
             }
 
             function resend(type, e, buttons) {
@@ -290,7 +413,10 @@
             function unionRect(cells) {
                 let rect = null;
                 cells.forEach(function(c) {
-                    const r = B.cellRect(c);
+                    const pt = B.pointToPage(c);
+                    const h = pu.size * 0.3;
+                    const r = pt && pt.type !== 0 ? {left: pt.x - h, top: pt.y - h, right: pt.x + h, bottom: pt.y + h} :
+                        B.cellRect(c);
                     rect = rect ? {left: Math.min(rect.left, r.left), top: Math.min(rect.top, r.top),
                         right: Math.max(rect.right, r.right), bottom: Math.max(rect.bottom, r.bottom)} : r;
                 });
@@ -305,7 +431,10 @@
             function target() {
                 if (usesStroke()) {
                     if (stroke && stroke.cells.length) {
-                        return {kind: 'stroke', rect: unionRect(stroke.cells), count: stroke.cells.length};
+                        return {kind: 'stroke', rect: unionRect(stroke.cells), count: stroke.cells.length,
+                            unit: stroke.cells.every(function(c) {
+                                return B.pointToPage(c).type === 0;
+                            }) ? 'cell' : 'spot'};
                     }
                     return {kind: 'idle', rect: boardRect(), count: 0};
                 }
@@ -395,7 +524,8 @@
             // ---- Palette content ----------------------------------------------------------------------------------
             let menuOpen = false;
             // 'beside' = next to the work (the idea under test); 'rail' = off the board's edge at the work's height.
-            let placement = localStorage.getItem('proto-j-placement') === 'rail' ? 'rail' : 'beside';
+            // Rail is the default: round 1 measured beside-the-selection covering the next cell on 30 of 55 clicks.
+            let placement = localStorage.getItem('proto-j-placement2') === 'beside' ? 'beside' : 'rail';
             let railSide = 'right';
             let lastKey = '';
 
@@ -484,25 +614,61 @@
                 }));
             }
 
+            function toolOn(k, st) {
+                return k.mode === st.mode && (k.sub === undefined || String(k.sub) === String(st.submode));
+            }
+
+            function selectTool(k) {
+                B.setMode(k.mode);
+                if (k.mode === 'combi') {
+                    B.setComposite(k.sub);
+                } else if (k.sub !== undefined) {
+                    B.setSubmode(k.sub);
+                }
+                if (k.style !== undefined) {
+                    B.setStyle(k.style);
+                }
+                brush = 'primary';
+                stroke = null;
+                menuOpen = false;
+                lastKey = '';
+                schedule();
+            }
+
             function buildHead(st, t) {
                 palHead.textContent = '';
-                const chip = pbtn('proto-j-modechip', (st.mode === 'combi' ? comboLabel(st.submode) :
-                    modeLabel(st.mode)) + ' ▾', function() {
+                const kitRow = el('div', {class: 'proto-j-kit', role: 'group', 'aria-label': 'Tools for this puzzle'});
+                kit.forEach(function(k, i) {
+                    const b = pbtn('proto-j-tool', k.label, function() {
+                        selectTool(k);
+                    }, k.tip + '  (Alt+' + (i + 1) + ')');
+                    b.appendChild(el('kbd', {}, [String(i + 1)]));
+                    if (toolOn(k, st)) {
+                        b.classList.add('is-on');
+                    }
+                    kitRow.appendChild(b);
+                });
+                if (kit.length > 1) {
+                    palHead.appendChild(kitRow);
+                }
+                const inKit = kit.some(function(k) {
+                    return toolOn(k, st);
+                });
+                const chip = pbtn('proto-j-modechip' + (inKit ? '' : ' is-other'), inKit ? 'All modes ▾' :
+                    (st.mode === 'combi' ? comboLabel(st.submode) : modeLabel(st.mode)) + ' ▾', function() {
                     menuOpen = !menuOpen;
-                }, 'Switch mode');
+                }, 'Every Penpa+ mode and Composite tool');
                 const what = el('span', {class: 'proto-j-what'}, [
-                    t.kind === 'cells' || t.kind === 'stroke' ? t.count + (t.count === 1 ? ' cell' : ' cells') : ''
+                    t.kind === 'cells' || t.kind === 'stroke' ? t.count + ' ' + (t.unit || 'cell') + (t.count === 1 ? '' : 's') : ''
                 ]);
                 const pin = pbtn('proto-j-pin', placement === 'rail' ? '⇥' : '◎', function() {
                     placement = placement === 'rail' ? 'beside' : 'rail';
-                    localStorage.setItem('proto-j-placement', placement);
+                    localStorage.setItem('proto-j-placement2', placement);
                     lastKey = '';
                 }, placement === 'rail' ? 'Palette at the board edge (click: beside the selection)' :
                     'Palette beside the selection (click: at the board edge)');
                 what.title = t.kind === 'stroke' ? 'Cells your last stroke touched (outlined on the board)' : '';
-                palHead.appendChild(chip);
-                palHead.appendChild(what);
-                palHead.appendChild(pin);
+                palHead.appendChild(el('div', {class: 'proto-j-headrow'}, [chip, what, pin]));
             }
 
             function comboLabel(name) {
@@ -568,11 +734,14 @@
                     }));
                     palBody.appendChild(row('', [eraseBtn('Clear colour')]));
                 } else if (mode === 'number') {
-                    const seg = submodeRow('number');
+                    const seg = kit.some(function(k) {
+                        return toolOn(k, st);
+                    }) ? null : submodeRow('number');
                     if (seg) {
                         palBody.appendChild(seg);
                     }
-                    palBody.appendChild(digitPad(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'], [eraseBtn()]));
+                    palBody.appendChild(digitPad(kitLetters.length ? kitLetters :
+                        ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'], [eraseBtn()]));
                 } else if (mode === 'symbol') {
                     palBody.appendChild(el('div', {class: 'proto-j-note'}, ['Click a cell to place the shape; digits pick its variant.']));
                     palBody.appendChild(digitPad(['1', '2', '3', '4', '5', '6', '7', '8', '9'], [eraseBtn()]));
@@ -588,8 +757,19 @@
                 return 'Draw on the board. The palette follows your last stroke.';
             }
 
+            function legend(st) {
+                const k = kit.find(function(x) {
+                    return toolOn(x, st);
+                });
+                return k ? el('div', {class: 'proto-j-legend'}, [k.tip]) : null;
+            }
+
             function buildStrokeBody(st, t) {
                 const mode = st.mode;
+                const lg = legend(st);
+                if (lg) {
+                    palBody.appendChild(lg);
+                }
                 if (mode === 'combi') {
                     const names = COMBI_BRUSH[st.submode] || ['Primary', 'Secondary'];
                     palBody.appendChild(el('div', {class: 'proto-j-label'}, ['Brush']));
@@ -617,7 +797,7 @@
                 if (t.kind === 'stroke') {
                     palBody.appendChild(row('', [pbtn('proto-j-wide', 'Undo stroke', undoStroke,
                         'Remove everything the last stroke did')]));
-                } else {
+                } else if (!lg) {
                     palBody.appendChild(el('div', {class: 'proto-j-idle'}, [idleText(mode)]));
                 }
             }
@@ -666,6 +846,9 @@
                 return m.mode === 'sudoku';
             }) && pu.gridtype === 'sudoku';
 
+            const kit = buildKit(B);
+            const kitLetters = letters(B);
+
             // ---- Render -------------------------------------------------------------------------------------------
             let queued = false;
             function schedule() {
@@ -709,7 +892,7 @@
                 placeStroke(t);
                 hint.textContent = (SELECT_MODES.indexOf(st.mode) !== -1 ?
                     'Select cells and the palette comes to them' : 'Draw; the palette follows your last stroke') +
-                    '  ·  ` focuses the palette  ·  Esc clears';
+                    '  ·  Alt+1-' + kit.length + ' tools  ·  Alt+Q swaps brush  ·  ` focuses the palette';
             }
 
             B.onChange(function(state, reason) {
@@ -774,6 +957,20 @@
 
             window.addEventListener('keydown', function(e) {
                 const inPal = pal.contains(document.activeElement);
+                // Alt+1..5 picks a kit tool; Alt+Q swaps the brush (main mark / helper mark).
+                if (e.altKey && !e.ctrlKey && /^Digit[1-5]$/.test(e.code) && kit[+e.code.slice(5) - 1]) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    selectTool(kit[+e.code.slice(5) - 1]);
+                    return;
+                }
+                if (e.altKey && !e.ctrlKey && e.code === 'KeyQ' && B.getMode().mode === 'combi') {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    brush = brush === 'primary' ? 'secondary' : 'primary';
+                    schedule();
+                    return;
+                }
                 if (e.key === '`' && !e.ctrlKey && !e.altKey) {
                     e.preventDefault();
                     e.stopImmediatePropagation();
@@ -828,9 +1025,14 @@
                 }
             });
 
+            // Start on the kit's first tool (the genre's own mark), whatever mode the link starts in.
+            if (!toolOn(kit[0], B.getState())) {
+                selectTool(kit[0]);
+            }
+
             window.PrototypeJ = {
                 state: function() {
-                    return {stroke: stroke, brush: brush, menuOpen: menuOpen, target: target()};
+                    return {stroke: stroke, brush: brush, menuOpen: menuOpen, target: target(), kit: kit};
                 }
             };
             schedule();

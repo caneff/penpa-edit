@@ -148,10 +148,60 @@ html.proto-variant-J body {
 
 .proto-j-head {
     display: flex;
+    flex-direction: column;
+    gap: 5px;
+    margin-bottom: 6px;
+}
+
+.proto-j-headrow {
+    display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 4px;
-    margin-bottom: 6px;
+}
+
+/* The puzzle's kit: its 2-5 tools, one press each (Alt+n). */
+.proto-j-kit {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.proto-j-btn.proto-j-tool {
+    flex: 1 1 calc(50% - 4px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 5px 7px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+}
+
+.proto-j-tool kbd {
+    font: 10px ui-monospace, Consolas, monospace;
+    color: #8b93a3;
+    border: 1px solid #3a4152;
+    border-radius: 4px;
+    padding: 0 3px;
+}
+
+.proto-j-tool.is-on kbd {
+    color: #10203a;
+    border-color: #10203a;
+}
+
+.proto-j-modechip:not(.is-other) {
+    font-weight: 400;
+    color: #9fb4d8;
+}
+
+.proto-j-legend {
+    font-size: 11px;
+    line-height: 1.35;
+    color: #a9b1c1;
+    margin: 0 1px 6px;
 }
 
 .proto-j-what {
@@ -381,4 +431,9 @@ html.proto-variant-J body {
     height: 22px;
     font-size: 12px;
     flex: none;
+}
+
+/* Penpa+'s floating number panel: the palette's pad replaces it (some links open with it on). */
+html.proto-variant-J #float-key {
+    display: none !important;
 }
