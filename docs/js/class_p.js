@@ -1939,18 +1939,18 @@ class Puzzle {
 
         // Puzzle title
         let titleinfo = document.getElementById("saveinfotitle").value;
-        text += "," + "Title: " + encode_header_text(titleinfo, HEADER_ESCAPED_CHARS.line); // caneff: round-trips %2C (#21)
+        text += "," + "Title: " + HEADER_TEXT.line.encode(titleinfo); // caneff: round-trips %2C (#21)
 
         // Puzzle author
         let authorinfo = document.getElementById("saveinfoauthor").value;
-        text += "," + "Author: " + encode_header_text(authorinfo, HEADER_ESCAPED_CHARS.line); // caneff: round-trips %2C (#21)
+        text += "," + "Author: " + HEADER_TEXT.line.encode(authorinfo); // caneff: round-trips %2C (#21)
 
         // Puzzle Source
-        text += "," + encode_header_text(document.getElementById("saveinfosource").value, HEADER_ESCAPED_CHARS.line); // caneff: a comma shifts the header, %2C must round-trip (#21)
+        text += "," + HEADER_TEXT.line.encode(document.getElementById("saveinfosource").value); // caneff: a comma shifts the header, %2C must round-trip (#21)
 
         // Puzzle Rules
         let ruleinfo = document.getElementById("saveinforules").value;
-        text += "," + encode_header_text(ruleinfo, HEADER_ESCAPED_CHARS.rules); // caneff: round-trips %2C (#21)
+        text += "," + HEADER_TEXT.rules.encode(ruleinfo); // caneff: round-trips %2C (#21)
 
         // Border button status
         let border_status = UserSettings.draw_edges ? 'ON' : 'OFF';

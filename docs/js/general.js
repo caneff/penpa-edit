@@ -2041,17 +2041,17 @@ async function load(urlParam, type = 'url', origurl = null) {
         let ptitle = rtext_para[15].replace(/^Title\:\s/, '');
         if (ptitle !== "Title: ") {
             // caneff: the field holds the text as typed; the page shows it with textContent (#21)
-            document.getElementById("saveinfotitle").value = decode_header_text(ptitle, HEADER_ESCAPED_CHARS.line);
+            document.getElementById("saveinfotitle").value = HEADER_TEXT.line.decode(ptitle);
         }
     }
     if (rtext_para[16]) {
         let pauthor = rtext_para[16].replace(/^Author\:\s/, '');
         if (pauthor != "") {
-            document.getElementById("saveinfoauthor").value = decode_header_text(pauthor, HEADER_ESCAPED_CHARS.line); // caneff: see Title (#21)
+            document.getElementById("saveinfoauthor").value = HEADER_TEXT.line.decode(pauthor); // caneff: see Title (#21)
         }
     }
     if (rtext_para[17] && rtext_para[17] !== "") {
-        psource = decode_header_text(rtext_para[17], HEADER_ESCAPED_CHARS.line); // caneff: it reaches only a field value and an href attribute, never HTML (#21)
+        psource = HEADER_TEXT.line.decode(rtext_para[17]); // caneff: it reaches only a field value and an href attribute, never HTML (#21)
         set_source_href(document.getElementById("puzzlesourcelink"), psource); // caneff: no javascript: link (#11)
         document.getElementById("puzzlesource").innerHTML = "Source";
         document.getElementById("saveinfosource").value = psource;
@@ -2073,7 +2073,7 @@ async function load(urlParam, type = 'url', origurl = null) {
     if (rtext_para[18] && rtext_para[18] !== "") {
         document.getElementById("puzzlerules").classList.add("rules-present");
         // caneff: the field holds the text as typed; pu.rules is its HTML form for display (#21)
-        let rules_text = decode_header_text(rtext_para[18], HEADER_ESCAPED_CHARS.rules);
+        let rules_text = HEADER_TEXT.rules.decode(rtext_para[18]);
         pu.rules = header_text_to_html(rules_text);
         document.getElementById("ruletext").innerHTML = pu.rules;
         document.getElementById("saveinforules").value = rules_text;
@@ -3270,7 +3270,7 @@ function update_title() {
     let author = document.getElementById("saveinfoauthor").value;
 
     document.getElementById("puzzletitle").textContent = title; // caneff: title and author are text (#21)
-    document.getElementById("puzzleauthor").textContent = author;
+    document.getElementById("puzzleauthor").textContent = author; // caneff: see above (#21)
 
     let auth_str = (author ? (title ? ' by ' + author : author) : '');
     let auth_tit_str = (title ? title : (auth_str ? '' : 'Puzzle')) + auth_str;

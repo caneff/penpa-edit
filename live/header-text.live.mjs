@@ -7,7 +7,7 @@ const browser = useBrowser()
 
 // Every character the header escapes, plus a `%2C` already in the text and HTML that must stay text.
 const TITLE = 'a<b & c = d, e %2C f 50% %25'
-const AUTHOR = 'Chris <i>N</i>, "x" & y = z %2D'
+const AUTHOR = 'Chris <i>N</i>, "x" & y = z %2D %2C 5%25'
 const SOURCE = 'https://example.test/?ids=a%2Cb,c&q=1%2F2'
 const RULES = 'Shade a<b cells & more\nline2 50%2C off, x=y\n%2D'
 
@@ -53,5 +53,19 @@ describe('a link\'s Title, Author, Source and Rules', () => {
       rulesText: RULES.replace(/\n/g, ''),
       elements: 0
     })
+  })
+
+  it('show as text in a replay link\'s title line', async () => {
+    const replay = await first.page.evaluate(() => pu.maketext_replay())
+    const opened = await openPenpa(browser(), replay.slice(replay.indexOf('#')))
+    try {
+      const shown = await opened.page.evaluate(() => ({
+        text: document.getElementById('puzzletitle').textContent,
+        elements: document.querySelectorAll('#puzzletitle *').length
+      }))
+      assert.deepEqual(shown, { text: `${TITLE} | Author: ${AUTHOR} | Time: 00:00:00:00:0 (d:h:m:s:ts)`, elements: 0 })
+    } finally {
+      await opened.context.close()
+    }
   })
 })

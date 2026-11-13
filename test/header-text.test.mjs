@@ -1,42 +1,46 @@
-// The header's text escapes round-trip any text, and still read a link saved before `%` was escaped.
+// The header's text escapes round-trip any text. A link saved before `%` was escaped reads as before, except that a
+// `%25` in its text now reads as `%`.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import vm from 'node:vm'
 
 const source = readFileSync(new URL('../docs/js/header_text.js', import.meta.url), 'utf8')
-const header = vm.runInNewContext(`${source}; ({ encode_header_text, decode_header_text, header_text_to_html, HEADER_ESCAPED_CHARS })`)
+const header = vm.runInNewContext(`${source}; ({ HEADER_TEXT, header_text_to_html })`)
 
-const TEXT = 'a<b & c = d, e %2C f %2D %25 50%\nend'
+const LINE = 'a<b & c = d, e %2C f %2D %25 50%'
+const RULES = `${LINE}\nend`
 
 describe('the header text escapes', () => {
-  for (const kind of ['line', 'rules']) {
-    it(`${kind}: text with , & = < %2C and a newline round-trips`, () => {
-      const chars = header.HEADER_ESCAPED_CHARS[kind]
-      const text = kind === 'line' ? TEXT.replace('\n', ' ') : TEXT
-      assert.equal(header.decode_header_text(header.encode_header_text(text, chars), chars), text)
-    })
+  it('line: text with , & = < %2C round-trips', () => {
+    assert.equal(header.HEADER_TEXT.line.decode(header.HEADER_TEXT.line.encode(LINE)), LINE)
+  })
 
-    it(`${kind}: the encoded text holds no comma`, () => {
-      assert.equal(header.encode_header_text(TEXT, header.HEADER_ESCAPED_CHARS[kind]).includes(','), false)
-    })
-  }
+  it('rules: text with , & = < %2C and a newline round-trips', () => {
+    assert.equal(header.HEADER_TEXT.rules.decode(header.HEADER_TEXT.rules.encode(RULES)), RULES)
+  })
 
-  it('rules: the encoded text holds no newline', () => {
-    assert.equal(header.encode_header_text(TEXT, header.HEADER_ESCAPED_CHARS.rules).includes('\n'), false)
+  it('the encoded text holds no comma, and rules none either newline', () => {
+    const encoded = { line: header.HEADER_TEXT.line.encode(LINE), rules: header.HEADER_TEXT.rules.encode(RULES) }
+    assert.deepEqual(
+      { line: encoded.line.includes(','), rules: encoded.rules.includes(',') || encoded.rules.includes('\n') },
+      { line: false, rules: false }
+    )
   })
 
   it('a Source keeps the `%2F` and `%2E` of its URL', () => {
-    const chars = header.HEADER_ESCAPED_CHARS.line
-    assert.equal(header.decode_header_text('https://x.test/a%2Fb%2Ec', chars), 'https://x.test/a%2Fb%2Ec')
+    assert.equal(header.HEADER_TEXT.line.decode('https://x.test/a%2Fb%2Ec'), 'https://x.test/a%2Fb%2Ec')
   })
 
-  it('reads the escapes of a link saved before `%` was escaped', () => {
-    const chars = header.HEADER_ESCAPED_CHARS.rules
-    assert.equal(header.decode_header_text('a%2Cb%2Dc%2Ed%2Fe 50%', chars), 'a,b\nc&d=e 50%')
+  it('reads the escapes of a rules text saved before `%` was escaped', () => {
+    assert.equal(header.HEADER_TEXT.rules.decode('a%2Cb%2Dc%2Ed%2Fe 50%'), 'a,b\nc&d=e 50%')
+  })
+
+  it('reads a `%25` of a text saved before `%` was escaped as `%`', () => {
+    assert.equal(header.HEADER_TEXT.line.decode('100%25 a%2Cb'), '100% a,b')
   })
 
   it('header_text_to_html shows markup as text and a newline as a line break', () => {
-    assert.equal(header.header_text_to_html('a<b & "c"\nd'), 'a&lt;b &amp; &quot;c&quot;<br>d')
+    assert.equal(header.header_text_to_html('a<b & "c"\nd'), 'a&lt;b &amp; "c"<br>d')
   })
 })
