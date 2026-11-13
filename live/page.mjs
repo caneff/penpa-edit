@@ -82,9 +82,23 @@ export function shadeInPage (index) {
   pu.redraw()
 }
 
+// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle and of the cell its answer fills.
+export const GIVEN_CELL = 0
+export const ANSWER_CELL = 1
+
+// Runs `inPage(arg)` on a fresh page of its own and returns what it returns: a puzzle link built on a new board.
+export async function linkFromNewBoard (browser, inPage, arg) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    return await page.evaluate(inPage, arg)
+  } finally {
+    await context.close()
+  }
+}
+
 // Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
 // answer is a 2 in the cell at `answer`, and returns its solve link's `#` part.
-export function numberSolveLinkInPage ({ given, answer }) {
+function numberSolveLinkInPage ({ given, answer }) {
   document.getElementById('nb_size1').value = 4
   document.getElementById('nb_size2').value = 4
   create_newboard()
@@ -92,4 +106,9 @@ export function numberSolveLinkInPage ({ given, answer }) {
   pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
   const url = pu.maketext_solve_solution()
   return url.slice(url.indexOf('#'))
+}
+
+// The `#` part of a 4x4 Number solve link with a given 1 in GIVEN_CELL and an author's answer of 2 in ANSWER_CELL.
+export function makeNumberSolveLink (browser) {
+  return linkFromNewBoard(browser, numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
 }

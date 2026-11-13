@@ -15,10 +15,10 @@
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
 // The fuzz writes `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
-// and never by hand.
+// and never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { openPenpa } from './page.mjs'
+import { linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const RECORDINGS = new URL('./recordings/', import.meta.url)
@@ -54,13 +54,8 @@ export function cellPixelInPage (index) {
 }
 
 // The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
-export async function makeSurfaceSolveLink (browser) {
-  const { context, page } = await openPenpa(browser)
-  try {
-    return await page.evaluate(surfaceSolveLinkInPage, ANSWER_CELLS)
-  } finally {
-    await context.close()
-  }
+export function makeSurfaceSolveLink (browser) {
+  return linkFromNewBoard(browser, surfaceSolveLinkInPage, ANSWER_CELLS)
 }
 
 // Opens `query`, a solve link's `#` part, with the recorder on, once its answer has loaded.
@@ -94,7 +89,14 @@ export async function readRecording (id) {
 
 // The expected checkpoints, each state back as the string `canonicalState` writes.
 export async function readExpected (id) {
-  const { checkpoints } = JSON.parse(await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8'))
+  let text
+  try {
+    text = await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8')
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e
+    throw new Error(`${id} has no expected file: once the replay is right, run node live/write-expected.mjs ${id}`)
+  }
+  const { checkpoints } = JSON.parse(text)
   return checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
 }
 

@@ -18,7 +18,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
-  generated from them. Not "trace" (Playwright's word) or "script".
+  generated from them. Not "trace" (Playwright's word) or "script". A failing fuzz run is saved as one, unreviewed and
+  with no expected states until its bug is fixed.
 - **Step**: one input in a recording, in board terms: a pointer gesture on a board point, a content key, a mode change
   named by its mode, sub-mode and style, or an undo or redo. Solve mode checks the answer after every input, so the
   verdict is in every checkpoint and no step runs it.

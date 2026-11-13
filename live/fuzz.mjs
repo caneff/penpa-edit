@@ -3,6 +3,8 @@
 // the solving invariants checked at every checkpoint: no page error, one `draw()` per `redraw()`, undo-all then
 // redo-all gives back the same canonical state, and a save/load round trip gives back the same canonical state. A
 // failing run is saved as a recording. Not a check itself, so `live/**/*.live.mjs` skips it.
+// Not checked: that the redo stacks survive a save (`maketext_duplicate` drops them by design), and the edit-mode
+// share link, which a solver does not save progress in.
 import { execFile } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -13,7 +15,8 @@ import { openPenpa } from './page.mjs'
 import { applyStepInPage, changedKeys, endsGroup, entries, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
-// Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings.
+// Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings. It has no expected file
+// until the bug is fixed and `live/write-expected.mjs` writes one, so `live/replay.live.mjs` fails on it until then.
 export const FUZZ_RECORDINGS = fileURLToPath(new URL('./recordings/fuzz/', import.meta.url))
 // The seeds and the steps per run the seam fuzzes every puzzle with: fixed, so a CI run is repeatable.
 export const FUZZ_SEEDS = [1, 2, 3]
@@ -40,9 +43,13 @@ const WEIGHTS = { gesture: 45, key: 25, mode: 10, undo: 10, redo: 7, double: 3 }
 const MAX_MOVES = 3
 // A drag's next point is within this many cell sizes of its last, as a hand's drag goes.
 const DRAG_REACH = 1.5
-// Chances, out of 1, that a gesture is a right-button one and that it is Ctrl-held.
+// Chances, out of 1, that a gesture is a right-button one, that it is Ctrl-held, and that it ends with the pointer
+// leaving the canvas instead of a button release.
 const RIGHT_BUTTON = 0.25
 const CTRL_HELD = 0.1
+const LEAVES_CANVAS = 0.1
+// The pointer leaving the canvas, as `onOut` in `main.js` calls the engine.
+const OUT_STEP = { kind: 'pointer', action: 'out', button: null, ctrl: false, x: 0, y: 0, num: 0 }
 
 // mulberry32: a small seeded generator, so a seed gives the same run every time.
 function random (seed) {
@@ -55,24 +62,23 @@ function random (seed) {
   }
 }
 
-// Runs in the page: wraps `pu.redraw` and `pu.draw` so each outermost redraw's count of draws is kept in
-// `window.fuzzDraws`.
+// Runs in the page: wraps `pu.redraw` and `pu.draw` so each outermost redraw's count of draws, those of any redraw it
+// calls included (C15's shape: `check_solution` redrawing from inside `redraw`), is kept in `window.fuzzDraws`.
 function countDrawsInPage () {
   window.fuzzDraws = []
   const { redraw, draw } = pu
-  let current = null
+  let depth = 0
+  let draws = 0
   pu.draw = function (...args) {
-    if (current) current.draws++
+    if (depth) draws++
     return draw.apply(this, args)
   }
   pu.redraw = function (...args) {
-    const outer = current
-    current = { draws: 0 }
+    if (!depth++) draws = 0
     try {
       return redraw.apply(this, args)
     } finally {
-      if (!outer) window.fuzzDraws.push(current.draws)
-      current = outer
+      if (!--depth) window.fuzzDraws.push(draws)
     }
   }
 }
@@ -91,13 +97,13 @@ function modeChoicesInPage (choices) {
 }
 
 // Runs in the page: every point a click can land on in the current mode (`coord_point` in `main.js` picks only points
-// of a type in `pu.type`), on the canvas, as [num, x, y], and the cell size.
+// of a type in `pu.type`), on the canvas, as { x, y, num }, and the cell size.
 function pointsInPage () {
   const canvas = document.getElementById('canvas')
   const points = []
   for (const [num, p] of pu.point.entries()) {
     if (p && pu.type.includes(p.type) && p.x >= 0 && p.y >= 0 && p.x <= canvas.offsetWidth && p.y <= canvas.offsetHeight) {
-      points.push([num, p.x, p.y])
+      points.push({ x: p.x, y: p.y, num })
     }
   }
   return { points, size: pu.size }
@@ -151,26 +157,26 @@ async function nextInput (page, rand, modes, room) {
   const kinds = Object.entries(WEIGHTS).filter(([kind]) => kind !== 'gesture' || room >= 2)
   let roll = rand() * kinds.reduce((sum, [, w]) => sum + w, 0)
   const [kind] = kinds.find(([, w]) => (roll -= w) < 0) ?? kinds.at(-1)
-  const point = (num, x, y) => ({ x, y, num })
   switch (kind) {
     case 'gesture': {
       const { points, size } = await page.evaluate(pointsInPage)
       const button = rand() < RIGHT_BUTTON ? 'right' : 'left'
       const ctrl = rand() < CTRL_HELD
       let at = pick(points)
-      const steps = [{ kind: 'pointer', action: 'down', button, ctrl, ...point(...at) }]
+      const steps = [{ kind: 'pointer', action: 'down', button, ctrl, ...at }]
       const moves = Math.floor(rand() * (Math.min(MAX_MOVES, room - 2) + 1))
       for (let i = 0; i < moves; i++) {
-        const near = points.filter(([n, x, y]) => n !== at[0] && Math.hypot(x - at[1], y - at[2]) <= DRAG_REACH * size)
+        const from = at
+        const near = points.filter((p) => p.num !== from.num && Math.hypot(p.x - from.x, p.y - from.y) <= DRAG_REACH * size)
         at = pick(near.length ? near : points)
-        steps.push({ kind: 'pointer', action: 'move', button: button === 'right' ? 'right' : null, ctrl: false, ...point(...at) })
+        steps.push({ kind: 'pointer', action: 'move', button: button === 'right' ? 'right' : null, ctrl: false, ...at })
       }
-      steps.push({ kind: 'pointer', action: 'up', button: null, ctrl: false, ...point(...at) })
+      steps.push(rand() < LEAVES_CANVAS ? OUT_STEP : { kind: 'pointer', action: 'up', button: null, ctrl: false, ...at })
       return steps
     }
     case 'double': {
       const { points } = await page.evaluate(pointsInPage)
-      return [{ kind: 'pointer', action: 'double', button: 'left', ctrl: false, ...point(...pick(points)) }]
+      return [{ kind: 'pointer', action: 'double', button: 'left', ctrl: false, ...pick(points) }]
     }
     case 'key': {
       const [call, args] = pick(KEY_CHOICES)
@@ -185,11 +191,9 @@ async function nextInput (page, rand, modes, room) {
   }
 }
 
-let commit
 // The checkout's short sha, which a saved recording names as the one it was recorded at.
 async function headCommit () {
-  commit ??= (await promisify(execFile)('git', ['rev-parse', '--short', 'HEAD'], { cwd: new URL('.', import.meta.url) })).stdout.trim()
-  return commit
+  return (await promisify(execFile)('git', ['rev-parse', '--short', 'HEAD'], { cwd: new URL('.', import.meta.url) })).stdout.trim()
 }
 
 // Writes the recording of a failing run, laid out as `docs/js/recorder.js` writes one, and returns its path.
@@ -204,16 +208,15 @@ async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
   return file
 }
 
-// Fuzzes `puzzle` ({ name, source }, `source` its link's query and `#` part) with `seed` for `count` steps. Returns the
-// steps made, `failure` (null, or the first broken invariant in words), `saved` (the failing run's recording, under
-// `saveDir`) and `errors` (the page errors, as `openPenpa` gives them). `served` and `setup` go to `openPenpa`, for both
-// the fuzzed page and every round trip's page.
+// Fuzzes `puzzle` ({ name, source }, `source` its link's query and `#` part) with `seed` for `count` steps. `failure` is
+// the first broken invariant in words and `saved` the path of its run's recording, both null when none broke. `served`
+// and `setup` go to `openPenpa` for every page the run opens.
 export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup }) {
   const { context, page, errors } = await openPenpa(browser, puzzle.source, { served, setup })
   const readRaw = () => page.evaluate(readEngineState)
   const steps = []
   const fail = async (failure, final) => ({
-    steps, failure, errors, saved: await saveRecording(saveDir, { puzzle, seed, page, final: final ?? await readRaw(), steps })
+    steps, failure, saved: await saveRecording(saveDir, { puzzle, seed, page, final: final ?? await readRaw(), steps })
   })
   try {
     // The board loads after `pu` exists.
@@ -237,7 +240,7 @@ export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECOR
         if (failure) return await fail(failure, final)
       }
     }
-    return { steps, failure: null, saved: null, errors }
+    return { steps, failure: null, saved: null }
   } finally {
     await context.close()
   }
@@ -260,6 +263,8 @@ async function checkpoint ({ browser, page, errors, at, state, served, setup }) 
   const dirtyAfter = await pageClean(', in undo-all then redo-all,')
   if (dirtyAfter) return dirtyAfter
   const link = await page.evaluate(cloneLinkInPage)
+  const dirtyClone = await pageClean(', in making the Clone link,')
+  if (dirtyClone) return dirtyClone
   const loaded = await openPenpa(browser, link, { served, setup })
   try {
     const want = afterRoundTrip(state)
