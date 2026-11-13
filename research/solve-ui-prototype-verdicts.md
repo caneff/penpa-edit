@@ -73,3 +73,15 @@ Chris, 2026-11-13, rulings for the new solve UI:
 - Presets are both: a few built-in pin sets named by their contents (never by genre), plus pin sets the solver saves.
 - One desk layout for every puzzle, kept in the browser, with a "reset layout" button.
 - The mouse card's headline names the whole current tool (mode, sub-mode, style), with left/right/drag rows below.
+
+## Variant L (round 3, 2026-11-13)
+
+Variant L (`?variant=L`, commit `4a8d256` on `prototype/solve-ui`) built the rulings above: the desk with five movable cards,
+the fixed mouse card, a pinned-modes strip with presets, and an All modes browser in seven groups by what a tool puts on
+the board, with search.
+
+Chris, 2026-11-13: "It is getting closer." Changes asked for:
+- Many of the button rows (presets, sub-modes, styles) can be compacted into pulldowns.
+- All modes and Tool settings can be integrated together better.
+- Genre names are not banned. Penpa's own tool labels (often genre names) stay as searchable tags on the descriptions.
+  What is ruled out is grouping or organising by genre.
