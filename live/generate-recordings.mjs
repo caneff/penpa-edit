@@ -24,11 +24,11 @@ const COMMIT = execFileSync('git', ['merge-base', 'HEAD', 'origin/master'], { en
 // Indices in `pu.centerlist`, taken modulo its length, of the cells each gesture starts at, none of them tier A's
 // ANSWER_CELLS, so a gesture does not shade the answer whole.
 const CELLS = { click: 0, drag: 4, corners: 8, edges: 12, right: 2, ctrl: 13 }
-// `pu.point` types: a cell's centre, a cell's corner, and the middle of a cell's top or bottom edge, which Wall draws
-// along.
-const CENTRE = 0
-const CORNER = 1
-const EDGE = 3
+// `pu.point` types, each a list in order of preference: a cell's centre, a cell's corner, and the middle of a cell's
+// edge, which Wall draws along (on a square board type 3, top and bottom edges; a uniform board has only type 2).
+const CENTRE = [0]
+const CORNER = [1]
+const EDGE = [3, 2]
 
 // Each mode's family, `research/penpa-mode-key-map.md` § Families, as the recording's directory.
 const FAMILY = {
@@ -41,34 +41,35 @@ const SHAPE_TOOLS = ['circle_L', 'cross']
 const GRID_BOARDS = { hex: 2, tri: 3, pyramid: 3, uniform: 2 }
 // The uniform tilings share one class (`class_uniform.js`); this one stands for them.
 const UNIFORM_TILING = 'truncated_square'
-// The only modes the solve link of a new hex, tri, pyramid or uniform board shows.
-const GRID_MODES = ['surface', 'line']
 
 const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 if (Object.values(CELLS).some((c) => ANSWER_CELLS.includes(c))) throw new Error('a gesture starts on one of ANSWER_CELLS')
 
-// Runs in the page: the indices in `pu.point` of a run of up to `length` points of `type` inside the board's canvas,
-// from the one nearest the centre of the cell at `cell` of the center list, each next point the nearest one to the right
-// of the last.
-function runInPage ({ cell, type, length }) {
+// Runs in the page: the indices in `pu.point` of a run of up to `length` points of the first of `types` the board's
+// canvas has, from the one nearest the centre of the cell at `cell` of the center list, each next point the nearest one
+// to the right of the last, or where none is to the right the nearest one not yet in the run.
+function runInPage ({ cell, types, length }) {
   const canvas = document.getElementById('canvas')
   const onCanvas = (p) => p.x > 0 && p.x < canvas.clientWidth && p.y > 0 && p.y < canvas.clientHeight
-  const points = pu.point.map((p, num) => p && { ...p, num }).filter((p) => p && p.type === type && onCanvas(p))
+  const all = pu.point.map((p, num) => p && { ...p, num }).filter((p) => p && onCanvas(p))
+  const type = types.find((t) => all.some((p) => p.type === t))
+  const points = all.filter((p) => p.type === type)
   const centre = pu.point[pu.centerlist[cell % pu.centerlist.length]]
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
   const nearest = (from, among) => among.reduce((best, p) => (!best || distance(from, p) < distance(from, best) ? p : best), null)
-  const run = [nearest(centre, points)]
-  while (run.length < length) {
+  const run = [nearest(centre, points)].filter(Boolean)
+  while (run.length && run.length < length) {
     const last = run.at(-1)
-    const next = nearest(last, points.filter((p) => p.x > last.x + 1))
+    const unused = points.filter((p) => !run.includes(p))
+    const next = nearest(last, unused.filter((p) => p.x > last.x + 1)) ?? nearest(last, unused)
     if (!next) break
     run.push(next)
   }
   // The key panel Shape mode opens floats over the board, and a click on it never reaches the board; a solver drags
   // it aside. Still open, so `UserSettings.panel_shown` stays as the engine set it.
   document.getElementById('float-key').style.left = '-10000px'
-  return run.filter(Boolean).map((p) => p.num)
+  return run.map((p) => p.num)
 }
 
 // Runs in the page: what the page shows at a page pixel, when it is not the board.
@@ -78,15 +79,15 @@ function notBoardInPage ({ x, y }) {
 }
 
 // Page pixels of a run of points (`runInPage`), each one checked to be on the board.
-async function pixelRun (page, cell, type, length = 1) {
+async function pixelRun (page, cell, types, length = 1) {
   const pixels = []
-  for (const num of await page.evaluate(runInPage, { cell, type, length })) {
+  for (const num of await page.evaluate(runInPage, { cell, types, length })) {
     const pixel = await page.evaluate(pointPixelInPage, num)
     const other = await page.evaluate(notBoardInPage, pixel)
     if (other) throw new Error(`the gesture's point ${num} at ${pixel.x},${pixel.y} is on ${other}, not the board`)
     pixels.push(pixel)
   }
-  if (pixels.length < length) throw new Error(`the board has a run of ${pixels.length} points of type ${type} from cell ${cell}, not ${length}`)
+  if (pixels.length < length) throw new Error(`the board has a run of ${pixels.length} points of types ${types} from cell ${cell}, not ${length}`)
   return pixels
 }
 
@@ -231,27 +232,41 @@ function importsPerGenre () {
   return [...byGenre].map(([genre, imports]) => ({ genre, imports: imports.sort((a, b) => a.cells - b.cells) }))
 }
 
+// The `#` part of a solve link to the board `build(page)` makes on a page of its own, since a new board keeps the last
+// one's modes (`create_newboard`).
+async function solveLink (browser, build) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    await build(page)
+    return linkHash(await page.evaluate(solveLinkInPage))
+  } finally {
+    await context.close()
+  }
+}
+
+// Runs in the page: the modes whose buttons the mode bar shows.
+function shownModesInPage () {
+  return [...document.querySelectorAll('[id^="mo_"][id$="_lb"]')].filter((l) => l.offsetParent != null).map((l) => l.id.slice(3, -3))
+}
+
 // Each recording to make: its id, the boards it may be made on in order of preference (each a function returning a
-// link's `#` part and the name of what it is), and what it does on the board.
-async function tierB (page) {
+// link's `#` part and the name of what it is), and what it does on the board. A grid class's board is recorded in each
+// mode its solve page shows.
+async function tierB (browser) {
   const recordings = []
   for (const { genre, imports } of importsPerGenre()) {
     recordings.push({
       id: `genre/${slug(genre)}`,
-      boards: imports.map(({ name, url }) => async () => {
-        await page.evaluate((u) => import_url(u), url)
-        return { query: linkHash(await page.evaluate(solveLinkInPage)), name }
-      }),
+      boards: imports.map(({ name, url }) => async () => ({ query: await solveLink(browser, (p) => p.evaluate((u) => import_url(u), url)), name })),
       act: (p) => gestures(p)
     })
   }
   for (const [grid, size] of Object.entries(GRID_BOARDS)) {
-    const board = async () => {
-      await page.evaluate(newBoardInPage, { gridtype: grid === 'uniform' ? UNIFORM_TILING : grid, size })
-      return { query: linkHash(await page.evaluate(solveLinkInPage)) }
-    }
-    for (const mode of GRID_MODES) {
-      recordings.push({ id: `grid/${grid}-${mode}`, boards: [board], act: async (p) => { await chooseMode(p, { mode }); await gestures(p) } })
+    const query = await solveLink(browser, (p) => p.evaluate(newBoardInPage, { gridtype: grid === 'uniform' ? UNIFORM_TILING : grid, size }))
+    const { context, page } = await openPenpa(browser, query)
+    const modes = await settle(() => page.evaluate(shownModesInPage)).finally(() => context.close())
+    for (const mode of modes) {
+      recordings.push({ id: `grid/${grid}-${mode}`, boards: [async () => ({ query })], act: async (p) => { await chooseMode(p, { mode }); await gestures(p) } })
     }
   }
   return recordings
@@ -275,9 +290,8 @@ async function recordOnFirst (browser, { id, boards, act }) {
 const prefixes = process.argv.slice(2)
 const browser = await chromium.launch()
 const refused = []
-const importPage = await openPenpa(browser)
 try {
-  const all = [...await tierA(browser), ...await tierB(importPage.page)]
+  const all = [...await tierA(browser), ...await tierB(browser)]
   const ids = all.map(({ id }) => id)
   const twice = ids.filter((id, i) => ids.indexOf(id) !== i)
   if (twice.length) throw new Error(`two recordings would share the id ${twice.join(', ')}`)
