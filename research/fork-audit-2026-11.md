@@ -32,6 +32,7 @@ sink); all three hold. The UI pass's screenshots and its collected page are at
 - **F2 Upstream addresses in the page.** Besides `maketext_baseurl()` (#4), `docs/index.html` still names upstream in the
   OG/Twitter meta tags (lines 9-20), the Bookmarklet (line 1986, which opens links on upstream) and every help link
   (lines 1971-2000). The `<title>` and `logo.png` are the rest of the branding surface. Penpa+'s MIT copyright lines stay.
+  **Partly fixed**: `maketext_baseurl()` only (#4, 9fa2ab1). The meta tags, Bookmarklet, help links, title and logo remain.
 - **F3 Pages is fine.** The Pages API reports `errored`, but the last deploy run succeeded and the live `index.html`,
   `class_p.js` and `main.js` match the checkout byte for byte.
 - **F4 The git guard blocks pushes to this repo.** `block-dangerous-git.sh` maps a fork to its parent; fix handed to a
@@ -43,10 +44,12 @@ sink); all three hold. The UI pass's screenshots and its collected page are at
   writes the mode name from the link (`pu.mode = JSON.parse(rtext[11])`, `general.js:2466-2483`) into `innerHTML`. A solve
   link with `<img src=x onerror=...>` as the Shape sub-mode fired on load. Such script can read and rewrite every saved
   puzzle's progress.
+  **Fixed** (#43, 06b7105).
 - **S2 HIGH LIVE: the Source field breaks out of an attribute.** `general.js:3186-3187` puts the source into the
   `<a href="$v">` template at `translate.js:765`; DOMPurify does not escape quotes in plain text, so `x" onmouseover=...`
   fired in a contest link. `general.js:2046-2050` also sets `#puzzlesourcelink.href` to a `javascript:` URL (in the DOM;
   execution on click not confirmed headless).
+  **Fixed** (#43, 06b7105: the attribute breakout and the `javascript:` href).
 
 ## Correctness and data loss
 
@@ -54,34 +57,49 @@ Ranked by what a solver or setter loses.
 
 - **C1 HIGH LIVE: OR answer checks say "solved" on an empty grid** when any checked OR category is empty
   (`class_p.js:13408-13444`): `sol_flag=1`, "Congratulations", timer paused.
+  **Fixed** (#45, 30ecbdd).
 - **C2 HIGH LIVE: resizing the board breaks the stored answer.** Keys such as `"75,1E"` and OR `math` entries are not
   moved, and four OR cases are missing (`class_p.js:1258-1261`, `1281-1318`). A correct solve is never accepted.
+  **Fixed** (#47, c3aec7a).
 - **C3 HIGH LIVE: a comma in Source kills the link.** `class_p.js:1948` does not escape it (Title, Author and Rules are);
   the header shifts and `atob` throws (`general.js:2085-2088`). Dead page.
+  **Fixed** (#44, 936d213).
 - **C4 MED LIVE: boot dies with no message** on `?fbclid=…` / `?utm_source=…` (`general.js:28-47` reads the query instead
   of the hash; `progress.js:57` fails) and on a truncated link (`load()` from `general.js:1969` has no try/catch).
+  **Fixed** (#44, 936d213).
 - **C5 HIGH LIVE: picking the "All" constraint after another breaks Sudoku mode.** `constraints.js:47-49` lists 11 modes but
   10 sub-modes and 10 styles, so every mode after Surface takes the next one's defaults; digits stop entering. It survives
   New grid (`general.js:194-197`).
+  **Fixed** (#40, 9435810).
 - **C6 MED LIVE: answer checks made after a resize miss new edges** (`get_edge_solution`, `class_p.js:2542-2566`, never
   clears its cache): pentominous, araf, fillomino become unsolvable.
+  **Fixed** (#47, c3aec7a).
 - **C7 MED-HIGH LIVE: in an alphabet sudoku, typing a digit blanks the board** (`conflicts.js:58/79/173` call
   `.toLowerCase` on a number inside `redraw`'s try, whose catch skips `draw()` after the clear, `class_p.js:12595-12610`).
+  **Fixed** (#51, 6bc3fa5).
 - **C8 MED LIVE: one undo removes two moves after reopening saved progress.** The group counter restarts at 0 each load
   (`class_p.js:190`, `general.js:2678`) and equal neighbours merge (`class_p.js:6857-6875`).
+  **Fixed** (#53, 1afa2ad: the reload case; #55, e8de7fc: a second case, typing a number in a single cell).
 - **C9 MED LIVE: copy/paste.** Sort comparators `(a,b)=>a>=b` never sort (`class_p.js:7381-7415`), so a selection dragged
   from the bottom right pastes one cell up and left; on triangle grids Ctrl+C always throws (`class_p.js:7391`). Upstream
   #221 (paste ignores grid transform) is related.
+  **Fixed** (#49, 56e8c72). Upstream #221 is not part of it.
 - **C10 MED LIVE: a failed puzz.link import wipes the current board** and leaves the dialog open with no error
   (`puzzlink.js:973-1025`, `general.js:1945`). Truncated URLs import with `NaN`/null clues; 0x0 and -3x5 sizes are accepted.
+  **Fixed** (#50, fe95aff).
 - **C11 MED LIVE: Rules, Title and Author text is mangled on reload** (`general.js:2034-2074` writes DOMPurify's HTML into
   text fields): `<`, `&` and `%2C` are damaged.
+  **Fixed** (#46, f3e5a34).
 - **C12 MED LIVE: making an edit link empties the answer replay** (`class_p.js:2066`).
+  **Fixed** (#48, 9583a6c).
 - **C13 MED LIVE: consecutive checkers treat every edge symbol as a bar** (`conflicts.js:502`, inverted `&&`/`||`), so a
   correct grid never shows "solved".
+  **Fixed** (#42, 006675b).
 - **C14 MED LIVE: the sudoku conflict checker runs only on 9x9** (`conflicts.js:141`); 4x4 and 6x6 get none.
+  **Fixed** (#42, 006675b).
 - **C15 MED LIVE (perf): every redraw draws twice** on puzzles with an answer check (`check_solution` calls `redraw` from
   inside `redraw`, `class_p.js:13435`), and each also re-runs `make_solution` and the conflict check.
+  **Fixed** (#54, 0879ec5).
 - Lower (READ unless marked): saved progress keyed by `md5(p)` overrides a corrected answer on the same link
   (`general.js:44-61`); `localforage.setItem` not awaited so quota failures are unseen (`progress.js:93-97`); `beforeunload`
   on `document` never fires (`main.js:71`); undo of Erase on the Solution layer does nothing (`class_p.js:7250-7256`);
@@ -97,6 +115,7 @@ Ranked by what a solver or setter loses.
 
 - **I1 HIGH LIVE: no setting survives a browser restart.** The expiry `now + 86400000 * 2147483647` ms is past the largest
   Date, so every cookie is a session cookie (`settings.js:15-19, 27, 47, 514-520`); all 23 had `expires: -1`.
+  **Fixed** (#24, 08c8a9e).
 - **I2 HIGH LIVE: solve links erase the solver's Tab set.** Every solve link carries the setter's Tab set, even `"[]"`,
   which replaces yours (`general.js:2139-2140`); the dropdown shows nothing ticked; then any settings change saves the
   empty dropdown over your cookie (`settings.js:520`). `general.js:1941` compares an array with 0 (dead branch).
@@ -107,7 +126,7 @@ Ranked by what a solver or setter loses.
   reset, `main.js:269-270, 417-427, 895-904`), and any key within 15 ms of Shift-up forces Corner (`main.js:320-324`).
 - **I6 MED LIVE: Surface mode, the default, swallows every non-Ctrl key's browser action**: F5, F11, F1, Tab
   (`main.js:681-693`). Alt+Left (Back) is swallowed in every mode (`main.js:346-353`).
-- **I7 MED LIVE: "conflict detection off for this puzzle" carries over to every later puzzle** (`settings.js:105-120, 472`).
+- **I7 MED LIVE (fixed in #72, 30e5fd0): "conflict detection off for this puzzle" carries over to every later puzzle** (`settings.js:105-120, 472`).
 - **I8 MED LIVE (synthetic): AZERTY digits in Number mode store `&é"`**; the `e.code` fix is Sudoku-only
   (`main.js:456-489`). IME input (`keyCode 229`) is unhandled (SUSPECT).
 - **I9 MED-LOW LIVE: keys reach the board through Penpa's own dialogs** (Settings, Share, New Grid; `main.js:294-298`).

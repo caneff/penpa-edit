@@ -85,3 +85,29 @@ Chris, 2026-11-13: "It is getting closer." Changes asked for:
 - All modes and Tool settings can be integrated together better.
 - Genre names are not banned. Penpa's own tool labels (often genre names) stay as searchable tags on the descriptions.
   What is ruled out is grouping or organising by genre.
+
+Chris, 2026-11-13, on round 3: "changing tool on the tool window shouldn't change a pin if selected", and "we are pinning a
+sub mode. style can change and be remembered but we are pinning a specific sub mode". This replaces "a pinned item is a
+mode" above:
+- A pin is a mode and one sub-mode (Line · Helper; Sudoku · Corner; Shape or Composite with the tool picked from its list).
+  The same mode can be pinned more than once with different sub-modes.
+- The pin's style is the last one used on it; Tab lands on the pin with that style.
+- Picking another tool or sub-mode in the Tool card never changes a pin: the pick becomes current and the pin stays as it was.
+
+Chris, 2026-11-13, on round 3: "Recent tools should be its own window i think." Recent becomes its own desk card.
+
+Chris, 2026-11-13: "we should not show a sub-mode picker. that is only in the mode pulldown. After the pulldown all that we should see are style things." The Tool card is the mode pulldown, whose entries are mode + sub-mode, plus style controls only.
+
+Chris, 2026-11-13: "Can we make the buttons for types more compact somehow? and windows should be resizeable". Style buttons become small icon buttons; every desk card is resizable.
+
+Chris, 2026-11-13: "size of mouse window should be fixed not change based on mode". Replaces round 3's "Mouse card fits its content": one height for every mode; the user can still resize it.
+
+Chris, 2026-11-13: "I would really like it to be somehow even more clear visually what mode we are in", then "id like to see all 4" of the proposed cues: a board frame coloured by mode family, the tool name in the Board title bar, a short flash of the name on each mode change, and a cursor per mode (a cursor shape, not a badge that follows the pointer). Built as toggles in round 5.
+
+Chris, 2026-11-13: "Tool window should be called \"Mode\", the pinned modes and mode and recent mode should all be on the right side, mouse and rules on the left."
+
+Chris, 2026-11-13: "want to see it in dark mode too." A Light/Dark toggle in round 5; the board uses Penpa's own dark theme.
+
+Chris, 2026-11-13, replacing "presets named by their contents, never by genre": "Presets should not be named as types but grouped as puzzle genres and titled as such. I only didnt want the modes themselves titled by genre." Built-in presets are titled and grouped by puzzle genre; modes, pins, the picker and Recent stay named by what they do.
+
+Chris, 2026-11-13, on zoom: "zooming is weird ... only some cards stayed in, others scrolled out" (browser zoom). Ruled: every card stays inside the window after a zoom or resize, and the board always fits its card (on load, window resize, card resize); − and + zoom inside the card, which scrolls.

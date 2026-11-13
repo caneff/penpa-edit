@@ -14,7 +14,7 @@ import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
 import { cases, readSnapshot } from './puzzlink-cases.mjs'
 import {
-  ANSWER_CELLS, RECORDINGS, downloadRecording, linkHash, makeSurfaceSolveLink, pointPixelInPage, replay, writeExpected
+  ANSWER_CELLS, RECORDINGS, downloadRecording, linkHash, makeSurfaceSolveLink, pointPixel, replay, writeExpected
 } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -82,7 +82,7 @@ function notBoardInPage ({ x, y }) {
 async function pixelRun (page, cell, types, length = 1) {
   const pixels = []
   for (const num of await page.evaluate(runInPage, { cell, types, length })) {
-    const pixel = await page.evaluate(pointPixelInPage, num)
+    const pixel = await pointPixel(page, num)
     const other = await page.evaluate(notBoardInPage, pixel)
     if (other) throw new Error(`the gesture's point ${num} at ${pixel.x},${pixel.y} is on ${other}, not the board`)
     pixels.push(pixel)

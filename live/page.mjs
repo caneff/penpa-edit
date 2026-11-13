@@ -16,6 +16,12 @@ export const AKARI_SOLVE = '#m=solve&p=1VTtb7pIEP7uX9Hs124QBC2SNBff2qRpvXq1P68SY
 // The errors of every page `openPenpa` opened in this file, checked and emptied after each test.
 const pageErrors = []
 
+// Empties the errors of every page `openPenpa` opened so far and returns them, for a test whose pages raise one on
+// purpose.
+export function takePageErrors () {
+  return pageErrors.flatMap((errs) => errs.splice(0))
+}
+
 // Launches one Chromium before a file's tests and closes it after them, and fails any test during which a page
 // it opened raised a page error or logged a `console.error`. Its hooks run with the file's other top-level hooks,
 // so a test reads `browser()` in a `describe`'s hooks or tests, never in a top-level `before`.
@@ -23,8 +29,7 @@ export function useBrowser () {
   let browser
   before(async () => { browser = await chromium.launch() })
   afterEach(() => {
-    const errors = pageErrors.flatMap((errs) => errs.splice(0))
-    assert.deepEqual(errors, [], 'no page error or console.error')
+    assert.deepEqual(takePageErrors(), [], 'no page error or console.error')
   })
   after(async () => { await browser?.close() })
   return () => browser
@@ -75,4 +80,35 @@ export function shadeInPage (index) {
   pu.undoredo_counter++
   pu.set_surface(pu.centerlist[index], 1)
   pu.redraw()
+}
+
+// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle and of the cell its answer fills.
+export const GIVEN_CELL = 0
+export const ANSWER_CELL = 1
+
+// Runs `inPage(arg)` on a fresh page of its own and returns what it returns: a puzzle link built on a new board.
+export async function linkFromNewBoard (browser, inPage, arg) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    return await page.evaluate(inPage, arg)
+  } finally {
+    await context.close()
+  }
+}
+
+// Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
+// answer is a 2 in the cell at `answer`, and returns its solve link's `#` part.
+function numberSolveLinkInPage ({ given, answer }) {
+  document.getElementById('nb_size1').value = 4
+  document.getElementById('nb_size2').value = 4
+  create_newboard()
+  pu.pu_q.number[pu.centerlist[given]] = [1, 1, '1']
+  pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
+  const url = pu.maketext_solve_solution()
+  return url.slice(url.indexOf('#'))
+}
+
+// The `#` part of a 4x4 Number solve link with a given 1 in GIVEN_CELL and an author's answer of 2 in ANSWER_CELL.
+export function makeNumberSolveLink (browser) {
+  return linkFromNewBoard(browser, numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
 }

@@ -186,7 +186,7 @@ writes every name in `can_save` and `gridtype_size` plus `tab_settings` at once,
 | Auto-Shorten Links (also the Share dialog checkbox) | cookie `shorten_links`, bulk | OFF | on change (`settings.js:414`) | boot (`"false"` handled, `settings.js:409`) | no |
 | Mouse Middle Button | cookie `mousemiddle_button`, bulk | No | on change | boot | no; row hidden in solve mode (`general.js:3148-3149`) |
 | Reload Protection | cookie `reload_button`, bulk | OFF | on change (`settings.js:281`) | boot | no |
-| Conflict Detection | cookie `conflict_detection`: own write only for "OFF (all puzzles)" (`settings.js:113-117`) **and** bulk | ON | value 3: own write on change; values 1/2: only when another setting changes (no `attemptSave` in the setter) | boot | no. "OFF (this puzzle)" is stored by the next bulk write and then applies to every later puzzle (I7) |
+| Conflict Detection | cookie `conflict_detection`: own write only for "OFF (all puzzles)" (`settings.js:113-117`) **and** bulk | ON | value 3: own write on change; values 1/2: never saved (#72) | boot | no. "OFF (this puzzle)" is never saved and ends when another puzzle loads (I7, fixed in #72) |
 | Check pencil marks | cookie `check_pencil_marks`, bulk | OFF | on change (`settings.js:135`) | boot | no |
 | Any color can match green line/edge | cookie `ignore_line_style`, bulk | OFF | on change (`settings.js:235`) | boot | no |
 | Sudoku Z/Y & XCV Keys | not stored (`shortcuts_enabled` not in `can_save`, no `attemptSave`, `settings.js:287-295`) | ON | never | - ; a puzzle tagged `alphabet` turns it off for the session (`general.js:2232-2234`) | no |
@@ -216,7 +216,7 @@ write puts them all back (`settings.js:493-504`); the row is hidden in solve mod
 write stores all settings, so two tabs overwrite each other (audit "Lower").
 
 Audit cross-reference: **I1** (session-only cookies) holds, LIVE again; **I3** (Tab set not saved) holds, and the same
-gap affects Custom Colors, display size and Conflict Detection values 1/2; **I7** holds through the bulk write.
+gap affects Custom Colors, display size and Conflict Detection values 1/2; **I7** was fixed in #72.
 Possible cause of U3/I2's display half (SUSPECT, not run): the Tab dropdown is built at `main.js:2060` while `boot()`
 (`main.js:69`, async, not awaited) is still waiting on localforage (`general.js:47`), and is rebuilt by `trans()` only
 from inside `loadFromCookies` (`general.js:2067`), which runs before the link's set is applied (`general.js:2140`).

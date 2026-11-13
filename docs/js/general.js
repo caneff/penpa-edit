@@ -67,6 +67,7 @@ async function boot() {
 // caneff: shown in place of a dead page when boot() throws
 function bootFailed(e) {
     errorMsg(PenpaText.get('link_load_failed') + "<br>" + DOMPurify.sanitize(String(e)));
+    boot_parameters(); // caneff: the failed link left its own size in the inputs, which would fail make_class again
     create();
 }
 
@@ -420,6 +421,10 @@ function set_display_labels(gridtype) {
 }
 
 function make_class(gridtype, loadtype = 'new') {
+    // caneff: "conflict detection off for this puzzle" ends with the puzzle; back to on for the next.
+    if (UserSettings.conflict_detection === 2) {
+        UserSettings.conflict_detection = 1;
+    }
     var size = UserSettings.displaysize;
     var gridmax = {
         'square': 100,
@@ -447,7 +452,9 @@ function make_class(gridtype, loadtype = 'new') {
             var space4 = parseInt(document.getElementById("nb_space4").value, 10);
             document.getElementById("nb_sudoku3_lb").style.display = "inline";
             document.getElementById("nb_sudoku3_lb").innerHTML = PenpaText.get('nb_sudoku_lb_square');
-            if (nx <= gridmax['square'] && nx > 0 && ny <= gridmax['square'] && ny > 0 && space1 + space2 < ny && space3 + space4 < nx) {
+            // caneff: the Firefly padding of a one-row board fills its rows exactly, which a new board may not
+            var spacesFit = (loadtype === 'url') ? (space1 + space2 <= ny && space3 + space4 <= nx) : (space1 + space2 < ny && space3 + space4 < nx);
+            if (nx <= gridmax['square'] && nx > 0 && ny <= gridmax['square'] && ny > 0 && spacesFit) {
                 pu = new Puzzle_square(nx, ny, size);
             } else {
                 errorMsg(PenpaText.get('size_warning_square', gridmax['square']));
