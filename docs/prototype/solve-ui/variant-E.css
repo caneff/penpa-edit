@@ -220,3 +220,42 @@ html.proto-variant-E, html.proto-variant-E body {
 .proto-e-glyph.is-corner i:nth-child(3) { left: 7px; bottom: 6px; }
 .proto-e-glyph.is-corner i:nth-child(4) { right: 7px; bottom: 6px; }
 .proto-e-tname { padding-right: 46px; }
+
+/* Round 2: genre chips (remove / add a genre's tools) and what the check compares */
+.proto-e-gchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+.proto-e-gchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 4px 3px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #dfe8ff;
+    background: #24365c;
+    border: 1px solid #3d5a92;
+    border-radius: 999px;
+}
+.proto-e-gx {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 18px;
+    color: #b8c8ee;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+}
+.proto-e-gx:hover { background: #3d5a92; color: #fff; }
+.proto-e-gadd {
+    padding: 3px 6px;
+    font: inherit;
+    font-size: 12px;
+    color: #cfd3dd;
+    background: #232731;
+    border: 1px dashed #4a5163;
+    border-radius: 999px;
+    cursor: pointer;
+}
+.proto-e-checkwhat { margin-top: 4px; font-size: 12px; color: #8a91a3; }
+.proto-e-genre-src { white-space: normal; max-height: 32px; overflow: hidden; }
