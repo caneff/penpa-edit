@@ -420,6 +420,10 @@ function set_display_labels(gridtype) {
 }
 
 function make_class(gridtype, loadtype = 'new') {
+    // caneff: "conflict detection off for this puzzle" ends with the puzzle; back to on for the next.
+    if (UserSettings.conflict_detection === 2) {
+        UserSettings.conflict_detection = 1;
+    }
     var size = UserSettings.displaysize;
     var gridmax = {
         'square': 100,

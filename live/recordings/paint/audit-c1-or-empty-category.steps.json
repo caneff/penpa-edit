@@ -1,0 +1,13 @@
+{"header": {"source":"#m=solve&p=zVRdT+M6EH3Pr7jyK5ZICLBpJB76BRKCLl3KdiGKKjd1m4ATg5NAZQS/nbET1DoNSPdhpZWbk9MzyXjGndP8qSSC4kNYrodt7KjVgTtcHUd97HpNkoJR/z/cLYuYCyAY/zw9xYUoKT6/ve8NHrovw+6f/aM7170ZLffuB+Ob+8X0tzO2k31hj5iXXV4NemzvTN5dxt1nOqTHVzmPYkbJgsi76fmaZafeKl46/fO47y1JZudP3qTz3BufnFhBXUdoBchBGB3A5aDwXV6/BwhhJ7Re5S//Vc78IHzD8mZDvQ299l8BRxodjbcaJxDG0tU40GhrPNJ4oZ8Zapxq7Gs81Hisn/mhNrCswPGqI8RH7XcoHypFOWezvBRLEtEZXZOoQP6SsJzi7YihZWU6p8KQGOePLMnaMnyGDDFZZVzQ1pAS6WL1VSoVakk152LRqOmFMGb2ogfMkKJERMyUCpEY34kQ/MVQUlLEhjAnBQxkHiePZiaaNQ6zIGaJ5IE0dks3x/FmoTXSV+DiA3yoxqrjyzGWZ74xeFiOYa4ufXmtxqoaQYzSkhVJxBmHLWsNxke/eAB0uKFTHVesX4mODXxUc6C3QKuTml1UypUfyAlGau+efltRlPJnKL6qTX2PeDqH9gK0dUDYhUBeLvhDWT/qKDt0/18HkOSzA0WrDhRr6UA19nc76IRv1Y9l/wvOX9em5uIbX2+CyNf/m59qi7lB/cbfW9E2/Qsrb0Wb+o5vVa21dY1SW8wLatO/IO1aGMQdF4P2hZFV1qaXVVFNO6utdhyttto2dRBaHw==&a=BYAhDQAADMO8DB+dTExT/zYWyDceOg==","gridtype":"square","genre":[],"recorder":1,"commit":"fe79bfc"},
+"final": {"pu_a":{"command_redo":[],"command_undo":[["surface",27,null,"pu_a",3,null]],"command_replay":[["surface",35,1,"pu_a",2,0],["surface",35,null,"pu_a",2,0],["surface",27,1,"pu_a",3,0]],"surface":{"27":1},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"pu_a_col":{"command_redo":[],"command_undo":[["surface",27,null,"pu_a_col",3]],"command_replay":[["surface",35,null,"pu_a_col",2],["surface",35,null,"pu_a_col",2,0],["surface",27,null,"pu_a_col",3]],"surface":{},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"mode":{"qa":"pu_a","edit_mode":"surface","submode":"","style":1,"orientation":null},"selection":[],"conflict_cells":[],"sol_flag":1},
+"steps": [
+{"kind":"mode","mode":"surface","submode":"","style":1},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":76,"y":114,"num":35},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":76,"y":114,"num":35},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":76,"y":114,"num":35},
+{"kind":"undo"},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"pointer","action":"out","button":null,"ctrl":false,"x":0,"y":0,"num":0}
+]}
