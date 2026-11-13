@@ -76,3 +76,15 @@ export function shadeInPage (index) {
   pu.set_surface(pu.centerlist[index], 1)
   pu.redraw()
 }
+
+// Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
+// answer is a 2 in the cell at `answer`, and returns its solve link's `#` part.
+export function numberSolveLinkInPage ({ given, answer }) {
+  document.getElementById('nb_size1').value = 4
+  document.getElementById('nb_size2').value = 4
+  create_newboard()
+  pu.pu_q.number[pu.centerlist[given]] = [1, 1, '1']
+  pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
+  const url = pu.maketext_solve_solution()
+  return url.slice(url.indexOf('#'))
+}

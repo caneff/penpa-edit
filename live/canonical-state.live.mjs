@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 import { canonicalState, readEngineState, REPLAY_TIMESTAMP } from './canonical-state.mjs'
-import { openPenpa, useBrowser } from './page.mjs'
+import { numberSolveLinkInPage, openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -14,18 +14,6 @@ const ANSWER_CELL = 1
 const OTHER_CELL = 2
 // A timer reading far from a fresh page's, in seconds.
 const LATE_SECONDS = 30
-
-// Runs in the page. Builds a 4x4 grid with one given and a one-digit author's answer, and returns its solve link's `#`
-// part.
-function solveLinkInPage ({ given, answer }) {
-  document.getElementById('nb_size1').value = 4
-  document.getElementById('nb_size2').value = 4
-  create_newboard()
-  pu.pu_q.number[pu.centerlist[given]] = [1, 1, '1']
-  pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
-  const url = pu.maketext_solve_solution()
-  return url.slice(url.indexOf('#'))
-}
 
 // Runs in the page: types `digit` into the cell at `index` of the center list, as a key press in Number mode does.
 function typeDigitInPage ({ index, digit }) {
@@ -52,7 +40,7 @@ describe('canonical state on a live page', () => {
   before(async () => {
     const { context, page } = await openPenpa(browser())
     try {
-      query = await page.evaluate(solveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
+      query = await page.evaluate(numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
     } finally {
       await context.close()
     }

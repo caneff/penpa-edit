@@ -50,8 +50,9 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs` and `live/replay.mjs`), and replays every
-  recording under `live/recordings/` on the engine against its expected file. In both, a page error or
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs` and `live/fuzz.mjs`), replays every
+  recording under `live/recordings/` on the engine against its expected file, and fuzzes a few puzzles with fixed seeds
+  against the solving invariants, saving a failing run as a recording under `live/recordings/fuzz/`. In both, a page error or
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
