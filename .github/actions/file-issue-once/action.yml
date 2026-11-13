@@ -1,0 +1,18 @@
+name: File an issue once
+description: Files a bug and needs-info issue with the given title, or comments on the open issue that already has exactly that title.
+inputs:
+  title:
+    description: The issue title, also the key for the open-issue check.
+    required: true
+  body:
+    description: The issue body, or the comment's.
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        TITLE: ${{ inputs.title }}
+        BODY: ${{ inputs.body }}
+      run: bash "$GITHUB_ACTION_PATH/file-issue-once.sh"
