@@ -217,10 +217,15 @@ function stateDiff ({ want, got, wantName, errors }) {
   ]
 }
 
+// Step 0 is no input: its checkpoint is the board the link loads.
+function checkpointWords (steps, n) {
+  return n === 0 ? 'the board the link loads' : stepWords(steps[n - 1])
+}
+
 function failureReport ({ id, step, steps, since, want, got, errors }) {
   return [
-    `${id}: step ${step} (${stepWords(steps[step - 1])}) differs from the recording`,
-    `  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`,
+    `${id}: step ${step} (${checkpointWords(steps, step)}) differs from the recording`,
+    ...since.length ? [`  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`] : [],
     ...stateDiff({ want, got, wantName: 'expected', errors })
   ].join('\n')
 }
@@ -237,7 +242,7 @@ function finalReport ({ id, recording, state, errors }) {
   ].join('\n')
 }
 
-// Replays `recording` through the engine in a fresh page and returns its checkpoints. With `expected` (as
+// Replays `recording` through the engine in a fresh page and returns its checkpoints, the first being step 0. With `expected` (as
 // `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of it. A replay that
 // does not end on the recording's final board is reported too; otherwise `report` is null. `served` and `setup` go to
 // `openPenpa`.
@@ -255,9 +260,22 @@ export async function replay (browser, recording, { id = 'recording', expected, 
   const read = () => page.evaluate(readEngineState).then(canonicalState)
   const { steps } = recording
   const checkpoints = []
+  // The report of the first way checkpoint `n` differs from the expected file, else null.
+  const checkpoint = async (n, since) => {
+    const want = expected?.[checkpoints.length]
+    if (expected && want?.step !== n) {
+      return `${id}: step ${n} is a checkpoint, where the expected file has ${want ? `step ${want.step}` : 'none'}`
+    }
+    // The board loads after `pu` exists, so step 0's read waits for it. Under the paused clock no page timer runs,
+    // so after a step the state is final, and `settle` only waits out a mismatch before it is reported.
+    const state = want ? await settle(read, want.state) : n === 0 ? await settle(read) : await read()
+    checkpoints.push({ step: n, state })
+    if (want && state !== want.state) return failureReport({ id, step: n, steps, since, want: want.state, got: state, errors })
+    return null
+  }
   try {
-    // The board loads after `pu` exists; every later change is a synchronous engine call made below.
-    await settle(read)
+    let report = await checkpoint(0, [])
+    if (report) return { checkpoints, report }
     let since = []
     for (const [index, step] of steps.entries()) {
       const n = index + 1
@@ -270,17 +288,8 @@ export async function replay (browser, recording, { id = 'recording', expected, 
         throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${message}`)
       }
       if (!endsGroup(step) && n < steps.length) continue
-      const want = expected?.[checkpoints.length]
-      if (expected && want?.step !== n) {
-        return { checkpoints, report: `${id}: step ${n} is a checkpoint, where the expected file has ${want ? `step ${want.step}` : 'none'}` }
-      }
-      // Under the paused clock no page timer runs, so the state after the call is final; `settle` only waits out a
-      // mismatch before it is reported.
-      const state = want ? await settle(read, want.state) : await read()
-      checkpoints.push({ step: n, state })
-      if (want && state !== want.state) {
-        return { checkpoints, report: failureReport({ id, step: n, steps, since, want: want.state, got: state, errors }) }
-      }
+      report = await checkpoint(n, since)
+      if (report) return { checkpoints, report }
       since = []
     }
     if (expected && expected.length > checkpoints.length) {

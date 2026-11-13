@@ -22,8 +22,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Step**: one input in a recording, in board terms: a pointer gesture on a board point, a content key, a mode change
   named by its mode, sub-mode and style, or an undo or redo. Solve mode checks the answer after every input, so the
   verdict is in every checkpoint and no step runs it.
-- **Checkpoint**: a point in a recording where the replay compares state: after each finished gesture, content key, mode
-  change, undo or redo, and at the end.
+- **Checkpoint**: a point in a recording where the replay compares state: the board the link loads, after each finished
+  gesture, content key, mode change, selection key, undo or redo, and at the end.
 - **Bridge**: the layer the MVP calls to read and drive Penpa's engine as it stands; replaced by the engine API at the split.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.

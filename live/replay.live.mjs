@@ -66,6 +66,18 @@ describe('the engine driver', () => {
     assert.equal(checkpoints.at(-1).state, state)
   })
 
+  it('checks the board the link loads before the first step', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    let loaded
+    try {
+      loaded = await page.evaluate(readEngineState).then(canonicalState)
+    } finally {
+      await context.close()
+    }
+    const { checkpoints } = await replay(browser(), { header: { source: query }, steps: [{ kind: 'undo' }] })
+    assert.deepEqual(checkpoints[0], { step: 0, state: loaded })
+  })
+
   it('replays a Shape and a Composite tool choice and a number orientation', async () => {
     const { state, recording } = await record(query, async (page) => {
       await page.click('#mo_symbol_lb')
