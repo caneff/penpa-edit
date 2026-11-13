@@ -8285,6 +8285,38 @@ class Puzzle {
         return data;
     }
 
+    check_neighbors(k) {
+        var corner_cursor = 4 * (k + this.nx0 * this.ny0);
+        var side_cursor = 4 * (k + 2 * this.nx0 * this.ny0);
+        var edge_cursor = this.get_neighbors(k, 'edges');
+        let clean_flag = false;
+
+        // if even one element exist to be cleaned then return true
+        for (var j = 0; j < 4; j++) {
+            if (this[this.mode.qa].numberS[corner_cursor + j]) {
+                clean_flag = true;
+                return clean_flag;
+            }
+        }
+
+        for (var j = 0; j < 4; j++) {
+            if (this[this.mode.qa].numberS[side_cursor + j]) {
+                clean_flag = true;
+                return clean_flag;
+            }
+        }
+
+        for (var j = 0; j < 4; j++) {
+            if (this[this.mode.qa].number[edge_cursor[j]]) {
+                clean_flag = true;
+                return clean_flag;
+            }
+        }
+
+        // if no element exist then it will reach here
+        return clean_flag;
+    }
+
     key_space(keypressed = 0, shift_key = false, ctrl_key = false) {
         if (this.mode[this.mode.qa].edit_mode === "number") {
             let submode = this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0];
