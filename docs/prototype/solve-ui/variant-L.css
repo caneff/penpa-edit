@@ -239,3 +239,18 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 }
 .proto-l-card .proto-l-body .proto-l-stylebtn:hover { border-color: #8aa6e0; background: #fff; }
 .proto-l-card .proto-l-body .proto-l-stylebtn.is-on { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
+
+/* ---- Round 3: recent modes, under the mode field ---- */
+.proto-l-recent { display: grid; grid-template-columns: 80px 1fr; gap: 8px; align-items: start; margin-top: 10px; }
+.proto-l-recent[hidden] { display: none; }
+.proto-l-recent .proto-l-optlabel { padding-top: 8px; }
+.proto-l-recentlist { display: flex; flex-wrap: wrap; gap: 5px; }
+.proto-l-card .proto-l-body .proto-l-recentbtn {
+    display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 6px;
+    text-align: left; padding: 3px 4px 3px 8px; line-height: 1.25; background: #fff; border: 1px dashed #b9b3a2; border-radius: 7px;
+}
+.proto-l-card .proto-l-body .proto-l-recentbtn:hover { border-color: #8aa6e0; border-style: solid; }
+.proto-l-recentbtn .proto-l-pinname { grid-column: 1; font-size: 12.5px; }
+.proto-l-recentbtn .proto-l-pindetail { grid-column: 1; }
+.proto-l-recentpin { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: inline-flex; padding: 3px; border-radius: 4px; color: #8b8676; line-height: 0; }
+.proto-l-recentpin:hover { background: #e3ebfb; color: #3b6fd4; }

@@ -28,6 +28,9 @@
  *      Round 3: styles are back to one button each (colour swatch, or a drawn sample for thin / dotted / fat dots /
  *      ...; the name is the title); the open picker list sits in the card's flow and pushes the sub-mode and style
  *      controls down; the Mouse card is as tall as its content, and the Tool card follows it while neither was moved.
+ *      A "Recent" row under the mode field: up to 5 recently used modes, most recent first, without the current mode
+ *      or pinned ones; a button lands on its mode as a pin does, its pin icon pins it; not in the Tab cycle; kept per
+ *      puzzle under `proto-L-recent-v1:<hash of p=>`.
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
@@ -55,6 +58,7 @@
     const LS_LAYOUT = 'proto-L-layout-v2'; // v1 had six cards
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v1:';
+    const LS_RECENT = 'proto-L-recent-v1:';
     const TOP = 44;
 
     const MODE_NAME = {
@@ -1028,8 +1032,65 @@
             const pickMode = el('span', {class: 'proto-l-pickmode'});
             const toolOpts = el('div', {class: 'proto-l-toolopts'});
             toolCard.body.appendChild(el('div', {class: 'proto-l-sub'}, ['Mode: ', pickMode]));
+            const recentRow = el('div', {class: 'proto-l-recent'});
             toolCard.body.appendChild(picker);
+            toolCard.body.appendChild(recentRow);
             toolCard.body.appendChild(toolOpts);
+
+            // ---- Recent modes: the last modes used, most recent first, without the current mode or pinned ones. A
+            // button lands on its mode as a pin does (setMode restores the mode's last sub-mode and style); its pin icon
+            // pins it. Not in the Tab cycle. Kept per puzzle next to the pins.
+            const recentKey = LS_RECENT + puzzleKey();
+            let recents = readJSON(recentKey, []);
+            let lastMode = B.getMode().mode;
+
+            /** Called on every render: when the mode changed, the mode just left goes to the front. */
+            function noteRecent(mode) {
+                if (mode === lastMode) {
+                    return;
+                }
+                recents = [lastMode].concat(recents.filter(function(x) {
+                    return x !== lastMode && x !== mode;
+                })).slice(0, 12);
+                lastMode = mode;
+                writeJSON(recentKey, recents);
+            }
+
+            const PIN_ICON = '<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" ' +
+                'd="M10.5 1.5l4 4-1.6.6-2.6 2.6.3 3.5-1.1 1.1-2.9-2.9-3.7 3.7-.7-.7 3.7-3.7-2.9-2.9 1.1-1.1 3.5.3 2.6-2.6z"/></svg>';
+
+            function renderRecent(m) {
+                recentRow.textContent = '';
+                const shown = recents.filter(function(x) {
+                    return x !== m.mode && pins.indexOf(x) === -1 && available[x];
+                }).slice(0, 5);
+                if (!shown.length) {
+                    recentRow.hidden = true;
+                    return;
+                }
+                recentRow.hidden = false;
+                recentRow.appendChild(el('span', {class: 'proto-l-optlabel'}, ['Recent']));
+                const list = el('div', {class: 'proto-l-recentlist'});
+                shown.forEach(function(mode) {
+                    const r = remembered(mode);
+                    const detail = [subName(mode, r.sub), styleName(mode, r.style)].filter(Boolean).join(' · ');
+                    const b = btn('proto-l-recentbtn', '', function(e) {
+                        if (e.target.closest('.proto-l-recentpin')) {
+                            pinMode(mode, null);
+                        } else {
+                            B.setMode(mode);
+                        }
+                    }, toolName(mode, r.sub, r.style));
+                    b.setAttribute('data-mode', mode);
+                    b.appendChild(el('span', {class: 'proto-l-pinname'}, [MODE_NAME[mode] || mode]));
+                    b.appendChild(el('span', {class: 'proto-l-pindetail'}, [detail]));
+                    const pin = el('span', {class: 'proto-l-recentpin', title: 'Pin ' + (MODE_NAME[mode] || mode)});
+                    pin.innerHTML = PIN_ICON;
+                    b.appendChild(pin);
+                    list.appendChild(b);
+                });
+                recentRow.appendChild(list);
+            }
             let pickOpen = false;
             let active = -1;
 
@@ -1062,7 +1123,7 @@
              */
             function sizePicker() {
                 const top = pickInput.getBoundingClientRect().bottom;
-                const room = window.innerHeight - top - toolOpts.offsetHeight - 40;
+                const room = window.innerHeight - top - recentRow.offsetHeight - toolOpts.offsetHeight - 40;
                 pickList.style.maxHeight = Math.max(160, Math.min(470, room)) + 'px';
             }
 
@@ -1328,9 +1389,11 @@
                     return;
                 }
                 lastKey = key;
+                noteRecent(m.mode);
                 renderMouse(m);
                 renderPins();
                 renderTool(m);
+                renderRecent(m);
                 reflow();
             }
 
