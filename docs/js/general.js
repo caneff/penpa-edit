@@ -27,7 +27,8 @@ async function boot() {
     set_input_patterns();
 
     var urlParam = location.search.substring(1);
-    if (!urlParam && location.hash) {
+    // caneff: a query with no puzzle data (?fbclid=, ?utm_source=) is not a link; the hash is
+    if (!/(^|&)p=/.test(urlParam)) {
         urlParam = location.hash.substring(1);
     }
     if (urlParam) {
@@ -54,13 +55,19 @@ async function boot() {
             } else {
                 url = local_data.split('?')[1];
             }
-            load(url, type = 'localstorage', origurl = paramArray.p);
+            await load(url, type = 'localstorage', origurl = paramArray.p); // caneff: awaited so bootFailed sees a failure
         } else {
-            load(urlParam);
+            await load(urlParam); // caneff: awaited so bootFailed sees a failure
         }
     } else {
         create();
     }
+}
+
+// caneff: shown in place of a dead page when boot() throws
+function bootFailed(e) {
+    errorMsg(PenpaText.get('link_load_failed') + "<br>" + DOMPurify.sanitize(String(e)));
+    create();
 }
 
 function boot_parameters() {
