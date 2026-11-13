@@ -51,3 +51,17 @@ describe('a bad link', () => {
     await context.close()
   })
 })
+
+describe('the solve link of a one-row Firefly', () => {
+  it('boots a page holding the 10x1 board', async () => {
+    const { context: first, page: blank } = await openPenpa(browser(), '')
+    const hash = await blank.evaluate(async () => {
+      await import_url('https://puzz.link/p?firefly/10/1/4.h0./')
+      return pu.maketext_solve().split('#')[1]
+    })
+    await first.close()
+    const { context, page } = await openPenpa(browser(), `#${hash}`)
+    assert.deepEqual(await settle(() => page.evaluate(() => [pu.nx, pu.ny]), [11, 2]), [11, 2])
+    await context.close()
+  })
+})
