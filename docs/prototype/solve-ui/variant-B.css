@@ -1,13 +1,247 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant B styles. Owned by variant B's builder. */
-.proto-b-banner {
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant B ("No modes") styles. Owned by variant B's builder. */
+html.proto-variant-B,
+html.proto-variant-B body {
+    background: #15171c;
+    overflow: hidden;
+}
+
+.proto-b-root {
     position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
+    inset: 0 0 56px 0; /* the switcher pill sits in the bottom 56px */
+    z-index: 10;
+    display: grid;
+    grid-template-columns: 300px 1fr 240px;
+    gap: 0;
+    color: #d9dce3;
+    font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.proto-b-left,
+.proto-b-right {
+    padding: 22px 20px;
+    overflow-y: auto;
+    background: #1b1e24;
+}
+
+.proto-b-left {
+    border-right: 1px solid #2a2e37;
+}
+
+.proto-b-right {
+    border-left: 1px solid #2a2e37;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.proto-b-left h1 {
+    margin: 0 0 2px;
+    font-size: 20px;
+    font-weight: 650;
+    color: #f2f3f6;
+}
+
+.proto-b-left h2 {
+    margin: 22px 0 4px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a90a0;
+}
+
+.proto-b-author {
+    color: #8a90a0;
+    font-size: 13px;
+    margin-bottom: 12px;
+}
+
+.proto-b-rules {
+    color: #c3c7d0;
+}
+
+.proto-b-profile {
+    color: #8a90a0;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.proto-b-legend {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 5px 10px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.proto-b-legend dt {
+    color: #f2f3f6;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.proto-b-legend dd {
+    margin: 0;
+    color: #aab0bd;
+}
+
+.proto-b-centre {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.proto-b-stage {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.proto-b-boardwrap {
+    position: relative;
+    line-height: 0;
+}
+
+.proto-b-boardwrap #dvique {
+    margin: 0;
+    position: static;
+}
+
+.proto-b-overlay {
+    position: absolute;
+    z-index: 5;
+    cursor: pointer;
+    touch-action: none;
+}
+
+.proto-b-overlay.proto-b-onvertex {
+    cursor: crosshair;
+}
+
+.proto-b-hint {
+    position: absolute;
+    z-index: 6;
+    display: none;
+    pointer-events: none;
+    padding: 2px 8px;
+    border-radius: 10px;
+    background: rgba(20, 22, 28, 0.85);
     color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    font: 600 12px/1.6 system-ui, sans-serif;
+    white-space: nowrap;
+}
+
+.proto-b-readout {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px 14px;
+    min-height: 44px;
+    margin: 0 24px 14px;
+    padding: 8px 14px;
+    border-radius: 10px;
+    background: #20242c;
+    border: 1px solid #2f3440;
+    font-size: 15px;
+}
+
+.proto-b-muted {
+    color: #8a90a0;
+}
+
+.proto-b-kind {
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: #39404e;
+    color: #fff;
+}
+
+.proto-b-k-line { background: #2f6fe0; }
+.proto-b-k-edge { background: #c8761c; }
+.proto-b-k-shade { background: #555b66; }
+.proto-b-k-select { background: #1f9a72; }
+.proto-b-k-mark,
+.proto-b-k-cross { background: #7a55c9; }
+
+.proto-b-alts {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.proto-b-alt {
+    padding: 3px 10px;
+    border-radius: 6px;
+    border: 1px solid #454c5b;
+    background: transparent;
+    color: #d9dce3;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.proto-b-alt:hover {
+    background: #2d323d;
+    border-color: #6b7486;
+}
+
+.proto-b-row {
+    display: flex;
+    gap: 8px;
+}
+
+.proto-b-btn {
+    flex: 1;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #3a404c;
+    background: #272b34;
+    color: #e8eaef;
+    font: 600 14px system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.proto-b-btn:hover:not(:disabled) {
+    background: #323844;
+}
+
+.proto-b-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.proto-b-wide {
+    margin-top: 10px;
+    background: #2a4d8f;
+    border-color: #3a62ad;
+}
+
+.proto-b-hist {
+    color: #8a90a0;
+    font-size: 12px;
+    text-align: center;
+}
+
+.proto-b-timer {
+    font: 600 28px/1.2 ui-monospace, "Cascadia Mono", monospace;
+    color: #f2f3f6;
+    text-align: center;
+    padding: 4px 0 8px;
+}
+
+.proto-b-verdict {
+    min-height: 20px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.proto-b-verdict.proto-b-ok { color: #57d68d; }
+.proto-b-verdict.proto-b-no { color: #f0a35a; }
+
+.proto-b-right .proto-b-wide {
+    flex: none;
 }
