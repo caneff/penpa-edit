@@ -70,3 +70,6 @@ Chris, 2026-11-13, rulings for the new solve UI:
 - A pinned item is a mode, not a full tool: Tab lands on the mode, keeping its last sub-mode and style.
 - Pins are seeded from the link's Tab set, editable per puzzle, "plus maybe some preset options to pick between".
 - The full mode browser is grouped by what a tool puts on the board, with a search box ("I think a+c", tentative).
+- Presets are both: a few built-in pin sets named by their contents (never by genre), plus pin sets the solver saves.
+- One desk layout for every puzzle, kept in the browser, with a "reset layout" button.
+- The mouse card's headline names the whole current tool (mode, sub-mode, style), with left/right/drag rows below.

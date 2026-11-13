@@ -51,7 +51,8 @@ seam. These come from `sudokupad-scripts`, kept where they apply to Penpa+.
 10. **Name a magic number or key once.** A bare value copied to a second place
     diverges when the first changes.
 11. **No parameter, flag or function that nothing calls.** An unused option is a
-    promise nobody tests.
+    promise nobody tests. In an upstream file rule 14 wins: leave upstream's own uncalled code in place
+    (Chris, 2026-11-13).
 12. **Name things with `GLOSSARY.md`'s terms.** A synonym splits one concept in two.
 
 ## Release
