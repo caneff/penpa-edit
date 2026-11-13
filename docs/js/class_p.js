@@ -1226,6 +1226,15 @@ class Puzzle {
 
         // Translate solution
         if (this.solution) {
+            // caneff: a solution entry is a cell index, an exact surface array [cell, color...], or a "cell,value" key such as "75,1E"
+            const translate_solution_cell = (entry) => {
+                if (Array.isArray(entry)) {
+                    return [translate_fn(entry[0]), ...entry.slice(1)];
+                }
+                let parts = entry.toString().split(",");
+                parts[0] = translate_fn(parts[0]);
+                return parts.join(",");
+            };
             let settingstatus_or = document.getElementById("answersetting").getElementsByClassName("solcheck_or");
 
             if (!this.multisolution) {
@@ -1235,7 +1244,7 @@ class Puzzle {
                         switch (parseInt(sol_count)) {
                             case 0: // shading
                                 for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                             case 1: // Line / FreeLine
@@ -1257,7 +1266,7 @@ class Puzzle {
                                 break;
                             case 5: // Symbol
                                 for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                         }
@@ -1280,19 +1289,17 @@ class Puzzle {
                         let sol_id = settingstatus_or[m].id.slice(7);
                         switch (sol_id) {
                             case "surface":
-                                for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
-                                }
-                                break;
+                            case "surface_exact": // caneff: entries are [cell, color...]
                             case "number":
+                            case "math": // caneff: "cell,value" like number
                                 for (let i in sol[sol_count]) {
-                                    let parts = sol[sol_count][i].split(",");
-                                    parts[0] = translate_fn(parts[0]);
-                                    sol[sol_count][i] = parts.join(",");
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                             case "loopline":
+                            case "loopline_exact": // caneff: exact answers hold "a,b,style" like loopline
                             case "loopedge":
+                            case "loopedge_exact": // caneff: exact answers hold "a,b,style" like loopedge
                             case "wall":
                                 for (let i in sol[sol_count]) {
                                     let parts = sol[sol_count][i].split(",");
@@ -1305,7 +1312,6 @@ class Puzzle {
                             case "circle":
                             case "tri":
                             case "arrow":
-                            case "math":
                             case "battleship":
                             case "tent":
                             case "star":
@@ -2040,7 +2046,7 @@ class Puzzle {
         // Replace base URL with canonical github url if shortening, so links are still valid externally
         if (UserSettings.shorten_links &&
             (location.href.startsWith('http://localhost') || location.href.startsWith('file://')))
-            return 'https://swaroopg92.github.io/penpa-edit/';
+            return 'https://caneff.github.io/penpa-edit/'; // caneff: share links point at the fork
 
         // This is to account for old links and new links together
         else if (location.hash)
@@ -2067,11 +2073,13 @@ class Puzzle {
         }
 
         // No need to save replay information in edit link
+        // caneff: the old code left the live replay emptied after making the link (#22)
+        var are = this.pu_a.command_replay.__a;
         this.pu_a.command_replay.__a = [];
-        this.pu_a_col.command_replay.__a;
 
         text += JSON.stringify(this.pu_q) + "\n";
         text += JSON.stringify(this.pu_a) + "\n";
+        this.pu_a.command_replay.__a = are;
 
         if (document.getElementById("save_undo").checked === false) {
             this.pu_q.command_redo.__a = qr;
@@ -2095,8 +2103,12 @@ class Puzzle {
             this.pu_a_col.command_undo.__a = [];
         }
 
+        // caneff: the colour replay went into the link and was never emptied (#22)
+        var are_col = this.pu_a_col.command_replay.__a;
+        this.pu_a_col.command_replay.__a = [];
         text += JSON.stringify(this.pu_q_col) + "\n";
         text += JSON.stringify(this.pu_a_col) + "\n";
+        this.pu_a_col.command_replay.__a = are_col;
 
         if (document.getElementById("save_undo").checked === false) {
             this.pu_q_col.command_redo.__a = qr;
@@ -2541,7 +2553,8 @@ class Puzzle {
         if (found && this.gridtype === 'square') {
             // find out the grid position using the frame data
             // Note this section of code will work only if thick border frame exists
-            if (typeof this.row_start == "undefined") {
+            // caneff: always measured; the cached bounds went stale once the board was resized
+            {
                 // Find top left corner and bottom right corner
                 let topleft = 9999,
                     bottomright = 0,
@@ -7250,9 +7263,9 @@ class Puzzle {
                 this.pu_a.command_undo.push([arr, num[0], num[1], this.mode.qa, groupcounter, timestamp]); //num[0]:start_point num[1]:to_point
                 this.pu_a_col.command_undo.push([arr, num[0], num[1], this.mode.qa + "_col", groupcounter]); //num[0]:start_point num[1]:to_point
             } else if (arr === "deletelineE") {
-                if (this.pu_a[arr][num]) {
+                if (this.pu_q[arr][num]) { // caneff: deletelineE lives in pu_q
                     this.pu_a.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q", groupcounter, timestamp]); // Array is also recorded in JSON
-                    this.pu_a_col.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col"], groupcounter); // Array is also recorded in JSON
+                    this.pu_a_col.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON // caneff: the group id is part of the entry
                 } else {
                     this.pu_a.command_undo.push([arr, num, null, "pu_q", groupcounter, timestamp]);
                     this.pu_a_col.command_undo.push([arr, num, null, "pu_q_col", groupcounter]);
@@ -7289,9 +7302,9 @@ class Puzzle {
                 this.pu_a.command_replay.push([arr, num[0], num[1], this.mode.qa, groupcounter, timestamp]); //num[0]:start_point num[1]:to_point
                 this.pu_a_col.command_replay.push([arr, num[0], num[1], this.mode.qa + "_col", groupcounter]); //num[0]:start_point num[1]:to_point
             } else if (arr === "deletelineE") {
-                if (this.pu_a[arr][num]) {
+                if (this.pu_q[arr][num]) { // caneff: deletelineE lives in pu_q
                     this.pu_a.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q", groupcounter, timestamp]); // Array is also recorded in JSON
-                    this.pu_a_col.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col"], groupcounter); // Array is also recorded in JSON
+                    this.pu_a_col.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON // caneff: the group id is part of the entry
                 } else {
                     this.pu_a.command_replay.push([arr, num, null, "pu_q", groupcounter, timestamp]);
                     this.pu_a_col.command_replay.push([arr, num, null, "pu_q_col", groupcounter]);
@@ -7359,6 +7372,13 @@ class Puzzle {
     //
     /////////////////////////////
 
+    // caneff: the order that makes a triangle selection's base its top-left cell (the base ignores orientation); the smallest id is not that cell
+    tri_point_order(a, b) {
+        a = this.point[a].index;
+        b = this.point[b].index;
+        return a[1] - b[1] || a[0] - b[0];
+    }
+
     copy_handler(ev) {
         // Skip handling copy if a target is selected (eg a textbox)
         if (ev.target.id !== "" && ['INPUT', 'TEXTAREA'].includes(ev.target.tagName))
@@ -7378,18 +7398,10 @@ class Puzzle {
 
         // Triangular grid
         if (this.gridtype === "tri") {
-            this.selection.sort((a, b) => {
-                a = this.point[a].index;
-                b = this.point[b].index;
-                if (a[1] == b[1]) {
-                    if (a[0] == b[0])
-                        return a[2] >= b[2];
-                    return a[0] > b[0];
-                }
-                return a[1] > b[1];
-            });
+            // caneff: sort by row and column so selection[0] is the base
+            this.selection.sort((a, b) => this.tri_point_order(a, b));
             let base_point = this.point[this.selection[0]];
-            [base_x, base_y, _] = base_point.index;
+            [base_x, base_y] = base_point.index;
 
             rel_coords = (p) => {
                 let [x, y, t] = this.point[p].index;
@@ -7401,7 +7413,7 @@ class Puzzle {
         }
         // Hexagonal grid
         else if (this.gridtype === "hex") {
-            this.selection.sort((a, b) => a >= b);
+            this.selection.sort((a, b) => a - b); // caneff: a boolean comparator never sorts
             let base_point = this.point[this.selection[0]];
             [base_x, base_y] = base_point.index;
 
@@ -7414,7 +7426,7 @@ class Puzzle {
         }
         // Square grid
         else if (this.grid_is_square()) {
-            this.selection.sort((a, b) => a >= b);
+            this.selection.sort((a, b) => a - b); // caneff: a boolean comparator never sorts
             let base_point = this.point[this.selection[0]];
             [base_x, base_y] = base_point.index;
 
@@ -7597,7 +7609,10 @@ class Puzzle {
         if (clipboard_data.gridtype !== this.gridtype)
             return;
 
-        let [base_x, base_y] = this.point[Math.min(...this.selection)].index;
+        // caneff: the base is the same cell copy used, which on a triangle grid is not the smallest id
+        let base_key = this.gridtype === "tri" ?
+            [...this.selection].sort((a, b) => this.tri_point_order(a, b))[0] : Math.min(...this.selection);
+        let [base_x, base_y] = this.point[base_key].index;
 
         // Create an indexing function for this specific grid type, to convert relative (x, y)
         // coordinates into an absolute point index
@@ -7707,16 +7722,8 @@ class Puzzle {
         // var str_replace = ["+-=*", "＋－＝＊"];
         // if (str_replace[0].indexOf(key) != -1) { key = str_replace[1][str_replace[0].indexOf(key)]; }
         if (edit_mode === "number") {
-            if (this.selection.length === 1) {
-                let clean_flag = this.check_neighbors(this.selection[0]);
-                if (!clean_flag) {
-                    this.undoredo_counter = 0;
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
-            } else {
-                this.undoredo_counter = this.undoredo_counter + 1;
-            }
+            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+            this.undoredo_counter = this.undoredo_counter + 1;
             let cells = null;
             if (this.number_multi_enabled())
                 cells = this.selection;
@@ -7897,16 +7904,8 @@ class Puzzle {
             switch (submode[0]) {
                 case "1": // Normal mode
                     if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
-                        if (this.selection.length === 1) {
-                            let clean_flag = this.check_neighbors(this.selection[0]);
-                            if (!clean_flag) {
-                                this.undoredo_counter = 0;
-                            } else {
-                                this.undoredo_counter = this.undoredo_counter + 1;
-                            }
-                        } else {
-                            this.undoredo_counter = this.undoredo_counter + 1;
-                        }
+                        // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                        this.undoredo_counter = this.undoredo_counter + 1;
                         for (var k of this.selection) {
                             if (((this.mode.qa === "pu_a") &&
                                 this["pu_q"].number[k] &&
@@ -8007,15 +8006,12 @@ class Puzzle {
                     if (this.grid_is_square()) {
                         if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
 
-                            if (this.selection.length === 1) {
-                                this.undoredo_counter = 0;
+                            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                            this.undoredo_counter = this.undoredo_counter + 1;
 
-                                // if the selected cell is on the edge then do not proceed
-                                if (parseInt(this.selection[0] / (this.nx0 * this.ny0)) > 0) {
-                                    break;
-                                }
-                            } else {
-                                this.undoredo_counter = this.undoredo_counter + 1;
+                            // if the selected cell is on the edge then do not proceed
+                            if (this.selection.length === 1 && parseInt(this.selection[0] / (this.nx0 * this.ny0)) > 0) {
+                                break;
                             }
                             var j_start = 0;
                             var length_limit = 8;
@@ -8125,11 +8121,8 @@ class Puzzle {
                     break;
                 case "3": // Centre mode
                     if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
-                        if (this.selection.length === 1) {
-                            this.undoredo_counter = 0;
-                        } else {
-                            this.undoredo_counter = this.undoredo_counter + 1;
-                        }
+                        // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                        this.undoredo_counter = this.undoredo_counter + 1;
                         // First step: go through all cells in the selection that don't have a main single digit, and
                         // collect the digits that are in the center of each
                         let cells = [];
@@ -8328,16 +8321,8 @@ class Puzzle {
         if (this.mode[this.mode.qa].edit_mode === "number") {
             let submode = this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0];
             if (this.selection.length > 0) {
-                if (this.selection.length === 1) {
-                    let clean_flag = this.check_neighbors(this.selection[0]);
-                    if (!clean_flag) {
-                        this.undoredo_counter = 0;
-                    } else {
-                        this.undoredo_counter = this.undoredo_counter + 1;
-                    }
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
+                // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                this.undoredo_counter = this.undoredo_counter + 1;
                 let cells = null;
                 if (this.number_multi_enabled())
                     cells = this.selection;
@@ -8393,11 +8378,8 @@ class Puzzle {
             }
             this.record_replay("symbol", this.cursol);
         } else if (this.mode[this.mode.qa].edit_mode === "sudoku") {
-            if (this.selection.length === 1) {
-                this.undoredo_counter = 0;
-            } else {
-                this.undoredo_counter = this.undoredo_counter + 1;
-            }
+            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+            this.undoredo_counter = this.undoredo_counter + 1;
             if (keypressed === 46 || keypressed === 8 || this.ondown_key === "touchstart") {
                 if (this.selection.length > 0) {
                     if (!ctrl_key && !shift_key) {
@@ -8535,16 +8517,8 @@ class Puzzle {
         if (this.mode[this.mode.qa].edit_mode === "number") {
             let submode = this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0];
             if (this.selection.length > 0) {
-                if (this.selection.length === 1) {
-                    let clean_flag = this.check_neighbors(this.selection[0]);
-                    if (!clean_flag) {
-                        this.undoredo_counter = 0;
-                    } else {
-                        this.undoredo_counter = this.undoredo_counter + 1;
-                    }
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
+                // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                this.undoredo_counter = this.undoredo_counter + 1;
                 let cells = null;
                 if (this.number_multi_enabled()) {
                     cells = this.selection;
@@ -12600,7 +12574,12 @@ class Puzzle {
             if (!this.bg_image_data.foreground)
                 this.draw_bg_image();
             if (check_sol) {
-                this.check_solution();
+                // caneff: a checker error is logged and must not skip draw() after flushcanvas() blanked the board.
+                try {
+                    this.check_solution();
+                } catch (err) {
+                    console.error(err);
+                }
             }
             panel_pu.draw_panel();
             this.draw();
@@ -13408,7 +13387,7 @@ class Puzzle {
                         // document.getElementById("pu_a_label").style.backgroundColor = Color.GREY_LIGHT;
                     }
                 }
-                this.redraw(false, false);
+                // caneff: no redraw here, so the board is drawn once per redraw (#23)
             }
         } else {
             var text = this.make_solution();
