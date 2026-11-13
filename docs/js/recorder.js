@@ -128,8 +128,8 @@ function readEngineState() {
     }
 
     // Escape and Ctrl+A change the selection in `main.js` with no engine call, so a key that changed the selection
-    // and made no step is one of them. Capture runs before `main.js`'s keydown handler on `document`, and the bubble
-    // listener on `window` after it.
+    // and made no step is recorded as one of them, and refused if the selection it left is neither none nor all.
+    // Capture runs before `main.js`'s keydown handler on `document`, and the bubble listener on `window` after it.
     let beforeKey = null;
     function noteSelection() {
         beforeKey = hookedPu ? { selection: hookedPu.selection.slice(), steps: steps.length } : null;

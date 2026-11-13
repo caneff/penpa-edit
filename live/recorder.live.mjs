@@ -105,6 +105,20 @@ describe('the recorder', () => {
     }
   })
 
+  // A page script stands in for a key `main.js` might one day give a selection to with no engine call.
+  it('refuses a key that leaves a selection neither empty nor whole', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.evaluate(() => document.addEventListener('keydown', (e) => { if (e.key === 'F2') pu.selection = [pu.centerlist[0]] }))
+      await page.click('#mo_number_lb')
+      await page.keyboard.press('F2')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'unsupported'), [{ kind: 'unsupported', what: 'a selection change by key' }])
+    } finally {
+      await context.close()
+    }
+  })
+
   // `handle_rect_mousedown` starts a rectangle selection on Alt only in Sudoku, Number, Surface and Multicolor.
   it('refuses an Alt-click where it starts a rectangle selection and records it as a click elsewhere', async () => {
     const { context, page } = await openRecordingPage(browser(), query)

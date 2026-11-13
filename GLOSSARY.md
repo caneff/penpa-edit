@@ -20,7 +20,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
   generated from them. Not "trace" (Playwright's word) or "script".
 - **Step**: one input in a recording, in board terms: a pointer gesture on a board point, a content key, a mode change
-  named by its mode, sub-mode and style, or an undo or redo. Solve mode checks the answer after every input, so the
+  named by its mode, sub-mode (Shape's or Composite's tool) and style (and Number's orientation), a selection key
+  (Escape or Ctrl+A), or an undo or redo. Solve mode checks the answer after every input, so the
   verdict is in every checkpoint and no step runs it.
 - **Checkpoint**: a point in a recording where the replay compares state: the board the link loads, after each finished
   gesture, content key, mode change, selection key, undo or redo, and at the end.

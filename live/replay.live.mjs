@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { useBrowser } from './page.mjs'
 import {
-  ANSWER_CELLS, cellPixelInPage, clickCell, downloadRecording, listRecordings, makeSurfaceSolveLink, openRecordingPage,
+  ANSWER_CELLS, cellPixel, clickCell, downloadRecording, listRecordings, makeSurfaceSolveLink, openRecordingPage,
   readExpected, readRecording, replay
 } from './replay.mjs'
 
@@ -17,9 +17,9 @@ const browser = useBrowser()
 const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
-// The colour argument of the `set_surface` call in `re_surface_twobutton` that a left click on an empty cell runs.
 // The branch of `maketext_duplicate` that keeps the answer's undo stack in a solve-mode duplicate link.
 const KEEP_UNDO = /(maketext_duplicate\(\) \{[\s\S]*?)\/\/ Retain undo in solve mode/
+// The colour argument of the `set_surface` call in `re_surface_twobutton` that a left click on an empty cell runs.
 const SHADE_COLOR = /(re_surface_twobutton\(num\) \{[^}]*\} else \{\s*let cc = this\.get_surface_color\(color\);\s*this\.set_surface\(num, )color(, cc\);)/
 // Indices in `pu.centerlist` of the cells the recorded solve right-clicks, Ctrl-clicks and drags across.
 const RIGHT_CELL = 6
@@ -52,8 +52,8 @@ describe('the engine driver', () => {
       await page.keyboard.down('Control')
       await clickCell(page, CTRL_CELL)
       await page.keyboard.up('Control')
-      const from = await page.evaluate(cellPixelInPage, DRAG_FROM)
-      const to = await page.evaluate(cellPixelInPage, DRAG_TO)
+      const from = await cellPixel(page, DRAG_FROM)
+      const to = await cellPixel(page, DRAG_TO)
       await page.mouse.move(from.x, from.y)
       await page.mouse.down()
       await page.mouse.move(to.x, to.y, { steps: 4 })
@@ -190,6 +190,17 @@ describe('the engine driver', () => {
         })
       })
     }
+  })
+
+  // `main.js`'s `onload` boots the page; the duplicate's page never runs it, so `pu` never exists there.
+  it('reports a duplicate link whose page never loads', { timeout: 90000 }, async () => {
+    const { report } = await replay(browser(), { header: { source: query }, steps: [] }, {
+      id: 'noload',
+      setup: (context) => context.addInitScript(() => {
+        if (location.hash.includes('l=solvedup')) Object.defineProperty(window, 'onload', { set () {}, get () { return null } })
+      })
+    })
+    assert.match(report ?? '', /^noload: step 0 \(the board the link loads\): its duplicate link did not load: /)
   })
 
   describe('with a duplicate link that drops the undo stack', () => {

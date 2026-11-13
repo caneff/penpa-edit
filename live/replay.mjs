@@ -17,8 +17,8 @@
 //     changed the selection to neither none nor all), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know;
 // the generator also adds `import`, the name of the puzz.link import a genre's recording was made on.
-// Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
-// and never by hand.
+// Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
+// `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
@@ -32,7 +32,7 @@ const EXPECTED_SUFFIX = '.expected.json'
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
 // Duplicate-link pages one replay has open at once.
-const ROUND_TRIPS_AT_ONCE = 4
+const ROUND_TRIP_LANES = 4
 
 // Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
 export const ANSWER_CELLS = [5, 9]
@@ -46,23 +46,31 @@ function surfaceSolveLinkInPage (answerCells) {
   for (const box of [...document.getElementsByClassName('solcheck'), ...document.getElementsByClassName('solcheck_or')]) box.checked = false
   document.getElementById('sol_surface').checked = true
   for (const index of answerCells) pu.pu_a.surface[pu.centerlist[index]] = 1
-  const url = pu.maketext_solve_solution()
+  return pu.maketext_solve_solution()
+}
+
+// A link's `#` part, which holds its puzzle.
+export function linkHash (url) {
   return url.slice(url.indexOf('#'))
 }
 
-// Runs in the page: the page pixel of the centre of the cell at `index` of the center list, as `coord_point` in
-// `main.js` maps it back.
-export function cellPixelInPage (index) {
+// Runs in the page: the page pixel of point `num` of `pu.point`, as `coord_point` in `main.js` maps it back.
+export function pointPixelInPage (num) {
   const canvas = document.getElementById('canvas')
-  const point = pu.point[pu.centerlist[index]]
+  const point = pu.point[num]
   return { x: canvas.offsetLeft + point.x - window.scrollX, y: canvas.offsetTop + point.y - window.scrollY }
+}
+
+// The page pixel of the centre of the cell at `index` of the center list.
+export async function cellPixel (page, index) {
+  return page.evaluate(pointPixelInPage, await page.evaluate((i) => pu.centerlist[i], index))
 }
 
 // The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
 export async function makeSurfaceSolveLink (browser) {
   const { context, page } = await openPenpa(browser)
   try {
-    return await page.evaluate(surfaceSolveLinkInPage, ANSWER_CELLS)
+    return linkHash(await page.evaluate(surfaceSolveLinkInPage, ANSWER_CELLS))
   } finally {
     await context.close()
   }
@@ -77,27 +85,21 @@ export async function openRecordingPage (browser, query) {
 
 // A real click at the centre of the cell at `index` of the center list.
 export async function clickCell (page, index, options) {
-  const { x, y } = await page.evaluate(cellPixelInPage, index)
+  const { x, y } = await cellPixel(page, index)
   await page.mouse.click(x, y, options)
 }
 
-// Clicks the recorder's download button on a `?record=1` page and returns the file's name and its recording.
+// Clicks the recorder's download button on a `?record=1` page and returns the file's name, its text and its recording.
 export async function downloadRecording (page) {
   const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
-  return { name: file.suggestedFilename(), recording: JSON.parse(await readFile(await file.path(), 'utf8')) }
+  const text = await readFile(await file.path(), 'utf8')
+  return { name: file.suggestedFilename(), text, recording: JSON.parse(text) }
 }
 
 // The id of every recording under `live/recordings/`, sorted.
 export async function listRecordings () {
   const files = await readdir(RECORDINGS, { recursive: true })
   return files.filter((f) => f.endsWith(STEPS_SUFFIX)).map((f) => f.slice(0, -STEPS_SUFFIX.length)).sort()
-}
-
-// A recording's file text, laid out as `docs/js/recorder.js` downloads it: one step per line, so a reviewer reads a
-// recording's diff step by step.
-export function recordingText ({ header, final, steps }) {
-  return '{"header": ' + JSON.stringify(header) + ',\n"final": ' + JSON.stringify(final) +
-    ',\n"steps": [\n' + steps.map((s) => JSON.stringify(s)).join(',\n') + '\n]}\n'
 }
 
 export async function readRecording (id) {
@@ -256,11 +258,9 @@ function finalReport ({ id, recording, state, errors }) {
   ].join('\n')
 }
 
-// Runs in the page: the `#` part of the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in
-// general.js).
+// Runs in the page: the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in general.js).
 function duplicateLinkInPage () {
-  const link = pu.maketext_duplicate() + '&l=solvedup'
-  return link.slice(link.indexOf('#'))
+  return pu.maketext_duplicate() + '&l=solvedup'
 }
 
 // Lines a duplicate link drops by design, left out of the round trip's comparison: `maketext_duplicate` empties the
@@ -290,42 +290,44 @@ export async function replay (browser, recording, { id = 'recording', expected, 
   const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
   const { context, page, errors } = await open(recording.header.source)
   const read = () => readPage(page)
-  // Each duplicate link checked so far: a step that changed nothing gives the same link, and loads the same board.
-  const duplicates = new Set()
-  // The round trips under way, in step order, each resolving to its report or null. They run beside the replay, at
-  // most ROUND_TRIPS_AT_ONCE pages at a time, since each waits on a page load.
+  // Each duplicate link checked so far, with the board it must load: a step that changed nothing gives the same pair.
+  const checked = new Set()
+  // The round trips under way, in step order, each resolving to its report or null. They run beside the replay in
+  // ROUND_TRIP_LANES lanes, each lane one after another, since each waits on a page load.
   const roundTrips = []
-  let running = 0
-  const waiting = []
-  const slot = async () => {
-    if (running >= ROUND_TRIPS_AT_ONCE) await new Promise((resolve) => waiting.push(resolve))
-    running++
+  const lanes = Array(ROUND_TRIP_LANES).fill(Promise.resolve())
+  // The report of how a fresh page that loads `link` differs from `want`, else null.
+  const loadDuplicate = async (n, link, want) => {
+    const words = `${id}: step ${n} (${checkpointWords(steps, n)})`
+    let fresh
+    try {
+      fresh = await open(linkHash(link))
+    } catch (e) {
+      return `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`
+    }
+    try {
+      const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
+      if (got === want) return null
+      return [
+        `${words}: its duplicate link loads a different board`,
+        ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
+      ].join('\n')
+    } finally {
+      await fresh.context.close()
+    }
   }
-  const free = () => { running--; waiting.shift()?.() }
   // Starts the check that a fresh page loads the duplicate link of `state`, the board at checkpoint `n`, as `state`.
   const startRoundTrip = async (n, state) => {
     const link = await page.evaluate(duplicateLinkInPage)
-    if (duplicates.has(link)) return
-    duplicates.add(link)
     const want = withoutDuplicateDrops(state)
-    roundTrips.push((async () => {
-      await slot()
-      const fresh = await open(link)
-      try {
-        const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
-        if (got === want) return null
-        return [
-          `${id}: step ${n} (${checkpointWords(steps, n)}): its duplicate link loads a different board`,
-          ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
-        ].join('\n')
-      } finally {
-        await fresh.context.close()
-        free()
-      }
-    })())
+    if (checked.has(link + '\n' + want)) return
+    checked.add(link + '\n' + want)
+    const lane = roundTrips.length % ROUND_TRIP_LANES
+    const result = lanes[lane].then(() => loadDuplicate(n, link, want))
+    roundTrips.push(result)
+    // The next round trip in the lane waits for this one to end, whatever its result; `roundTrips` keeps the result.
+    lanes[lane] = result.catch(() => {})
   }
-  // The report of the earliest round trip that failed, else `report`.
-  const withRoundTrips = async (report) => (await Promise.all(roundTrips)).find(Boolean) ?? report
   const { steps } = recording
   const checkpoints = []
   // The report of the first way checkpoint `n` differs from the expected file, else null.
@@ -342,9 +344,10 @@ export async function replay (browser, recording, { id = 'recording', expected, 
     await startRoundTrip(n, state)
     return null
   }
-  try {
-    let report = await checkpoint(0, [])
-    if (report) return { checkpoints, report: await withRoundTrips(report) }
+  // The report of the first way the replay differs from the expected file or the recording, else null.
+  const run = async () => {
+    const first = await checkpoint(0, [])
+    if (first) return first
     let since = []
     for (const [index, step] of steps.entries()) {
       const n = index + 1
@@ -357,14 +360,19 @@ export async function replay (browser, recording, { id = 'recording', expected, 
         throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${message}`)
       }
       if (!endsGroup(step) && n < steps.length) continue
-      report = await checkpoint(n, since)
-      if (report) return { checkpoints, report: await withRoundTrips(report) }
+      const report = await checkpoint(n, since)
+      if (report) return report
       since = []
     }
     if (expected && expected.length > checkpoints.length) {
-      return { checkpoints, report: await withRoundTrips(`${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}`) }
+      return `${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}`
     }
-    return { checkpoints, report: await withRoundTrips(finalReport({ id, recording, state: checkpoints.at(-1).state, errors })) }
+    return finalReport({ id, recording, state: checkpoints.at(-1).state, errors })
+  }
+  try {
+    const report = await run()
+    // A round trip names an earlier checkpoint than any report the replay itself can make.
+    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
     await Promise.allSettled(roundTrips)
