@@ -101,6 +101,20 @@ describe('the engine driver', () => {
     assert.equal(checkpoints.at(-1).state, state)
   })
 
+  // `re_combi_akari_up_reduced` runs only once `main.js` has copied the mouse's `ondown_key` onto `pu` on a mousedown.
+  it('replays a Composite click that behaves one way for a mouse and another for touch', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await clickCell(page, RIGHT_CELL)
+      await clickCell(page, RIGHT_CELL)
+    })
+    assert.doesNotMatch(state, /^pu_a\.symbol\.\d+ = /m, 'the second click took the bulb away and left no dot (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
   it('replays Escape and Ctrl+A', async () => {
     const { state, recording } = await record(query, async (page) => {
       await page.click('#mo_number_lb')

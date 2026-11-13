@@ -2,17 +2,10 @@
 // snapshot's shape are upstream's (`test/public/puzz_link_parser.js`), read from that file so an upstream merge that
 // adds a puzzle adds its test here. A snapshot is never written: a missing file fails its test.
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { before, describe, it } from 'node:test'
 import { openPenpa, useBrowser } from '../live/page.mjs'
-
-const SNAPSHOTS = new URL('./snapshots/', import.meta.url)
-
-const parser = readFileSync(new URL('./public/puzz_link_parser.js', import.meta.url), 'utf8')
-const cases = [...parser.matchAll(/^\s+\["([^"]+)", "([^"]+)"\],?$/mg)].map(([, name, url]) => ({ name, url }))
-
-// Upstream's filename rule, from `puzz_link_parser.js`.
-const snapshotName = (name) => `puzzlink_${name.toLowerCase().replace(/[^\w]/g, '_')}.json`
+import { SNAPSHOTS, cases, readSnapshot, snapshotName } from '../live/puzzlink-cases.mjs'
 
 const browser = useBrowser()
 
@@ -47,7 +40,7 @@ describe('puzz.link import snapshots', () => {
           outside_spacing: pu.space
         }))
       }, url)
-      assert.deepEqual(actual, JSON.parse(readFileSync(new URL(snapshotName(name), SNAPSHOTS), 'utf8')))
+      assert.deepEqual(actual, readSnapshot(name))
     })
   }
 })

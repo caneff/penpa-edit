@@ -22,7 +22,7 @@ import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
-const RECORDINGS = new URL('./recordings/', import.meta.url)
+export const RECORDINGS = new URL('./recordings/', import.meta.url)
 const STEPS_SUFFIX = '.steps.json'
 const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
@@ -89,6 +89,13 @@ export async function listRecordings () {
   return files.filter((f) => f.endsWith(STEPS_SUFFIX)).map((f) => f.slice(0, -STEPS_SUFFIX.length)).sort()
 }
 
+// A recording's file text, laid out as `docs/js/recorder.js` downloads it: one step per line, so a reviewer reads a
+// recording's diff step by step.
+export function recordingText ({ header, final, steps }) {
+  return '{"header": ' + JSON.stringify(header) + ',\n"final": ' + JSON.stringify(final) +
+    ',\n"steps": [\n' + steps.map((s) => JSON.stringify(s)).join(',\n') + '\n]}\n'
+}
+
 export async function readRecording (id) {
   return JSON.parse(await readFile(new URL(id + STEPS_SUFFIX, RECORDINGS), 'utf8'))
 }
@@ -110,6 +117,9 @@ function applyStepInPage (step) {
   switch (step.kind) {
     case 'pointer': {
       const { action, button, ctrl, x, y, num } = step
+      // `window_click` in main.js copies the device's press event onto `pu` at the first mousedown on the page, and
+      // some Composite tools act differently for a mouse than for touch once it has.
+      if (action === 'down' && !pu.ondown_key) pu.ondown_key = 'mousedown'
       if (action === 'down' || action === 'double') pu.select_remove = ctrl && pu.selection.indexOf(num) !== -1
       if (action === 'double') {
         pu.mouse_mode = 'down_left'

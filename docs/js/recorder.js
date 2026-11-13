@@ -24,7 +24,7 @@ function readEngineState() {
 (function () {
     if (!/(^|&)record=1(&|$)/.test(location.search.slice(1))) return;
 
-    const RECORDER_VERSION = 1;
+    const RECORDER_VERSION = 2;
     const FILE_NAME = 'recording.steps.json';
     const KEY_CALLS = ['key_number', 'key_space', 'key_shiftspace', 'key_backspace', 'key_arrow'];
     // `subsymbolmode` and `subcombimode` keep the Shape or Composite tool where other modes keep their sub-mode.

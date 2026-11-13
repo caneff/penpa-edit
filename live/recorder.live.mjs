@@ -31,7 +31,7 @@ describe('the recorder', () => {
       const { name, recording } = await downloadRecording(page)
 
       assert.equal(name, 'recording.steps.json')
-      assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 1 })
+      assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 2 })
       assert.deepEqual(recording.final, await page.evaluate(() => readEngineState()), 'the final board is the page\'s state')
       const steps = recording.steps
       const moves = steps.filter((s) => s.kind === 'pointer' && s.action === 'move')
