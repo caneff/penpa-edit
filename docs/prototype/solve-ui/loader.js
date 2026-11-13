@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const VARIANTS = 'ABCDEFGHIJK'.split('');
+    const VARIANTS = 'ABCDEFGHIJKL'.split('');
     const params = new URLSearchParams(location.search);
     const key = (params.get('variant') || '').toUpperCase();
     if (!key) {

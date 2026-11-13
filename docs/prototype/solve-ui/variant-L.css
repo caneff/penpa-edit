@@ -1,0 +1,188 @@
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant L "Desk + pins" styles. Owned by variant L's builder. */
+
+/* Shape mode re-shows the legacy floating panel with an inline style (class_p.js:1616-1619). */
+html.proto-variant-L #float-key { display: none !important; }
+html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
+
+.proto-l-app {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    color: #23262c;
+    font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.proto-l-bar {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    background: #2b2f38;
+    color: #eef0f4;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+    z-index: 950;
+}
+.proto-l-brand { font-weight: 700; letter-spacing: .02em; }
+.proto-l-title { font-weight: 600; margin-left: 10px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-l-author { color: #aab1be; white-space: nowrap; }
+.proto-l-spacer { flex: 1; }
+.proto-l-timer { font: 600 13px ui-monospace, monospace; min-width: 52px; text-align: right; }
+.proto-l-status.is-solved { color: #7be0a0; font-weight: 600; }
+.proto-l-status.is-wrong { color: #ffb38a; }
+.proto-l-status.is-none { color: #aab1be; }
+
+.proto-l-btn {
+    font: inherit;
+    color: inherit;
+    background: #3a404c;
+    border: 1px solid #4b5261;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-l-btn:hover { background: #474e5d; }
+.proto-l-btn:disabled { opacity: .4; cursor: default; }
+.proto-l-btn[hidden] { display: none; }
+.proto-l-reset { background: #6b4b1e; border-color: #8a6428; }
+.proto-l-reset:hover { background: #7d5823; }
+
+.proto-l-desk {
+    position: absolute;
+    left: 0; right: 0; top: 44px; bottom: 0;
+    background:
+        radial-gradient(circle at 1px 1px, rgba(0, 0, 0, .09) 1px, transparent 0) 0 0 / 22px 22px,
+        #e7e4dc;
+    overflow: hidden;
+}
+
+/* ---- Cards ---- */
+.proto-l-card {
+    position: absolute;
+    background: #fbfaf7;
+    border: 1px solid #cfcabd;
+    border-radius: 9px;
+    box-shadow: 0 2px 10px rgba(40, 35, 20, .14);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+}
+.proto-l-card.is-dragging { box-shadow: 0 10px 28px rgba(40, 35, 20, .3); opacity: .96; }
+.proto-l-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    min-height: 26px;
+    background: #ece8de;
+    border-bottom: 1px solid #ddd7c8;
+    border-radius: 9px 9px 0 0;
+    cursor: grab;
+    user-select: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #6b6656;
+}
+.proto-l-card.is-dragging .proto-l-head { cursor: grabbing; }
+.proto-l-head .proto-l-btn { text-transform: none; letter-spacing: 0; font-weight: 600; color: #3a3a3a; background: #fff; border-color: #cfcabd; }
+.proto-l-mini { padding: 1px 8px; }
+.proto-l-body { padding: 10px 12px; overflow: auto; }
+
+.proto-l-card-board .proto-l-body { padding: 8px; overflow: visible; }
+.proto-l-card-pins { width: 310px; }
+.proto-l-card-pins .proto-l-body { height: 330px; box-sizing: border-box; }
+.proto-l-card-tool { width: 310px; }
+.proto-l-card-tool .proto-l-body { height: 180px; box-sizing: border-box; }
+.proto-l-card-rules { width: 310px; }
+.proto-l-card-rules .proto-l-body { height: 188px; box-sizing: border-box; font-size: 12.5px; color: #3b3e45; }
+.proto-l-card-mouse .proto-l-body { height: 250px; box-sizing: border-box; }
+.proto-l-card-mouse { width: 414px; border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
+.proto-l-card-mouse .proto-l-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
+.proto-l-card-browser { width: 414px; }
+.proto-l-card-browser .proto-l-body { height: 490px; box-sizing: border-box; display: flex; flex-direction: column; padding-bottom: 6px; }
+
+/* Buttons inside cards are light. */
+.proto-l-card .proto-l-body .proto-l-btn { color: #2b2f38; background: #fff; border-color: #cfcabd; }
+.proto-l-card .proto-l-body .proto-l-btn:hover { background: #f1eee6; }
+
+/* ---- Mouse card ---- */
+.proto-l-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin-bottom: 10px; }
+.proto-l-hsep { color: #9aa7c2; font-weight: 400; }
+.proto-l-hsub { color: #2f5bb2; }
+.proto-l-hstyle { color: #444; white-space: nowrap; }
+.proto-l-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+.proto-l-mrows { display: grid; gap: 4px; }
+.proto-l-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: 14px; }
+.proto-l-mrow.is-none { background: #f4f4f2; color: #9a9a92; }
+.proto-l-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 8px; color: #555; }
+.proto-l-mg { font-weight: 700; color: #2f5bb2; }
+.proto-l-mrow.is-none .proto-l-mg { color: #9a9a92; }
+.proto-l-mrow.is-more .proto-l-mg { font-weight: 600; color: #6b7690; }
+
+/* ---- Pins ---- */
+.proto-l-pins { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-l-pin {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-rows: auto auto;
+    column-gap: 6px;
+    align-items: center;
+    padding: 4px 4px 4px 8px;
+    border: 1px solid #cfcabd;
+    border-radius: 7px;
+    background: #fff;
+    cursor: pointer;
+    min-width: 120px;
+}
+.proto-l-pin:hover { border-color: #8aa6e0; }
+.proto-l-pin.is-on { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
+.proto-l-pinnum { grid-row: span 2; font: 700 11px ui-monospace, monospace; color: #8b8676; }
+.proto-l-pin.is-on .proto-l-pinnum { color: #cdd9f5; }
+.proto-l-pinname { font-weight: 700; }
+.proto-l-pindetail { grid-column: 2; font-size: 11px; color: #7b7766; white-space: nowrap; }
+.proto-l-pin.is-on .proto-l-pindetail { color: #dbe5fb; }
+.proto-l-card .proto-l-body .proto-l-unpin { grid-row: 1 / span 2; grid-column: 3; padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
+.proto-l-card .proto-l-body .proto-l-unpin:hover { opacity: 1; background: rgba(0, 0, 0, .08); }
+.proto-l-note { font-size: 11.5px; color: #77735f; margin: 6px 0; }
+.proto-l-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+.proto-l-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; margin: 8px 0 4px; }
+.proto-l-presets { display: flex; flex-wrap: wrap; gap: 5px; }
+.proto-l-card .proto-l-body .proto-l-preset { padding: 3px 8px; font-size: 12px; }
+.proto-l-card .proto-l-body .proto-l-preset.is-saved { background: #fff6e0; border-color: #e3c77e; }
+.proto-l-saved { display: inline-flex; align-items: center; }
+.proto-l-saved .proto-l-unpin { padding: 0 4px; }
+.proto-l-input { font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; flex: 1; min-width: 0; }
+.proto-l-input:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
+
+/* ---- Tool settings ---- */
+.proto-l-toolname { font-weight: 700; font-size: 15px; }
+.proto-l-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.proto-l-card .proto-l-body .proto-l-chip { padding: 2px 7px; font-size: 12px; }
+.proto-l-card .proto-l-body .proto-l-chip.is-on { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
+
+/* ---- Mode browser ---- */
+.proto-l-search { flex: none; margin-bottom: 8px; padding: 6px 10px; }
+.proto-l-list { flex: 1; overflow: auto; margin: 0 -4px; padding: 0 4px; }
+.proto-l-group { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; margin: 10px 0 3px; }
+.proto-l-group:first-child { margin-top: 0; }
+.proto-l-entry {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.proto-l-entry:hover { background: #f0ede4; }
+.proto-l-entry.is-on { background: #e3ebfb; box-shadow: inset 3px 0 0 #3b6fd4; }
+.proto-l-ename { font-weight: 600; }
+.proto-l-emode { font-weight: 400; font-size: 11px; color: #8b8676; margin-left: 6px; }
+.proto-l-edesc { grid-column: 1; font-size: 11.5px; color: #6c6858; }
+.proto-l-entry .proto-l-pinbtn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.proto-l-card .proto-l-body .proto-l-pinbtn { padding: 2px 9px; font-size: 12px; }
+.proto-l-card .proto-l-body .proto-l-pinbtn.is-pinned { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
