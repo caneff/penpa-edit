@@ -42,9 +42,9 @@
     "pu_a_col.thermo = []",
     "pu_a_col.wall = {}",
     "mode.qa = \"pu_a\"",
-    "mode.edit_mode = \"line\"",
-    "mode.submode = \"1\"",
-    "mode.style = 3",
+    "mode.edit_mode = \"surface\"",
+    "mode.submode = \"\"",
+    "mode.style = 1",
     "mode.orientation = null",
     "selection = []",
     "conflict_cells = []",
@@ -418,7 +418,7 @@
    ]
   },
   {
-   "step": 24,
+   "step": 22,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
@@ -472,7 +472,7 @@
    ]
   },
   {
-   "step": 27,
+   "step": 25,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
@@ -628,7 +628,7 @@
     "mode.submode = \"1\"",
     "mode.style = 3",
     "mode.orientation = null",
-    "selection = [130,131,156,157,234,235,260,261,338,339,364,365,442,443,468,469]",
+    "selection = []",
     "conflict_cells = []",
     "sol_flag = 0"
    ]
@@ -736,13 +736,67 @@
     "mode.submode = \"1\"",
     "mode.style = 3",
     "mode.orientation = null",
-    "selection = []",
+    "selection = [130,131,156,157,234,235,260,261,338,339,364,365,442,443,468,469]",
     "conflict_cells = []",
     "sol_flag = 0"
    ]
   },
   {
    "step": 32,
+   "state": [
+    "pu_a.arrows = []",
+    "pu_a.cage = {}",
+    "pu_a.command_redo.length = 0",
+    "pu_a.command_replay.0 = [\"line\",\"234,235\",3,\"pu_a\",0,\"[timestamp]\"]",
+    "pu_a.command_replay.1 = [\"line\",\"235,260\",3,\"pu_a\",0,\"[timestamp]\"]",
+    "pu_a.command_undo.length = 2",
+    "pu_a.deletelineE = {}",
+    "pu_a.direction = []",
+    "pu_a.killercages = []",
+    "pu_a.line.234,235 = 3",
+    "pu_a.line.235,260 = 3",
+    "pu_a.lineE = {}",
+    "pu_a.nobulbthermo = []",
+    "pu_a.number = {}",
+    "pu_a.numberS = {}",
+    "pu_a.polygon = []",
+    "pu_a.squareframe = []",
+    "pu_a.surface = {}",
+    "pu_a.symbol = {}",
+    "pu_a.thermo = []",
+    "pu_a.wall = {}",
+    "pu_a_col.arrows = []",
+    "pu_a_col.cage = {}",
+    "pu_a_col.command_redo.length = 0",
+    "pu_a_col.command_replay.0 = [\"line\",\"234,235\",null,\"pu_a_col\",0]",
+    "pu_a_col.command_replay.1 = [\"line\",\"235,260\",null,\"pu_a_col\",0]",
+    "pu_a_col.command_undo.length = 2",
+    "pu_a_col.deletelineE = {}",
+    "pu_a_col.direction = []",
+    "pu_a_col.killercages = []",
+    "pu_a_col.line = {}",
+    "pu_a_col.lineE = {}",
+    "pu_a_col.nobulbthermo = []",
+    "pu_a_col.number = {}",
+    "pu_a_col.numberS = {}",
+    "pu_a_col.polygon = []",
+    "pu_a_col.squareframe = []",
+    "pu_a_col.surface = {}",
+    "pu_a_col.symbol = {}",
+    "pu_a_col.thermo = []",
+    "pu_a_col.wall = {}",
+    "mode.qa = \"pu_a\"",
+    "mode.edit_mode = \"line\"",
+    "mode.submode = \"1\"",
+    "mode.style = 3",
+    "mode.orientation = null",
+    "selection = []",
+    "conflict_cells = []",
+    "sol_flag = 0"
+   ]
+  },
+  {
+   "step": 33,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
@@ -797,7 +851,7 @@
    ]
   },
   {
-   "step": 33,
+   "step": 34,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
@@ -854,7 +908,7 @@
    ]
   },
   {
-   "step": 34,
+   "step": 35,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
@@ -913,7 +967,7 @@
    ]
   },
   {
-   "step": 35,
+   "step": 36,
    "state": [
     "pu_a.arrows = []",
     "pu_a.cage = {}",
