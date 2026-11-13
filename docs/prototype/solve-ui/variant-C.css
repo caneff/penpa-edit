@@ -1,13 +1,459 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant C styles. Owned by variant C's builder. */
-.proto-c-banner {
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant C, "Cursor ring". Owned by variant C's builder.
+ * The mode lives on the pointer; claim tested: mode errors come from the indicator being far from where you look. */
+
+html.proto-variant-C,
+html.proto-variant-C body {
+    background: #14161b;
+    overflow: hidden;
+}
+
+.proto-c-stage {
+    position: fixed;
+    inset: 0 0 56px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+}
+
+.proto-c-board #dvique {
+    margin: 0;
+    border: 0;
+    border-radius: 6px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55);
+    cursor: crosshair;
+}
+
+.proto-c-hidden {
+    display: none !important;
+}
+
+/* ---- The ring ---- */
+.proto-c-ring {
+    --c: #fff;
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    z-index: 900;
+    font: 600 13px/1.2 system-ui, 'Segoe UI', sans-serif;
+}
+
+.proto-c-circle {
+    position: absolute;
+    left: -21px;
+    top: -21px;
+    width: 42px;
+    height: 42px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    border: 3px solid var(--c);
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(0, 0, 0, 0.45);
+    opacity: 0.9;
+}
+
+.proto-c-temp .proto-c-circle {
+    border-style: dashed;
+}
+
+.proto-c-dot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 9px;
+    height: 9px;
+    margin: -4.5px 0 0 -4.5px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.7);
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.8);
+    display: none;
+}
+
+/* The centre dot sits off the hot spot so it does not hide the cell under the pointer. */
+.proto-c-dot:not(.proto-c-hidden) {
+    display: block;
+    left: auto;
+    right: -3px;
+    top: -3px;
+    margin: 0;
+}
+
+.proto-c-badge {
+    position: absolute;
+    left: 13px;
+    top: 13px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--c);
+    color: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.proto-c-icon {
+    font-size: 14px;
+    line-height: 1;
+}
+
+/* Sudoku icons draw where the digit lands: Normal centred, Corner top-left, Centre small. */
+.proto-c-badge .proto-c-icon-corner,
+.proto-c-pip .proto-c-icon-corner {
+    font-size: 9px;
+    align-self: flex-start;
+    margin: 2px auto 0 3px;
+}
+
+.proto-c-badge .proto-c-icon-centre,
+.proto-c-pip .proto-c-icon-centre {
+    font-size: 9px;
+}
+
+.proto-c-label {
+    position: absolute;
+    left: 40px;
+    top: 14px;
+    white-space: nowrap;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: rgba(20, 22, 27, 0.92);
+    color: #fff;
+    border-left: 4px solid var(--c);
+    opacity: 0;
+    transition: opacity 0.25s;
+}
+
+.proto-c-show-label .proto-c-label {
+    opacity: 1;
+    transition: none;
+}
+
+.proto-c-carousel {
+    position: absolute;
+    right: 28px;
+    top: -30px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.proto-c-show-carousel .proto-c-carousel {
+    opacity: 1;
+    transition: none;
+}
+
+.proto-c-car-item {
+    --c: #fff;
+    white-space: nowrap;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(20, 22, 27, 0.8);
+    color: #9aa0aa;
+    font-weight: 500;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.proto-c-car-cur {
+    color: #fff;
+    font-weight: 700;
+    box-shadow: inset 0 0 0 1px var(--c);
+}
+
+.proto-c-car-icon {
+    display: inline-flex;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--c);
+    color: #111;
+    font-size: 11px;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+}
+
+.proto-c-toast {
+    position: absolute;
+    left: 40px;
+    top: 40px;
+    white-space: nowrap;
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: #2b2f38;
+    color: #e8eaed;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.proto-c-toast-on {
+    opacity: 1;
+    transition: none;
+}
+
+.proto-c-toast-wrong {
+    background: #8e2a2a;
+    color: #fff;
+}
+
+.proto-c-toast-solved {
+    background: #f5c518;
+    color: #111;
+}
+
+.proto-c-toast-none {
+    background: #444a55;
+}
+
+.proto-c-solved .proto-c-circle {
+    border-color: #f5c518;
+    box-shadow: 0 0 12px #f5c518;
+}
+
+@keyframes proto-c-pulse {
+    0% {
+        transform: scale(1.5);
+        box-shadow: 0 0 0 4px var(--c), 0 0 18px var(--c);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(1);
+        opacity: 0.9;
+    }
+}
+
+.proto-c-flash .proto-c-circle {
+    animation: proto-c-pulse 0.45s ease-out;
+}
+
+@keyframes proto-c-pop {
+    0% {
+        transform: scale(1.6);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.proto-c-flash .proto-c-badge,
+.proto-c-pip.proto-c-flash {
+    animation: proto-c-pop 0.35s ease-out;
+}
+
+/* ---- The caret pip on the selection ---- */
+.proto-c-pip {
+    --c: #fff;
+    position: fixed;
+    width: 18px;
+    height: 18px;
+    margin: -9px 0 0 -9px;
+    border-radius: 50%;
+    background: var(--c);
+    color: #111;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 890;
+    box-shadow: 0 0 0 2px #14161b;
+    transition: opacity 0.2s;
+}
+
+.proto-c-pip .proto-c-icon {
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.proto-c-pip-dim {
+    opacity: 0.35;
+}
+
+/* ---- The corner tab ---- */
+.proto-c-tab {
     position: fixed;
     top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
+    left: 0;
+    z-index: 950;
+    font: 14px/1.4 system-ui, 'Segoe UI', sans-serif;
+    color: #e8eaed;
+}
+
+.proto-c-handle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 10px;
+    background: #23262e;
+    border-radius: 0 0 10px 0;
+    color: #9aa0aa;
+    cursor: default;
+    font-variant-numeric: tabular-nums;
+}
+
+.proto-c-handle-q {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #3a3f4b;
     color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+}
+
+.proto-c-tab-solved .proto-c-handle {
+    background: #f5c518;
+    color: #111;
+}
+
+.proto-c-panel {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    width: 340px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+    padding: 14px 16px 16px;
+    background: #23262e;
+    border-radius: 0 0 10px 0;
+    box-shadow: 4px 6px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* Opens only after a deliberate hover, so a pointer crossing the corner does not cover the board with it. */
+.proto-c-panel {
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0s 0.15s, opacity 0.15s;
+}
+
+.proto-c-tab.proto-c-open .proto-c-panel {
+    visibility: visible;
+    opacity: 1;
+    transition: none;
+}
+
+.proto-c-tab.proto-c-open .proto-c-handle {
+    border-radius: 0;
+}
+
+.proto-c-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+}
+
+.proto-c-author {
+    color: #9aa0aa;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.proto-c-rules {
+    margin-bottom: 12px;
+}
+
+.proto-c-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.proto-c-btn {
+    flex: 1;
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 5px;
+    background: #3a3f4b;
+    color: #fff;
+    font: inherit;
+    cursor: pointer;
+}
+
+.proto-c-btn:hover:not(:disabled) {
+    background: #4a5060;
+}
+
+.proto-c-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.proto-c-verdict {
+    min-height: 1.4em;
+    font-weight: 600;
+}
+
+.proto-c-verdict-wrong {
+    color: #ff8a80;
+}
+
+.proto-c-verdict-solved {
+    color: #f5c518;
+}
+
+.proto-c-sub {
+    margin-top: 8px;
+    color: #9aa0aa;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.proto-c-toollist {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 4px 0 10px;
+}
+
+.proto-c-tool {
+    --c: #fff;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 3px 6px;
+    border-radius: 4px;
+    cursor: pointer;
+    color: #c4c8d0;
+}
+
+.proto-c-tool:hover {
+    background: #2e323c;
+}
+
+.proto-c-tool-cur {
+    color: #fff;
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 var(--c);
+}
+
+.proto-c-keys {
+    color: #9aa0aa;
+    font-size: 12px;
+}
+
+.proto-c-keys kbd {
+    display: inline-block;
+    padding: 0 4px;
+    margin: 0 1px;
+    border-radius: 3px;
+    background: #3a3f4b;
+    color: #e8eaed;
+    font: 11px/1.5 ui-monospace, monospace;
+}
+
+/* Shape mode turns on Penpa+'s floating number panel (class_p.js:1616-1619) with an inline display the bridge's
+ * rule cannot beat; this variant has no panel. */
+html.proto-variant-C #float-key {
+    display: none !important;
 }
