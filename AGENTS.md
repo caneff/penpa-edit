@@ -18,7 +18,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   `location.href`; only its localhost / `file://` branch names upstream's address.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
-  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs` and `.github/workflows/`.
+  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/userscript.test.mjs` and `.github/workflows/`.
 - **`GLOSSARY.md`**: the vocabulary.
 - **Phones and tablets**: no change of ours is checked, styled or demonstrated at a phone or tablet size, and no ticket asks for it.
   Upstream's own phone support is left as it is.

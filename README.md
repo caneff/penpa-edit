@@ -8,6 +8,13 @@ If the message “Invalid address” is displayed on a supported browser, try cl
 
 Depending on the browser you can update the page without using the cache with <kbd>Ctrl</kbd> + <kbd>R</kbd>, <kbd>Ctrl</kbd> + <kbd>F5</kbd>, <kbd>Shift</kbd> + <kbd>F5</kbd>, etc.
 
+<!-- caneff: our own section, kept apart from upstream's text to keep merges clean -->
+## Redirect Penpa+ links to this fork (ChinStrap)
+1. Install [Tampermonkey](https://www.tampermonkey.net/).
+2. Open [`penpa-redirect.user.js`](https://raw.githubusercontent.com/caneff/penpa-edit/master/userscript/penpa-redirect.user.js) and click Install.
+
+Every `https://swaroopg92.github.io/penpa-edit/` link then opens at `https://caneff.github.io/penpa-edit/` with its query and `#` data unchanged.
+
 ## Referencing and citing content
 You can now cite this in your research and publications using:
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.6615242.svg)](https://doi.org/10.5281/zenodo.6615242)
