@@ -66,7 +66,7 @@ onload = function() {
         pu.update_customcolor(color ? color.toRgbString() : color);
     });
 
-    boot();
+    boot().catch(bootFailed); // caneff: a failed load shows an error dialog, not a dead page
 
     document.addEventListener("beforeunload", function(eve) {
         eve.returnValue = "Move page.";
