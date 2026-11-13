@@ -107,3 +107,5 @@ Chris, 2026-11-13: "I would really like it to be somehow even more clear visuall
 Chris, 2026-11-13: "Tool window should be called \"Mode\", the pinned modes and mode and recent mode should all be on the right side, mouse and rules on the left."
 
 Chris, 2026-11-13: "want to see it in dark mode too." A Light/Dark toggle in round 5; the board uses Penpa's own dark theme.
+
+Chris, 2026-11-13, replacing "presets named by their contents, never by genre": "Presets should not be named as types but grouped as puzzle genres and titled as such. I only didnt want the modes themselves titled by genre." Built-in presets are titled and grouped by puzzle genre; modes, pins, the picker and Recent stay named by what they do.
