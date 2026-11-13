@@ -101,3 +101,5 @@ Chris, 2026-11-13: "we should not show a sub-mode picker. that is only in the mo
 Chris, 2026-11-13: "Can we make the buttons for types more compact somehow? and windows should be resizeable". Style buttons become small icon buttons; every desk card is resizable.
 
 Chris, 2026-11-13: "size of mouse window should be fixed not change based on mode". Replaces round 3's "Mouse card fits its content": one height for every mode; the user can still resize it.
+
+Chris, 2026-11-13: "I would really like it to be somehow even more clear visually what mode we are in", then "id like to see all 4" of the proposed cues: a board frame coloured by mode family, the tool name in the Board title bar, a short flash of the name on each mode change, and a cursor per mode (a cursor shape, not a badge that follows the pointer). Built as toggles in round 5.
