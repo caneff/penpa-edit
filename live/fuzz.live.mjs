@@ -87,7 +87,9 @@ const PLANTS = [
     invariant: 'save/load round trip',
     from: /(\r?\n {4}maketext_duplicate\(\) \{\r?\n)/,
     to: '$1        if (this.pu_a.command_undo.__a.length > 2) { this.pu_a.command_undo.__a.pop(); }\n',
-    failure: /^step \d+ \(.*\): the save\/load round trip changed the state:\n/
+    failure: /^step \d+ \(.*\): the save\/load round trip changed the state:\n/,
+    // The engine driver's own round trip at each checkpoint catches the same loss.
+    replays: ({ report }) => assert.match(report ?? 'no report', /: its duplicate link loads a different board\n/)
   }
 ]
 
