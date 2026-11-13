@@ -12,8 +12,8 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   guessing, document new code). They hold here too.
 - **Upstream**: the `upstream` remote is `swaroopg92/penpa-edit`, branch `master`. Its changes are merged into our `master`, never rebased.
   A file we own is marked `merge=ours` in `.gitattributes`, so a merge keeps our side and upstream's change to it is ported by hand
-  or dropped (git has no built-in `ours` driver: each clone and CI set `git config merge.ours.driver true`); every other upstream file follows `CODING_STANDARDS.md` § Upstream merges. Nothing goes back to upstream unless it is a
-  trivial port (Chris, 2026-11-09).
+  or dropped (git has no built-in `ours` driver: each clone and CI set `git config merge.ours.driver true`); every other upstream file follows `CODING_STANDARDS.md` § Upstream merges. Nothing ever goes back to upstream: no commit,
+  push or PR (Chris, 2026-11-13). `gh repo set-default` names `caneff/penpa-edit`, so `gh pr create` targets the fork.
 - **Share links point at the fork** (Chris, 2026-11-09). `maketext_baseurl()` in `docs/js/class_p.js` already builds links from
   `location.href`; only its localhost / `file://` branch names upstream's address.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
