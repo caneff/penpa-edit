@@ -66,6 +66,27 @@ describe('the engine driver', () => {
     assert.equal(checkpoints.at(-1).state, state)
   })
 
+  it('replays a Shape and a Composite tool choice and a number orientation', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_symbol_lb')
+      await page.dispatchEvent('#ms_star', 'mousedown')
+      await clickCell(page, ANSWER_CELLS[0])
+      await page.keyboard.press('2')
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await clickCell(page, RIGHT_CELL)
+      await page.click('#mo_number_lb')
+      await page.click('#rot_D_lb')
+      await clickCell(page, CTRL_CELL)
+      await page.keyboard.press('3')
+    })
+    assert.match(state, /^pu_a\.symbol\.\d+ = \[\d+,"star",\d+\]$/m, 'the recording page placed a star (the premise)')
+    assert.match(state, /^pu_a\.number\.\d+ = \["3",\d+,"1","D"\]$/m, 'the digit is turned down (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
   // Escape clears the selection in `main.js` without an engine call, so the recorder has no step for it.
   it('refuses a recording whose replay ends on a board the recording page did not reach', async () => {
     const { state, recording } = await record(query, async (page) => {

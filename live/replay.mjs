@@ -8,7 +8,8 @@
 //   { kind: 'pointer', action: 'down' | 'move' | 'up' | 'out' | 'double', button: 'left' | 'right' | null, ctrl, x, y, num }
 //     with `x, y` in board units and `num` an index of `pu.point`;
 //   { kind: 'key', call, args }, `call` one of `pu`'s `key_*` methods;
-//   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change;
+//   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change, `submode` being
+//     the tool in Shape and Composite, and Number's step adding its `orientation`;
 //   { kind: 'undo' } and { kind: 'redo' };
 //   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
@@ -130,10 +131,15 @@ function applyStepInPage (step) {
       const styleIds = step.mode === 'multicolor' ? 'surface' : step.mode
       if (pu.mode[pu.mode.qa].edit_mode !== step.mode) pu.mode_set(step.mode)
       const now = () => pu.mode[pu.mode.qa][step.mode]
-      if (now()[0] !== step.submode) pu.submode_check('sub_' + step.mode + step.submode)
+      if (now()[0] !== step.submode) {
+        if (step.mode === 'symbol') pu.subsymbolmode(step.submode)
+        else if (step.mode === 'combi') pu.subcombimode(step.submode)
+        else pu.submode_check('sub_' + step.mode + step.submode)
+      }
       if (now()[1] !== step.style) pu.stylemode_check('st_' + styleIds + step.style)
-      if (now()[0] !== step.submode || now()[1] !== step.style) {
-        throw new Error(`mode ${step.mode} has no sub-mode ${step.submode} and style ${step.style} to switch to`)
+      if (step.orientation && now()[2] !== step.orientation) pu.set_orientation(step.orientation)
+      if (now()[0] !== step.submode || now()[1] !== step.style || (step.orientation && now()[2] !== step.orientation)) {
+        throw new Error(`mode ${step.mode} has no sub-mode ${step.submode}, style ${step.style}${step.orientation ? ` and orientation ${step.orientation}` : ''} to switch to`)
       }
       return
     }
@@ -156,7 +162,7 @@ function stepWords (step) {
     case 'key':
       return `${step.call}(${step.args.map((a) => JSON.stringify(a)).join(', ')})`
     case 'mode':
-      return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}`
+      return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}${step.orientation ? `, orientation ${step.orientation}` : ''}`
     default:
       return step.kind
   }

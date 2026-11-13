@@ -61,6 +61,30 @@ describe('the recorder', () => {
     }
   })
 
+  // The tool lists are hidden until their dialog opens; `window_click` in `main.js` reads only the mousedown's target.
+  it('writes a Shape or Composite tool choice and a number orientation as mode changes', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.click('#mo_symbol_lb')
+      await page.dispatchEvent('#ms_star', 'mousedown')
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await page.click('#mo_number_lb')
+      await page.click('#rot_D_lb')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'mode').map(({ mode, submode, orientation }) => [mode, submode, orientation]), [
+        ['symbol', 'circle_L', undefined],
+        ['symbol', 'star', undefined],
+        ['combi', 'battleship', undefined],
+        ['combi', 'akari', undefined],
+        ['number', '1', 'R'],
+        ['number', '1', 'D']
+      ])
+    } finally {
+      await context.close()
+    }
+  })
+
   // `handle_rect_mousedown` starts a rectangle selection on Alt only in Sudoku, Number, Surface and Multicolor.
   it('refuses an Alt-click where it starts a rectangle selection and records it as a click elsewhere', async () => {
     const { context, page } = await openRecordingPage(browser(), query)

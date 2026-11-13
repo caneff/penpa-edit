@@ -27,7 +27,8 @@ function readEngineState() {
     const RECORDER_VERSION = 1;
     const FILE_NAME = 'recording.steps.json';
     const KEY_CALLS = ['key_number', 'key_space', 'key_shiftspace', 'key_backspace', 'key_arrow'];
-    const MODE_CALLS = ['mode_set', 'submode_check', 'stylemode_check'];
+    // `subsymbolmode` and `subcombimode` keep the Shape or Composite tool where other modes keep their sub-mode.
+    const MODE_CALLS = ['mode_set', 'submode_check', 'stylemode_check', 'subsymbolmode', 'subcombimode', 'set_orientation'];
     // The modes in which Alt starts a rectangle selection on a square grid (`handle_rect_mousedown` in class_p.js).
     const RECT_SELECT_MODES = ['sudoku', 'number', 'surface', 'multicolor'];
     // A solver's input arrives by one of these. Listening in the capture phase on `window` wraps a new `pu` before
@@ -54,10 +55,11 @@ function readEngineState() {
         return { kind: 'pointer', action, button: buttonName, ctrl, x, y, num };
     }
 
+    // Only Number's third element is an orientation; other modes keep a custom colour there.
     function modeStep(p) {
         const mode = p.mode[p.mode.qa].edit_mode;
-        const [submode, style] = p.mode[p.mode.qa][mode];
-        return { kind: 'mode', mode, submode, style };
+        const [submode, style, orientation] = p.mode[p.mode.qa][mode];
+        return mode === 'number' ? { kind: 'mode', mode, submode, style, orientation } : { kind: 'mode', mode, submode, style };
     }
 
     // `before` makes the step from the state at the call, `after` from the state the call left.
