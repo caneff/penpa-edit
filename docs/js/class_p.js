@@ -7359,11 +7359,11 @@ class Puzzle {
     //
     /////////////////////////////
 
-    // caneff: the order that makes a triangle selection's base its top-left cell; the smallest id is not that cell
+    // caneff: the order that makes a triangle selection's base its top-left cell (the base ignores orientation); the smallest id is not that cell
     tri_point_order(a, b) {
         a = this.point[a].index;
         b = this.point[b].index;
-        return a[1] - b[1] || a[0] - b[0] || a[2] - b[2];
+        return a[1] - b[1] || a[0] - b[0];
     }
 
     copy_handler(ev) {
@@ -7385,7 +7385,7 @@ class Puzzle {
 
         // Triangular grid
         if (this.gridtype === "tri") {
-            // caneff: sort by row, column and orientation so selection[0] is the base
+            // caneff: sort by row and column so selection[0] is the base
             this.selection.sort((a, b) => this.tri_point_order(a, b));
             let base_point = this.point[this.selection[0]];
             [base_x, base_y] = base_point.index;
