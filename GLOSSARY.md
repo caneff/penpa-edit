@@ -34,6 +34,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **UI driver**: replays a recording's steps as real mouse and keyboard input on the page; any checkpoint where it
   differs from the engine driver is a UI bug.
 - **Bridge**: the layer the MVP calls to read and drive Penpa's engine as it stands; replaced by the engine API at the split.
+- **Engine API**: the calls and events the solve UI uses to read and drive the engine. It starts as the Bridge's
+  interface; the split re-implements it over the engine's own code. Not a second interface the UI is ported to.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
