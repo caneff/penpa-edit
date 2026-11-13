@@ -22,4 +22,5 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Checkpoint**: a point in a recording where the replay compares state: after each undo group, and at the end.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
+- **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
 - **Safety net**: the recordings, the tests and the CI checks the migration runs under.

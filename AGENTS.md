@@ -18,7 +18,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   `location.href`; its localhost / `file://` branch names the fork's address too.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
-  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/redirect-urls.mjs`,
+  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `docs/js/header_text.js`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/header-text.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/redirect-urls.mjs`,
   `.github/workflows/`, `.github/actions/` and `.github/scripts/`.
 - **`GLOSSARY.md`**: the vocabulary.
 - **Phones and tablets**: no change of ours is checked, styled or demonstrated at a phone or tablet size, and no ticket asks for it.
@@ -46,7 +46,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 
 ## End-to-end seam
 
-- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`), `test/userscript.test.mjs` (the Redirect script), `test/upstream-merge.test.mjs` (the upstream merge's scripts, on scratch git repos) and, once in headless Chromium
+- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/header-text.test.mjs` (a Node check of `docs/js/header_text.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`), `test/userscript.test.mjs` (the Redirect script), `test/upstream-merge.test.mjs` (the upstream merge's scripts, on scratch git repos) and, once in headless Chromium
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
