@@ -422,7 +422,7 @@ const UserSettings = {
 
     _shorten_links: false,
     set shorten_links(newValue) {
-        const parsedValue = parseBooleanish(newValue);
+        this._shorten_links = parseBooleanish(newValue); // caneff: upstream PR 229 parsed the value but never stored it
         document.getElementById("shorten_links_dropdown").value = this._shorten_links ? 1 : 0;
         document.getElementById("auto_shorten_chk").checked = this._shorten_links ? 'checked' : null;
         this.attemptSave();
