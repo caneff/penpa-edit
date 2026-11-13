@@ -1,8 +1,8 @@
 {
   "name": "penpa-tests",
   "scripts": {
-    "test": "node --test --test-timeout=60000 \"test/**/*.test.mjs\"",
-    "test:live": "node --test --test-timeout=60000 \"live/**/*.live.mjs\"",
+    "test": "node --test --test-concurrency=4 --test-timeout=60000 \"test/**/*.test.mjs\"",
+    "test:live": "node --test --test-concurrency=4 --test-timeout=60000 \"live/**/*.live.mjs\"",
     "test:browser": "nodemon --watch test/test_server.js test/test_server.js",
     "local": "npx browser-sync start --server"
   },
