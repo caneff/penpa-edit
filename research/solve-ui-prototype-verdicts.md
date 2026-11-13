@@ -109,3 +109,5 @@ Chris, 2026-11-13: "Tool window should be called \"Mode\", the pinned modes and 
 Chris, 2026-11-13: "want to see it in dark mode too." A Light/Dark toggle in round 5; the board uses Penpa's own dark theme.
 
 Chris, 2026-11-13, replacing "presets named by their contents, never by genre": "Presets should not be named as types but grouped as puzzle genres and titled as such. I only didnt want the modes themselves titled by genre." Built-in presets are titled and grouped by puzzle genre; modes, pins, the picker and Recent stay named by what they do.
+
+Chris, 2026-11-13, on zoom: "zooming is weird ... only some cards stayed in, others scrolled out" (browser zoom). Ruled: every card stays inside the window after a zoom or resize, and the board always fits its card (on load, window resize, card resize); − and + zoom inside the card, which scrolls.
