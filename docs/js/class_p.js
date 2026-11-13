@@ -13421,7 +13421,8 @@ class Puzzle {
             var text = this.make_solution();
             for (var i = 0; i < this.solution.length; i++) {
                 let author_sol = JSON.stringify(this.solution[i]);
-                if (author_sol) {
+                // caneff: an empty author category equals the solver's empty grid, so it would count as solved (#13)
+                if (author_sol && this.solution[i].length > 0) {
                     for (var j = 0; j < text.length; j++) {
                         let user_sol = JSON.stringify(text[j]);
                         if (user_sol === author_sol && this.sol_flag === 0) {
