@@ -217,6 +217,21 @@ describe('the UI driver', () => {
     assert.equal(await compareDrivers(browser(), recording, { id: 'number-keys' }), null)
   })
 
+  // In Sudoku, Delete clears the cell and Space does not, so the two keys' codes are told apart.
+  it('replays a recorded Sudoku entry with Delete through the keyboard to the engine driver\'s states', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_sudoku_lb')
+      await clickCell(page, DRAG_FROM)
+      await page.keyboard.press('5')
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('6')
+      await page.keyboard.press('Delete')
+    })
+    assert.ok(recording.steps.some((s) => s.call === 'key_space' && s.args[0] === 46), 'the recording holds Delete (the premise)')
+    assert.equal(state.match(/^pu_a\.number\.\d+ = /gm)?.length, 1, 'Delete cleared the second digit (the premise)')
+    assert.equal(await compareDrivers(browser(), recording, { id: 'sudoku-delete' }), null)
+  })
+
   // A drag that leaves the canvas ends there, so the cell it comes back over is not shaded.
   it('replays a drag that leaves the canvas to the engine driver\'s states', async () => {
     const { state, recording } = await record(query, async (page) => {
@@ -275,8 +290,8 @@ describe('the UI driver', () => {
       ['a release with no button down', [{ kind: 'pointer', action: 'up', button: null, ctrl: false, x: 76, y: 76, num: 27 }],
         'no mouse button is down to release'],
       ['a key call no single key makes', [{ kind: 'key', call: 'key_number', args: ['12'] }], 'no key makes key_number("12")'],
-      ['a key in Sudoku', [{ kind: 'mode', mode: 'sudoku', submode: '1', style: 1 }, { kind: 'key', call: 'key_number', args: ['5'] }],
-        'no key input for a key step in sudoku, whose keys main.js remaps'],
+      ['Sudoku\'s Backspace', [{ kind: 'key', call: 'key_space', args: [8, false, false] }], 'no key makes key_space(8, false, false)'],
+      ['a Multicolor colour key', [{ kind: 'key', call: 'key_number', args: [3] }], 'no key makes key_number(3)'],
       ['a Multicolor style', [{ kind: 'mode', mode: 'multicolor', submode: '', style: 3 }],
         'no input for a Multicolor style alone: its button makes a key call too'],
       ['a mode with no such style', [{ kind: 'mode', mode: 'surface', submode: '', style: 99 }],

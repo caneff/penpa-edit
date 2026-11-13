@@ -192,15 +192,14 @@ function outsideCanvasInPage () {
   return { x: box.left, y: box.top - 1 }
 }
 
-// The modes whose keys `main.js` remaps before the key call (Sudoku's Shift and Ctrl marks and numpad, Multicolor's
-// colours), and in which a Multicolor style button makes a key call too; the UI driver has no input for their steps.
-const REMAPPED_KEY_MODES = ['sudoku', 'multicolor']
 // How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
 // ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
 const STEP_GAP_MS = 1000
 
-// The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call outside
-// REMAPPED_KEY_MODES.
+// The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call. A call `main.js`
+// makes only from a remapped key has no entry and is refused: Multicolor's colour digits (a number argument) and
+// Sudoku's Backspace (`key_space` with code 8). Sudoku's Shift and Ctrl marks are recorded as a sub-mode step around
+// a plain key, so they replay as a click in the mode panel and the plain key.
 function keyOf ({ call, args }) {
   switch (call) {
     case 'key_number':
@@ -281,12 +280,6 @@ function startUiDriver (page) {
     throw new Error(`no mouse input for a pointer step of action ${step.action}`)
   }
 
-  async function key (step) {
-    const mode = await page.evaluate(() => pu.mode[pu.mode.qa].edit_mode)
-    if (REMAPPED_KEY_MODES.includes(mode)) throw new Error(`no key input for a key step in ${mode}, whose keys main.js remaps`)
-    return page.keyboard.press(keyOf(step))
-  }
-
   function mode (step) {
     return switchMode(page, step, {
       mode: (name) => clickInPanel('mo_' + name),
@@ -305,7 +298,7 @@ function startUiDriver (page) {
       case 'pointer':
         return pointer(step)
       case 'key':
-        return key(step)
+        return page.keyboard.press(keyOf(step))
       case 'mode':
         return mode(step)
       case 'undo':
