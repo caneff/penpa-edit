@@ -23,8 +23,7 @@ function deleteCookie(name) {
 }
 
 const UserSettings = {
-    // caneff: cookie lifetime in days. Chromium caps a cookie's lifetime at 400 days; a larger count made `Date` invalid
-    // and every cookie a session cookie. The `attemptSave` callbacks are arrow functions so `this` is bound.
+    // caneff: cookie lifetime in days; Chromium caps a cookie's lifetime at 400 days.
     _expDate: 400,
 
     // Do responsive layout for wider screens
@@ -512,6 +511,7 @@ const UserSettings = {
             return;
         }
 
+        // caneff: arrow functions, so `this._expDate` is bound inside the callbacks.
         this.can_save.forEach((setting) => {
             setCookie(setting, UserSettings[setting], this._expDate);
         });

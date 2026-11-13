@@ -29,16 +29,16 @@ export function useBrowser () {
 
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
-// cookie test passes `http: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
-export async function openPenpa (browser, query = '', { cookies = [], http = false } = {}) {
+// cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
+export async function openPenpa (browser, query = '', { cookies = [], served = false } = {}) {
   const context = await browser.newContext()
   if (cookies.length) await context.addCookies(cookies)
   // Penpa+'s only network loads are Google Tag Manager's: answered empty, so a run needs no network and counts as no visit.
   await context.route(/^https?:\/\//, (route) => route.fulfill({ status: 200, body: '' }))
-  if (http) {
+  if (served) {
     // Registered after the catch-all above, so it wins for this origin.
     await context.route(`${PENPA_ORIGIN}/**`, (route) => {
-      const path = decodeURIComponent(new URL(route.request().url()).pathname) || '/'
+      const path = decodeURIComponent(new URL(route.request().url()).pathname)
       return route.fulfill({ path: fileURLToPath(new URL('../docs' + (path === '/' ? '/index.html' : path), import.meta.url)) })
     })
   }
@@ -48,7 +48,7 @@ export async function openPenpa (browser, query = '', { cookies = [], http = fal
   // A page error as its stack, so a failure says where it came from.
   page.on('pageerror', (e) => errors.push(e?.stack || String(e)))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
-  await page.goto((http ? PENPA_ORIGIN + '/' : PENPA_URL) + query)
+  await page.goto((served ? PENPA_ORIGIN + '/' : PENPA_URL) + query)
   await page.waitForFunction(() => typeof pu !== 'undefined')
   return { context, page }
 }
