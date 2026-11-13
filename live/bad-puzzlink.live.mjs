@@ -18,14 +18,19 @@ const MALFORMED = {
   'a decoder that throws': 'starbattle/10/10/',
   'castle, number cut off': 'castle/5/5/0',
   'castle, long number cut off': 'castle/5/5/-',
+  'castle, arrow clue cut off': 'castle/5/5/01',
   'yajilin, number cut off': 'yajilin/5/5/0',
+  'yajilin, arrow clue cut off': 'yajilin/5/5/1',
+  'easyasabc, clue cut off': 'easyasabc/5/5//g',
+  'a grid over the size limit': 'nurikabe/101/5/',
+  'a genre Penpa+ lacks': 'nosuchgenre/5/5/x',
   'compass, clue cut off': 'compass/5/5/1',
   'mochikoro, number cut off': 'mochikoro/5/5/-',
   'nuribou, number cut off': 'nuribou/5/5/-',
   'nurikabe, number cut off': 'nurikabe/5/5/-'
 }
 
-// Types `link` into the Load URL dialog and presses its button, as a user does.
+// Opens the Load URL dialog, fills in `link` and presses its button.
 async function importLink (page, link) {
   await page.evaluate((l) => {
     document.getElementById('modal-load').style.display = 'block'
@@ -40,7 +45,11 @@ const boardState = (page) => page.evaluate(() => ({
   ny: pu.ny,
   importDialog: document.getElementById('modal-load').style.display,
   errorShown: Boolean(document.querySelector('.swal2-icon-error')),
-  badClues: JSON.stringify([pu.pu_q.number, pu.pu_q.numberS]).match(/NaN|null/g)?.length ?? 0
+  badClues: JSON.stringify([pu.pu_q.number, pu.pu_q.numberS]).match(/NaN|null/g)?.length ?? 0,
+  gridSpace: ['nb_space1', 'nb_space2', 'nb_space3', 'nb_space4'].map((id) => document.getElementById(id).value),
+  canvas: [pu.canvas.width, pu.canvas.height],
+  tabSettings: UserSettings.tab_settings,
+  source: document.getElementById('saveinfosource').value
 }))
 
 describe('a failed puzz.link import', () => {
@@ -50,7 +59,11 @@ describe('a failed puzz.link import', () => {
       await importLink(page, NURIKABE)
       const before = await settle(async () => (await boardState(page)).numbers, 3)
       assert.equal(before, 3, 'the nurikabe loaded')
-      await page.evaluate(() => { document.querySelector('.swal2-container')?.remove() })
+      // A non-default grid-size input, so a failed import that zeroes them shows.
+      await page.evaluate(() => {
+        document.querySelector('.swal2-container')?.remove()
+        for (const id of ['nb_space1', 'nb_space2', 'nb_space3', 'nb_space4']) document.getElementById(id).value = 1
+      })
       const kept = await boardState(page)
 
       await importLink(page, `https://puzz.link/p?${link}`)
