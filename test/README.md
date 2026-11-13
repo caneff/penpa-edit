@@ -2,7 +2,8 @@
 
 - Install Node.js at https://nodejs.org/en/download/
 - Install Node dependencies with `npm install` in the terminal.
-- Start the test server with `npm test`.
+<!-- caneff: `npm test` runs these snapshots once, headless (root AGENTS.md § End-to-end seam); the server moved to test:browser. -->
+- Start the test server with `npm run test:browser`.
 - Go to `http://localhost:5000` and click "run tests".
 - If you change files you might have to reload the page to run the new tests.
 
