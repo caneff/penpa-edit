@@ -95,3 +95,7 @@ mode" above:
 - Picking another tool or sub-mode in the Tool card never changes a pin: the pick becomes current and the pin stays as it was.
 
 Chris, 2026-11-13, on round 3: "Recent tools should be its own window i think." Recent becomes its own desk card.
+
+Chris, 2026-11-13: "we should not show a sub-mode picker. that is only in the mode pulldown. After the pulldown all that we should see are style things." The Tool card is the mode pulldown, whose entries are mode + sub-mode, plus style controls only.
+
+Chris, 2026-11-13: "Can we make the buttons for types more compact somehow? and windows should be resizeable". Style buttons become small icon buttons; every desk card is resizable.
