@@ -62,3 +62,5 @@ Chris, 2026-11-13, on what to keep: "I kind of like the mouse card idea demonstr
 loudly. I like the desk setup." Kept as directions: K's mouse card (what left, right and drag do with the current tool),
 made a more prominent statement of the current mode; I's desk (the board with movable cards around it). Loupes were
 explained; his verdict on them is pending.
+
+Chris, 2026-11-13: loupes dropped for now. Tools: "I want to be able to pin specific ones I tab between like penpa does now, and otherwise a more intuitive full browsing of modes."
