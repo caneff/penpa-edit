@@ -200,25 +200,30 @@ async function tierA (browser) {
   return pairs.map((pair) => ({
     id: `${FAMILY[pair.mode]}/${slug([pair.mode, pair.name].filter(Boolean).join(' '))}`,
     boards: [async () => ({ query })],
-    act: async (page) => {
-      if (pair.mode === 'move') {
-        // Something of the solver's to move where the drag starts: a digit, and a shape beside it.
-        const [start, next] = await pixelRun(page, CELLS.drag, CENTRE, 2)
-        await chooseMode(page, { mode: 'number' })
-        await page.mouse.click(start.x, start.y)
-        await page.keyboard.press('5')
-        await chooseMode(page, { mode: 'symbol', tool: SHAPE_TOOLS[0] })
-        await page.mouse.click(next.x, next.y)
-      }
-      if (pair.mode === 'lineE' && pair.name === 'Erase') {
-        // Edges to erase, along the corners the corner drag takes.
-        await chooseMode(page, { mode: 'lineE' })
-        await drag(page, await pixelRun(page, CELLS.corners, CORNER, 3))
-      }
-      await chooseMode(page, pair)
-      await gestures(page, { beforeCtrl: pair.mode === 'number' ? () => page.click('#rot_D_lb') : undefined })
-    }
+    act: (page) => inMode(page, pair)
   }))
+}
+
+// Chooses the mode and makes the gesture set in it, after putting on the board what the mode acts on.
+async function inMode (page, pair) {
+  if (pair.mode === 'move') {
+    // Something of the solver's to move where the drag starts: a digit, and a shape beside it.
+    const [start, next] = await pixelRun(page, CELLS.drag, CENTRE, 2)
+    await chooseMode(page, { mode: 'number' })
+    await page.mouse.click(start.x, start.y)
+    await page.keyboard.press('5')
+    await chooseMode(page, { mode: 'symbol', tool: SHAPE_TOOLS[0] })
+    await page.mouse.click(next.x, next.y)
+  }
+  if (pair.mode === 'lineE' && pair.name === 'Erase') {
+    // Edges to erase, along the corners the corner drag takes.
+    await chooseMode(page, { mode: 'lineE' })
+    await drag(page, await pixelRun(page, CELLS.corners, CORNER, 3))
+  }
+  await chooseMode(page, pair)
+  // Number's orientation buttons show only on square grids.
+  const turn = async () => { if (await page.isVisible('#rot_D_lb')) await page.click('#rot_D_lb') }
+  await gestures(page, { beforeCtrl: pair.mode === 'number' ? turn : undefined })
 }
 
 // Each genre's imports, smallest first by cell count, the earlier one on a tie.
@@ -250,14 +255,22 @@ function shownModesInPage () {
 }
 
 // Each recording to make: its id, the boards it may be made on in order of preference (each a function returning a
-// link's `#` part and the name of what it is), and what it does on the board. A grid class's board is recorded in each
-// mode its solve page shows.
+// link's `#` part and the name of what it is, or null for a board not to record on), and what it does on the board. A
+// grid class's board is recorded in each mode its solve page shows.
 async function tierB (browser) {
   const recordings = []
   for (const { genre, imports } of importsPerGenre()) {
     recordings.push({
       id: `genre/${slug(genre)}`,
-      boards: imports.map(({ name, url }) => async () => ({ query: await solveLink(browser, (p) => p.evaluate((u) => import_url(u), url)), name })),
+      boards: imports.map(({ name, url }) => async () => {
+        let full = false
+        const query = await solveLink(browser, async (p) => {
+          await p.evaluate((u) => import_url(u), url)
+          full = await p.evaluate(() => pu.centerlist.every((c) => pu.pu_q.number[c]))
+        })
+        // A board whose every cell is given has nothing to enter.
+        return full ? null : { query, name }
+      }),
       act: (p) => gestures(p)
     })
   }
@@ -266,17 +279,19 @@ async function tierB (browser) {
     const { context, page } = await openPenpa(browser, query)
     const modes = await settle(() => page.evaluate(shownModesInPage)).finally(() => context.close())
     for (const mode of modes) {
-      recordings.push({ id: `grid/${grid}-${mode}`, boards: [async () => ({ query })], act: async (p) => { await chooseMode(p, { mode }); await gestures(p) } })
+      recordings.push({ id: `grid/${grid}-${mode}`, boards: [async () => ({ query })], act: (p) => inMode(p, { mode }) })
     }
   }
   return recordings
 }
 
-// Records on the first of `boards` whose link boots, naming each one that did not. Any other failure is the
-// recording's own and is thrown.
+// Records on the first of `boards` there is one of and whose link boots, naming each one that did not boot. Any other
+// failure is the recording's own and is thrown.
 async function recordOnFirst (browser, { id, boards, act }) {
   for (const board of boards) {
-    const { query, name } = await board()
+    const made = await board()
+    if (!made) continue
+    const { query, name } = made
     try {
       return await record(browser, query, act, name ? { import: name } : {})
     } catch (e) {
