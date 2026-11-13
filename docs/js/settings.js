@@ -547,9 +547,8 @@ const UserSettings = {
 
         // caneff: arrow functions, so `this._expDate` is bound inside the callbacks.
         this.can_save.forEach((setting) => {
-            // caneff: "off for this puzzle" (2) is per puzzle, so only "off for all puzzles" (3) is saved.
-            if (setting === 'conflict_detection' && UserSettings[setting] !== 3) {
-                deleteCookie(setting);
+            // caneff: the conflict_detection setter owns its cookie (only "off for all puzzles" is saved).
+            if (setting === 'conflict_detection') {
                 return;
             }
             setCookie(setting, UserSettings[setting], this._expDate);
