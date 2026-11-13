@@ -1,0 +1,14 @@
+{"header": {"source":"#m=solve&p=tVRtT+pIFP7Or7iZr05iS4uWJn7gTROjrFxxWW0IGcog1aGjfUFuif52z5mWpR3QxGQ3padPnzM9LzPnIX5NWcSpDZflUIOaeDXhCXfTxJ9RXMMgEdz9RVtpspARAEr/Oj+ncyZiTi/vn9rd59Zbr/XPcePBsu7686On7uDuaTb62xwYwXFk9IUTXt902+LoInu4XrRWvMdPbmLpLwRnM5Y9jC7XIjx3Hhdzs3O56DhzFhrxqzNsrtqDs7OaVxQyrnnEJJTU4TbJ+CO7/fAIoea4tsl+u5ts4nrjd5rd7aCzg7fuBmzf3RCzSVwPg5gqDMQzkLBKhImEXSJOdcJBAor5l9CDWrZONLRPrBMtqKWylOqw69oK29JX6FnsahZo2VSN32PjNmZsUBKEHA5fBMkfQuu4Zgh7RDNL2a6yhrINZa9UhJ6yI2U7ytrKnqg1p7jLtZpnOvkg0cbhJ5whHBeJpZjEaTRnPp/wNfMT4ubjVPZUuDBdTnlE3CRKC0ZI+SKglQMBtq4KGTyGMuIHXUjy2eNXodB1INRURjMsqeR4Y0JUW1Eqq1B+EPmiSiVRUHlnUSTfKsySJYsKMWUJqDJeBC/VSDzU9jJh1RLZM9OyLXfb8V4ja6Juz6J1aqO0mm42oNlFPlZb8dFsANq6drNblFYuQ0qWqUgCXwoJKQsOpkd9WAfY28GR8iPqFPNqAO4XGOA9wHynJlc5c+N62ZASzN1WXyMkS7mC4vPa8N2Xyym055HSBlELHHE6k8/pVh049a2fdQBBth0gzDtAdKADbOz/7aA5fs8Py/jRv1/5D+E/FP660LSMvpH1zqnTW3FX2W8EXvIe4r/Qcsmr83vCxWL3tQvsAfkCqysYqH0RA7mnY+C+kDJG1dWMVemCxlR7msZUZVnDKMow5n6aBCv+woIoJuPaJw==&a=RcixCQAgDEXBXV79miiIu3yy/xrBSrjqkvajroWs4+ZVDw==","gridtype":"square","genre":["consecutivepairs"],"recorder":1,"commit":"fe79bfc"},
+"final": {"pu_a":{"command_redo":[],"command_undo":[["number",18,null,"pu_a",3,null],["number",26,null,"pu_a",5,null]],"command_replay":[["number",18,["1",9,"1"],"pu_a",3,0],["number",26,["3",9,"1"],"pu_a",5,0]],"surface":{},"number":{"18":["1",9,"1"],"26":["3",9,"1"]},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"pu_a_col":{"command_redo":[],"command_undo":[["number",18,null,"pu_a_col",3],["number",26,null,"pu_a_col",5]],"command_replay":[["number",18,["1",9,"1"],"pu_a_col",3],["number",26,["3",9,"1"],"pu_a_col",5]],"surface":{},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"mode":{"qa":"pu_a","edit_mode":"sudoku","submode":"1","style":9,"orientation":null},"selection":[26],"conflict_cells":[],"sol_flag":1},
+"steps": [
+{"kind":"mode","mode":"sudoku","submode":"1","style":9},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"key","call":"key_number","args":["1"]},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":38,"y":76,"num":26},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":38,"y":76,"num":26},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":38,"y":76,"num":26},
+{"kind":"key","call":"key_number","args":["3"]},
+{"kind":"pointer","action":"out","button":null,"ctrl":false,"x":0,"y":0,"num":0}
+]}

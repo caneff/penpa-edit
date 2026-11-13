@@ -1,0 +1,14 @@
+{"header": {"source":"#m=solve&p=zVPfT6NMFH3nr9jMq5MIon6UxIf+0sRo1362220JaaZ0KujA6AC1GaN/u3cGTAulJvuwyYZyOJw7zNx7e0/6khNB8SlctoNNbKmrBU+4W5b6meU1ijJG3R+4nWchF0Aw/nl5iVeEpRRfTx87vaf2a7/9+/hsZtvjwerosTccPy4nv6yhGR0Lc8Cc5Pau12FHV3J2G7bXtE/P71IehIySJZGzyfWGJZfOQ7iyutdh11mRxExfnFFr3RleXBhemYhveMhCGJ3AbSH/Q95/eAhhyzfe5P/um5y7nv+O5XhLnS29d98ABxotjVONIwhjaWvsaTQ1nmm80Wv6GicauxpPNZ7rNf+pAwzDs5yih/is+QnpQ6Yo5Wye5mJFAjqnGxJkyC06uRtBbibyUkryeEFFZRXj/JlFSdMGX6GKGD0kXNDGkBLp8uHQVirUsNWCi2Utp1fCWLUUPWAVKYhEwKpSJqLKOxGCv1aUmGRhRViQDAYyDaPn6k40qfUyI9UUyROpnRZv2/FuoA3St2fjE3yqpqrlyiGWV25l7rAcwljduvJeTVUxgRjFOcuigDMOR5YaTI/+8ARof0snOq5YtxAtE/ig5ECnQItOzW8K5c715AgjdXZHf60oivkaki9yU+8BjxdQnod2GoRtCKT5kj/l5VJLuaH9ZxXAJl8VKFpUoFhDBaqwv1tBy38v/izzXzD+pvQ0F9/Yehusyw3uBvUbg+9Em/QDXt6J1vU946pk970LaoN9Qa07GKR9E4O452PQDlhZ7Vp3s8qqbmh11J6n1VG7toZRZCRNowCGjLDnkCxohnzjEw==&a=VcIxDQAACANBLz8zsSDmU/82OpOcskfGJwU=","gridtype":"square","genre":["classic","alphabet"],"recorder":1,"commit":"fe79bfc"},
+"final": {"pu_a":{"command_redo":[],"command_undo":[["number",18,null,"pu_a",3,null],["number",27,null,"pu_a",5,null]],"command_replay":[["number",18,["1",9,"1"],"pu_a",3,0],["number",27,["1",9,"1"],"pu_a",5,0]],"surface":{},"number":{"18":["1",9,"1"],"27":["1",9,"1"]},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"pu_a_col":{"command_redo":[],"command_undo":[["number",18,null,"pu_a_col",3],["number",27,null,"pu_a_col",5]],"command_replay":[["number",18,["1",9,"1"],"pu_a_col",3],["number",27,["1",9,"1"],"pu_a_col",5]],"surface":{},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"mode":{"qa":"pu_a","edit_mode":"sudoku","submode":"1","style":9,"orientation":null},"selection":[27],"conflict_cells":[27,18],"sol_flag":0},
+"steps": [
+{"kind":"mode","mode":"sudoku","submode":"1","style":9},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"key","call":"key_number","args":["1"]},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":76,"y":76,"num":27},
+{"kind":"key","call":"key_number","args":["1"]},
+{"kind":"pointer","action":"out","button":null,"ctrl":false,"x":0,"y":0,"num":0}
+]}
