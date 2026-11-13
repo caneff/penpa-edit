@@ -19,6 +19,9 @@
  *      sub-mode); with an empty Tab set (9 of the 12 samples) the tool the link opened on. Edited per puzzle (remove
  *      ×, drag to reorder, Pin current, Pin in the picker, the Recent pin icon) and stored per puzzle under
  *      `proto-L-pins-v2:<hash of the link's p=>` (v1 held bare modes and is ignored).
+ *      Held Shift / Ctrl in Sudoku (#69): the temporary sub-mode never enters Recent and never changes or unlights a
+ *      pin; the Mouse card tags it "held". Tab during a hold drops the hold first; blur, a hidden page and a legacy
+ *      dialog drop it too (see the comment above `hold`). A picker pick that exactly matches a pin lands on it.
  *   4. Presets: built-in pin sets named by their contents, plus sets the solver saves under a typed name
  *      (`proto-L-presets-v1`), all in one "Presets" pulldown on the pins card (save field at its foot). Each preset
  *      pin is [mode, sub-mode or null, style or null]; null takes the mode's current value.
@@ -834,6 +837,9 @@
 
             /** On every bridge change, before rendering: which pin is lit, and the lit pin's style. */
             function trackPin(m) {
+                if (hold) {
+                    return; // a held Shift/Ctrl sub-mode never changes, unlights or relights a pin (#69)
+                }
                 const pair = {mode: m.mode, sub: m.submode};
                 if (onPin >= 0 && pins[onPin] && same(pins[onPin], pair)) {
                     if (m.style !== seenStyle && stylesOf(m.mode, m.submode).length && pins[onPin].style !== m.style) {
@@ -1054,6 +1060,9 @@
                     }
                     headline.appendChild(sw);
                 }
+                if (hold) {
+                    headline.appendChild(el('span', {class: 'proto-l-heldtag', title: 'While ' + hold.key + ' is held'}, ['held']));
+                }
                 b.appendChild(headline);
                 const rows = el('div', {class: 'proto-l-mrows'});
                 [['Left', r.left], ['Right', r.right], ['Drag', r.drag]].forEach(function(row) {
@@ -1174,6 +1183,9 @@
 
             /** Called on every render: when the tool changed, the tool just left (with its last style) goes first. */
             function noteRecent(m) {
+                if (hold) {
+                    return; // a held sub-mode never enters Recent (#69)
+                }
                 const now = {mode: m.mode, sub: m.submode, style: m.style};
                 if (same(now, lastPair)) {
                     lastPair.style = now.style;
@@ -1317,6 +1329,12 @@
                 }
                 if (e.sub != null) {
                     applySub(e.mode, e.sub);
+                }
+                // Team lead's call (reversible): a pick that exactly matches a pin counts as landing on it, so it takes
+                // the pin's style, as Tab or a chip click does.
+                const idx = pinIndexOf(curPair());
+                if (idx >= 0) {
+                    landOnPin(idx);
                 }
                 pickInput.blur();
                 renderAll(true);
@@ -1496,14 +1514,90 @@
                 });
             }
 
-            // Tab / Shift+Tab (and Enter, Penpa's Tab twin) cycle L's pins, before Penpa's own Tab-set cycle.
+            /*
+             * Held Shift / Ctrl in Sudoku (Chris's rulings, ticket #69). Penpa switches to Corner / Centre on the key-down
+             * and back on the key-up (main.js:405-426, 883-905), keeping the pre-hold sub-mode in a private variable
+             * (main.js:267). L lets that happen but ignores it: while `hold` is set, trackPin and noteRecent do nothing,
+             * and the Mouse card tags the tool "held".
+             *   - Tab / Shift+Tab during a hold: the hold is dropped first, then L steps from the pre-hold tool.
+             *   - Window blur, the page going hidden, or a legacy dialog opening also drop the hold.
+             * Dropping a hold dispatches a synthetic key-up of the held key to document, so Penpa's own key-up restores
+             * its saved sub-mode. The real key-up and key-repeats that follow are then swallowed before Penpa sees them,
+             * or Penpa would restore again (undoing a landed pin) or start a new hold on the next repeat.
+             */
+            let hold = null; // {key: 'Shift' | 'Control'}
+            let swallowKey = null;
+            let sendingUp = false;
+
+            function dropHold() {
+                if (!hold) {
+                    return;
+                }
+                const key = hold.key;
+                sendingUp = true;
+                document.dispatchEvent(new KeyboardEvent('keyup', {key: key, code: key === 'Shift' ? 'ShiftLeft' : 'ControlLeft',
+                    bubbles: true, cancelable: true}));
+                sendingUp = false;
+                hold = null;
+                swallowKey = key;
+                renderAll(true);
+            }
+
             window.addEventListener('keydown', function(e) {
-                if ((e.key !== 'Tab' && e.key !== 'Enter') || e.ctrlKey || e.altKey || e.metaKey || typing(e) ||
+                if (e.key !== 'Shift' && e.key !== 'Control') {
+                    return;
+                }
+                if (swallowKey === e.key) {
+                    if (e.repeat) {
+                        e.stopImmediatePropagation(); // a key-repeat after a dropped hold must not start a new one
+                        return;
+                    }
+                    swallowKey = null; // a fresh press
+                }
+                if (!hold && !e.repeat && !typing(e) && B.getMode().mode === 'sudoku' && !e.altKey &&
+                    !(e.key === 'Shift' ? e.ctrlKey : e.shiftKey)) {
+                    hold = {key: e.key};
+                }
+            }, true);
+
+            window.addEventListener('keyup', function(e) {
+                if (sendingUp || (e.key !== 'Shift' && e.key !== 'Control')) {
+                    return;
+                }
+                if (swallowKey === e.key) {
+                    swallowKey = null;
+                    e.stopImmediatePropagation(); // Penpa already restored on the synthetic key-up
+                }
+            }, true);
+            // After Penpa's own key-up (document) has restored the sub-mode: the hold is over.
+            window.addEventListener('keyup', function(e) {
+                if (!sendingUp && hold && e.key === hold.key) {
+                    hold = null;
+                    renderAll(true);
+                }
+            });
+            window.addEventListener('blur', dropHold);
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) {
+                    dropHold();
+                }
+            });
+            new MutationObserver(function() {
+                if (hold && legacyDialogOpen()) {
+                    dropHold();
+                }
+            }).observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['style']});
+
+            // Tab / Shift+Tab (and Enter, Penpa's Tab twin) cycle L's pins, before Penpa's own Tab-set cycle. During a
+            // hold, the hold is dropped first, so the step starts from the pre-hold tool.
+            window.addEventListener('keydown', function(e) {
+                if ((e.key !== 'Tab' && e.key !== 'Enter') || (e.ctrlKey && !hold) || e.altKey || e.metaKey || typing(e) ||
                     legacyDialogOpen()) {
                     return;
                 }
                 e.preventDefault();
                 e.stopImmediatePropagation();
+                dropHold();
                 cyclePins(e.shiftKey ? -1 : 1);
             }, true);
 

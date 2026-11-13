@@ -257,3 +257,6 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 
 /* No sub-mode control and no style: the options area takes no space at all. */
 .proto-l-toolopts[hidden] { display: none; }
+
+/* Held Shift / Ctrl in Sudoku: the Mouse card names the temporary tool with this tag. */
+.proto-l-heldtag { display: inline-block; margin-left: 10px; padding: 1px 8px; border-radius: 9px; background: #ffe6a6; color: #7a5300; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
