@@ -1,13 +1,215 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant K styles. Owned by variant K's builder. */
-.proto-k-banner {
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant K "Live key map" styles. Owned by variant K's builder. */
+
+/* Shape mode re-shows the legacy floating panel with an inline style (class_p.js:1616-1619). */
+html.proto-variant-K #float-key { display: none !important; }
+
+html.proto-variant-K body { background: #14161b; overflow: hidden; }
+
+.proto-k-app {
     position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
-    color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    inset: 0;
+    z-index: 10;
+    display: grid;
+    grid-template-rows: 44px 38px minmax(0, 1fr) auto;
+    background: #14161b;
+    color: #d9dee7;
+    font: 13px/1.3 system-ui, -apple-system, "Segoe UI", sans-serif;
+    --enter: #5aa9ff;
+    --mode: #c48bff;
+    --nav: #5fd68a;
+    --cmd: #f2b84b;
+    --blocked: #ff6b6b;
+    --browser: #7c8594;
+    --modifier: #4fd1c5;
 }
+
+.proto-k-btn {
+    font: inherit;
+    color: inherit;
+    background: #222731;
+    border: 1px solid #323946;
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-k-btn:hover { background: #2b3240; }
+.proto-k-btn:disabled { opacity: .4; cursor: default; }
+.proto-k-btn kbd {
+    margin-left: 6px;
+    font: 600 10px/1 ui-monospace, monospace;
+    color: #8b95a7;
+    border: 1px solid #3b4352;
+    border-radius: 3px;
+    padding: 1px 3px;
+}
+
+/* ---- Top bar ---- */
+.proto-k-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 0 14px;
+    border-bottom: 1px solid #262c37;
+    background: #191c23;
+}
+.proto-k-brand { font-weight: 700; color: #8b95a7; letter-spacing: .02em; }
+.proto-k-modes { display: flex; gap: 4px; flex: 1; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.proto-k-mode.is-on { background: #2a4d8f; border-color: #5aa9ff; color: #fff; }
+.proto-k-mode.is-extra { opacity: .7; border-style: dashed; }
+.proto-k-more { background: transparent; border-style: dashed; color: #8b95a7; }
+.proto-k-actions { display: flex; align-items: center; gap: 6px; }
+.proto-k-sep { width: 1px; height: 22px; background: #323946; margin: 0 4px; }
+.proto-k-timer { font: 600 14px ui-monospace, monospace; color: #b8c0cc; min-width: 64px; text-align: right; }
+.proto-k-check { background: #1f4d33; border-color: #2f7a4f; }
+.proto-k-check:hover { background: #276140; }
+
+/* ---- Tool row ---- */
+.proto-k-tools {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 14px;
+    border-bottom: 1px solid #222731;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+.proto-k-toollabel { color: #7c8594; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin: 0 4px 0 10px; }
+.proto-k-toollabel:first-child { margin-left: 0; }
+.proto-k-chip { padding: 3px 8px; font-size: 12px; display: inline-flex; align-items: center; }
+.proto-k-chip.is-on { border-color: #c48bff; background: #3a2c55; color: #fff; }
+.proto-k-dot { width: 12px; height: 12px; border-radius: 3px; margin-right: 5px; border: 1px solid rgba(255,255,255,.25); }
+.proto-k-select {
+    font: inherit;
+    background: #222731;
+    color: inherit;
+    border: 1px solid #323946;
+    border-radius: 6px;
+    padding: 3px 6px;
+    max-width: 320px;
+}
+
+/* ---- Main: board + side ---- */
+.proto-k-main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; }
+.proto-k-boardslot { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
+.proto-k-boardcard { background: #fff; padding: 6px; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,.4); line-height: 0; }
+.proto-k-boardcard #dvique { margin: 0 !important; }
+.proto-k-side { padding: 14px 16px; border-left: 1px solid #222731; overflow-y: auto; }
+.proto-k-title { font-size: 16px; font-weight: 700; color: #fff; }
+.proto-k-byline { color: #8b95a7; margin-bottom: 10px; }
+.proto-k-rules { color: #b8c0cc; font-size: 12.5px; }
+.proto-k-status { margin-top: 12px; font-weight: 600; }
+.proto-k-status.is-solved { color: #5fd68a; }
+.proto-k-status.is-wrong { color: #ff8a8a; }
+.proto-k-status.is-none { color: #8b95a7; }
+
+/* ---- Deck: hint strip + keyboard + mouse card ---- */
+.proto-k-deck {
+    border-top: 1px solid #222731;
+    background: #111318;
+    /* The bottom pad keeps the scaffold's switcher pill off the keys. */
+    padding: 2px 14px 62px;
+    --u: 58px;
+    --kh: 36px;
+    --g: 3px;
+}
+.proto-k-hint {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    font-size: 12.5px;
+}
+.proto-k-hintmode { font-weight: 700; color: #fff; }
+.proto-k-hintlayer { color: #111; background: var(--modifier); border-radius: 4px; padding: 0 6px; font-weight: 700; font-size: 11.5px; }
+.proto-k-hinttip { color: #c9d0db; overflow: hidden; text-overflow: ellipsis; }
+.proto-k-hinttip b { color: #fff; margin-right: 4px; }
+.proto-k-dim { color: #6b7483; }
+.proto-k-deckrow { display: flex; gap: 18px; justify-content: center; align-items: flex-start; }
+.proto-k-kbd, .proto-k-nav { display: flex; flex-direction: column; gap: var(--g); opacity: .86; transition: opacity .15s; }
+.proto-k-deck:hover .proto-k-kbd, .proto-k-deck:hover .proto-k-nav { opacity: 1; }
+.proto-k-row { display: flex; gap: var(--g); height: var(--kh); }
+.proto-k-frow { height: 32px; }
+.proto-k-gap { flex: none; width: calc(var(--w) * var(--u)); }
+
+.proto-k-key {
+    --c: var(--browser);
+    position: relative;
+    flex: none;
+    width: calc(var(--w) * var(--u) + (var(--w) - 1) * var(--g));
+    box-sizing: border-box;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--c) 35%, #2a303b);
+    background: color-mix(in srgb, var(--c) 10%, #191c23);
+    padding: 2px 4px;
+    cursor: pointer;
+    user-select: none;
+    overflow: hidden;
+    transition: background .25s, border-color .25s;
+}
+.proto-k-key:hover { border-color: var(--c); background: color-mix(in srgb, var(--c) 22%, #191c23); }
+.proto-k-cap { display: block; font: 600 10px/1.1 ui-monospace, monospace; color: #8b95a7; }
+.proto-k-txt {
+    display: block;
+    font-size: 10.5px;
+    line-height: 1.15;
+    color: var(--c);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 1px;
+}
+.proto-k-key.has-swatch .proto-k-txt::before {
+    content: "";
+    display: inline-block;
+    width: 9px;
+    height: 9px;
+    margin-right: 3px;
+    border-radius: 2px;
+    background: var(--sw);
+    border: 1px solid rgba(255,255,255,.3);
+    vertical-align: -1px;
+}
+
+.proto-k-kind-enter { --c: var(--enter); }
+.proto-k-kind-mode { --c: var(--mode); }
+.proto-k-kind-nav { --c: var(--nav); }
+.proto-k-kind-cmd { --c: var(--cmd); }
+.proto-k-kind-modifier { --c: var(--modifier); }
+.proto-k-kind-browser { --c: var(--browser); }
+.proto-k-kind-browser .proto-k-txt { color: #6b7483; font-style: italic; }
+.proto-k-key.proto-k-kind-blocked {
+    --c: var(--blocked);
+    background: repeating-linear-gradient(135deg, rgba(255,107,107,.07) 0 4px, transparent 4px 8px), #17191f;
+    border-color: rgba(255,107,107,.28);
+}
+.proto-k-kind-blocked .proto-k-txt { color: rgba(255,130,130,.75); }
+.proto-k-key.proto-k-kind-none { --c: #3a414d; opacity: .55; }
+
+.proto-k-key.is-latched, .proto-k-key.is-down { background: var(--c); border-color: var(--c); }
+.proto-k-key.is-latched .proto-k-cap, .proto-k-key.is-down .proto-k-cap,
+.proto-k-key.is-latched .proto-k-txt, .proto-k-key.is-down .proto-k-txt { color: #111; }
+.proto-k-key.is-flash { animation: proto-k-flash .45s ease-out; }
+@keyframes proto-k-flash {
+    0% { background: #fff; border-color: #fff; }
+    100% { }
+}
+
+.proto-k-deckside { display: flex; flex-direction: column; gap: 10px; width: 270px; padding-top: 2px; }
+.proto-k-mouse {
+    border: 1px solid #2a303b;
+    border-radius: 8px;
+    padding: 8px 10px;
+    background: #171a20;
+    font-size: 12px;
+}
+.proto-k-mousehead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7c8594; margin-bottom: 4px; }
+.proto-k-mouserow { display: flex; gap: 8px; line-height: 1.5; }
+.proto-k-mouserow b { color: #fff; min-width: 96px; font-weight: 600; }
+.proto-k-mouserow span { color: #b8c0cc; }
+.proto-k-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; font-size: 11px; color: #9aa4b2; }
+.proto-k-leg { display: flex; align-items: center; gap: 5px; }
+.proto-k-leg i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
+.proto-k-leg.proto-k-kind-blocked i { background: repeating-linear-gradient(135deg, var(--blocked) 0 2px, transparent 2px 4px); border: 1px solid var(--blocked); }
