@@ -99,3 +99,5 @@ Chris, 2026-11-13, on round 3: "Recent tools should be its own window i think." 
 Chris, 2026-11-13: "we should not show a sub-mode picker. that is only in the mode pulldown. After the pulldown all that we should see are style things." The Tool card is the mode pulldown, whose entries are mode + sub-mode, plus style controls only.
 
 Chris, 2026-11-13: "Can we make the buttons for types more compact somehow? and windows should be resizeable". Style buttons become small icon buttons; every desk card is resizable.
+
+Chris, 2026-11-13: "size of mouse window should be fixed not change based on mode". Replaces round 3's "Mouse card fits its content": one height for every mode; the user can still resize it.
