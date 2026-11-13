@@ -1,13 +1,400 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant F styles. Owned by variant F's builder. */
-.proto-f-banner {
+/*
+ * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant F, "Live rules". Owned by variant F's builder.
+ * The rules document is the main chrome (left); the board sits on a light card (right); the overlay spotlights
+ * board elements a phrase names. All layers stay below z-index 1000.
+ */
+html.proto-variant-F,
+html.proto-variant-F body {
+    background: #14161c;
+    overflow: hidden;
+}
+
+.proto-f-root {
     position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    font: 15px/1.5 system-ui, "Segoe UI", sans-serif;
+    color: #dfe3ea;
+}
+
+/* ---- The document ---- */
+.proto-f-doc {
+    width: 520px;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    background: #1b1e26;
+    border-right: 1px solid #2c313c;
+}
+
+.proto-f-doc-head {
+    padding: 22px 28px 10px;
+}
+
+.proto-f-title {
+    margin: 0;
+    font: 600 26px/1.2 Georgia, "Times New Roman", serif;
+    color: #f4f1ea;
+}
+
+.proto-f-byline {
+    margin-top: 4px;
+    color: #8c94a3;
+    font-size: 13px;
+}
+
+.proto-f-doc-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 28px 16px;
+}
+
+.proto-f-h2 {
+    margin: 20px 0 8px;
+    font: 600 11px/1 system-ui, sans-serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #7f8797;
+}
+
+.proto-f-rules p {
+    margin: 0 0 10px;
+    font: 18px/1.65 Georgia, "Times New Roman", serif;
+    color: #e8e4da;
+}
+
+.proto-f-sentence {
+    border-radius: 3px;
+    transition: background 0.12s;
+}
+
+.proto-f-sentence.is-under {
+    background: rgba(255, 176, 32, 0.12);
+}
+
+.proto-f-link {
+    cursor: pointer;
+    color: #ffd27a;
+    border-bottom: 1.5px dotted rgba(255, 210, 122, 0.7);
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
+.proto-f-link.is-live {
+    color: #8fe3c0;
+    border-bottom-color: rgba(143, 227, 192, 0.7);
+}
+
+.proto-f-link:hover,
+.proto-f-link.is-active {
+    background: rgba(255, 176, 32, 0.22);
+    border-bottom-style: solid;
+}
+
+.proto-f-link.is-pinned {
+    background: #ffb020;
+    color: #1b1e26;
+}
+
+.proto-f-link.is-under {
+    outline: 2px solid #ffb020;
+    outline-offset: 1px;
+}
+
+.proto-f-count {
+    font: 600 10px/1 system-ui, sans-serif;
+    margin-left: 2px;
+    color: #9aa3b3;
+    vertical-align: super;
+}
+
+.proto-f-link.is-pinned .proto-f-count {
+    color: #1b1e26;
+}
+
+.proto-f-link.is-bad .proto-f-count,
+.proto-f-chip.is-bad .proto-f-chip-count {
+    color: #ff6b6b;
+}
+
+.proto-f-under {
+    margin-top: 6px;
+    padding: 6px 10px;
+    border-left: 3px solid #3a4150;
+    color: #9aa3b3;
+    font-size: 13px;
+}
+
+.proto-f-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.proto-f-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid #353b48;
+    border-radius: 14px;
+    background: #232733;
+    color: #dfe3ea;
+    font: 13px/1.3 system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.proto-f-chip.is-unmentioned {
+    border-style: dashed;
+}
+
+.proto-f-chip.is-active,
+.proto-f-chip:hover,
+.proto-f-chip.is-under {
+    border-color: #ffb020;
+}
+
+.proto-f-chip.is-pinned {
+    background: #ffb020;
+    color: #1b1e26;
+}
+
+.proto-f-chip-count {
+    color: #9aa3b3;
+    font-weight: 600;
+}
+
+.proto-f-chip.is-pinned .proto-f-chip-count {
+    color: #1b1e26;
+}
+
+.is-pin .proto-f-item.cell {
+    fill: rgba(255, 176, 32, 0.08);
+}
+
+.proto-f-chip-flag {
+    color: #c79b5a;
+    font-size: 11px;
+}
+
+.proto-f-empty {
+    color: #8c94a3;
+    font-style: italic;
+    margin: 0;
+}
+
+.proto-f-verdict {
+    margin: 0 0 6px;
+    color: #dfe3ea;
+    font-weight: 600;
+}
+
+.proto-f-verdict.ok {
+    color: #7ee2a8;
+}
+
+.proto-f-verdict.no {
+    color: #ff9b7a;
+}
+
+.proto-f-acinfo {
+    font-size: 13px;
+    color: #9aa3b3;
+}
+
+.proto-f-acinfo b {
+    color: #b9c0cc !important;
+}
+
+.proto-f-acinfo ul {
+    margin: 4px 0;
+    padding-left: 18px;
+}
+
+/* ---- The mode strip under the document ---- */
+.proto-f-strip {
+    flex: none;
+    padding: 10px 16px 64px; /* bottom room for the scaffold's switcher pill */
+    border-top: 1px solid #2c313c;
+    background: #171a21;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.proto-f-modes,
+.proto-f-subs,
+.proto-f-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+}
+
+.proto-f-btn {
+    padding: 4px 9px;
+    border: 1px solid #353b48;
+    border-radius: 6px;
+    background: #232733;
+    color: #dfe3ea;
+    font: 13px/1.2 system-ui, sans-serif;
+    cursor: pointer;
+}
+
+.proto-f-btn:hover {
+    border-color: #5b6578;
+}
+
+.proto-f-btn.is-on {
+    background: #3a4a6b;
+    border-color: #7d9ad1;
     color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+}
+
+.proto-f-btn.is-accent {
+    background: #2e5a43;
+    border-color: #4f9a72;
+}
+
+.proto-f-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.proto-f-swatch {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    background: var(--sw);
+    border-radius: 50%;
+}
+
+.proto-f-swatch.has-text {
+    width: auto;
+    border-radius: 6px;
+    padding: 4px 8px;
+    background: #232733;
+    border-left: 6px solid var(--sw);
+}
+
+.proto-f-swatch.is-on {
+    outline: 2px solid #ffb020;
+    outline-offset: 1px;
+}
+
+.proto-f-select {
+    background: #232733;
+    color: #dfe3ea;
+    border: 1px solid #353b48;
+    border-radius: 6px;
+    padding: 3px 6px;
+    font: 13px system-ui, sans-serif;
+}
+
+.proto-f-gap {
+    flex: 1;
+}
+
+.proto-f-hist {
+    color: #7f8797;
+    font: 12px ui-monospace, monospace;
+    margin: 0 6px;
+}
+
+.proto-f-timer {
+    font: 600 14px ui-monospace, monospace;
+    color: #b9c0cc;
+}
+
+/* ---- The board ---- */
+.proto-f-stage {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    padding-bottom: 60px; /* the scaffold's switcher pill */
+}
+
+.proto-f-board {
+    padding: 14px;
+    background: #f7f5ef;
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+}
+
+.proto-f-board #dvique {
+    position: relative;
+    margin: 0;
+}
+
+/* ---- Spotlight overlay ---- */
+.proto-f-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 20;
+    pointer-events: none;
+}
+
+.proto-f-dim {
+    fill: rgba(20, 22, 30, 0.38);
+}
+
+.proto-f-item.cell {
+    fill: rgba(255, 176, 32, 0.16);
+    stroke: #ff9f00;
+    stroke-width: 2.5;
+}
+
+.proto-f-item.cell.tone {
+    fill: rgba(80, 170, 255, 0.16);
+    stroke: #3d8bff;
+}
+
+.proto-f-item.cell.ok {
+    fill: rgba(80, 220, 140, 0.18);
+    stroke: #2fb36b;
+}
+
+.proto-f-item.cell.bad {
+    fill: rgba(255, 80, 80, 0.22);
+    stroke: #e23b3b;
+}
+
+.proto-f-item.cell.faint {
+    fill: rgba(255, 176, 32, 0.06);
+    stroke-dasharray: 4 3;
+    stroke-width: 1.5;
+}
+
+.proto-f-item.pt {
+    fill: none;
+    stroke: #ff9f00;
+    stroke-width: 3;
+}
+
+.proto-f-item.path,
+.proto-f-item.seg {
+    fill: none;
+    stroke: rgba(255, 140, 0, 0.75);
+    stroke-width: 6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.proto-f-tag {
+    font: 700 14px system-ui, sans-serif;
+    fill: #fff;
+    paint-order: stroke;
+    stroke: #1b1e26;
+    stroke-width: 3px;
+    text-anchor: middle;
+}
+
+.proto-f-tag.small {
+    font-size: 11px;
+    text-anchor: end;
 }
