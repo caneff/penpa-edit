@@ -1,5 +1,5 @@
 // The fuzz (`research/fork-audit-2026-11.md` § Test plan item 4, modelled on `sudokupad-scripts/live/fuzz/`): random
-// steps of the recording vocabulary (`live/replay.mjs`) on one puzzle, made through the replay's own engine calls, with
+// steps of the recording vocabulary (`live/replay.mjs`) on one puzzle, made through the replay's engine driver, with
 // the solving invariants checked at every checkpoint: no page error, one `draw()` per `redraw()`, undo-all then
 // redo-all gives back the same canonical state, and a save/load round trip gives back the same canonical state. A
 // failing run is saved as a recording. Not a check itself, so `live/**/*.live.mjs` skips it.
@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
-import { applyStepInPage, changedKeys, endsGroup, entries, stepWords } from './replay.mjs'
+import { changedKeys, endsGroup, engineDriver, entries, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 // Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings. It has no expected file
@@ -223,13 +223,14 @@ export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECOR
     await settle(() => readRaw().then(canonicalState))
     await page.evaluate(countDrawsInPage)
     const modes = await page.evaluate(modeChoicesInPage, MODE_CHOICES)
+    const apply = engineDriver.start(page)
     const rand = random(seed)
     while (steps.length < count) {
       for (const step of await nextInput(page, rand, modes, count - steps.length)) {
         steps.push(step)
         const at = `step ${steps.length} (${stepWords(step)})`
         try {
-          await page.evaluate(applyStepInPage, step)
+          await apply(step)
         } catch (e) {
           // Playwright's message is the page's error's, behind its own prefix and before the page's stack.
           return await fail(`${at} threw: ${e.message.split('\n')[0].replace(/^page\.evaluate: (Error: )?/, '')}`)

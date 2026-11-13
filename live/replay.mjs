@@ -109,7 +109,7 @@ export async function writeExpected (id, checkpoints) {
 }
 
 // Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
-export function applyStepInPage (step) {
+function applyStepInPage (step) {
   switch (step.kind) {
     case 'pointer': {
       const { action, button, ctrl, x, y, num } = step
@@ -167,7 +167,7 @@ async function switchMode (page, step, choose) {
 // A driver's `start(page)` returns the function that makes a step's input on that page, and `checkpointAfter(step,
 // next)` says whether a checkpoint follows `step`, `next` being the step after it.
 // The engine driver: each step as the engine call its input made.
-const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
+export const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
 
 function startEngineDriver (page) {
   const choose = {
