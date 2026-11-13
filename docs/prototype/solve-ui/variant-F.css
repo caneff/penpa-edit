@@ -1,0 +1,13 @@
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant F styles. Owned by variant F's builder. */
+.proto-f-banner {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100000;
+    padding: 8px 18px;
+    background: #2a4d8f;
+    color: #fff;
+    font: 600 16px/1.2 system-ui, sans-serif;
+    border-radius: 0 0 8px 8px;
+}

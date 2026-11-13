@@ -39,6 +39,26 @@
         return lb ? lb.textContent.replace(/\s+/g, ' ').trim() : id;
     }
 
+    /**
+     * Count undo steps in a command stack, the way undo()/redo() pop it from the end: consecutive entries sharing
+     * a group index (entry[4]) are one step; an entry without one is a step on its own.
+     */
+    function countSteps(stack) {
+        let steps = 0;
+        let i = stack.length - 1;
+        while (i >= 0) {
+            const group = stack[i] && stack[i][4];
+            i--;
+            if (group) {
+                while (i >= 0 && stack[i] && stack[i][4] == group) {
+                    i--;
+                }
+            }
+            steps++;
+        }
+        return steps;
+    }
+
     /** Coalesce engine notifications into one callback per animation frame. */
     function queueChange(reason) {
         if (changeQueued) {
@@ -364,6 +384,185 @@
         /** Redo, as the Redo button does (main.js:1143-1145 -> class_p.js:6980). */
         redo() {
             pu.redo();
+        },
+
+        /**
+         * Undo/redo history in steps, where a step is what one undo() removes. undo() pops entries until the group
+         * index (entry[4]) changes; an entry with no group index is a step on its own (class_p.js:6745-6790,
+         * 6980-7020). position = steps that can be undone, length = position + steps that can be redone.
+         * @returns {{position:number, length:number}}
+         */
+        history() {
+            const undoSteps = countSteps(pu[qa()].command_undo.__a);
+            return {position: undoSteps, length: undoSteps + countSteps(pu[qa()].command_redo.__a)};
+        },
+
+        /**
+         * Jump to history step n (0 = nothing entered, history().length = everything redone) by calling undo() or
+         * redo() repeatedly, as holding the Undo/Redo buttons does (main.js:970-1054). Redraws once per step.
+         * @param {number} n
+         */
+        jumpTo(n) {
+            const h = Bridge.history();
+            n = Math.max(0, Math.min(h.length, n));
+            let guard = h.length + 1;
+            while (Bridge.history().position > n && guard-- > 0) {
+                pu.undo();
+            }
+            while (Bridge.history().position < n && guard-- > 0) {
+                pu.redo();
+            }
+        },
+
+        // ---- Board geometry and selection ----------------------------------------------------------------------
+
+        /**
+         * Page-pixel position of a board point. pu.point[i].x/y are canvas pixels (main.js:919-921 compares them
+         * with pageX - canvas.offsetLeft). Point types: 0 cell centre, 1 vertex, 2/3 edge midpoints, more on
+         * special grids (see each class_*.js create_point).
+         * @param {number} index point index, e.g. a cell from getSelection().cells
+         * @returns {{x:number, y:number, type:number}}
+         */
+        pointToPage(index) {
+            const r = $('canvas').getBoundingClientRect();
+            const p = pu.point[index];
+            return {x: r.left + window.scrollX + p.x, y: r.top + window.scrollY + p.y, type: p.type};
+        },
+
+        /**
+         * The board point nearest a page-pixel position, as coord_point picks it for a click (main.js:919-962):
+         * only point types the current mode accepts (pu.type), unless `types` is given.
+         * @param {number} pageX
+         * @param {number} pageY
+         * @param {number[]} [types] e.g. [0] for cell centres only
+         * @returns {number|null} point index, or null if the position is off the canvas
+         */
+        pageToPoint(pageX, pageY, types) {
+            const r = $('canvas').getBoundingClientRect();
+            const x = pageX - (r.left + window.scrollX);
+            const y = pageY - (r.top + window.scrollY);
+            if (x < 0 || y < 0 || x > r.width || y > r.height) {
+                return null;
+            }
+            types = types || pu.type;
+            let best = null;
+            let min = Infinity;
+            for (let i = 0; i < pu.point.length; i++) {
+                const p = pu.point[i];
+                if (p && p.use === 1 && types.indexOf(p.type) !== -1) {
+                    const d = (x - p.x) ** 2 + (y - p.y) ** 2;
+                    if (d < min) {
+                        min = d;
+                        best = i;
+                    }
+                }
+            }
+            return best;
+        },
+
+        /**
+         * Page-pixel rectangle of a cell: the bounding box of its corner points (pu.point[i].surround), or a
+         * pu.size square around the point when it has none.
+         * @param {number} index
+         * @returns {{left:number, top:number, right:number, bottom:number, width:number, height:number}}
+         */
+        cellRect(index) {
+            const corners = (pu.point[index].surround || []).filter(function(s) {
+                return pu.point[s];
+            });
+            const pts = corners.length ? corners.map(Bridge.pointToPage) : (function() {
+                const c = Bridge.pointToPage(index);
+                const h = pu.size / 2;
+                return [{x: c.x - h, y: c.y - h}, {x: c.x + h, y: c.y + h}];
+            })();
+            const xs = pts.map(function(p) {
+                return p.x;
+            });
+            const ys = pts.map(function(p) {
+                return p.y;
+            });
+            const rect = {left: Math.min.apply(null, xs), top: Math.min.apply(null, ys),
+                right: Math.max.apply(null, xs), bottom: Math.max.apply(null, ys)};
+            rect.width = rect.right - rect.left;
+            rect.height = rect.bottom - rect.top;
+            return rect;
+        },
+
+        /**
+         * The selected cells. Sudoku and multi-cell Number modes keep a list in pu.selection; every other mode
+         * has one cursor, pu.cursol (both read by draw_selection / draw_cursol in class_*.js).
+         * @returns {{cells:number[], cursor:number, rect:object|null}} rect: page-pixel bounding box of the cells
+         */
+        getSelection() {
+            const multi = pu.selection && pu.selection.length ? pu.selection.slice() : null;
+            const cells = multi || (pu.cursol !== undefined && pu.cursol !== null ? [pu.cursol] : []);
+            let rect = null;
+            cells.forEach(function(c) {
+                const r = Bridge.cellRect(c);
+                rect = rect ? {left: Math.min(rect.left, r.left), top: Math.min(rect.top, r.top),
+                    right: Math.max(rect.right, r.right), bottom: Math.max(rect.bottom, r.bottom)} : r;
+            });
+            if (rect) {
+                rect.width = rect.right - rect.left;
+                rect.height = rect.bottom - rect.top;
+            }
+            return {cells: cells, cursor: pu.cursol, rect: rect};
+        },
+
+        /**
+         * Select cells (pu.selection and pu.cursol, as a click or drag in Sudoku mode leaves them) and redraw.
+         * @param {number[]} cells point indices
+         */
+        select(cells) {
+            pu.selection = cells.slice();
+            if (cells.length) {
+                pu.cursol = cells[cells.length - 1];
+            }
+            pu.redraw();
+        },
+
+        /**
+         * Send a raw pointer gesture to the board, as a real mouse does: a mousedown on #canvas (handled by the
+         * document listener, main.js:1058, 1095-1101 -> onDown 111-149), mousemoves on #canvas (onMove, 183-246)
+         * and a mouseup on #canvas (onUp, 151-181). Each path entry is a point index or {x, y} in page pixels.
+         * @param {Array<number|{x:number, y:number}>} path one entry is a click; more is a drag
+         * @param {{button?:0|2, ctrl?:boolean, shift?:boolean, alt?:boolean, double?:boolean}} [opts]
+         */
+        pointer(path, opts) {
+            opts = opts || {};
+            const canvas = $('canvas');
+            const button = opts.button || 0;
+            const pts = path.map(function(p) {
+                return typeof p === 'number' ? Bridge.pointToPage(p) : p;
+            });
+            function fire(type, p, buttons) {
+                canvas.dispatchEvent(new MouseEvent(type, {
+                    bubbles: true, cancelable: true, view: window,
+                    clientX: p.x - window.scrollX, clientY: p.y - window.scrollY,
+                    button: button, buttons: buttons,
+                    ctrlKey: !!opts.ctrl, shiftKey: !!opts.shift, altKey: !!opts.alt
+                }));
+            }
+            const held = button === 2 ? 2 : 1;
+            fire('mousedown', pts[0], held);
+            pts.slice(1).forEach(function(p) {
+                fire('mousemove', p, held);
+            });
+            fire('mouseup', pts[pts.length - 1], 0);
+            if (opts.double) {
+                fire('dblclick', pts[pts.length - 1], 0); // document listener, main.js:1906-1916
+            }
+        },
+
+        // ---- Puzzle type ---------------------------------------------------------------------------------------
+
+        /**
+         * The link's genre tags (pu.user_tags, read from the link at general.js:2175; e.g. ["classic"] or
+         * ["nurikabe"]). Empty when the setter set none.
+         * @returns {string[]}
+         */
+        genreTags() {
+            return (pu.user_tags || []).slice();
         },
 
         /**

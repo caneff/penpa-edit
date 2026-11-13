@@ -2,7 +2,7 @@
  * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant loader.
  *
  * Loaded last by docs/index.html. With no `?variant=` search param it does nothing, so the page is unchanged.
- * With `?variant=K` (K in A-D) it:
+ * With `?variant=K` (K in A-K) it:
  *   1. hides the `variant` param from Penpa+'s boot() for the moment boot reads the URL, because boot() treats any
  *      search string as the puzzle link and only falls back to the `#` hash when the search is empty
  *      (general.js:29-32). The address bar keeps `?variant=K` and the puzzle's `#...` unchanged;
@@ -16,7 +16,7 @@
 (function() {
     'use strict';
 
-    const VARIANTS = ['A', 'B', 'C', 'D'];
+    const VARIANTS = 'ABCDEFGHIJK'.split('');
     const params = new URLSearchParams(location.search);
     const key = (params.get('variant') || '').toUpperCase();
     if (!key) {

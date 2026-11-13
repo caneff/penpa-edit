@@ -2,7 +2,7 @@
  * PROTOTYPE (throwaway, branch prototype/solve-ui): the floating variant switcher. NOT part of any design.
  *
  * A pill fixed at bottom centre: [PROTOTYPE] <- "K (name)" -> [puzzle picker].
- * Arrows (or Alt+Left / Alt+Right on the keyboard) cycle the variant A-D with wrap by rewriting `?variant=` and
+ * Arrows (or Alt+Left / Alt+Right on the keyboard) cycle the variant A-K with wrap by rewriting `?variant=` and
  * reloading; the puzzle's `#...` hash is kept. The picker loads a sample puzzle and keeps the variant.
  * Plain arrows are left alone: they move the board's selection (main.js:346-353).
  */

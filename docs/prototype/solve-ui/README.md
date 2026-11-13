@@ -5,7 +5,7 @@
 
 **The question:** what should the fork's new desktop solve UI look like?
 
-Four variants, A to D, each a radically different answer, render on Penpa+'s own solve page `docs/index.html`, gated by
+Eleven variants, A to K, each a radically different answer, render on Penpa+'s own solve page `docs/index.html`, gated by
 a `?variant=` search param. With no param the page is unchanged. A floating switcher at the bottom cycles the variants
 and picks sample puzzles. Desktop only.
 
@@ -31,6 +31,7 @@ Penpa+ link works: paste its `#...` part after `?variant=K`.
 | `variant-B.js`, `variant-B.css` | variant B's builder |
 | `variant-C.js`, `variant-C.css` | variant C's builder |
 | `variant-D.js`, `variant-D.css` | variant D's builder |
+| ... one pair per key, through `variant-K.js`, `variant-K.css` | that key's builder |
 | everything else (`loader.js`, `engine-bridge.js`, `switcher.js`, `samples.js`, `serve.mjs`, this README, the one-line hook in `docs/index.html`) | the scaffold; do not edit from a variant |
 
 **Variant K edits only `variant-K.js` and `variant-K.css`.** Nothing under `docs/js/`, `docs/css/` or `docs/index.html`.
@@ -61,7 +62,7 @@ window.PrototypeVariants.K = {
 
 | Field | What |
 |---|---|
-| `ctx.key` | `'A'`..`'D'` |
+| `ctx.key` | `'A'`..`'K'` |
 | `ctx.bridge` | the engine bridge below (also `window.PrototypeBridge`) |
 | `ctx.pu` | the live Penpa+ puzzle (a getter; prefer the bridge) |
 | `ctx.canvas` | `#canvas`, the one canvas Penpa+ draws the board on |
@@ -108,6 +109,15 @@ engine's: `surface`, `multicolor`, `line`, `lineE`, `wall`, `number`, `symbol` (
 | `tabSet() → string[]` | the link's Tab/Enter mode set, e.g. `["Surface", "Sudoku Normal"]` |
 | `sendKey(key, {shift, ctrl, alt, code}?)` | send a key through Penpa+'s own key handler (digits, letters, `Delete`, arrows, ...) |
 | `undo()` / `redo()` | as the Undo / Redo buttons |
+| `history() → {position, length}` | undo history in steps (a step is what one `undo()` removes; Penpa+ undoes a line drag one segment at a time, so a 3-cell drag is 2 steps); `position` = steps undoable |
+| `jumpTo(n)` | go to history step `n` (0 = empty board) by repeated undo/redo |
+| `pointer(path, {button, ctrl, shift, alt, double}?)` | raw pointer gesture on the board as a real mouse: mousedown, mousemoves, mouseup on `#canvas`; `path` entries are point indices or `{x, y}` page pixels; one entry = click, more = drag; `button: 2` = right click |
+| `getSelection() → {cells, cursor, rect}` | selected cells (`pu.selection` in Sudoku/multi Number, else the cursor `pu.cursol`) and their page-pixel bounding box `{left, top, right, bottom, width, height}` |
+| `select(cells)` | set the selection |
+| `pointToPage(index) → {x, y, type}` | board point to page pixels (type 0 = cell centre, 1 = vertex, 2/3 = edges) |
+| `pageToPoint(pageX, pageY, types?) → index \| null` | page pixels to the nearest board point the current mode accepts (or of `types`), as a click picks it |
+| `cellRect(index) → {left, top, right, bottom, width, height}` | a cell's page-pixel box |
+| `genreTags() → string[]` | the link's genre tags (`pu.user_tags`), e.g. `["classic"]`; empty when the setter set none |
 | `clear('mode' \| 'all')` | the legacy "erase selected mode" / "delete all" confirms |
 | `check() → {hasAnswerCheck, solved}` | the answer check's verdict with no popup (Penpa+ itself checks on every redraw and shows Congratulations once) |
 | `answerCheckInfo() → string \| null` | HTML describing what the check compares; null when the link has none |
@@ -152,5 +162,5 @@ imported on this page and exported as Penpa+ solve links, with a title, author a
 ## The switcher
 
 The black-and-yellow dashed pill at the bottom is scaffolding, not part of any design. Arrows (or **Alt+Left /
-Alt+Right**, ignored while typing in a field) cycle A to D with wrap; the picker loads a sample and keeps the variant.
+Alt+Right**, ignored while typing in a field) cycle A to K with wrap; the picker loads a sample and keeps the variant.
 Plain arrows are left to the board, which moves its selection with them.
