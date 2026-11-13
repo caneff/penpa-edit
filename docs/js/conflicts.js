@@ -37,6 +37,7 @@ class Conflicts {
     //========================================================================
 
     // For an NxN grid, mark any duplicates between 1 and N as conflicts.
+    // caneff: in alphabet mode `read_number_cell` still returns a digit as a number, so compare entries as strings.
     check_latin_square(alphabet = false) {
         const data = this.get_data('number_grid');
         const r = data.length
@@ -58,7 +59,7 @@ class Conflicts {
                         if (el2 == undefined) continue;
                         let match;
                         if (alphabet) {
-                            match = value.toLowerCase() === el2.toLowerCase();
+                            match = String(value).toLowerCase() === String(el2).toLowerCase();
                         } else {
                             match = value === el2;
                         }
@@ -79,7 +80,7 @@ class Conflicts {
                         if (el2 == undefined) continue;
                         let match;
                         if (alphabet) {
-                            match = value.toLowerCase() === el2.toLowerCase();
+                            match = String(value).toLowerCase() === String(el2).toLowerCase();
                         } else {
                             match = value === el2;
                         }
@@ -175,8 +176,9 @@ class Conflicts {
                         const el2 = data[kk][ll];
                         if (el2 == undefined) continue;
 
+                        // caneff: compare as strings, a digit is a number here.
                         if (alphabet) {
-                            if (el2.toLowerCase() === el.toLowerCase())
+                            if (String(el2).toLowerCase() === String(el).toLowerCase())
                                 this.add_conflict(ll, kk);
                         } else {
                             if (el2 === el)
