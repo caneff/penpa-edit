@@ -1946,7 +1946,7 @@ class Puzzle {
         text += "," + "Author: " + authorinfo.replace(/,/g, '%2C');
 
         // Puzzle Source
-        text += "," + document.getElementById("saveinfosource").value;
+        text += "," + document.getElementById("saveinfosource").value.replace(/,/g, '%2C'); // caneff: a comma shifts the header
 
         // Puzzle Rules
         let ruleinfo = document.getElementById("saveinforules").value;
