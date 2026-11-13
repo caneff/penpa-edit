@@ -87,19 +87,35 @@ describe('the engine driver', () => {
     assert.equal(checkpoints.at(-1).state, state)
   })
 
-  // Escape clears the selection in `main.js` without an engine call, so the recorder has no step for it.
-  it('refuses a recording whose replay ends on a board the recording page did not reach', async () => {
+  it('replays Escape and Ctrl+A', async () => {
     const { state, recording } = await record(query, async (page) => {
       await page.click('#mo_number_lb')
       await clickCell(page, CTRL_CELL)
       await page.keyboard.press('Escape')
       await page.keyboard.press('3')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.press('4')
+    })
+    assert.doesNotMatch(state, /^pu_a\.number\.\d+ = \["3"/m, 'the 3 went nowhere on the recording page (the premise)')
+    assert.match(state, /^selection = \[(\d+,){15}\d+\]$/m, 'Ctrl+A selected all 16 cells (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
+  // A script's write to `pu` stands in for an input the recorder does not see.
+  it('refuses a recording whose replay ends on a board the recording page did not reach', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_number_lb')
+      await clickCell(page, CTRL_CELL)
+      await page.evaluate(() => { pu.selection = [] })
+      await page.keyboard.press('3')
     })
     assert.doesNotMatch(state, /^pu_a\.number\.\d+ = /m, 'the digit went nowhere on the recording page (the premise)')
-    const { report } = await replay(browser(), recording, { id: 'escape' })
+    const { report } = await replay(browser(), recording, { id: 'unseen' })
     assert.notEqual(report, null, 'the replay is refused')
-    assert.match(report, /^escape: the replay ends on a board the recording page did not reach/)
-    assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"\]$/m)
+    assert.match(report, /^unseen: the replay ends on a board the recording page did not reach/)
+    assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"/m)
   })
 
   for (const id of ids) {

@@ -85,6 +85,26 @@ describe('the recorder', () => {
     }
   })
 
+  // `main.js` clears and fills the selection itself on these keys, with no engine call.
+  it('writes Escape and Ctrl+A as selection steps', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.click('#mo_number_lb')
+      await clickCell(page, NUMBER_CELL)
+      await page.keyboard.press('Escape')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.press('Escape')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'select'), [
+        { kind: 'select', cells: 'none' },
+        { kind: 'select', cells: 'all' },
+        { kind: 'select', cells: 'none' }
+      ])
+    } finally {
+      await context.close()
+    }
+  })
+
   // `handle_rect_mousedown` starts a rectangle selection on Alt only in Sudoku, Number, Surface and Multicolor.
   it('refuses an Alt-click where it starts a rectangle selection and records it as a click elsewhere', async () => {
     const { context, page } = await openRecordingPage(browser(), query)

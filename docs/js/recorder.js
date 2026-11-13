@@ -2,7 +2,7 @@
 // (GLOSSARY.md) and offers them as a download, with the engine state they reached as its final board. Without the
 // flag it does nothing. The format is `live/replay.mjs`'s, and so is the check that a replay reaches that board: a
 // recording whose board did not start from its link (saved progress, settings cookies, a second board) or that holds an
-// input the recorder does not see (Escape, Ctrl+A) fails it.
+// input the recorder does not see (a script's write to `pu`) fails it.
 // The engine fields canonical state (`live/canonical-state.mjs`) is written from, as plain JSON data, so a state read
 // from a live page and one read back from a recording file are the same. The timer and the progress kept in storage
 // under `md5(pu.url)` are never read. Global, so the live tests read the page with the same function.
@@ -127,7 +127,31 @@ function readEngineState() {
         showCount();
     }
 
+    // Escape and Ctrl+A change the selection in `main.js` with no engine call, so a key that changed the selection
+    // and made no step is one of them. Capture runs before `main.js`'s keydown handler on `document`, and the bubble
+    // listener on `window` after it.
+    let beforeKey = null;
+    function noteSelection() {
+        beforeKey = hookedPu ? { selection: hookedPu.selection.slice(), steps: steps.length } : null;
+    }
+    function selectStep() {
+        const before = beforeKey;
+        beforeKey = null;
+        if (!before || pu !== hookedPu || steps.length !== before.steps) return;
+        const selection = pu.selection;
+        if (selection.length === before.selection.length && selection.every((n, i) => n === before.selection[i])) return;
+        if (!selection.length) {
+            record({ kind: 'select', cells: 'none' });
+        } else if (selection.length === pu.centerlist.length && pu.centerlist.every((n, i) => n === selection[i])) {
+            record({ kind: 'select', cells: 'all' });
+        } else {
+            record({ kind: 'unsupported', what: 'a selection change by key' });
+        }
+    }
+
     for (const type of INPUT_EVENTS) window.addEventListener(type, hook, true);
+    window.addEventListener('keydown', noteSelection, true);
+    window.addEventListener('keydown', selectStep);
     if (document.body) {
         addButton();
     } else {

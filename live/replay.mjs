@@ -10,8 +10,10 @@
 //   { kind: 'key', call, args }, `call` one of `pu`'s `key_*` methods;
 //   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change, `submode` being
 //     the tool in Shape and Composite, and Number's step adding its `orientation`;
+//   { kind: 'select', cells: 'none' | 'all' }, Escape and Ctrl+A, which `main.js` handles with no engine call;
 //   { kind: 'undo' } and { kind: 'redo' };
-//   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection), refused here.
+//   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection, a key that
+//     changed the selection to neither none nor all), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
 // and never by hand.
@@ -143,6 +145,13 @@ function applyStepInPage (step) {
       }
       return
     }
+    case 'select':
+      // What `main.js` does on Escape and Ctrl+A.
+      if (step.cells === 'none') pu.selection = []
+      else if (step.cells === 'all') pu.selection = pu.centerlist.slice()
+      else throw new Error(`no selection ${step.cells}`)
+      pu.redraw()
+      return
     case 'undo':
       pu.undo()
       return
@@ -163,6 +172,8 @@ function stepWords (step) {
       return `${step.call}(${step.args.map((a) => JSON.stringify(a)).join(', ')})`
     case 'mode':
       return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}${step.orientation ? `, orientation ${step.orientation}` : ''}`
+    case 'select':
+      return `select ${step.cells}`
     default:
       return step.kind
   }
