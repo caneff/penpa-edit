@@ -14,6 +14,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Engine**: Penpa+'s puzzle model, grid geometry, importers and checkers: the part of upstream the fork keeps merging. Not "core" or "backend".
 - **Owned file**: an upstream file the fork has taken over, marked `merge=ours`; a merge keeps our side.
 - **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
+- **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
+  milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
   generated from them. Not "trace" (Playwright's word) or "script".
@@ -22,6 +24,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   verdict is in every checkpoint and no step runs it.
 - **Checkpoint**: a point in a recording where the replay compares state: after each finished gesture, content key, mode
   change, undo or redo, and at the end.
+- **Bridge**: the layer the MVP calls to read and drive Penpa's engine as it stands; replaced by the engine API at the split.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.

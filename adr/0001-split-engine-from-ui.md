@@ -19,3 +19,9 @@ send work back upstream unless it is a trivial port (Chris, 2026-11-09).
 - Upstream fixes to files we own are ported by hand or dropped; the nightly merge reports them.
 - Git has no built-in `ours` merge driver, so every clone and CI set `git config merge.ours.driver true`.
 - The link format stays upstream's, so puzzle links keep working on both sites.
+
+## Sequencing (Chris, 2026-11-13)
+
+The split stays the end state, but the new UI ships first as the MVP: a flagged solve page over the engine as it stands,
+through a bridge that reads Penpa's internals and drives its hidden controls (the second considered option above, as an
+interim step). The engine split follows under the safety net, and the bridge is reworked into the engine API then.
