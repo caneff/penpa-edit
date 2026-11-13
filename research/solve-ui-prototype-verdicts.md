@@ -105,3 +105,5 @@ Chris, 2026-11-13: "size of mouse window should be fixed not change based on mod
 Chris, 2026-11-13: "I would really like it to be somehow even more clear visually what mode we are in", then "id like to see all 4" of the proposed cues: a board frame coloured by mode family, the tool name in the Board title bar, a short flash of the name on each mode change, and a cursor per mode (a cursor shape, not a badge that follows the pointer). Built as toggles in round 5.
 
 Chris, 2026-11-13: "Tool window should be called \"Mode\", the pinned modes and mode and recent mode should all be on the right side, mouse and rules on the left."
+
+Chris, 2026-11-13: "want to see it in dark mode too." A Light/Dark toggle in round 5; the board uses Penpa's own dark theme.
