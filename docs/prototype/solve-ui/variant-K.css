@@ -90,7 +90,7 @@ html.proto-variant-K body { background: #14161b; overflow: hidden; }
 }
 
 /* ---- Main: board + side ---- */
-.proto-k-main { display: grid; grid-template-columns: minmax(0, 1fr) 300px; min-height: 0; }
+.proto-k-main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
 .proto-k-boardslot { display: flex; align-items: center; justify-content: center; min-height: 0; overflow: hidden; }
 .proto-k-boardcard { background: #fff; padding: 6px; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,.4); line-height: 0; }
 .proto-k-boardcard #dvique { margin: 0 !important; }
@@ -197,19 +197,116 @@ html.proto-variant-K body { background: #14161b; overflow: hidden; }
     100% { }
 }
 
-.proto-k-deckside { display: flex; flex-direction: column; gap: 10px; width: 270px; padding-top: 2px; }
-.proto-k-mouse {
-    border: 1px solid #2a303b;
-    border-radius: 8px;
-    padding: 8px 10px;
-    background: #171a20;
-    font-size: 12px;
-}
-.proto-k-mousehead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7c8594; margin-bottom: 4px; }
-.proto-k-mouserow { display: flex; gap: 8px; line-height: 1.5; }
-.proto-k-mouserow b { color: #fff; min-width: 96px; font-weight: 600; }
-.proto-k-mouserow span { color: #b8c0cc; }
-.proto-k-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 10px; font-size: 11px; color: #9aa4b2; }
+.proto-k-deckside { display: flex; flex-direction: column; gap: 10px; width: 230px; padding-top: 2px; }
+.proto-k-legend { display: grid; grid-template-columns: 1fr; gap: 3px 10px; font-size: 11px; color: #9aa4b2; }
 .proto-k-leg { display: flex; align-items: center; gap: 5px; }
 .proto-k-leg i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); }
 .proto-k-leg.proto-k-kind-blocked i { background: repeating-linear-gradient(135deg, var(--blocked) 0 2px, transparent 2px 4px); border: 1px solid var(--blocked); }
+
+/* ---- Collapsed deck: hint strip + compact key strip; F1 opens the full keyboard ---- */
+.proto-k-deck:not(.is-open) .proto-k-deckrow { display: none; }
+.proto-k-deck:not(.is-open) { padding-bottom: 54px; }
+.proto-k-deckhead { display: flex; align-items: center; gap: 10px; }
+.proto-k-deckhead .proto-k-hint { flex: 1; min-width: 0; }
+.proto-k-kbdtoggle { font-size: 11.5px; padding: 2px 8px; color: #9aa4b2; white-space: pre; }
+.proto-k-compact {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    min-height: 26px;
+    padding: 2px 0 6px;
+    font-size: 12px;
+}
+.proto-k-compacthead { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7c8594; margin-right: 4px; }
+.proto-k-ci {
+    --c: var(--browser);
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px 2px 3px;
+    border-radius: 5px;
+    border: 1px solid color-mix(in srgb, var(--c) 40%, #2a303b);
+    background: color-mix(in srgb, var(--c) 10%, #191c23);
+}
+.proto-k-ci kbd {
+    font: 600 10.5px/1 ui-monospace, monospace;
+    color: #e6eaf0;
+    background: #2a303b;
+    border-radius: 3px;
+    padding: 3px 5px;
+}
+.proto-k-citxt { color: var(--c); }
+.proto-k-ci.proto-k-kind-blocked { background: transparent; border-style: dashed; }
+.proto-k-ciswatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 3px; border: 1px solid rgba(255,255,255,.3); }
+
+/* ---- Hint strip while pointing at the board ---- */
+.proto-k-hintat { color: #111; background: #f2b84b; border-radius: 4px; padding: 0 6px; font-weight: 700; font-size: 11.5px; }
+.proto-k-hintrow { display: inline-flex; align-items: center; gap: 5px; color: #c9d0db; }
+.proto-k-hintrow b { color: #fff; font-weight: 600; }
+
+/* ---- Tool kit chips ---- */
+.proto-k-genre { font-weight: 700; color: #fff; margin-right: 4px; white-space: nowrap; }
+.proto-k-kit { font-size: 13px; padding: 4px 10px; }
+.proto-k-kit.is-on { border-color: #5fd68a; background: #1f4d33; }
+
+/* ---- Mouse card (side panel, always on screen) ---- */
+.proto-k-mouse {
+    border: 1px solid #2f3a4a;
+    border-radius: 8px;
+    padding: 9px 10px 8px;
+    background: #171a20;
+    font-size: 12.5px;
+    margin-bottom: 14px;
+}
+.proto-k-mousehead { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.proto-k-mousehead span { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: #7c8594; }
+.proto-k-mousehead b { color: #fff; font-size: 13.5px; }
+.proto-k-mouserow {
+    display: grid;
+    grid-template-columns: 18px 84px 1fr;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px;
+    border-radius: 5px;
+    line-height: 1.3;
+    transition: opacity .15s;
+}
+.proto-k-mouserow b { color: #fff; font-weight: 600; font-size: 11.5px; }
+.proto-k-mouserow span { color: #c9d0db; }
+.proto-k-mouserow.is-off { opacity: .35; }
+.proto-k-mouserow.is-flash { animation: proto-k-rowflash .6s ease-out; }
+@keyframes proto-k-rowflash {
+    0% { background: rgba(90,169,255,.55); }
+    100% { background: transparent; }
+}
+.proto-k-mousefoot { margin-top: 6px; padding-top: 6px; border-top: 1px solid #262c37; color: #9aa4b2; font-size: 12px; }
+.proto-k-mousefoot kbd { font: 600 10.5px/1 ui-monospace, monospace; color: #e6eaf0; background: #2a303b; border-radius: 3px; padding: 3px 5px; }
+
+/* A tiny mouse: the lit half is the button; drags get a trailing arrow. */
+.proto-k-ms {
+    position: relative;
+    display: inline-flex;
+    width: 11px;
+    height: 16px;
+    border: 1.5px solid #8b95a7;
+    border-radius: 6px 6px 7px 7px;
+    overflow: hidden;
+    box-sizing: border-box;
+    flex: none;
+}
+.proto-k-ms i { flex: 1; height: 6px; border-bottom: 1.5px solid #8b95a7; }
+.proto-k-ms i:first-child { border-right: 1px solid #8b95a7; }
+.proto-k-ms-left i:first-child, .proto-k-ms-ldrag i:first-child, .proto-k-ms-dbl i:first-child { background: #5aa9ff; }
+.proto-k-ms-right i:last-child, .proto-k-ms-rdrag i:last-child { background: #f2b84b; }
+.proto-k-ms-ldrag, .proto-k-ms-rdrag { overflow: visible; }
+.proto-k-ms-ldrag::after, .proto-k-ms-rdrag::after {
+    content: "\2192";
+    position: absolute;
+    left: 10px;
+    top: 3px;
+    font-size: 10px;
+    color: #c9d0db;
+}
+.proto-k-ms-ldrag, .proto-k-ms-rdrag { margin-right: 7px; }
+.proto-k-mouserow b small { display: block; font-weight: 500; font-size: 10.5px; color: #f2b84b; }
