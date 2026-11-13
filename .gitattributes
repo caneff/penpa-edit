@@ -1,4 +1,0 @@
-# Files we own: a merge from upstream keeps our side, and upstream's change is ported by hand or dropped
-# (AGENTS.md § Upstream). The `ours` driver is not built in: run `git config merge.ours.driver true` once per clone.
-package.json merge=ours
-package-lock.json merge=ours
