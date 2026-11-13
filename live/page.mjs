@@ -67,3 +67,11 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   await page.waitForFunction(() => typeof pu !== 'undefined')
   return { context, page, dialogs }
 }
+
+// Runs in the page: shades the cell at `index` of the center list as its own undo group, through the call a click makes.
+export function shadeInPage (index) {
+  pu.mode_set('surface')
+  pu.undoredo_counter++
+  pu.set_surface(pu.centerlist[index], 1)
+  pu.redraw()
+}

@@ -1,7 +1,7 @@
 // Undo after reopening saved progress: one undo removes one group of edits, and the stacks stay paired (#19).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { openPenpa, useBrowser } from './page.mjs'
+import { openPenpa, shadeInPage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -17,14 +17,6 @@ const LINE_EDGE = '5,6'
 function solveLinkInPage () {
   pu.pu_q.number[pu.centerlist[0]] = [5, 1, '1']
   return pu.maketext_solve()
-}
-
-// Runs in the page: shades the cell at `index` of the center list as its own undo group, through the call a click makes.
-function shadeInPage (index) {
-  pu.mode_set('surface')
-  pu.undoredo_counter++
-  pu.set_surface(pu.centerlist[index], 1)
-  pu.redraw()
 }
 
 // Runs in the page: what each undo stack holds, and the counter.
