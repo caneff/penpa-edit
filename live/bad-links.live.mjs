@@ -1,4 +1,4 @@
-// Links that used to leave a blank page (audit C3, C4): each loads the puzzle or shows an error dialog.
+// Links that broke boot (audit C3, C4): each loads the puzzle, or opens the editor, or shows an error dialog.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { openPenpa, useBrowser } from './page.mjs'
@@ -19,12 +19,19 @@ async function linkWithSource (source) {
 
 const sourceOf = (page) => page.evaluate(() => document.getElementById('saveinfosource').value)
 
-describe('a link that used to leave a blank page', () => {
+describe('a bad link', () => {
   it('loads the puzzle when a tracking parameter precedes the hash', async () => {
     const source = 'https://example.com/puzzle'
     const link = await linkWithSource(source)
     const { context, page } = await openPenpa(browser(), `?fbclid=x${link}`)
     assert.deepEqual(await settle(() => sourceOf(page), source), source)
+    await context.close()
+  })
+
+  it('opens the editor when the link is only a tracking parameter', async () => {
+    const { context, page } = await openPenpa(browser(), '?utm_source=x')
+    const state = () => page.evaluate(() => ({ dialog: Boolean(document.querySelector('.swal2-container')), mode: pu.mmode }))
+    assert.deepEqual(await settle(state, { dialog: false, mode: '' }), { dialog: false, mode: '' })
     await context.close()
   })
 

@@ -27,8 +27,8 @@ async function boot() {
     set_input_patterns();
 
     var urlParam = location.search.substring(1);
-    // caneff: a query with no puzzle data (?fbclid=, ?utm_source=) must not hide the hash's puzzle
-    if (!/(^|&)p=/.test(urlParam) && location.hash) {
+    // caneff: a query with no puzzle data (?fbclid=, ?utm_source=) is not a link; the hash is
+    if (!/(^|&)p=/.test(urlParam)) {
         urlParam = location.hash.substring(1);
     }
     if (urlParam) {
@@ -44,30 +44,30 @@ async function boot() {
 
 
         // Decrypt puzzle data
-        // caneff: a link that fails to load shows an error dialog over a blank grid, not a dead page
-        try {
-            const hash = PenpaProgress.getHash(paramArray.p);
-            let local_data = await PenpaProgress.tryLoad(hash);
+        const hash = PenpaProgress.getHash(paramArray.p);
+        let local_data = await PenpaProgress.tryLoad(hash);
 
-            if (local_data && local_data.includes('&p=')) {
-                // This is to account for old links and new links together
-                var url;
-                if (local_data.includes("#")) {
-                    url = local_data.split('#')[1];
-                } else {
-                    url = local_data.split('?')[1];
-                }
-                await load(url, type = 'localstorage', origurl = paramArray.p);
+        if (local_data && local_data.includes('&p=')) {
+            // This is to account for old links and new links together
+            var url;
+            if (local_data.includes("#")) {
+                url = local_data.split('#')[1];
             } else {
-                await load(urlParam);
+                url = local_data.split('?')[1];
             }
-        } catch (e) {
-            create();
-            errorMsg("This link could not be loaded. It may be incomplete or damaged.<br>" + DOMPurify.sanitize(String(e)));
+            await load(url, type = 'localstorage', origurl = paramArray.p); // caneff: awaited so bootFailed sees a failure
+        } else {
+            await load(urlParam); // caneff: awaited so bootFailed sees a failure
         }
     } else {
         create();
     }
+}
+
+// caneff: shown in place of a dead page when boot() throws
+function bootFailed(e) {
+    errorMsg(PenpaText.get('link_load_failed') + "<br>" + DOMPurify.sanitize(String(e)));
+    create();
 }
 
 function boot_parameters() {
@@ -3276,4 +3276,4 @@ if (!String.prototype.startsWith) {
             return this.substring(pos, pos + search.length) === search;
         }
     });
-}
+}
