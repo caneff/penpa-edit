@@ -254,3 +254,6 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-recentbtn .proto-l-pindetail { grid-column: 1; }
 .proto-l-recentpin { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: inline-flex; padding: 3px; border-radius: 4px; color: #8b8676; line-height: 0; }
 .proto-l-recentpin:hover { background: #e3ebfb; color: #3b6fd4; }
+
+/* No sub-mode control and no style: the options area takes no space at all. */
+.proto-l-toolopts[hidden] { display: none; }

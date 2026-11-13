@@ -10,15 +10,18 @@
  *   2. Mouse card: fixed on the desk, large. Its headline names the whole tool, mode · sub-mode · style
  *      ("Line · helper × · green"); rows below say what Left, Right and Drag do with it. Re-rendered on every
  *      bridge onChange, so legacy keys (Z/X/C/V, Shift/Ctrl in Sudoku, Surface digits) update it too.
- *   3. Pinned modes: a pin is a MODE. Tab / Shift+Tab (and Enter, which Penpa+ treats as Tab) cycle the pins; landing
- *      on a mode is bridge.setMode, and Penpa's own mode_set restores that mode's last sub-mode and style. Pins are
- *      seeded from the link's Tab set (each entry's mode, first entry per mode primes that mode's sub-mode); a link
- *      with an empty Tab set (9 of the 12 samples) seeds one pin, the mode it opened in. Pins are edited per puzzle
- *      (remove ×, drag to reorder, pin the current mode, pin from the browser) and stored per puzzle under
- *      `proto-L-pins-v1:<hash of the link's p=>`.
+ *   3. Pinned tools (round 3, Chris: "we are pinning a sub mode"): a pin is a mode plus one sub-mode (for Shape,
+ *      Special and Composite the tool from the list), with its own remembered style; one mode can be pinned twice
+ *      (Line normal + Line helper ×). Tab / Shift+Tab (and Enter, which Penpa+ treats as Tab) land on a pin's mode and
+ *      sub-mode with its style. A style change while on a pin updates that pin's style; nothing else changes a pin:
+ *      a pick or a sub-mode change in the Tool card lights a pin only when it matches one exactly. Pins are seeded
+ *      from the link's Tab set (an entry naming a sub-mode keeps it; a mode-only entry takes the mode's current
+ *      sub-mode); with an empty Tab set (9 of the 12 samples) the tool the link opened on. Edited per puzzle (remove
+ *      ×, drag to reorder, Pin current, Pin in the picker, the Recent pin icon) and stored per puzzle under
+ *      `proto-L-pins-v2:<hash of the link's p=>` (v1 held bare modes and is ignored).
  *   4. Presets: built-in pin sets named by their contents, plus sets the solver saves under a typed name
- *      (`proto-L-presets-v1`), all in one "Presets" pulldown on the pins card (save field at its foot). A preset entry
- *      may prime its mode's sub-mode (e.g. Composite primed to Shade + dot).
+ *      (`proto-L-presets-v1`), all in one "Presets" pulldown on the pins card (save field at its foot). Each preset
+ *      pin is [mode, sub-mode or null, style or null]; null takes the mode's current value.
  *   5. Tool card (round 2: the old Tool settings and All modes cards merged): a field showing the current mode entry;
  *      focusing, clicking or typing in it opens the picker (every solve mode and sub-mode, Composite tools and Special
  *      objects included, in seven groups by what it puts on the board, filtered by the typed words, a Pin toggle per
@@ -28,11 +31,12 @@
  *      Round 3: styles are back to one button each (colour swatch, or a drawn sample for thin / dotted / fat dots /
  *      ...; the name is the title); the open picker list sits in the card's flow and pushes the sub-mode and style
  *      controls down; the Mouse card is as tall as its content, and the Tool card follows it while neither was moved.
- *      A "Recent" row under the mode field: up to 5 recently used modes, most recent first, without the current mode
- *      or pinned ones; a button lands on its mode as a pin does, its pin icon pins it; not in the Tab cycle; kept per
- *      puzzle under `proto-L-recent-v1:<hash of p=>`.
- *      Pins keep their own sub-mode (`proto-L-pinsub-v1:`): a pick in the Tool card picker never changes a pin
- *      (see the comment above pinSub).
+ *      A "Recent" row under the mode field: up to 5 recently used tools (mode + sub-mode, with their last style),
+ *      most recent first, without the current tool or one matching a pin; a button goes to it, its pin icon pins it;
+ *      not in the Tab cycle; kept per puzzle under `proto-L-recent-v2:<hash of p=>`.
+ *      Chris: "if a sub mode has no style options we should just show the pulldown of other sub modes": a tool with
+ *      no style shows only the sub-mode pulldown (any count of 2+), and no options area at all when it has neither.
+ *      Composite tools get the line / edge styles Penpa shows for them (class_p.js subcombimode).
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
@@ -40,9 +44,11 @@
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
  *
  * Bridge gaps worked around here (reading `pu` / the legacy DOM directly):
- *   - Priming a mode's last-used sub-mode without switching to it: writes pu.mode[pu.mode.qa][mode][0] (mode_set reads
- *     it back, class_p.js:1615-1634). Used when seeding pins from the Tab set, applying a preset, and "Pin" in the browser.
- *   - Reading a pinned mode's last-used sub-mode / style for its chip and for saved presets: pu.mode[pu.mode.qa][mode].
+ *   - A mode's remembered sub-mode / style (default sub-mode for a new pin, Tab-set seeding, presets with null):
+ *     pu.mode[pu.mode.qa][mode].
+ *   - Composite tools with Penpa's line / edge style box: bridge.setStyle builds st_combi<n>, which does not exist; L
+ *     calls pu.stylemode_check('st_line<n>' / 'st_lineE<n>'). Landing on a Multicolor pin uses the same call for
+ *     st_surface<n>, because bridge.setStyle also presses the digit and would colour the selected cells.
  *   - Tab-set entry -> mode: PenpaText.modes.EN / .mapping (translate.js:1236-1280); bridge.tabSet() gives names only.
  *   - Style names: the legacy labels are colour letters ("G" is green or grey); names come from a table here checked
  *     against the labels' computed backgrounds. Swatches read `<id>_lb`'s computed background.
@@ -59,9 +65,8 @@
 
     const LS_LAYOUT = 'proto-L-layout-v2'; // v1 had six cards
     const LS_PRESETS = 'proto-L-presets-v1';
-    const LS_PINS = 'proto-L-pins-v1:';
-    const LS_RECENT = 'proto-L-recent-v1:';
-    const LS_PINSUB = 'proto-L-pinsub-v1:';
+    const LS_PINS = 'proto-L-pins-v2:'; // v2: a pin is {mode, sub, style}; v1 held bare modes
+    const LS_RECENT = 'proto-L-recent-v2:';
     const TOP = 44;
 
     const MODE_NAME = {
@@ -122,8 +127,21 @@
         arrowS: ['Arrows in cells', 'symbols', 'Places an arrow in a cell.']
     };
 
-    function styleName(mode, style) {
-        const t = STYLE_TABLE[mode];
+    /** Composite tools that show Penpa's line / edge style box (class_p.js subcombimode). */
+    const COMBI_LINE_STYLE = ['linex', 'lineox', 'linedir', 'yajilin', 'rassisillai', 'tents'];
+    const COMBI_EDGE_STYLE = ['edgex', 'edgexoi'];
+
+    /** The legacy style box a tool uses: its own mode, Surface's for Multicolor, line / lineE or none for Composite. */
+    function styleBox(mode, sub) {
+        if (mode === 'combi') {
+            return COMBI_LINE_STYLE.indexOf(sub) !== -1 ? 'line' : COMBI_EDGE_STYLE.indexOf(sub) !== -1 ? 'lineE' : null;
+        }
+        return mode === 'multicolor' ? 'surface' : mode;
+    }
+
+    function styleName(mode, style, sub) {
+        const box = styleBox(mode, sub);
+        const t = box && STYLE_TABLE[box];
         if (!t || style === '' || style == null || isNaN(style)) {
             return '';
         }
@@ -147,7 +165,7 @@
 
     /** The whole tool in words: "Line · helper × · green". */
     function toolName(mode, sub, style) {
-        return [MODE_NAME[mode] || mode, subName(mode, sub), styleName(mode, style)].filter(Boolean).join(' · ');
+        return [MODE_NAME[mode] || mode, subName(mode, sub), styleName(mode, style, sub)].filter(Boolean).join(' · ');
     }
 
     // ---- Mouse grammar ------------------------------------------------------------------------------------------
@@ -158,7 +176,7 @@
      * Composite table (checked LIVE by K's builder on 2026-11-13). '—' = nothing.
      */
     function mouseRows(mode, sub, style) {
-        const s = styleName(mode, style);
+        const s = styleName(mode, style, sub);
         const N = '—';
         let r = {left: N, right: N, drag: N, more: []};
         switch (mode) {
@@ -306,13 +324,17 @@
         ['move', 'move', '3', 'Move shapes', 'Drag a shape elsewhere.']
     ];
 
-    /** Built-in presets, named by their contents only. Each pin: [mode, sub to prime or null]. */
+    /**
+     * Built-in presets, named by their contents only. Each pin: [mode, sub-mode or null (the mode's current one)].
+     * Round 3: a pin is a mode plus a sub-mode, so a set may hold one mode twice (Line normal + Line helper ×).
+     */
     const BUILTIN_PRESETS = [
         {name: 'Shading + dots', pins: [['combi', 'blpo'], ['surface', null]]},
-        {name: 'Loop + ×', pins: [['combi', 'linex'], ['line', '1']]},
-        {name: 'Edges + ×', pins: [['combi', 'edgex'], ['lineE', '1']]},
-        {name: 'Lines + edges + ×', pins: [['line', '1'], ['lineE', '1'], ['combi', 'linex']]},
-        {name: 'Numbers + candidates', pins: [['number', '1'], ['sudoku', '3'], ['surface', null]]},
+        {name: 'Loop + ×', pins: [['combi', 'linex'], ['line', '1'], ['line', '4']]},
+        {name: 'Edges + ×', pins: [['combi', 'edgex'], ['lineE', '1'], ['lineE', '4']]},
+        {name: 'Lines + edges + ×', pins: [['line', '1'], ['line', '4'], ['lineE', '1'], ['lineE', '4']]},
+        {name: 'Numbers + candidates', pins: [['number', '1'], ['number', '7'], ['surface', null]]},
+        {name: 'Digits + corner + centre', pins: [['sudoku', '1'], ['sudoku', '2'], ['sudoku', '3']]},
         {name: 'Digits + colours', pins: [['sudoku', '1'], ['multicolor', null]]}
     ];
 
@@ -387,18 +409,6 @@
             function remembered(mode) {
                 const e = pu.mode[qa()][mode] || [];
                 return {sub: String(e[0]), style: e[1]};
-            }
-
-            /** Set a mode's remembered sub-mode without switching to it (bridge gap). */
-            function prime(mode, sub) {
-                if (sub == null) {
-                    return;
-                }
-                if (B.getMode().mode === mode) {
-                    applySub(mode, sub);
-                } else if (pu.mode[qa()][mode]) {
-                    pu.mode[qa()][mode][0] = sub;
-                }
             }
 
             function applySub(mode, sub) {
@@ -685,13 +695,95 @@
             }
 
             // ---- Pins -------------------------------------------------------------------------------------------
+            /*
+             * Chris's ruling (2026-11-13), replacing "a pin is a mode": "we are pinning a sub mode. style can change and
+             * be remembered but we are pinning a specific sub mode."
+             *   - A pin is {mode, sub, style}: one mode plus one sub-mode (for Shape, Special and Composite the tool from
+             *     the list; '' for modes without sub-modes). The same mode can be pinned twice with different sub-modes.
+             *   - Landing on a pin (Tab, chip click, preset) goes to its mode and sub-mode with the pin's own style.
+             *   - While on a pin, a style change updates that pin's style; nothing else about any pin ever changes.
+             *   - Any other change (a pick or a sub-mode in the Tool card, a key, Recent) never changes a pin; a pin
+             *     lights up only when the current mode and sub-mode match it exactly.
+             *   - Tab from a tool that is on no pin goes to the pin after the last pin used.
+             * Stored per puzzle under `proto-L-pins-v2:` (v1 held bare modes).
+             */
             const pinKey = LS_PINS + puzzleKey();
 
-            /** Pins from the link's Tab set; first entry per mode primes that mode's sub-mode. */
+            function curPair() {
+                const m = B.getMode();
+                return {mode: m.mode, sub: m.submode, style: m.style};
+            }
+
+            function same(a, b) {
+                return a.mode === b.mode && String(a.sub) === String(b.sub);
+            }
+
+            function pinIndexOf(pair) {
+                for (let i = 0; i < pins.length; i++) {
+                    if (same(pins[i], pair)) {
+                        return i;
+                    }
+                }
+                return -1;
+            }
+
+            /** True if this grid offers the pair (mode available, sub-mode or Composite tool listed). */
+            function validPair(pair) {
+                if (!available[pair.mode]) {
+                    return false;
+                }
+                if (pair.mode === 'combi') {
+                    return !!composites[pair.sub];
+                }
+                if (pair.mode === 'symbol' || pair.sub === '' || pair.sub == null) {
+                    return true;
+                }
+                const subs = B.listSubmodes(pair.mode).map(function(s) {
+                    return String(s.value);
+                });
+                return !subs.length || subs.indexOf(String(pair.sub)) !== -1;
+            }
+
+            /** Styles the tool offers (Composite: the line / edge box some tools show, class_p.js subcombimode). */
+            function stylesOf(mode, sub) {
+                const box = styleBox(mode, sub);
+                return box ? B.listStyles(box) : [];
+            }
+
+            /**
+             * Set a style as the solver's click would. Composite tools that show a line / edge style use st_line<n> /
+             * st_lineE<n> (bridge gap: setStyle builds st_combi<n>). `quiet`: Multicolor without applying the colour to
+             * the selection (bridge.setStyle also presses the digit, main.js:1852-1856), used when landing on a pin.
+             */
+            function setStyleFor(mode, sub, style, quiet) {
+                if (mode === 'combi' || (quiet && mode === 'multicolor')) {
+                    pu.stylemode_check('st_' + styleBox(mode, sub) + style);
+                } else {
+                    B.setStyle(style);
+                }
+            }
+
+            /** Go to a {mode, sub, style}: Penpa's mode_set, then the sub-mode, then the style if the tool has styles. */
+            function goTo(pair) {
+                if (B.getMode().mode !== pair.mode) {
+                    B.setMode(pair.mode);
+                }
+                if (pair.sub !== '' && pair.sub != null && B.getMode().submode !== String(pair.sub)) {
+                    applySub(pair.mode, pair.sub);
+                }
+                const st = pair.style;
+                if (st !== '' && st != null && B.getMode().style !== st && stylesOf(pair.mode, pair.sub).some(function(s) {
+                    return s.value === st;
+                })) {
+                    setStyleFor(pair.mode, pair.sub, st, true);
+                }
+            }
+
+            /** Pins from the link's Tab set: an entry naming a sub-mode keeps it; a mode-only entry gets the default. */
             function seedPins() {
                 const names = PenpaText.modes.EN;
                 const mapping = PenpaText.modes.mapping;
-                const seen = [];
+                const out = [];
                 B.tabSet().forEach(function(name) {
                     const m = mapping[names.indexOf(name)];
                     if (!m) {
@@ -704,108 +796,72 @@
                         mode = mm[1];
                         sub = mm[2];
                     }
-                    if (available[mode] && seen.indexOf(mode) === -1) {
-                        seen.push(mode);
-                        prime(mode, sub);
+                    if (!available[mode]) {
+                        return;
+                    }
+                    const r = remembered(mode);
+                    const pair = {mode: mode, sub: sub != null ? sub : r.sub, style: r.style};
+                    if (validPair(pair) && !out.some(function(p) {
+                        return same(p, pair);
+                    })) {
+                        out.push(pair);
                     }
                 });
-                return {pins: seen.length ? seen : [openingMode], fromTabSet: seen.length > 0};
+                return {pins: out.length ? out : [curPair()], fromTabSet: out.length > 0};
+            }
+
+            function clonePins(list) {
+                return list.map(function(p) {
+                    return {mode: p.mode, sub: String(p.sub), style: p.style};
+                });
             }
 
             const seed = seedPins();
-            let pins = readJSON(pinKey, null) || seed.pins.slice();
-            /*
-             * Round 3 fix (Chris: "changing tool on the tool window shouldn't change a pin if selected"). Penpa keeps one
-             * sub-mode per mode, so with Composite pinned, picking another Composite tool in the picker rewrote what the
-             * pin lands on. Now each pin keeps its own sub-mode (pinSub), and `onPin` says which pin the solver is on:
-             *   - landing on a pin (Tab, chip click, preset) sets onPin and restores the pin's sub-mode;
-             *   - a pick in the Tool card's picker leaves onPin only if it picked exactly the pin's tool; the pin list
-             *     and pinSub never change;
-             *   - while on a pin, a sub-mode change by the sub-mode control or a key updates pinSub (a pin is a mode
-             *     and follows its last use, as ruled); styles are Penpa's per-mode memory, so a pin always shows and
-             *     lands on its mode's last style;
-             *   - Tab from a tool that is not on a pin goes to the pin after the last pin used.
-             */
-            const pinSubKey = LS_PINSUB + puzzleKey();
-            let pinSub = readJSON(pinSubKey, null) || {};
-            pins.forEach(function(mode) {
-                if (pinSub[mode] == null) {
-                    pinSub[mode] = remembered(mode).sub;
-                }
-            });
-            let onPin = pins.indexOf(B.getMode().mode) !== -1 ? B.getMode().mode : null;
-            let lastPinMode = onPin;
-            let trackedMode = B.getMode().mode;
-            let picked = false;
+            let pins = clonePins(readJSON(pinKey, null) || seed.pins);
+            let onPin = pinIndexOf(curPair());
+            let lastPinIdx = onPin;
+            let seenStyle = B.getMode().style;
 
             function savePins() {
                 writeJSON(pinKey, pins);
-                writeJSON(pinSubKey, pinSub);
             }
 
-            function resetPinSubs() {
-                pinSub = {};
-                pins.forEach(function(mode) {
-                    pinSub[mode] = remembered(mode).sub;
-                });
+            function landOnPin(i) {
+                onPin = lastPinIdx = i;
+                goTo(pins[i]);
+                seenStyle = B.getMode().style;
             }
 
-            function landOnPin(mode) {
-                onPin = mode;
-                lastPinMode = mode;
-                if (B.getMode().mode !== mode) {
-                    B.setMode(mode);
-                }
-                const s = pinSub[mode];
-                if (s != null && s !== '' && remembered(mode).sub !== String(s)) {
-                    applySub(mode, s);
-                }
-            }
-
-            /** Called on every bridge change, before rendering: keeps onPin and the active pin's sub-mode current. */
+            /** On every bridge change, before rendering: which pin is lit, and the lit pin's style. */
             function trackPin(m) {
-                if (m.mode !== trackedMode) {
-                    if (!picked) {
-                        onPin = pins.indexOf(m.mode) !== -1 ? m.mode : null; // legacy keys, Recent, ...
+                const pair = {mode: m.mode, sub: m.submode};
+                if (onPin >= 0 && pins[onPin] && same(pins[onPin], pair)) {
+                    if (m.style !== seenStyle && stylesOf(m.mode, m.submode).length && pins[onPin].style !== m.style) {
+                        pins[onPin].style = m.style;
+                        savePins();
                     }
-                    trackedMode = m.mode;
+                } else {
+                    onPin = pinIndexOf(pair);
                 }
-                picked = false;
-                if (onPin && onPin === m.mode && String(pinSub[onPin]) !== m.submode) {
-                    pinSub[onPin] = m.submode;
+                seenStyle = m.style;
+                if (onPin >= 0) {
+                    lastPinIdx = onPin;
+                }
+            }
+
+            function pinPair(pair) {
+                if (pinIndexOf(pair) === -1) {
+                    pins.push({mode: pair.mode, sub: String(pair.sub), style: pair.style});
                     savePins();
                 }
-                if (onPin) {
-                    lastPinMode = onPin;
-                }
-            }
-
-            function pinMode(mode, sub) {
-                const cur = B.getMode();
-                if (pins.indexOf(mode) === -1) {
-                    pins.push(mode);
-                }
-                pinSub[mode] = sub != null ? sub : (cur.mode === mode ? cur.submode : remembered(mode).sub);
-                if (cur.mode !== mode) {
-                    prime(mode, sub); // pinning the current mode must not change its sub-mode
-                } else if (String(pinSub[mode]) === cur.submode) {
-                    onPin = lastPinMode = mode;
-                }
-                savePins();
+                onPin = pinIndexOf(curPair());
                 renderAll(true);
             }
 
-            function unpin(mode) {
-                pins = pins.filter(function(p) {
-                    return p !== mode;
-                });
-                delete pinSub[mode];
-                if (onPin === mode) {
-                    onPin = null;
-                }
-                if (lastPinMode === mode) {
-                    lastPinMode = null;
-                }
+            function unpinAt(i) {
+                pins.splice(i, 1);
+                onPin = pinIndexOf(curPair());
+                lastPinIdx = onPin >= 0 ? onPin : Math.min(lastPinIdx >= i ? lastPinIdx - 1 : lastPinIdx, pins.length - 1);
                 savePins();
                 renderAll(true);
             }
@@ -814,38 +870,32 @@
                 if (!pins.length) {
                     return;
                 }
-                const from = pins.indexOf(onPin || lastPinMode);
-                let next;
-                if (from === -1) {
-                    next = dir > 0 ? 0 : pins.length - 1;
-                } else {
-                    next = (from + dir + pins.length) % pins.length;
-                }
-                landOnPin(pins[next]);
+                const from = onPin >= 0 ? onPin : lastPinIdx;
+                const next = from < 0 ? (dir > 0 ? 0 : pins.length - 1) : (from + dir + pins.length) % pins.length;
+                landOnPin(next);
             }
 
+            /** A preset's pins are [mode, sub or null, style or null]; null takes the mode's remembered value. */
             function applyPreset(p) {
                 const list = [];
                 p.pins.forEach(function(pin) {
-                    const mode = pin[0];
-                    if (!available[mode] || list.indexOf(mode) !== -1 || (mode === 'combi' && pin[1] && !composites[pin[1]])) {
+                    if (!available[pin[0]]) {
                         return;
                     }
-                    list.push(mode);
-                    prime(mode, pin[1]);
+                    const r = remembered(pin[0]);
+                    const pair = {mode: pin[0], sub: pin[1] != null ? String(pin[1]) : r.sub, style: pin[2] != null ? pin[2] : r.style};
+                    if (validPair(pair) && !list.some(function(q) {
+                        return same(q, pair);
+                    })) {
+                        list.push(pair);
+                    }
                 });
                 if (!list.length) {
                     return;
                 }
                 pins = list;
-                resetPinSubs();
-                p.pins.forEach(function(pin) {
-                    if (pin[1] != null && pins.indexOf(pin[0]) !== -1) {
-                        pinSub[pin[0]] = pin[1];
-                    }
-                });
                 savePins();
-                landOnPin(pins[0]);
+                landOnPin(0);
                 renderAll(true);
             }
 
@@ -869,8 +919,8 @@
                 const list = savedPresets().filter(function(p) {
                     return p.name !== name;
                 });
-                list.push({name: name, pins: pins.map(function(m) {
-                    return [m, m === 'surface' || m === 'multicolor' || m === 'wall' ? null : pinSub[m]];
+                list.push({name: name, pins: pins.map(function(p) {
+                    return [p.mode, p.sub, p.style];
                 })});
                 writeJSON(LS_PRESETS, list);
                 presetName.value = '';
@@ -878,69 +928,68 @@
                 renderPins();
             }
 
-            let dragPin = null;
+            function pairDetail(p) {
+                return [subName(p.mode, p.sub), styleName(p.mode, p.style, p.sub)].filter(Boolean).join(' · ');
+            }
+
+            let dragPin = -1;
             function renderPins() {
-                const m = B.getMode();
                 const b = pinsCard.body;
                 b.textContent = '';
                 const strip = el('div', {class: 'proto-l-pins'});
-                pins.forEach(function(mode, i) {
-                    const r = remembered(mode);
-                    const detail = [subName(mode, pinSub[mode]), styleName(mode, r.style)].filter(Boolean).join(' · ');
-                    const on = mode === m.mode && onPin === mode;
-                    const chip = el('div', {class: 'proto-l-pin' + (on ? ' is-on' : ''), draggable: 'true',
-                        'data-mode': mode, title: 'Click: switch. Drag: reorder.'}, [
+                pins.forEach(function(pin, i) {
+                    const chip = el('div', {class: 'proto-l-pin' + (i === onPin ? ' is-on' : ''), draggable: 'true',
+                        'data-mode': pin.mode, 'data-sub': pin.sub, title: 'Click: switch. Drag: reorder.'}, [
                         el('span', {class: 'proto-l-pinnum'}, [String(i + 1)]),
-                        el('span', {class: 'proto-l-pinname'}, [MODE_NAME[mode] || mode]),
-                        el('span', {class: 'proto-l-pindetail'}, [detail])
+                        el('span', {class: 'proto-l-pinname'}, [MODE_NAME[pin.mode] || pin.mode]),
+                        el('span', {class: 'proto-l-pindetail'}, [pairDetail(pin)])
                     ]);
-                    const x = btn('proto-l-unpin', '×', function() {
-                        unpin(mode);
-                    }, 'Unpin');
-                    chip.appendChild(x);
+                    chip.appendChild(btn('proto-l-unpin', '×', function() {
+                        unpinAt(i);
+                    }, 'Unpin'));
                     chip.addEventListener('mousedown', function(e) {
                         if (!e.target.closest('button')) {
                             e.stopPropagation();
                         }
                     });
                     chip.addEventListener('click', function(e) {
-                        if (e.target.closest('button')) {
-                            return;
+                        if (!e.target.closest('button')) {
+                            landOnPin(i);
                         }
-                        landOnPin(mode);
                     });
                     chip.addEventListener('dragstart', function(e) {
-                        dragPin = mode;
+                        dragPin = i;
                         e.dataTransfer.effectAllowed = 'move';
-                        e.dataTransfer.setData('text/plain', mode);
+                        e.dataTransfer.setData('text/plain', String(i));
                     });
                     chip.addEventListener('dragover', function(e) {
                         e.preventDefault();
                     });
                     chip.addEventListener('drop', function(e) {
                         e.preventDefault();
-                        const from = pins.indexOf(dragPin || e.dataTransfer.getData('text/plain'));
-                        if (from === -1 || from === i) {
+                        const from = dragPin >= 0 ? dragPin : +e.dataTransfer.getData('text/plain');
+                        dragPin = -1;
+                        if (isNaN(from) || from === i) {
                             return;
                         }
-                        const moved = pins.splice(from, 1)[0];
-                        pins.splice(i, 0, moved);
-                        dragPin = null;
+                        pins.splice(i, 0, pins.splice(from, 1)[0]);
+                        onPin = pinIndexOf(curPair());
+                        lastPinIdx = onPin;
                         savePins();
-                        renderPins();
+                        renderAll(true);
                     });
                     strip.appendChild(chip);
                 });
                 b.appendChild(strip);
                 b.appendChild(el('div', {class: 'proto-l-note'}, [
-                    pins.length > 1 ? 'Tab / Shift+Tab cycle these; each mode comes back with its last sub-mode and style.' :
-                        'Pin more modes to Tab between them.',
-                    seed.fromTabSet ? '' : ' (This link has no Tab set; seeded with the mode it opened in.)'
+                    pins.length > 1 ? 'Tab / Shift+Tab cycle these; each pin comes back with its own sub-mode and style.' :
+                        'Pin more tools to Tab between them.',
+                    seed.fromTabSet ? '' : ' (This link has no Tab set; seeded with the tool it opened on.)'
                 ]));
                 // Presets: one pulldown (built-ins, then saved ones with a delete ×, then "save these pins as").
                 const contents = function(p) {
                     return el('span', {class: 'proto-l-pddetail'}, [p.pins.map(function(x) {
-                        return toolName(x[0], x[1], '');
+                        return toolName(x[0], x[1] != null ? String(x[1]) : remembered(x[0]).sub, '');
                     }).join(', ')]);
                 };
                 const items = [{header: true, label: 'Built-in'}];
@@ -959,8 +1008,7 @@
                         closePd();
                         renderPins();
                     }, 'Delete this preset');
-                    const extra = el('span', {class: 'proto-l-pdextra'}, [contents(p), del]);
-                    items.push({value: 's' + i, label: p.name, extra: extra});
+                    items.push({value: 's' + i, label: p.name, extra: el('span', {class: 'proto-l-pdextra'}, [contents(p), del])});
                 });
                 const footer = el('div', {class: 'proto-l-pdfoot'}, [presetName, btn('', 'Save', saveCurrentPreset)]);
                 footer.addEventListener('mousedown', function(e) {
@@ -972,12 +1020,12 @@
                 b.appendChild(el('div', {class: 'proto-l-row'}, [
                     presets,
                     btn('', 'Pin current', function() {
-                        pinMode(B.getMode().mode, null);
-                    }, 'Pin the current mode'),
+                        pinPair(curPair());
+                    }, 'Pin the current mode and sub-mode'),
                     btn('', 'Reset', function() {
-                        pins = seed.pins.slice();
-                        resetPinSubs();
-                        onPin = pins.indexOf(B.getMode().mode) !== -1 ? B.getMode().mode : null;
+                        pins = clonePins(seed.pins);
+                        onPin = pinIndexOf(curPair());
+                        lastPinIdx = onPin;
                         savePins();
                         renderAll(true);
                     }, 'Back to the link\'s own pins')
@@ -996,11 +1044,11 @@
                     headline.appendChild(el('span', {class: 'proto-l-hsep'}, [' · ']));
                     headline.appendChild(el('span', {class: 'proto-l-hsub'}, [sn]));
                 }
-                const st = styleName(m.mode, m.style);
+                const st = styleName(m.mode, m.style, m.submode);
                 if (st) {
                     headline.appendChild(el('span', {class: 'proto-l-hsep'}, [' · ']));
                     const sw = el('span', {class: 'proto-l-hstyle'}, [st]);
-                    const col = swatchColor(m.mode, m.style);
+                    const col = swatchColor(m.mode, m.style, m.submode);
                     if (col) {
                         sw.prepend(el('i', {class: 'proto-l-dot', style: 'background:' + col}));
                     }
@@ -1019,7 +1067,7 @@
                     ]));
                 });
                 b.appendChild(rows);
-                const pinned = onPin === m.mode;
+                const pinned = onPin >= 0;
                 b.appendChild(el('div', {class: 'proto-l-note'}, [pinned ? 'Pinned: Tab moves on to the next pin.' :
                     'Not pinned: Tab returns to the pins.']));
             }
@@ -1028,14 +1076,13 @@
              * Colour of a colour style, from its legacy label. Non-colour styles get null: a checked legacy label has a
              * grey background of its own, which is not the style's colour.
              */
-            function swatchColor(mode, style) {
-                const name = styleName(mode, style);
+            function swatchColor(mode, style, sub) {
+                const name = styleName(mode, style, sub);
                 const colours = Object.values(SURFACE_STYLE).concat(['green', 'black', 'grey', 'red', 'blue', 'dark blue']);
                 if (colours.indexOf(name) === -1) {
                     return null;
                 }
-                const m = mode === 'multicolor' ? 'surface' : mode;
-                const lb = document.getElementById('st_' + m + style + '_lb');
+                const lb = document.getElementById('st_' + styleBox(mode, sub) + style + '_lb');
                 if (!lb) {
                     return null;
                 }
@@ -1116,22 +1163,27 @@
             toolCard.body.appendChild(recentRow);
             toolCard.body.appendChild(toolOpts);
 
-            // ---- Recent modes: the last modes used, most recent first, without the current mode or pinned ones. A
-            // button lands on its mode as a pin does (setMode restores the mode's last sub-mode and style); its pin icon
-            // pins it. Not in the Tab cycle. Kept per puzzle next to the pins.
+            // ---- Recent: the last tools used, each a {mode, sub, style} like a pin, most recent first, without the
+            // current tool or a tool that matches a pin. A button goes to that mode and sub-mode with its last style; its
+            // pin icon pins it. Not in the Tab cycle. Kept per puzzle under `proto-L-recent-v2:` (v1 held bare modes).
             const recentKey = LS_RECENT + puzzleKey();
-            let recents = readJSON(recentKey, []);
-            let lastMode = B.getMode().mode;
+            let recents = clonePins(readJSON(recentKey, []).filter(function(r) {
+                return r && typeof r === 'object';
+            }));
+            let lastPair = curPair();
 
-            /** Called on every render: when the mode changed, the mode just left goes to the front. */
-            function noteRecent(mode) {
-                if (mode === lastMode) {
+            /** Called on every render: when the tool changed, the tool just left (with its last style) goes first. */
+            function noteRecent(m) {
+                const now = {mode: m.mode, sub: m.submode, style: m.style};
+                if (same(now, lastPair)) {
+                    lastPair.style = now.style;
                     return;
                 }
-                recents = [lastMode].concat(recents.filter(function(x) {
-                    return x !== lastMode && x !== mode;
+                const left = lastPair;
+                recents = [left].concat(recents.filter(function(r) {
+                    return !same(r, left) && !same(r, now);
                 })).slice(0, 12);
-                lastMode = mode;
+                lastPair = now;
                 writeJSON(recentKey, recents);
             }
 
@@ -1140,8 +1192,9 @@
 
             function renderRecent(m) {
                 recentRow.textContent = '';
-                const shown = recents.filter(function(x) {
-                    return x !== m.mode && pins.indexOf(x) === -1 && available[x];
+                const cur = {mode: m.mode, sub: m.submode};
+                const shown = recents.filter(function(r) {
+                    return !same(r, cur) && pinIndexOf(r) === -1 && validPair(r);
                 }).slice(0, 5);
                 if (!shown.length) {
                     recentRow.hidden = true;
@@ -1150,20 +1203,19 @@
                 recentRow.hidden = false;
                 recentRow.appendChild(el('span', {class: 'proto-l-optlabel'}, ['Recent']));
                 const list = el('div', {class: 'proto-l-recentlist'});
-                shown.forEach(function(mode) {
-                    const r = remembered(mode);
-                    const detail = [subName(mode, r.sub), styleName(mode, r.style)].filter(Boolean).join(' · ');
+                shown.forEach(function(r) {
                     const b = btn('proto-l-recentbtn', '', function(e) {
                         if (e.target.closest('.proto-l-recentpin')) {
-                            pinMode(mode, null);
+                            pinPair(r);
                         } else {
-                            B.setMode(mode);
+                            goTo(r);
                         }
-                    }, toolName(mode, r.sub, r.style));
-                    b.setAttribute('data-mode', mode);
-                    b.appendChild(el('span', {class: 'proto-l-pinname'}, [MODE_NAME[mode] || mode]));
-                    b.appendChild(el('span', {class: 'proto-l-pindetail'}, [detail]));
-                    const pin = el('span', {class: 'proto-l-recentpin', title: 'Pin ' + (MODE_NAME[mode] || mode)});
+                    }, toolName(r.mode, r.sub, r.style));
+                    b.setAttribute('data-mode', r.mode);
+                    b.setAttribute('data-sub', r.sub);
+                    b.appendChild(el('span', {class: 'proto-l-pinname'}, [MODE_NAME[r.mode] || r.mode]));
+                    b.appendChild(el('span', {class: 'proto-l-pindetail'}, [pairDetail(r)]));
+                    const pin = el('span', {class: 'proto-l-recentpin', title: 'Pin ' + toolName(r.mode, r.sub, '')});
                     pin.innerHTML = PIN_ICON;
                     b.appendChild(pin);
                     list.appendChild(b);
@@ -1258,22 +1310,24 @@
                 });
             }
 
-            /** A pick never changes the pin list; it stays on a pin only if it picked exactly that pin's tool. */
+            /** A pick never changes any pin; trackPin lights a pin only if the pick matches its mode and sub-mode. */
             function pickEntry(e) {
-                picked = true;
                 if (B.getMode().mode !== e.mode) {
                     B.setMode(e.mode);
                 }
                 if (e.sub != null) {
                     applySub(e.mode, e.sub);
                 }
-                const now = B.getMode();
-                onPin = pins.indexOf(now.mode) !== -1 && String(pinSub[now.mode]) === now.submode ? now.mode : null;
-                if (onPin) {
-                    lastPinMode = onPin;
-                }
                 pickInput.blur();
                 renderAll(true);
+            }
+
+            /** The {mode, sub} a picker entry pins: its own sub-mode, or (Shape, Surface, ...) the mode's current one. */
+            function entryPair(e) {
+                const cur = B.getMode();
+                const sub = e.sub != null ? e.sub : (cur.mode === e.mode ? cur.submode : remembered(e.mode).sub);
+                const style = cur.mode === e.mode ? cur.style : remembered(e.mode).style;
+                return {mode: e.mode, sub: String(sub), style: style};
             }
 
             function renderPicker() {
@@ -1299,7 +1353,9 @@
                     items.forEach(function(e) {
                         shown++;
                         const current = e.mode === m.mode && (e.sub == null || e.sub === m.submode);
-                        const pinned = pins.indexOf(e.mode) !== -1;
+                        const pair = entryPair(e);
+                        const pinIdx = pinIndexOf(pair);
+                        const pinned = pinIdx !== -1;
                         const name = el('div', {class: 'proto-l-ename'}, [e.name, el('span', {class: 'proto-l-emode'}, [MODE_NAME[e.mode]])]);
                         e.tags.forEach(function(t) {
                             name.appendChild(el('span', {class: 'proto-l-tag'}, [t]));
@@ -1308,11 +1364,11 @@
                             'data-sub': e.sub == null ? '' : e.sub}, [name, el('div', {class: 'proto-l-edesc'}, [e.desc])]);
                         const pinBtn = btn('proto-l-pinbtn' + (pinned ? ' is-pinned' : ''), pinned ? 'Pinned' : 'Pin', function() {
                             if (pinned) {
-                                unpin(e.mode);
+                                unpinAt(pinIdx);
                             } else {
-                                pinMode(e.mode, e.sub);
+                                pinPair(pair);
                             }
-                        }, pinned ? 'Unpin ' + MODE_NAME[e.mode] : 'Pin the ' + MODE_NAME[e.mode] + ' mode (Tab lands on it)');
+                        }, (pinned ? 'Unpin ' : 'Pin ') + toolName(pair.mode, pair.sub, '') + (pinned ? '' : ' (Tab lands on it)'));
                         row.appendChild(pinBtn);
                         row.addEventListener('mousedown', function(ev) {
                             ev.preventDefault(); // keep focus in the search box
@@ -1358,27 +1414,31 @@
                         return {value: s.value, label: subName(m.mode, s.value) || s.label, on: String(s.value) === m.submode};
                     });
                 }
-                if (subItems.length) {
-                    toolOpts.appendChild(optRow(subLabel, choice(subItems, function(v) {
+                // Chris: "if a sub mode has no style options we should just show the pulldown of other sub modes".
+                const styles = stylesOf(m.mode, m.submode);
+                if (subItems.length >= 2) {
+                    const pickSub = function(v) {
                         applySub(m.mode, v);
-                    }, 'proto-l-pd-sub')));
+                    };
+                    toolOpts.appendChild(optRow(subLabel, styles.length ? choice(subItems, pickSub, 'proto-l-pd-sub') :
+                        pulldown(subItems, pickSub, {cls: 'proto-l-pd-sub'})));
                 }
                 // Round 3: styles are one button each (colour swatch, or a drawn sample for non-colour styles); the
                 // name is the button's title.
-                const styles = m.mode === 'combi' ? [] : B.listStyles(m.mode);
                 if (styles.length) {
                     const row = el('div', {class: 'proto-l-styles'});
                     styles.forEach(function(s) {
-                        const name = styleName(m.mode, s.value) || s.label;
+                        const name = styleName(m.mode, s.value, m.submode) || s.label;
                         const b = btn('proto-l-stylebtn' + (s.value === m.style ? ' is-on' : ''), '', function() {
-                            B.setStyle(s.value);
+                            setStyleFor(m.mode, m.submode, s.value, false);
                         }, name);
                         b.setAttribute('data-name', name);
-                        b.innerHTML = styleSample(name, swatchColor(m.mode, s.value));
+                        b.innerHTML = styleSample(name, swatchColor(m.mode, s.value, m.submode));
                         row.appendChild(b);
                     });
                     toolOpts.appendChild(optRow(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style', row));
                 }
+                toolOpts.hidden = !toolOpts.children.length;
                 if (pickOpen) {
                     sizePicker();
                 }
@@ -1477,7 +1537,7 @@
                     return;
                 }
                 lastKey = key;
-                noteRecent(m.mode);
+                noteRecent(m);
                 renderMouse(m);
                 renderPins();
                 renderTool(m);
@@ -1527,8 +1587,14 @@
                 });
             });
             // Expose for the prototype's own checks (not an API).
-            window.ProtoL = {pins: function() {
-                return pins.slice();
+            window.ProtoL = {pins: function() { // "mode:sub" keys
+                return pins.map(function(p) {
+                    return p.mode + ":" + p.sub;
+                });
+            }, pinStyles: function() {
+                return pins.map(function(p) {
+                    return p.style;
+                });
             }, cards: cards, resetLayout: resetLayout};
             renderAll(true);
             placeAll(); // again, now that cards have content: default columns stack by measured height
