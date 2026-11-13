@@ -13428,7 +13428,7 @@ class Puzzle {
                         // document.getElementById("pu_a_label").style.backgroundColor = Color.GREY_LIGHT;
                     }
                 }
-                this.redraw(false, false);
+                // caneff: no redraw here, so the board is drawn once per redraw (#23)
             }
         } else {
             var text = this.make_solution();

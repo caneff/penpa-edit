@@ -50,6 +50,12 @@ describe('redraw', () => {
     assert.ok(inked > 0, 'the board has non-white pixels')
   })
 
+  it('draws the board once per redraw on a puzzle with a stored answer', async () => {
+    const { draws, conflicts } = await redraw({ tags: ['classic'], value: '1' })
+    assert.equal(draws, 1)
+    assert.deepEqual(conflicts, [[0, 0], [1, 0]])
+  })
+
   it('keeps the board drawn, and logs the error, when the answer check throws', async () => {
     const { draws, logged, inked } = await redraw({ tags: ['classic'], value: '1', breakCheck: true })
     assert.equal(logged.length, 1)
