@@ -6,45 +6,64 @@ import { openPenpa, useBrowser } from './page.mjs'
 
 const browser = useBrowser()
 
+const GRID_SIZE = 8
+// A genre that reads edges off shading (`surface_2_edge_types`), so the edge answer is derived from the surface.
+const EDGE_GENRE = 'pentominous'
+
 const RESIZES = [['resize_top', 1], ['resize_top', -1], ['resize_bottom', 1], ['resize_bottom', -1],
   ['resize_left', 1], ['resize_left', -1], ['resize_right', 1], ['resize_right', -1]]
 
-// Every OR option, each with the marks it reads. `marks` runs in the page, with `cell(x, y)` and `edge(x, y)`, the edge on the right of cell (x, y).
-const MARKS = {
-  surface: (a, cell) => { a.surface[cell(3, 3)] = 3 },
-  surface_exact: (a, cell) => { a.surface[cell(3, 3)] = 3; a.surface[cell(4, 3)] = [3, 4] },
-  number: (a, cell) => { a.number[cell(3, 4)] = ['7', 2, '1'] },
-  loopline_exact: (a, cell) => { a.line[`${cell(3, 3)},${cell(4, 3)}`] = 3 },
-  loopline: (a, cell) => { a.line[`${cell(3, 3)},${cell(4, 3)}`] = 3 },
-  loopedge_exact: (a, cell, edge) => { a.lineE[edge(3, 4)] = 3; a.surface[cell(3, 3)] = 1; a.surface[cell(4, 3)] = 3 },
-  loopedge: (a, cell, edge) => { a.lineE[edge(3, 4)] = 3; a.surface[cell(3, 3)] = 1; a.surface[cell(4, 3)] = 3 },
-  wall: (a, cell) => { a.wall[`${cell(3, 3)},${cell(4, 3)}`] = 3 },
-  square: (a, cell) => { a.symbol[cell(3, 3)] = [2, 'square_LL', 2] },
-  circle: (a, cell) => { a.symbol[cell(3, 3)] = [1, 'circle_M', 2] },
-  tri: (a, cell) => { a.symbol[cell(3, 3)] = [1, 'tri', 2] },
-  arrow: (a, cell) => { a.symbol[cell(3, 3)] = [1, 'arrow_S', 2] },
-  math: (a, cell) => { a.symbol[cell(3, 3)] = [2, 'math', 2] },
-  battleship: (a, cell) => { a.symbol[cell(3, 3)] = [1, 'battleship_B', 2] },
-  tent: (a, cell) => { a.symbol[cell(3, 3)] = [2, 'tents', 2] },
-  star: (a, cell) => { a.symbol[cell(3, 3)] = [2, 'star', 2] },
-  akari: (a, cell) => { a.symbol[cell(3, 3)] = [3, 'sun_moon', 2] },
-  mine: (a, cell) => { a.symbol[cell(3, 3)] = [4, 'sun_moon', 2] }
+// Symbol answers, each given its own cell so no mark overwrites another. Cells stay in columns and rows 1 to 6, so
+// no resize by -1 removes one.
+const SYMBOLS = {
+  square: [2, 'square_LL', 2],
+  circle: [1, 'circle_M', 2],
+  tri: [1, 'tri', 2],
+  arrow: [1, 'arrow_S', 2],
+  math: [2, 'math', 2],
+  battleship: [1, 'battleship_B', 2],
+  tent: [2, 'tents', 2],
+  star: [2, 'star', 2],
+  akari: [3, 'sun_moon', 2],
+  mine: [4, 'sun_moon', 2]
 }
 
-// Runs in the page. Builds an 8x8 grid tagged `tag`, marks the answer with `names` (MARKS keys, as source text since
-// functions do not cross), ticks each in `boxes`, stores the answer, resizes, and returns the stored and the fresh answer.
+// Marks each answer option reads. Each runs in the page as `marks[name](pu.pu_a, cell, edge)`, with `edge(x, y)` the
+// edge on the right of cell (x, y). Shipped to the page as source, since functions do not cross.
+const MARKS_SOURCE = `{
+  surface: (a, cell) => { a.surface[cell(1, 1)] = 3 },
+  surface_exact: (a, cell) => { a.surface[cell(1, 1)] = 3; a.surface[cell(2, 1)] = [3, 4] },
+  number: (a, cell) => { a.number[cell(1, 2)] = ['7', 2, '1'] },
+  loopline_exact: (a, cell) => { a.line[cell(1, 3) + ',' + cell(2, 3)] = 3 },
+  loopline: (a, cell) => { a.line[cell(1, 3) + ',' + cell(2, 3)] = 3 },
+  loopedge_exact: (a, cell, edge) => { a.lineE[edge(5, 2)] = 3; a.surface[cell(5, 2)] = 1; a.surface[cell(6, 2)] = 3 },
+  loopedge: (a, cell, edge) => { a.lineE[edge(5, 2)] = 3; a.surface[cell(5, 2)] = 1; a.surface[cell(6, 2)] = 3 },
+  wall: (a, cell) => { a.wall[cell(1, 4) + ',' + cell(2, 4)] = 3 },
+  ${Object.entries(SYMBOLS).map(([name, symbol], i) =>
+    `${name}: (a, cell) => { a.symbol[cell(${1 + (i % 6)}, ${5 + Math.floor(i / 6)})] = ${JSON.stringify(symbol)} }`).join(',\n  ')}
+}`
+const OR_OPTIONS = ['surface', 'surface_exact', 'number', 'loopline_exact', 'loopline', 'loopedge_exact', 'loopedge', 'wall', ...Object.keys(SYMBOLS)]
+const SINGLE_OPTIONS = ['surface', 'number', 'loopline', 'loopedge', 'wall', ...Object.keys(SYMBOLS)]
+
+// Runs in the page, once: defines `newBoard(tag)`, a `GRID_SIZE`-square grid tagged `tag` with every answer option unticked.
+function defineHelpers ({ gridSize }) {
+  window.newBoard = (tag) => {
+    document.getElementById('nb_size1').value = gridSize
+    document.getElementById('nb_size2').value = gridSize
+    create_newboard()
+    $('#genre_tags_opt').val([tag]).trigger('change')
+    for (const box of [...document.getElementsByClassName('solcheck'), ...document.getElementsByClassName('solcheck_or')]) box.checked = false
+  }
+}
+
+// Runs in the page. Marks the answer with `names`, ticks each of `boxes`, stores the answer, resizes, and returns the
+// stored and the fresh answer.
 function resizeInPage ({ tag, names, marksSource, boxes, resize: [method, sign] }) {
-  document.getElementById('nb_size1').value = 8
-  document.getElementById('nb_size2').value = 8
-  create_newboard()
-  pu.user_tags = [tag]
-  $('#genre_tags_opt').val([tag]).trigger('change')
+  newBoard(tag)
   const cell = (x, y) => pu.conflicts.xy_to_index(x, y)
   const edge = (x, y) => `${pu.point[cell(x, y)].surround[1]},${pu.point[cell(x, y)].surround[2]}`
   const marks = new Function('return ' + marksSource)()
   for (const name of names) marks[name](pu.pu_a, cell, edge)
-  for (const box of document.getElementsByClassName('solcheck')) box.checked = false
-  for (const box of document.getElementsByClassName('solcheck_or')) box.checked = false
   for (const id of boxes) document.getElementById(id).checked = true
   const first = pu.make_solution()
   pu.solution = pu.multisolution ? first : JSON.stringify(first)
@@ -53,15 +72,10 @@ function resizeInPage ({ tag, names, marksSource, boxes, resize: [method, sign] 
   return { stored: pu.solution, made: pu.multisolution ? made : JSON.stringify(made) }
 }
 
-// Runs in the page. Reads the edge answer on an 8x8 pentominous grid, resizes by one, shades the last two cells of the
-// last row and the last two of the last column in different colors, and returns the edge answer. It holds two edges.
-function edgesAfterResizeInPage ([method, sign]) {
-  document.getElementById('nb_size1').value = 8
-  document.getElementById('nb_size2').value = 8
-  create_newboard()
-  $('#genre_tags_opt').val(['pentominous']).trigger('change')
-  for (const box of document.getElementsByClassName('solcheck')) box.checked = false
-  for (const box of document.getElementsByClassName('solcheck_or')) box.checked = false
+// Runs in the page. Reads the edge answer, resizes by +1, shades the last two cells of row 3 and the last two of
+// column 3 in different colors, and returns the edge answer. It holds two edges.
+function edgesAfterResizeInPage ({ tag, resize: [method, sign] }) {
+  newBoard(tag)
   document.getElementById('sol_loopedge').checked = true
   pu.make_solution()
   pu[method](sign)
@@ -75,40 +89,40 @@ function edgesAfterResizeInPage ([method, sign]) {
   return pu.make_solution()[2]
 }
 
-describe('the edge answer after a resize', () => {
+describe('the answer after a resize', () => {
   let opened
-  before(async () => { opened = await openPenpa(browser()) })
-  after(async () => { await opened?.context.close() })
-  for (const method of ['resize_top', 'resize_bottom', 'resize_left', 'resize_right']) {
-    it(`${method}(1) counts the edges in the added row or column`, async () => {
-      const edges = await opened.page.evaluate(edgesAfterResizeInPage, [method, 1])
-      assert.equal(edges.length, 2)
-    })
-  }
-})
-
-describe('the stored answer after a resize', () => {
-  let opened
-  before(async () => { opened = await openPenpa(browser()) })
-  after(async () => { await opened?.context.close() })
-  const run = (args) => opened.page.evaluate(resizeInPage, {
-    ...args,
-    marksSource: '{' + Object.entries(MARKS).map(([k, f]) => `${JSON.stringify(k)}: ${f}`).join(',') + '}'
+  before(async () => {
+    opened = await openPenpa(browser())
+    await opened.page.evaluate(defineHelpers, { gridSize: GRID_SIZE })
   })
+  after(async () => { await opened?.context.close() })
+  const run = (args) => opened.page.evaluate(resizeInPage, { tag: EDGE_GENRE, marksSource: MARKS_SOURCE, ...args })
 
   for (const [method, sign] of RESIZES) {
     describe(`${method}(${sign})`, () => {
       it('keeps a single answer valid', async () => {
-        const names = ['surface', 'number', 'loopline', 'loopedge', 'wall', 'square', 'circle', 'tri', 'arrow', 'math', 'battleship', 'tent', 'star', 'akari', 'mine']
-        const r = await run({ tag: 'pentominous', names, boxes: names.map((n) => `sol_${n}`), resize: [method, sign] })
+        const r = await run({ names: SINGLE_OPTIONS, boxes: SINGLE_OPTIONS.map((n) => `sol_${n}`), resize: [method, sign] })
         assert.deepEqual(r.made, r.stored)
       })
-      for (const name of Object.keys(MARKS)) {
+      it('keeps a single exact-surface answer valid', async () => {
+        const r = await run({ names: ['surface_exact'], boxes: ['sol_surface_exact'], resize: [method, sign] })
+        assert.deepEqual(r.made, r.stored)
+      })
+      for (const name of OR_OPTIONS) {
         it(`keeps the OR option ${name} valid`, async () => {
-          const r = await run({ tag: 'pentominous', names: [name], boxes: [`sol_or_${name}`], resize: [method, sign] })
+          const r = await run({ names: [name], boxes: [`sol_or_${name}`], resize: [method, sign] })
           assert.deepEqual(r.made, r.stored)
         })
       }
+    })
+  }
+
+  // The edge answer once measured the board's bounds on its first read and kept them, so cells past the old
+  // bounds were left out; shading the far end of the resized board needs the bounds measured again.
+  for (const [method, sign] of RESIZES.filter(([, sign]) => sign === 1)) {
+    it(`${method}(${sign}) counts the edges at the far end of the resized board`, async () => {
+      const edges = await opened.page.evaluate(edgesAfterResizeInPage, { tag: EDGE_GENRE, resize: [method, sign] })
+      assert.equal(edges.length, 2)
     })
   }
 })

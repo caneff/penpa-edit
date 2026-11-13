@@ -1297,9 +1297,9 @@ class Puzzle {
                                 }
                                 break;
                             case "loopline":
-                            case "loopline_exact": // caneff: missing before
+                            case "loopline_exact": // caneff: exact answers hold "a,b,style" like loopline
                             case "loopedge":
-                            case "loopedge_exact": // caneff: missing before
+                            case "loopedge_exact": // caneff: exact answers hold "a,b,style" like loopedge
                             case "wall":
                                 for (let i in sol[sol_count]) {
                                     let parts = sol[sol_count][i].split(",");
