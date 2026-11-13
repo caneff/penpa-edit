@@ -2073,11 +2073,13 @@ class Puzzle {
         }
 
         // No need to save replay information in edit link
+        // caneff: keep the live replay stack and restore it after the link is made (#22)
+        var are = this.pu_a.command_replay.__a;
         this.pu_a.command_replay.__a = [];
-        this.pu_a_col.command_replay.__a;
 
         text += JSON.stringify(this.pu_q) + "\n";
         text += JSON.stringify(this.pu_a) + "\n";
+        this.pu_a.command_replay.__a = are;
 
         if (document.getElementById("save_undo").checked === false) {
             this.pu_q.command_redo.__a = qr;
@@ -2101,8 +2103,12 @@ class Puzzle {
             this.pu_a_col.command_undo.__a = [];
         }
 
+        // caneff: the colour replay stays out of the link too, then is restored (#22)
+        var are_col = this.pu_a_col.command_replay.__a;
+        this.pu_a_col.command_replay.__a = [];
         text += JSON.stringify(this.pu_q_col) + "\n";
         text += JSON.stringify(this.pu_a_col) + "\n";
+        this.pu_a_col.command_replay.__a = are_col;
 
         if (document.getElementById("save_undo").checked === false) {
             this.pu_q_col.command_redo.__a = qr;
