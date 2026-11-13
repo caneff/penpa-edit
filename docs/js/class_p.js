@@ -2073,7 +2073,7 @@ class Puzzle {
         }
 
         // No need to save replay information in edit link
-        // caneff: keep the live replay stack and restore it after the link is made (#22)
+        // caneff: the old code left the live replay emptied after making the link (#22)
         var are = this.pu_a.command_replay.__a;
         this.pu_a.command_replay.__a = [];
 
@@ -2103,7 +2103,7 @@ class Puzzle {
             this.pu_a_col.command_undo.__a = [];
         }
 
-        // caneff: the colour replay stays out of the link too, then is restored (#22)
+        // caneff: the colour replay went into the link and was never emptied (#22)
         var are_col = this.pu_a_col.command_replay.__a;
         this.pu_a_col.command_replay.__a = [];
         text += JSON.stringify(this.pu_q_col) + "\n";
