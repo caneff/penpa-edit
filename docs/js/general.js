@@ -2681,10 +2681,26 @@ async function load(urlParam, type = 'url', origurl = null) {
     }
 
     // Make sure we start a new group
-    pu.undoredo_counter++;
+    // caneff: make_class restarts the counter at 0, so it must pass the group ids the loaded stacks already hold
+    pu.undoredo_counter = largest_undo_group() + 1;
 
     // Make any backwards compatibility updates to the data we need for format changes
     pu.load_compat_fixes();
+}
+
+// caneff: the largest group id in any loaded undo, redo or replay entry (the id is entry[4])
+function largest_undo_group() {
+    let largest = 0;
+    for (const store of [pu.pu_q, pu.pu_a, pu.pu_q_col, pu.pu_a_col]) {
+        for (const stack of [store.command_undo, store.command_redo, store.command_replay]) {
+            for (const entry of stack.__a) {
+                if (entry[4] > largest) {
+                    largest = entry[4];
+                }
+            }
+        }
+    }
+    return largest;
 }
 
 function loadver1(paramArray, rtext) {
