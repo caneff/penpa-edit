@@ -67,6 +67,7 @@ async function boot() {
 // caneff: shown in place of a dead page when boot() throws
 function bootFailed(e) {
     errorMsg(PenpaText.get('link_load_failed') + "<br>" + DOMPurify.sanitize(String(e)));
+    boot_parameters(); // caneff: the failed link left its own size in the inputs, which would fail make_class again
     create();
 }
 
@@ -451,8 +452,9 @@ function make_class(gridtype, loadtype = 'new') {
             var space4 = parseInt(document.getElementById("nb_space4").value, 10);
             document.getElementById("nb_sudoku3_lb").style.display = "inline";
             document.getElementById("nb_sudoku3_lb").innerHTML = PenpaText.get('nb_sudoku_lb_square');
-            // caneff: a saved link holds a board that was built, such as a one-row Firefly (2 rows, 1 + 1 space), so only a new board checks its spaces
-            if (nx <= gridmax['square'] && nx > 0 && ny <= gridmax['square'] && ny > 0 && (loadtype === 'url' || (space1 + space2 < ny && space3 + space4 < nx))) {
+            // caneff: the Firefly padding of a one-row board fills its rows exactly, which a new board may not
+            var spacesFit = (loadtype === 'url') ? (space1 + space2 <= ny && space3 + space4 <= nx) : (space1 + space2 < ny && space3 + space4 < nx);
+            if (nx <= gridmax['square'] && nx > 0 && ny <= gridmax['square'] && ny > 0 && spacesFit) {
                 pu = new Puzzle_square(nx, ny, size);
             } else {
                 errorMsg(PenpaText.get('size_warning_square', gridmax['square']));
