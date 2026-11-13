@@ -54,8 +54,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
-  merges upstream nightly and pushes only when both pass on the merged tree; otherwise it files or comments on one
-  issue, "Nightly upstream merge failed". Its run summary lists the upstream commits that touched an owned file.
+  merges upstream nightly and pushes only when both pass on the merged tree.
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
   Mocha page stays as `npm run test:browser`; it is not part of the seam.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
