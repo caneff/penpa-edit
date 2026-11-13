@@ -176,6 +176,7 @@ class Conflicts {
                         const el2 = data[kk][ll];
                         if (el2 == undefined) continue;
 
+                        // caneff: compare as strings, a digit is a number here.
                         if (alphabet) {
                             if (String(el2).toLowerCase() === String(el).toLowerCase())
                                 this.add_conflict(ll, kk);

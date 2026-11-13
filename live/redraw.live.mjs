@@ -8,7 +8,7 @@ const browser = useBrowser()
 // Runs in the page. Redraws the board of a 4x4 sudoku tagged `tags` holding a large black `value` in its top two
 // cells, after `breakCheck` makes `pu.check_solution` throw. Returns how many times `pu.draw` ran, the
 // `console.error` messages `redraw` logged (swallowed here, so `useBrowser` does not count them as a failure) and
-// how many canvas pixels are not white.
+// how many canvas pixels are not white and the cells `pu.conflict_cells` flagged as [x, y].
 function redrawInPage ({ tags, value, breakCheck }) {
   document.getElementById('nb_size1').value = 4
   document.getElementById('nb_size2').value = 4
@@ -33,7 +33,7 @@ function redrawInPage ({ tags, value, breakCheck }) {
   const { data } = pu.ctx.getImageData(0, 0, pu.canvas.width, pu.canvas.height)
   let inked = 0
   for (let i = 0; i < data.length; i += 4) if (data[i] !== 255 || data[i + 1] !== 255 || data[i + 2] !== 255) inked++
-  return { draws, logged, inked }
+  return { draws, logged, inked, conflicts: pu.conflict_cells.map((i) => pu.conflicts.index_to_xy(i)) }
 }
 
 describe('redraw', () => {
@@ -43,8 +43,9 @@ describe('redraw', () => {
   const redraw = (args) => opened.page.evaluate(redrawInPage, args)
 
   it('keeps the board drawn when a digit is typed in an alphabet sudoku', async () => {
-    const { draws, logged, inked } = await redraw({ tags: ['alphabet', 'classic'], value: '1' })
+    const { draws, logged, inked, conflicts } = await redraw({ tags: ['alphabet', 'classic'], value: '1' })
     assert.deepEqual(logged, [])
+    assert.deepEqual(conflicts, [[0, 0], [1, 0]])
     assert.notEqual(draws, 0, "pu.draw ran")
     assert.ok(inked > 0, 'the board has non-white pixels')
   })
