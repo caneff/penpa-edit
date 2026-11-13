@@ -7,6 +7,7 @@
 // - tier B, the smallest of upstream's puzz.link imports per genre in the mode the import opens in, and a Penpa+ board
 //   of each grid class no import builds. A genre whose smallest import does not record (its solve link does not boot)
 //   takes its next smallest, and the header's `import` names the one taken.
+// The header's `tier` (`A` or `B`) marks a recording as generated.
 import { execFileSync } from 'node:child_process'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
@@ -199,6 +200,7 @@ async function tierA (browser) {
   const pairs = await page.evaluate(tierAInPage, SHAPE_TOOLS).finally(() => context.close())
   return pairs.map((pair) => ({
     id: `${FAMILY[pair.mode]}/${slug([pair.mode, pair.name].filter(Boolean).join(' '))}`,
+    tier: 'A',
     boards: [async () => ({ query })],
     act: (page) => inMode(page, pair)
   }))
@@ -262,6 +264,7 @@ async function tierB (browser) {
   for (const { genre, imports } of importsPerGenre()) {
     recordings.push({
       id: `genre/${slug(genre)}`,
+      tier: 'B',
       boards: imports.map(({ name, url }) => async () => {
         let full = false
         const query = await solveLink(browser, async (p) => {
@@ -279,7 +282,7 @@ async function tierB (browser) {
     const { context, page } = await openPenpa(browser, query)
     const modes = await settle(() => page.evaluate(shownModesInPage)).finally(() => context.close())
     for (const mode of modes) {
-      recordings.push({ id: `grid/${grid}-${mode}`, boards: [async () => ({ query })], act: (p) => inMode(p, { mode }) })
+      recordings.push({ id: `grid/${grid}-${mode}`, tier: 'B', boards: [async () => ({ query })], act: (p) => inMode(p, { mode }) })
     }
   }
   return recordings
@@ -287,13 +290,13 @@ async function tierB (browser) {
 
 // Records on the first of `boards` there is one of and whose link boots, naming each one that did not boot. Any other
 // failure is the recording's own and is thrown.
-async function recordOnFirst (browser, { id, boards, act }) {
+async function recordOnFirst (browser, { id, tier, boards, act }) {
   for (const board of boards) {
     const made = await board()
     if (!made) continue
     const { query, name } = made
     try {
-      return await record(browser, query, act, name ? { import: name } : {})
+      return await record(browser, query, act, name ? { tier, import: name } : { tier })
     } catch (e) {
       if (!(e instanceof NoBoot)) throw e
       console.log(`${id}: its board${name ? ` ${name}` : ''} did not boot: ${e.message.split('\n')[0]}`)

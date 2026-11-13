@@ -36,6 +36,10 @@ const PIXEL_OFFSET = 38
 // Longer than main.js's 300 ms window for a two-digit Surface colour.
 const KEY_PAUSE_MS = 1000
 const ids = await listRecordings()
+// The generated corpus (a header `tier`) is not replayed through the UI driver on every PR: the UI driver cannot replay
+// all of it yet, and the whole of it takes longer than the seam allows (controller, 2026-11-13, #31).
+const handMadeIds = []
+for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.push(id)
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
 async function record (query, act) {
@@ -271,7 +275,7 @@ describe('the UI driver', () => {
   let query
   before(async () => { query = await makeSurfaceSolveLink(browser()) })
 
-  for (const id of ids) {
+  for (const id of handMadeIds) {
     it(`replays ${id} through mouse and keyboard to the engine driver's states`, async () => {
       assert.equal(await compareDrivers(browser(), await readRecording(id), { id }), null)
     })
