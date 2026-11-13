@@ -34,9 +34,11 @@
  *      Round 3: styles are back to one button each (colour swatch, or a drawn sample for thin / dotted / fat dots /
  *      ...; the name is the title); the open picker list sits in the card's flow and pushes the sub-mode and style
  *      controls down; the Mouse card is as tall as its content, and the Tool card follows it while neither was moved.
- *      A "Recent" row under the mode field: up to 5 recently used tools (mode + sub-mode, with their last style),
- *      most recent first, without the current tool or one matching a pin; a button goes to it, its pin icon pins it;
- *      not in the Tab cycle; kept per puzzle under `proto-L-recent-v2:<hash of p=>`.
+ *      Recent (round 4: its own desk card, left column under Pinned modes; Chris: "Recent tools should be its own
+ *      window"): up to 5 recently used tools (mode + sub-mode, with their last style), most recent first, without the
+ *      current tool or one matching a pin, as full-width rows; a row goes to its tool, its pin icon pins it; not in
+ *      the Tab cycle; kept per puzzle under `proto-L-recent-v2:<hash of p=>`. Empty, it shows one muted line.
+ *      Layout key `proto-L-layout-v3` (v2 had no Recent card).
  *      Chris: "if a sub mode has no style options we should just show the pulldown of other sub modes": a tool with
  *      no style shows only the sub-mode pulldown (any count of 2+), and no options area at all when it has neither.
  *      Composite tools get the line / edge styles Penpa shows for them (class_p.js subcombimode).
@@ -66,7 +68,7 @@
 (function() {
     'use strict';
 
-    const LS_LAYOUT = 'proto-L-layout-v2'; // v1 had six cards
+    const LS_LAYOUT = 'proto-L-layout-v3'; // v1: six cards; v2: five; v3 (round 4): Recent is its own card
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v2:'; // v2: a pin is {mode, sub, style}; v1 held bare modes
     const LS_RECENT = 'proto-L-recent-v2:';
@@ -500,7 +502,8 @@
                 };
                 return {
                     pins: {x: 14, y: 12},
-                    rules: {x: 14, y: 12 + h('pins') + gap},
+                    recent: {x: 14, y: 12 + h('pins') + gap},
+                    rules: {x: 14, y: 12 + h('pins') + h('recent') + 2 * gap},
                     board: {x: 340, y: 12},
                     mouse: {x: right, y: 12},
                     tool: {x: right, y: 12 + h('mouse') + gap}
@@ -616,6 +619,9 @@
                 const p = layout[c.id] || defaults()[c.id] || {x: 20, y: 20};
                 c.card.style.left = p.x + 'px';
                 c.card.style.top = p.y + 'px';
+                if (c.id === 'rules') {
+                    c.body.style.maxHeight = Math.max(120, desk.clientHeight - p.y - c.head.offsetHeight - 14) + 'px';
+                }
             }
 
             function placeAll() {
@@ -674,6 +680,8 @@
             const mouseCard = makeCard('mouse', 'Mouse');
             const pinsCard = makeCard('pins', 'Pinned modes');
             const toolCard = makeCard('tool', 'Tool');
+            // Round 4 (Chris: "Recent tools should be its own window i think"): Recent is a desk card of its own.
+            const recentCard = makeCard('recent', 'Recent');
             const rulesCard = makeCard('rules', 'Rules');
             rulesCard.body.innerHTML = info.rules || '<em>No rules in this link.</em>';
             placeAll();
@@ -1167,9 +1175,7 @@
             const pickMode = el('span', {class: 'proto-l-pickmode'});
             const toolOpts = el('div', {class: 'proto-l-toolopts'});
             toolCard.body.appendChild(el('div', {class: 'proto-l-sub'}, ['Mode: ', pickMode]));
-            const recentRow = el('div', {class: 'proto-l-recent'});
             toolCard.body.appendChild(picker);
-            toolCard.body.appendChild(recentRow);
             toolCard.body.appendChild(toolOpts);
 
             // ---- Recent: the last tools used, each a {mode, sub, style} like a pin, most recent first, without the
@@ -1203,17 +1209,17 @@
                 'd="M10.5 1.5l4 4-1.6.6-2.6 2.6.3 3.5-1.1 1.1-2.9-2.9-3.7 3.7-.7-.7 3.7-3.7-2.9-2.9 1.1-1.1 3.5.3 2.6-2.6z"/></svg>';
 
             function renderRecent(m) {
-                recentRow.textContent = '';
+                const body = recentCard.body;
+                body.textContent = '';
                 const cur = {mode: m.mode, sub: m.submode};
                 const shown = recents.filter(function(r) {
                     return !same(r, cur) && pinIndexOf(r) === -1 && validPair(r);
                 }).slice(0, 5);
                 if (!shown.length) {
-                    recentRow.hidden = true;
+                    // The card stays, so the layout does not jump.
+                    body.appendChild(el('div', {class: 'proto-l-note proto-l-recentempty'}, ['Modes you use appear here']));
                     return;
                 }
-                recentRow.hidden = false;
-                recentRow.appendChild(el('span', {class: 'proto-l-optlabel'}, ['Recent']));
                 const list = el('div', {class: 'proto-l-recentlist'});
                 shown.forEach(function(r) {
                     const b = btn('proto-l-recentbtn', '', function(e) {
@@ -1232,7 +1238,7 @@
                     b.appendChild(pin);
                     list.appendChild(b);
                 });
-                recentRow.appendChild(list);
+                body.appendChild(list);
             }
             let pickOpen = false;
             let active = -1;
@@ -1266,7 +1272,7 @@
              */
             function sizePicker() {
                 const top = pickInput.getBoundingClientRect().bottom;
-                const room = window.innerHeight - top - recentRow.offsetHeight - toolOpts.offsetHeight - 40;
+                const room = window.innerHeight - top - toolOpts.offsetHeight - 40;
                 pickList.style.maxHeight = Math.max(160, Math.min(470, room)) + 'px';
             }
 
@@ -1640,14 +1646,17 @@
             }
 
             /**
-             * Round 3: the Mouse and Pins cards size to their content. While the solver has moved neither card of a
-             * column, the card below follows the one above it (Tool under Mouse, Rules under Pins).
+             * Round 3: cards size to their content. While the solver has moved neither of two stacked cards, the lower
+             * one follows the upper (Tool under Mouse; Recent under Pins; Rules under Recent).
              */
             function reflow() {
                 if (!layout.mouse && !layout.tool) {
                     place(cards.tool);
                 }
-                if (!layout.pins && !layout.rules) {
+                if (!layout.pins && !layout.recent) {
+                    place(cards.recent);
+                }
+                if (!layout.recent && !layout.rules) {
                     place(cards.rules);
                 }
             }
