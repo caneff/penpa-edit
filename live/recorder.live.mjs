@@ -31,7 +31,7 @@ describe('the recorder', () => {
       const { name, recording } = await downloadRecording(page)
 
       assert.equal(name, 'recording.steps.json')
-      assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 1 })
+      assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 2 })
       assert.deepEqual(recording.final, await page.evaluate(() => readEngineState()), 'the final board is the page\'s state')
       const steps = recording.steps
       const moves = steps.filter((s) => s.kind === 'pointer' && s.action === 'move')
@@ -46,7 +46,7 @@ describe('the recorder', () => {
         { kind: 'pointer', action: 'up', button: null, ctrl: false, num: cells[1] },
         { kind: 'undo' },
         { kind: 'redo' },
-        { kind: 'mode', mode: 'number', submode: '1', style: 2 },
+        { kind: 'mode', mode: 'number', submode: '1', style: 2, orientation: 'R' },
         { kind: 'pointer', action: 'down', button: 'left', ctrl: false, num: cells[2] },
         { kind: 'pointer', action: 'up', button: null, ctrl: false, num: cells[2] },
         { kind: 'key', call: 'key_number', args: ['3'] }
@@ -56,6 +56,64 @@ describe('the recorder', () => {
       // The click lands on a whole page pixel, so its board position is within one unit of the cell's centre.
       assert.deepEqual([down.x, down.y].map((v, i) => Math.abs(v - point[i]) <= 1), [true, true],
         `a pointer step is in board units: ${[down.x, down.y]} near ${point}`)
+    } finally {
+      await context.close()
+    }
+  })
+
+  // The tool lists are hidden until their dialog opens; `window_click` in `main.js` reads only the mousedown's target.
+  it('writes a Shape or Composite tool choice and a number orientation as mode changes', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.click('#mo_symbol_lb')
+      await page.dispatchEvent('#ms_star', 'mousedown')
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await page.click('#mo_number_lb')
+      await page.click('#rot_D_lb')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'mode').map(({ mode, submode, orientation }) => [mode, submode, orientation]), [
+        ['symbol', 'circle_L', undefined],
+        ['symbol', 'star', undefined],
+        ['combi', 'battleship', undefined],
+        ['combi', 'akari', undefined],
+        ['number', '1', 'R'],
+        ['number', '1', 'D']
+      ])
+    } finally {
+      await context.close()
+    }
+  })
+
+  // `main.js` clears and fills the selection itself on these keys, with no engine call.
+  it('writes Escape and Ctrl+A as selection steps', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.click('#mo_number_lb')
+      await clickCell(page, NUMBER_CELL)
+      await page.keyboard.press('Escape')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.press('Escape')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'select'), [
+        { kind: 'select', cells: 'none' },
+        { kind: 'select', cells: 'all' },
+        { kind: 'select', cells: 'none' }
+      ])
+    } finally {
+      await context.close()
+    }
+  })
+
+  // A page script stands in for a key `main.js` might one day give a selection to with no engine call.
+  it('refuses a key that leaves a selection neither empty nor whole', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.evaluate(() => document.addEventListener('keydown', (e) => { if (e.key === 'F2') pu.selection = [pu.centerlist[0]] }))
+      await page.click('#mo_number_lb')
+      await page.keyboard.press('F2')
+      const steps = (await downloadRecording(page)).recording.steps
+      assert.deepEqual(steps.filter((s) => s.kind === 'unsupported'), [{ kind: 'unsupported', what: 'a selection change by key' }])
     } finally {
       await context.close()
     }

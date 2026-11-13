@@ -50,7 +50,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs` and `live/fuzz.mjs`), replays every
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/fuzz.mjs` and `live/puzzlink-cases.mjs`), replays every
   recording under `live/recordings/` on the engine driver against its expected file (one with none fails) and on the UI
   driver against the engine driver (`live/replay.mjs`), and fuzzes a few puzzles with fixed seeds against the solving
   invariants, saving a failing run as a recording under `live/recordings/fuzz/`. In both commands, a page error or

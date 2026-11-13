@@ -20,6 +20,8 @@ const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
 const MAIN = fileURLToPath(new URL('../docs/js/main.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
+// The branch of `maketext_duplicate` that keeps the answer's undo stack in a solve-mode duplicate link.
+const KEEP_UNDO = /(maketext_duplicate\(\) \{[\s\S]*?)\/\/ Retain undo in solve mode/
 // The colour argument of the `set_surface` call in `re_surface_twobutton` that a left click on an empty cell runs.
 const SHADE_COLOR = /(re_surface_twobutton\(num\) \{[^}]*\} else \{\s*let cc = this\.get_surface_color\(color\);\s*this\.set_surface\(num, )color(, cc\);)/
 // Indices in `pu.centerlist` of the cells the recorded solve right-clicks, Ctrl-clicks and drags across.
@@ -34,6 +36,10 @@ const PIXEL_OFFSET = 38
 // Longer than main.js's 300 ms window for a two-digit Surface colour.
 const KEY_PAUSE_MS = 1000
 const ids = await listRecordings()
+// The generated corpus (a header `tier`) is not replayed through the UI driver on every PR: the UI driver cannot replay
+// all of it yet, and the whole of it takes longer than the seam allows (controller, 2026-11-13, #31).
+const handMadeIds = []
+for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.push(id)
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
 async function record (query, act) {
@@ -75,19 +81,82 @@ describe('the engine driver', () => {
     assert.equal(checkpoints.at(-1).state, state)
   })
 
-  // Escape clears the selection in `main.js` without an engine call, so the recorder has no step for it.
-  it('refuses a recording whose replay ends on a board the recording page did not reach', async () => {
+  it('checks the board the link loads before the first step', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    let loaded
+    try {
+      loaded = await page.evaluate(readEngineState).then(canonicalState)
+    } finally {
+      await context.close()
+    }
+    const { checkpoints } = await replay(browser(), { header: { source: query }, steps: [{ kind: 'undo' }] })
+    assert.deepEqual(checkpoints[0], { step: 0, state: loaded })
+  })
+
+  it('replays a Shape and a Composite tool choice and a number orientation', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_symbol_lb')
+      await page.dispatchEvent('#ms_star', 'mousedown')
+      await clickCell(page, ANSWER_CELLS[0])
+      await page.keyboard.press('2')
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await clickCell(page, RIGHT_CELL)
+      await page.click('#mo_number_lb')
+      await page.click('#rot_D_lb')
+      await clickCell(page, CTRL_CELL)
+      await page.keyboard.press('3')
+    })
+    assert.match(state, /^pu_a\.symbol\.\d+ = \[\d+,"star",\d+\]$/m, 'the recording page placed a star (the premise)')
+    assert.match(state, /^pu_a\.number\.\d+ = \["3",\d+,"1","D"\]$/m, 'the digit is turned down (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
+  // `re_combi_akari_up_reduced` runs only once `main.js` has copied the mouse's `ondown_key` onto `pu` on a mousedown.
+  it('replays a Composite click that behaves one way for a mouse and another for touch', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_combi_lb')
+      await page.dispatchEvent('#combisub_akari', 'mousedown')
+      await clickCell(page, RIGHT_CELL)
+      await clickCell(page, RIGHT_CELL)
+    })
+    assert.doesNotMatch(state, /^pu_a\.symbol\.\d+ = /m, 'the second click took the bulb away and left no dot (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
+  it('replays Escape and Ctrl+A', async () => {
     const { state, recording } = await record(query, async (page) => {
       await page.click('#mo_number_lb')
       await clickCell(page, CTRL_CELL)
       await page.keyboard.press('Escape')
       await page.keyboard.press('3')
+      await page.keyboard.press('Control+a')
+      await page.keyboard.press('4')
+    })
+    assert.doesNotMatch(state, /^pu_a\.number\.\d+ = \["3"/m, 'the 3 went nowhere on the recording page (the premise)')
+    assert.match(state, /^selection = \[(\d+,){15}\d+\]$/m, 'Ctrl+A selected all 16 cells (the premise)')
+    const { checkpoints, report } = await replay(browser(), recording)
+    assert.equal(report, null)
+    assert.equal(checkpoints.at(-1).state, state)
+  })
+
+  // A script's write to `pu` stands in for an input the recorder does not see.
+  it('refuses a recording whose replay ends on a board the recording page did not reach', async () => {
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_number_lb')
+      await clickCell(page, CTRL_CELL)
+      await page.evaluate(() => { pu.selection = [] })
+      await page.keyboard.press('3')
     })
     assert.doesNotMatch(state, /^pu_a\.number\.\d+ = /m, 'the digit went nowhere on the recording page (the premise)')
-    const { report } = await replay(browser(), recording, { id: 'escape' })
+    const { report } = await replay(browser(), recording, { id: 'unseen' })
     assert.notEqual(report, null, 'the replay is refused')
-    assert.match(report, /^escape: the replay ends on a board the recording page did not reach/)
-    assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"\]$/m)
+    assert.match(report, /^unseen: the replay ends on a board the recording page did not reach/)
+    assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"/m)
   })
 
   for (const id of ids) {
@@ -138,6 +207,41 @@ describe('the engine driver', () => {
     }
   })
 
+  // `main.js`'s `onload` boots the page; the duplicate's page never runs it, so `pu` never exists there.
+  it('reports a duplicate link whose page never loads', { timeout: 90000 }, async () => {
+    const { report } = await replay(browser(), { header: { source: query }, steps: [] }, {
+      id: 'noload',
+      setup: (context) => context.addInitScript(() => {
+        if (location.hash.includes('l=solvedup')) Object.defineProperty(window, 'onload', { set () {}, get () { return null } })
+      })
+    })
+    assert.match(report ?? '', /^noload: step 0 \(the board the link loads\): its duplicate link did not load: /)
+  })
+
+  describe('with a duplicate link that drops the undo stack', () => {
+    let planted
+    before(async () => {
+      const source = await readFile(CLASS_P, 'utf8')
+      planted = source.replace(KEEP_UNDO, '$1this.pu_a.command_undo.__a = [];')
+      assert.notEqual(planted, source, 'the line to plant in is in class_p.js')
+    })
+
+    it('reports the first checkpoint whose duplicate link loads a different board', async () => {
+      const { report } = await replay(browser(), await readRecording(SURFACE_ID), {
+        id: SURFACE_ID,
+        expected: await readExpected(SURFACE_ID),
+        served: true,
+        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+          contentType: 'text/javascript', body: planted
+        }))
+      })
+      assert.notEqual(report, null, 'the planted loss fails the replay')
+      const lines = report.split('\n')
+      assert.match(lines[0], new RegExp(`^${SURFACE_ID}: step \\d+ \\(up at point \\d+\\): its duplicate link loads a different board$`))
+      assert.ok(lines.includes('  pu_a.command_undo.length: 1 → 0'), report)
+    })
+  })
+
   describe('with a planted change in the Surface handler', () => {
     let planted
     before(async () => {
@@ -171,7 +275,7 @@ describe('the UI driver', () => {
   let query
   before(async () => { query = await makeSurfaceSolveLink(browser()) })
 
-  for (const id of ids) {
+  for (const id of handMadeIds) {
     it(`replays ${id} through mouse and keyboard to the engine driver's states`, async () => {
       assert.equal(await compareDrivers(browser(), await readRecording(id), { id }), null)
     })

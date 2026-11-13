@@ -2,7 +2,7 @@
 // (GLOSSARY.md) and offers them as a download, with the engine state they reached as its final board. Without the
 // flag it does nothing. The format is `live/replay.mjs`'s, and so is the check that a replay reaches that board: a
 // recording whose board did not start from its link (saved progress, settings cookies, a second board) or that holds an
-// input the recorder does not see (Escape, Ctrl+A) fails it.
+// input the recorder does not see (a script's write to `pu`) fails it.
 // The engine fields canonical state (`live/canonical-state.mjs`) is written from, as plain JSON data, so a state read
 // from a live page and one read back from a recording file are the same. The timer and the progress kept in storage
 // under `md5(pu.url)` are never read. Global, so the live tests read the page with the same function.
@@ -24,10 +24,11 @@ function readEngineState() {
 (function () {
     if (!/(^|&)record=1(&|$)/.test(location.search.slice(1))) return;
 
-    const RECORDER_VERSION = 1;
+    const RECORDER_VERSION = 2;
     const FILE_NAME = 'recording.steps.json';
     const KEY_CALLS = ['key_number', 'key_space', 'key_shiftspace', 'key_backspace', 'key_arrow'];
-    const MODE_CALLS = ['mode_set', 'submode_check', 'stylemode_check'];
+    // `subsymbolmode` and `subcombimode` keep the Shape or Composite tool where other modes keep their sub-mode.
+    const MODE_CALLS = ['mode_set', 'submode_check', 'stylemode_check', 'subsymbolmode', 'subcombimode', 'set_orientation'];
     // The modes in which Alt starts a rectangle selection on a square grid (`handle_rect_mousedown` in class_p.js).
     const RECT_SELECT_MODES = ['sudoku', 'number', 'surface', 'multicolor'];
     // A solver's input arrives by one of these. Listening in the capture phase on `window` wraps a new `pu` before
@@ -54,10 +55,11 @@ function readEngineState() {
         return { kind: 'pointer', action, button: buttonName, ctrl, x, y, num };
     }
 
+    // Only Number's third element is an orientation; other modes keep a custom colour there.
     function modeStep(p) {
         const mode = p.mode[p.mode.qa].edit_mode;
-        const [submode, style] = p.mode[p.mode.qa][mode];
-        return { kind: 'mode', mode, submode, style };
+        const [submode, style, orientation] = p.mode[p.mode.qa][mode];
+        return mode === 'number' ? { kind: 'mode', mode, submode, style, orientation } : { kind: 'mode', mode, submode, style };
     }
 
     // `before` makes the step from the state at the call, `after` from the state the call left.
@@ -125,7 +127,31 @@ function readEngineState() {
         showCount();
     }
 
+    // Escape and Ctrl+A change the selection in `main.js` with no engine call, so a key that changed the selection
+    // and made no step is recorded as one of them, and refused if the selection it left is neither none nor all.
+    // Capture runs before `main.js`'s keydown handler on `document`, and the bubble listener on `window` after it.
+    let beforeKey = null;
+    function noteSelection() {
+        beforeKey = hookedPu ? { selection: hookedPu.selection.slice(), steps: steps.length } : null;
+    }
+    function selectStep() {
+        const before = beforeKey;
+        beforeKey = null;
+        if (!before || pu !== hookedPu || steps.length !== before.steps) return;
+        const selection = pu.selection;
+        if (selection.length === before.selection.length && selection.every((n, i) => n === before.selection[i])) return;
+        if (!selection.length) {
+            record({ kind: 'select', cells: 'none' });
+        } else if (selection.length === pu.centerlist.length && pu.centerlist.every((n, i) => n === selection[i])) {
+            record({ kind: 'select', cells: 'all' });
+        } else {
+            record({ kind: 'unsupported', what: 'a selection change by key' });
+        }
+    }
+
     for (const type of INPUT_EVENTS) window.addEventListener(type, hook, true);
+    window.addEventListener('keydown', noteSelection, true);
+    window.addEventListener('keydown', selectStep);
     if (document.body) {
         addButton();
     } else {

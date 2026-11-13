@@ -2,7 +2,8 @@
 // UI driver, through Playwright's mouse and keyboard. Not a check itself, so `live/**/*.live.mjs` skips
 // it.
 //
-// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family, or
+// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family,
+// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`), or
 // `fuzz` for a failing run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
 // (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the recorder's
 // version), `final` (the recording page's engine state once the steps were made, as `readEngineState` reads it) and its
@@ -10,25 +11,31 @@
 //   { kind: 'pointer', action: 'down' | 'move' | 'up' | 'out' | 'double', button: 'left' | 'right' | null, ctrl, x, y, num }
 //     with `x, y` in board units and `num` an index of `pu.point`;
 //   { kind: 'key', call, args }, `call` one of `pu`'s `key_*` methods;
-//   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change;
+//   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change, `submode` being
+//     the tool in Shape and Composite, and Number's step adding its `orientation`;
+//   { kind: 'select', cells: 'none' | 'all' }, Escape and Ctrl+A, which `main.js` handles with no engine call;
 //   { kind: 'undo' } and { kind: 'redo' };
-//   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection), refused here.
-// Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
-// The fuzz writes `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
-// Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
-// and never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+//   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection, a key that
+//     changed the selection to neither none nor all), refused here.
+// Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know;
+// the generator also adds `import`, the name of the puzz.link import a genre's recording was made on. The fuzz writes
+// `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
+// Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
+// `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
-const RECORDINGS = new URL('./recordings/', import.meta.url)
+export const RECORDINGS = new URL('./recordings/', import.meta.url)
 const STEPS_SUFFIX = '.steps.json'
 const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
+// Duplicate-link pages one replay has open at once.
+const ROUND_TRIP_LANES = 4
 
 // Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
 export const ANSWER_CELLS = [5, 9]
@@ -42,22 +49,31 @@ function surfaceSolveLinkInPage (answerCells) {
   for (const box of [...document.getElementsByClassName('solcheck'), ...document.getElementsByClassName('solcheck_or')]) box.checked = false
   document.getElementById('sol_surface').checked = true
   for (const index of answerCells) pu.pu_a.surface[pu.centerlist[index]] = 1
-  const url = pu.maketext_solve_solution()
+  return pu.maketext_solve_solution()
+}
+
+// A link's `#` part, which holds its puzzle.
+export function linkHash (url) {
   return url.slice(url.indexOf('#'))
+}
+
+// The viewport pixel of point `num` of `pu.point`.
+export async function pointPixel (page, num) {
+  const board = await page.evaluate((num) => {
+    const { x, y } = pu.point[num]
+    return { x, y }
+  }, num)
+  return page.evaluate(boardPixelInPage, board)
 }
 
 // The viewport pixel of the centre of the cell at `index` of the center list.
 export async function cellPixel (page, index) {
-  const board = await page.evaluate((index) => {
-    const { x, y } = pu.point[pu.centerlist[index]]
-    return { x, y }
-  }, index)
-  return page.evaluate(boardPixelInPage, board)
+  return pointPixel(page, await page.evaluate((index) => pu.centerlist[index], index))
 }
 
 // The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
-export function makeSurfaceSolveLink (browser) {
-  return linkFromNewBoard(browser, surfaceSolveLinkInPage, ANSWER_CELLS)
+export async function makeSurfaceSolveLink (browser) {
+  return linkHash(await linkFromNewBoard(browser, surfaceSolveLinkInPage, ANSWER_CELLS))
 }
 
 // Opens `query`, a solve link's `#` part, with the recorder on, once its answer has loaded.
@@ -73,10 +89,11 @@ export async function clickCell (page, index, options) {
   await page.mouse.click(x, y, options)
 }
 
-// Clicks the recorder's download button on a `?record=1` page and returns the file's name and its recording.
+// Clicks the recorder's download button on a `?record=1` page and returns the file's name, its text and its recording.
 export async function downloadRecording (page) {
   const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
-  return { name: file.suggestedFilename(), recording: JSON.parse(await readFile(await file.path(), 'utf8')) }
+  const text = await readFile(await file.path(), 'utf8')
+  return { name: file.suggestedFilename(), text, recording: JSON.parse(text) }
 }
 
 // The id of every recording under `live/recordings/`, sorted.
@@ -113,6 +130,9 @@ function applyStepInPage (step) {
   switch (step.kind) {
     case 'pointer': {
       const { action, button, ctrl, x, y, num } = step
+      // `window_click` in main.js copies the device's press event onto `pu` at the first mousedown on the page, and
+      // some Composite tools act differently for a mouse than for touch once it has.
+      if (action === 'down' && !pu.ondown_key) pu.ondown_key = 'mousedown'
       if (action === 'down' || action === 'double') pu.select_remove = ctrl && pu.selection.indexOf(num) !== -1
       if (action === 'double') {
         pu.mouse_mode = 'down_left'
@@ -131,6 +151,13 @@ function applyStepInPage (step) {
       if (!/^key_/.test(step.call) || typeof pu[step.call] !== 'function') throw new Error(`no key call ${step.call}`)
       pu[step.call](...step.args)
       return
+    case 'select':
+      // What `main.js` does on Escape and Ctrl+A.
+      if (step.cells === 'none') pu.selection = []
+      else if (step.cells === 'all') pu.selection = pu.centerlist.slice()
+      else throw new Error(`no selection ${step.cells}`)
+      pu.redraw()
+      return
     case 'undo':
       pu.undo()
       return
@@ -142,25 +169,35 @@ function applyStepInPage (step) {
   }
 }
 
-// Runs in the page: the edit mode, and the sub-mode and style `mode` is set to.
+// Runs in the page: the edit mode, and the sub-mode, style and orientation `mode` is set to.
 function modeInPage (mode) {
-  const [submode, style] = pu.mode[pu.mode.qa][mode]
-  return { edit: pu.mode[pu.mode.qa].edit_mode, submode, style }
+  const [submode, style, orientation] = pu.mode[pu.mode.qa][mode]
+  return { edit: pu.mode[pu.mode.qa].edit_mode, submode, style, orientation }
 }
 
-// Switches to a mode step's mode, sub-mode and style, each only when it differs, so a step that repeats the current
-// choice makes no input. `choose` makes the input that chooses each: `mode` given the mode's name, `submode` and
-// `style` given the id `submode_check` and `stylemode_check` take, which is their radio button's in the mode panel.
+// Shape and Composite keep their tool where other modes keep their sub-mode, chosen from a list rather than a radio
+// button: `subsymbolmode` and `subcombimode`.
+const TOOL_MODES = ['symbol', 'combi']
+
+// Switches to a mode step's mode, sub-mode (or tool), style and orientation, each only when it differs, so a step that
+// repeats the current choice makes no input. `choose` makes the input that chooses each: `mode` given the mode's name,
+// `submode` and `style` given the id `submode_check` and `stylemode_check` take, which is their radio button's in the
+// mode panel, `tool` given the mode and the tool's name, and `orientation` given its direction.
 async function switchMode (page, step, choose) {
   // Multicolor keeps its styles under Surface's ids, as `mode_set` reads them.
   const styleIds = step.mode === 'multicolor' ? 'surface' : step.mode
   const now = () => page.evaluate(modeInPage, step.mode)
   if ((await now()).edit !== step.mode) await choose.mode(step.mode)
-  if ((await now()).submode !== step.submode) await choose.submode('sub_' + step.mode + step.submode)
+  if ((await now()).submode !== step.submode) {
+    if (TOOL_MODES.includes(step.mode)) await choose.tool(step.mode, step.submode)
+    else await choose.submode('sub_' + step.mode + step.submode)
+  }
   if ((await now()).style !== step.style) await choose.style('st_' + styleIds + step.style)
-  const { submode, style } = await now()
-  if (submode !== step.submode || style !== step.style) {
-    throw new Error(`mode ${step.mode} has no sub-mode ${step.submode} and style ${step.style} to switch to`)
+  if (step.orientation && (await now()).orientation !== step.orientation) await choose.orientation(step.orientation)
+  const { submode, style, orientation } = await now()
+  if (submode !== step.submode || style !== step.style || (step.orientation && orientation !== step.orientation)) {
+    const choice = step.orientation ? `sub-mode ${step.submode}, style ${step.style} and orientation ${step.orientation}` : `sub-mode ${step.submode} and style ${step.style}`
+    throw new Error(`mode ${step.mode} has no ${choice} to switch to`)
   }
 }
 
@@ -173,7 +210,9 @@ function startEngineDriver (page) {
   const choose = {
     mode: (mode) => page.evaluate((mode) => pu.mode_set(mode), mode),
     submode: (id) => page.evaluate((id) => pu.submode_check(id), id),
-    style: (id) => page.evaluate((id) => pu.stylemode_check(id), id)
+    tool: (mode, tool) => page.evaluate(([mode, tool]) => mode === 'symbol' ? pu.subsymbolmode(tool) : pu.subcombimode(tool), [mode, tool]),
+    style: (id) => page.evaluate((id) => pu.stylemode_check(id), id),
+    orientation: (direction) => page.evaluate((direction) => pu.set_orientation(direction), direction)
   }
   return (step) => step.kind === 'mode' ? switchMode(page, step, choose) : page.evaluate(applyStepInPage, step)
 }
@@ -288,6 +327,15 @@ function startUiDriver (page) {
     return switchMode(page, step, {
       mode: (name) => clickInPanel('mo_' + name),
       submode: clickInPanel,
+      // The tool lists are hidden until their dialog opens; `window_click` in `main.js` reads only the mousedown's
+      // target.
+      tool: async (mode, tool) => {
+        const id = `#${mode === 'symbol' ? 'ms_' : 'combisub_'}${tool}`
+        if (!await page.locator(id).count()) throw new Error(`no tool ${tool} in ${mode}`)
+        await page.dispatchEvent(id, 'mousedown')
+        mousePixel = null
+      },
+      orientation: (direction) => clickInPanel('rot_' + direction),
       style: (id) => {
         if (step.mode === 'multicolor') throw new Error('no input for a Multicolor style alone: its button makes a key call too')
         return clickInPanel(id)
@@ -305,6 +353,10 @@ function startUiDriver (page) {
         return page.keyboard.press(keyOf(step))
       case 'mode':
         return mode(step)
+      case 'select':
+        if (step.cells === 'none') return page.keyboard.press('Escape')
+        if (step.cells === 'all') return page.keyboard.press('Control+a')
+        break
       case 'undo':
         return page.keyboard.press('Control+z')
       case 'redo':
@@ -322,10 +374,17 @@ export function stepWords (step) {
     case 'key':
       return `${step.call}(${step.args.map((a) => JSON.stringify(a)).join(', ')})`
     case 'mode':
-      return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}`
+      return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}${step.orientation ? `, orientation ${step.orientation}` : ''}`
+    case 'select':
+      return `select ${step.cells}`
     default:
       return step.kind
   }
+}
+
+// Step 0 is no input: its checkpoint is the board the link loads.
+function checkpointWords (steps, n) {
+  return n === 0 ? 'the board the link loads' : stepWords(steps[n - 1])
 }
 
 // A checkpoint follows every step but the down and the moves of a gesture, so a gesture is compared once it has ended,
@@ -375,8 +434,8 @@ const AGAINST_ENGINE = {
 
 function failureReport ({ id, step, steps, since, want, got, errors, against }) {
   return [
-    `${id}: step ${step} (${stepWords(steps[step - 1])}) differs from ${against.source}`,
-    `  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`,
+    `${id}: step ${step} (${checkpointWords(steps, step)}) differs from ${against.source}`,
+    ...since.length ? [`  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`] : [],
     ...stateDiff({ want, got, wantName: against.wantName, gotName: against.gotName, errors })
   ].join('\n')
 }
@@ -393,15 +452,31 @@ function finalReport ({ id, recording, state, errors }) {
   ].join('\n')
 }
 
-// Replays `recording` through `driver` (the engine driver unless given) in a fresh page and returns its checkpoints.
-// With `expected` (as `readExpected` returns it, or another replay's checkpoints, named by `against`) it stops at the
-// first checkpoint that differs and returns the report of it. A replay that does not end on the recording's final
-// board is reported too; otherwise `report` is null. `served` and `setup` go to `openPenpa`.
+// Runs in the page: the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in general.js).
+function duplicateLinkInPage () {
+  return pu.maketext_duplicate() + '&l=solvedup'
+}
+
+// Lines a duplicate link drops by design, left out of the round trip's comparison: `maketext_duplicate` empties the
+// redo stacks (class_p.js), no link holds the selection, and the answer check sets `sol_flag` after an input, never on
+// load, so a duplicate of a solved board reads unsolved until its next input.
+const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection|sol_flag) = .*$/
+
+function withoutDuplicateDrops (state) {
+  return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
+}
+
+// Replays `recording` through `driver` (the engine driver unless given) in a fresh page and returns its checkpoints, the
+// first being step 0. With `expected` (as `readExpected` returns it, or another replay's checkpoints, named by
+// `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
+// every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board, less what
+// the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
+// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well.
 export async function replay (browser, recording, {
   id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
-  const { context, page, errors } = await openPenpa(browser, recording.header.source, {
+  const open = (query) => openPenpa(browser, query, {
     served,
     contextOptions: CONTEXT_OPTIONS,
     setup: async (c) => {
@@ -410,13 +485,69 @@ export async function replay (browser, recording, {
       await setup?.(c)
     }
   })
-  const read = () => page.evaluate(readEngineState).then(canonicalState)
-  const { steps } = recording
+  const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
+  const { context, page, errors } = await open(recording.header.source)
+  const read = () => readPage(page)
   const apply = driver.start(page)
+  // Each duplicate link checked so far, with the board it must load: a step that changed nothing gives the same pair.
+  const checked = new Set()
+  // The round trips under way, in step order, each resolving to its report or null. They run beside the replay in
+  // ROUND_TRIP_LANES lanes, each lane one after another, since each waits on a page load.
+  const roundTrips = []
+  const lanes = Array(ROUND_TRIP_LANES).fill(Promise.resolve())
+  // The report of how a fresh page that loads `link` differs from `want`, else null.
+  const loadDuplicate = async (n, link, want) => {
+    const words = `${id}: step ${n} (${checkpointWords(steps, n)})`
+    let fresh
+    try {
+      fresh = await open(linkHash(link))
+    } catch (e) {
+      return `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`
+    }
+    try {
+      const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
+      if (got === want) return null
+      return [
+        `${words}: its duplicate link loads a different board`,
+        ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
+      ].join('\n')
+    } finally {
+      await fresh.context.close()
+    }
+  }
+  // Starts the check that a fresh page loads the duplicate link of `state`, the board at checkpoint `n`, as `state`.
+  const startRoundTrip = async (n, state) => {
+    const link = await page.evaluate(duplicateLinkInPage)
+    const want = withoutDuplicateDrops(state)
+    if (checked.has(link + '\n' + want)) return
+    checked.add(link + '\n' + want)
+    const lane = roundTrips.length % ROUND_TRIP_LANES
+    const result = lanes[lane].then(() => loadDuplicate(n, link, want))
+    roundTrips.push(result)
+    // The next round trip in the lane waits for this one to end, whatever its result; `roundTrips` keeps the result.
+    lanes[lane] = result.catch(() => {})
+  }
+  const { steps } = recording
   const checkpoints = []
-  try {
-    // The board loads after `pu` exists; every later change is a step's input made below.
-    await settle(read)
+  // The report of the first way checkpoint `n` differs from what it is compared with, else null.
+  const checkpoint = async (n, since) => {
+    const want = expected?.[checkpoints.length]
+    if (expected && want?.step !== n) {
+      return `${id}: step ${n} is a checkpoint, where ${against.list} has ${want ? `step ${want.step}` : 'none'}`
+    }
+    // The board loads after `pu` exists, so step 0's read waits for it. Under the paused clock no page timer runs,
+    // so after a step the state is final, and `settle` only waits out a mismatch before it is reported.
+    const state = want ? await settle(read, want.state) : n === 0 ? await settle(read) : await read()
+    checkpoints.push({ step: n, state })
+    if (want && state !== want.state) return failureReport({ id, step: n, steps, since, want: want.state, got: state, errors, against })
+    // The duplicate link is the engine's, whichever input made the board, so the engine driver alone checks it.
+    if (driver === engineDriver) await startRoundTrip(n, state)
+    return null
+  }
+  // The report of the first way the replay differs from the expected file or the recording, else null.
+  const run = async () => {
+    const first = await checkpoint(0, [])
+    if (first) return first
     let since = []
     for (const [index, step] of steps.entries()) {
       const n = index + 1
@@ -429,24 +560,22 @@ export async function replay (browser, recording, {
         throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${message}`)
       }
       if (!isCheckpoint(driver, steps, n)) continue
-      const want = expected?.[checkpoints.length]
-      if (expected && want?.step !== n) {
-        return { checkpoints, report: `${id}: step ${n} is a checkpoint, where ${against.list} has ${want ? `step ${want.step}` : 'none'}` }
-      }
-      // Under the paused clock no page timer runs, so the state after the call is final; `settle` only waits out a
-      // mismatch before it is reported.
-      const state = want ? await settle(read, want.state) : await read()
-      checkpoints.push({ step: n, state })
-      if (want && state !== want.state) {
-        return { checkpoints, report: failureReport({ id, step: n, steps, since, want: want.state, got: state, errors, against }) }
-      }
+      const report = await checkpoint(n, since)
+      if (report) return report
       since = []
     }
     if (expected && expected.length > checkpoints.length) {
-      return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where ${against.list} has ${expected.length}` }
+      return `${id}: the replay ended after ${checkpoints.length} checkpoints, where ${against.list} has ${expected.length}`
     }
-    return { checkpoints, report: finalReport({ id, recording, state: checkpoints.at(-1).state, errors }) }
+    return finalReport({ id, recording, state: checkpoints.at(-1).state, errors })
+  }
+  try {
+    const report = await run()
+    // A round trip names an earlier checkpoint than any report the replay itself can make.
+    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report }
   } finally {
+    // A step that could not be replayed leaves round trips under way; none outlives the replay.
+    await Promise.allSettled(roundTrips)
     await context.close()
   }
 }
@@ -458,7 +587,7 @@ export async function compareDrivers (browser, recording, { id = 'recording', se
   const engine = await replay(browser, recording, { id, served, setup })
   if (engine.report) return engine.report
   const { steps } = recording
-  const expected = engine.checkpoints.filter(({ step }) => isCheckpoint(uiDriver, steps, step))
+  const expected = engine.checkpoints.filter(({ step }) => step === 0 || isCheckpoint(uiDriver, steps, step))
   const ui = await replay(browser, recording, { id, served, setup, driver: uiDriver, expected, against: AGAINST_ENGINE })
   return ui.report
 }
