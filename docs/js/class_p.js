@@ -1226,6 +1226,15 @@ class Puzzle {
 
         // Translate solution
         if (this.solution) {
+            // caneff: a solution entry is a cell index, an exact surface array [cell, color...], or a "cell,value" key such as "75,1E"
+            const translate_solution_cell = (entry) => {
+                if (Array.isArray(entry)) {
+                    return [translate_fn(entry[0]), ...entry.slice(1)];
+                }
+                let parts = entry.toString().split(",");
+                parts[0] = translate_fn(parts[0]);
+                return parts.join(",");
+            };
             let settingstatus_or = document.getElementById("answersetting").getElementsByClassName("solcheck_or");
 
             if (!this.multisolution) {
@@ -1235,7 +1244,7 @@ class Puzzle {
                         switch (parseInt(sol_count)) {
                             case 0: // shading
                                 for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                             case 1: // Line / FreeLine
@@ -1257,7 +1266,7 @@ class Puzzle {
                                 break;
                             case 5: // Symbol
                                 for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                         }
@@ -1280,19 +1289,17 @@ class Puzzle {
                         let sol_id = settingstatus_or[m].id.slice(7);
                         switch (sol_id) {
                             case "surface":
-                                for (let i in sol[sol_count]) {
-                                    sol[sol_count][i] = translate_fn(sol[sol_count][i]).toString();
-                                }
-                                break;
+                            case "surface_exact": // caneff: entries are [cell, color...]
                             case "number":
+                            case "math": // caneff: "cell,value" like number
                                 for (let i in sol[sol_count]) {
-                                    let parts = sol[sol_count][i].split(",");
-                                    parts[0] = translate_fn(parts[0]);
-                                    sol[sol_count][i] = parts.join(",");
+                                    sol[sol_count][i] = translate_solution_cell(sol[sol_count][i]);
                                 }
                                 break;
                             case "loopline":
+                            case "loopline_exact": // caneff: missing before
                             case "loopedge":
+                            case "loopedge_exact": // caneff: missing before
                             case "wall":
                                 for (let i in sol[sol_count]) {
                                     let parts = sol[sol_count][i].split(",");
@@ -1305,7 +1312,6 @@ class Puzzle {
                             case "circle":
                             case "tri":
                             case "arrow":
-                            case "math":
                             case "battleship":
                             case "tent":
                             case "star":
@@ -2541,7 +2547,8 @@ class Puzzle {
         if (found && this.gridtype === 'square') {
             // find out the grid position using the frame data
             // Note this section of code will work only if thick border frame exists
-            if (typeof this.row_start == "undefined") {
+            // caneff: always measured; the cached bounds went stale once the board was resized
+            {
                 // Find top left corner and bottom right corner
                 let topleft = 9999,
                     bottomright = 0,
