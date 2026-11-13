@@ -13428,7 +13428,7 @@ class Puzzle {
                         // document.getElementById("pu_a_label").style.backgroundColor = Color.GREY_LIGHT;
                     }
                 }
-                this.redraw(false, false);
+                // caneff: no redraw(false, false) here; redraw() draws after this returns (#23)
             }
         } else {
             var text = this.make_solution();
