@@ -18,7 +18,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   `location.href`; only its localhost / `file://` branch names upstream's address.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
-  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs` and `.github/workflows/`.
+  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/canonical-state.test.mjs` and `.github/workflows/`.
 - **`GLOSSARY.md`**: the vocabulary.
 - **Phones and tablets**: no change of ours is checked, styled or demonstrated at a phone or tablet size, and no ticket asks for it.
   Upstream's own phone support is left as it is.
@@ -45,11 +45,11 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 
 ## End-to-end seam
 
-- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`) and, once in headless Chromium
+- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`) and, once in headless Chromium
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs` and `live/settle.mjs`). In both, a page error or
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs` and `live/canonical-state.mjs`). In both, a page error or
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`.
