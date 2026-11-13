@@ -95,16 +95,14 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 
 .proto-l-card-board .proto-l-body { padding: 8px; overflow: visible; }
 .proto-l-card-pins { width: 310px; }
-.proto-l-card-pins .proto-l-body { height: 330px; box-sizing: border-box; }
-.proto-l-card-tool { width: 310px; }
-.proto-l-card-tool .proto-l-body { height: 180px; box-sizing: border-box; }
+.proto-l-card-pins .proto-l-body { min-height: 150px; overflow: visible; }
 .proto-l-card-rules { width: 310px; }
-.proto-l-card-rules .proto-l-body { height: 188px; box-sizing: border-box; font-size: 12.5px; color: #3b3e45; }
-.proto-l-card-mouse .proto-l-body { height: 250px; box-sizing: border-box; }
+.proto-l-card-rules .proto-l-body { max-height: 520px; font-size: 12.5px; color: #3b3e45; }
+.proto-l-card-tool { width: 414px; }
+.proto-l-card-tool .proto-l-body { overflow: visible; }
+.proto-l-card-mouse .proto-l-body { height: 290px; box-sizing: border-box; }
 .proto-l-card-mouse { width: 414px; border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
 .proto-l-card-mouse .proto-l-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
-.proto-l-card-browser { width: 414px; }
-.proto-l-card-browser .proto-l-body { height: 490px; box-sizing: border-box; display: flex; flex-direction: column; padding-bottom: 6px; }
 
 /* Buttons inside cards are light. */
 .proto-l-card .proto-l-body .proto-l-btn { color: #2b2f38; background: #fff; border-color: #cfcabd; }
@@ -151,23 +149,13 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-note { font-size: 11.5px; color: #77735f; margin: 6px 0; }
 .proto-l-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
 .proto-l-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; margin: 8px 0 4px; }
-.proto-l-presets { display: flex; flex-wrap: wrap; gap: 5px; }
-.proto-l-card .proto-l-body .proto-l-preset { padding: 3px 8px; font-size: 12px; }
-.proto-l-card .proto-l-body .proto-l-preset.is-saved { background: #fff6e0; border-color: #e3c77e; }
-.proto-l-saved { display: inline-flex; align-items: center; }
-.proto-l-saved .proto-l-unpin { padding: 0 4px; }
 .proto-l-input { font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; flex: 1; min-width: 0; }
 .proto-l-input:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
 
 /* ---- Tool settings ---- */
 .proto-l-toolname { font-weight: 700; font-size: 15px; }
-.proto-l-chips { display: flex; flex-wrap: wrap; gap: 4px; }
-.proto-l-card .proto-l-body .proto-l-chip { padding: 2px 7px; font-size: 12px; }
-.proto-l-card .proto-l-body .proto-l-chip.is-on { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
 
 /* ---- Mode browser ---- */
-.proto-l-search { flex: none; margin-bottom: 8px; padding: 6px 10px; }
-.proto-l-list { flex: 1; overflow: auto; margin: 0 -4px; padding: 0 4px; }
 .proto-l-group { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; margin: 10px 0 3px; }
 .proto-l-group:first-child { margin-top: 0; }
 .proto-l-entry {
@@ -186,3 +174,60 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-entry .proto-l-pinbtn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
 .proto-l-card .proto-l-body .proto-l-pinbtn { padding: 2px 9px; font-size: 12px; }
 .proto-l-card .proto-l-body .proto-l-pinbtn.is-pinned { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
+
+/* ---- Round 2: pulldowns ---- */
+.proto-l-pd { position: relative; display: inline-block; }
+.proto-l-card .proto-l-body .proto-l-pdbtn {
+    display: inline-flex; align-items: center; gap: 4px; min-width: 120px;
+    font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #2b2f38; cursor: pointer;
+}
+.proto-l-card .proto-l-body .proto-l-pdbtn:hover { background: #f1eee6; }
+.proto-l-pdlabel { flex: 1; text-align: left; white-space: nowrap; }
+.proto-l-caret { color: #8b8676; font-size: 11px; margin-left: 4px; }
+.proto-l-pdlist {
+    display: none; position: absolute; left: 0; top: calc(100% + 3px); z-index: 60; min-width: 100%;
+    max-height: 420px; overflow: auto; padding: 4px; background: #fff; border: 1px solid #cfcabd; border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(40, 35, 20, .22);
+}
+.proto-l-pd.is-open .proto-l-pdlist { display: block; }
+.proto-l-pd.is-open .proto-l-pdbtn { outline: 2px solid #3b6fd4; outline-offset: -1px; }
+.proto-l-pditem { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 5px; cursor: pointer; white-space: nowrap; }
+.proto-l-pditem:hover { background: #f0ede4; }
+.proto-l-pditem.is-on { background: #e3ebfb; box-shadow: inset 3px 0 0 #3b6fd4; }
+.proto-l-pdhead { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; padding: 6px 8px 2px; }
+.proto-l-pddetail { font-size: 11px; color: #8b8676; margin-left: 8px; }
+.proto-l-pdextra { display: inline-flex; align-items: center; gap: 4px; }
+.proto-l-card .proto-l-body .proto-l-pdx { padding: 0 6px; border: 0; background: transparent; color: #8b8676; }
+.proto-l-card .proto-l-body .proto-l-pdx:hover { background: rgba(0, 0, 0, .08); color: #222; }
+.proto-l-pdfoot { display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid #ece8de; margin-top: 4px; min-width: 300px; }
+.proto-l-pd-presets .proto-l-pdlist { min-width: 380px; }
+.proto-l-card-tool .proto-l-pd .proto-l-pdbtn { min-width: 200px; }
+
+/* Segmented row for 3 or fewer choices. */
+.proto-l-seg { display: inline-flex; justify-self: start; border: 1px solid #cfcabd; border-radius: 6px; overflow: hidden; }
+.proto-l-card .proto-l-body .proto-l-segbtn { border: 0; border-radius: 0; border-right: 1px solid #cfcabd; padding: 4px 12px; }
+.proto-l-card .proto-l-body .proto-l-segbtn:last-child { border-right: 0; }
+.proto-l-card .proto-l-body .proto-l-segbtn.is-on { background: #3b6fd4; color: #fff; }
+
+/* Tag chips (Penpa's own labels, often a genre name): searchable, never a group. */
+.proto-l-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; background: #efe7d2; color: #6b5a2c; font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; }
+
+/* ---- Round 2: Tool card ---- */
+.proto-l-pickmode { color: #2f5bb2; letter-spacing: 0; text-transform: none; font-size: 12px; }
+.proto-l-picker { position: relative; }
+.proto-l-pickfield { position: relative; }
+.proto-l-pickfield .proto-l-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.proto-l-search { display: block; width: 100%; box-sizing: border-box; padding: 7px 26px 7px 10px; font-size: 15px; font-weight: 600; }
+.proto-l-picker.is-open .proto-l-search { font-weight: 400; }
+.proto-l-list {
+    display: none; position: absolute; left: -6px; right: -6px; top: calc(100% + 4px); z-index: 60;
+    max-height: 470px; overflow: auto; padding: 6px 8px; background: #fff; border: 1px solid #cfcabd; border-radius: 8px;
+    box-shadow: 0 10px 28px rgba(40, 35, 20, .25);
+}
+.proto-l-picker.is-open .proto-l-list { display: block; }
+.proto-l-entry.is-active { outline: 2px solid #8aa6e0; outline-offset: -2px; }
+.proto-l-toolopts { margin-top: 10px; display: grid; gap: 8px; }
+.proto-l-opt { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px; }
+.proto-l-opt > .proto-l-pd { justify-self: start; }
+.proto-l-optlabel { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; }
+.proto-l-card.has-open { z-index: 800 !important; }

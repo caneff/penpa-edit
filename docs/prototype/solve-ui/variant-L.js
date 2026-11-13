@@ -4,9 +4,9 @@
  *
  * Built to Chris's rulings of 2026-11-13 (research/solve-ui-prototype-verdicts.md, last section), on the kept ideas of
  * I (the desk) and K (the mouse card):
- *   1. Desk: the board and five cards (Mouse, Pinned modes, Tool settings, Mode browser, Rules) lie on one desk. Every
- *      card, the board included, is dragged by its header. One layout for every puzzle, kept in localStorage
- *      (PROTOTYPE key `proto-L-layout-v1`); "Reset layout" in the top bar restores the default.
+ *   1. Desk: the board and four cards (Mouse, Pinned modes, Tool, Rules) lie on one desk. Every card, the board
+ *      included, is dragged by its header. One layout for every puzzle, kept in localStorage (PROTOTYPE key
+ *      `proto-L-layout-v2`; round 1's six-card layout under v1 is ignored); "Reset layout" restores the default.
  *   2. Mouse card: fixed on the desk, large. Its headline names the whole tool, mode · sub-mode · style
  *      ("Line · helper × · green"); rows below say what Left, Right and Drag do with it. Re-rendered on every
  *      bridge onChange, so legacy keys (Z/X/C/V, Shift/Ctrl in Sudoku, Surface digits) update it too.
@@ -17,13 +17,16 @@
  *      (remove ×, drag to reorder, pin the current mode, pin from the browser) and stored per puzzle under
  *      `proto-L-pins-v1:<hash of the link's p=>`.
  *   4. Presets: built-in pin sets named by their contents, plus sets the solver saves under a typed name
- *      (`proto-L-presets-v1`). A preset entry may prime its mode's sub-mode (e.g. Composite primed to Shade + dot).
- *   5. Mode browser: every solve mode and sub-mode (Composite tools and Special objects included), grouped by what it
- *      puts on the board, with a search box over name, description and Penpa+'s own label. Click switches to it; "Pin"
- *      pins its mode (and primes the mode's sub-mode to that entry).
- *   6. Not here: genre grouping or genre names, loupes, per-genre kits, a pointer badge. Composite tools are named by
- *      what they place ("Stars + ×"); Penpa+'s own label (which is often a genre name) appears only as a searchable
- *      "Penpa: ..." note in the browser.
+ *      (`proto-L-presets-v1`), all in one "Presets" pulldown on the pins card (save field at its foot). A preset entry
+ *      may prime its mode's sub-mode (e.g. Composite primed to Shade + dot).
+ *   5. Tool card (round 2: the old Tool settings and All modes cards merged): a field showing the current mode entry;
+ *      focusing, clicking or typing in it opens the picker (every solve mode and sub-mode, Composite tools and Special
+ *      objects included, in seven groups by what it puts on the board, filtered by the typed words, a Pin toggle per
+ *      entry); picking closes it. Under the field: the sub-mode (or Composite tool / Shape) and style pulldowns.
+ *      Round 2 rule for one-of-N rows: more than 3 choices -> a pulldown (style keeps its swatch); 3 or fewer stay a
+ *      one-click segmented row (Sudoku normal / corner / centre, Cage, Move).
+ *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
+ *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -46,7 +49,7 @@
 (function() {
     'use strict';
 
-    const LS_LAYOUT = 'proto-L-layout-v1';
+    const LS_LAYOUT = 'proto-L-layout-v2'; // v1 had six cards
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v1:';
     const TOP = 44;
@@ -463,8 +466,8 @@
                 c.card.style.zIndex = zTop;
             }
 
-            // Default layout at 1600x900: a left column (pins, tool settings, rules), the board in the middle, the mouse
-            // card and the browser on the right. Cards have fixed heights (CSS), so the columns stack by measurement.
+            // Default layout at 1600x900: a left column (pins, rules), the board in the middle, the mouse card and the
+            // Tool card on the right. Columns stack by measured height.
             function defaults() {
                 const W = window.innerWidth;
                 const right = Math.max(W - 430, 900);
@@ -474,12 +477,114 @@
                 };
                 return {
                     pins: {x: 14, y: 12},
-                    tool: {x: 14, y: 12 + h('pins') + gap},
-                    rules: {x: 14, y: 12 + h('pins') + h('tool') + 2 * gap},
+                    rules: {x: 14, y: 12 + h('pins') + gap},
                     board: {x: 340, y: 12},
                     mouse: {x: right, y: 12},
-                    browser: {x: right, y: 12 + h('mouse') + gap}
+                    tool: {x: right, y: 12 + h('mouse') + gap}
                 };
+            }
+
+            // ---- Pulldown: a button showing the current choice; its list opens below it, one open at a time.
+            // Custom, not <select>: Penpa's keydown handler does not exempt <select> (main.js:279-298), and an
+            // <option> cannot show a colour swatch.
+            let openPd = null;
+            function closePd() {
+                if (openPd) {
+                    openPd.classList.remove('is-open');
+                    openPd.closest('.proto-l-card').classList.remove('has-open');
+                    openPd = null;
+                }
+            }
+            document.addEventListener('mousedown', function(e) {
+                if (openPd && !openPd.contains(e.target)) {
+                    closePd();
+                }
+            }, true);
+
+            function fillChoice(node, it) {
+                if (it.color) {
+                    node.appendChild(el('i', {class: 'proto-l-dot', style: 'background:' + it.color}));
+                }
+                node.appendChild(el('span', {class: 'proto-l-pdlabel'}, [it.label]));
+                (it.tags || []).forEach(function(t) {
+                    node.appendChild(el('span', {class: 'proto-l-tag'}, [t]));
+                });
+            }
+
+            /**
+             * items: [{value, label, color?, tags?, on?, header?, extra?}]; opts: {cls, fixed (button text), footer}.
+             */
+            function pulldown(items, onPick, opts) {
+                opts = opts || {};
+                const button = el('button', {class: 'proto-l-pdbtn', type: 'button', tabindex: '-1'});
+                const cur = items.filter(function(i) {
+                    return i.on;
+                })[0];
+                if (opts.fixed) {
+                    button.appendChild(el('span', {class: 'proto-l-pdlabel'}, [opts.fixed]));
+                } else {
+                    fillChoice(button, cur || {label: '—'});
+                }
+                button.appendChild(el('span', {class: 'proto-l-caret'}, ['▾']));
+                const list = el('div', {class: 'proto-l-pdlist'});
+                items.forEach(function(it) {
+                    if (it.header) {
+                        list.appendChild(el('div', {class: 'proto-l-pdhead'}, [it.label]));
+                        return;
+                    }
+                    const row = el('div', {class: 'proto-l-pditem' + (it.on ? ' is-on' : '')});
+                    fillChoice(row, it);
+                    if (it.extra) {
+                        row.appendChild(it.extra);
+                    }
+                    row.addEventListener('mousedown', function(e) {
+                        e.preventDefault();
+                    });
+                    row.addEventListener('click', function(e) {
+                        if (e.target.closest('.proto-l-pdx')) {
+                            return;
+                        }
+                        closePd();
+                        onPick(it.value);
+                    });
+                    list.appendChild(row);
+                });
+                if (opts.footer) {
+                    list.appendChild(opts.footer);
+                }
+                const wrap = el('div', {class: 'proto-l-pd ' + (opts.cls || '')}, [button, list]);
+                button.addEventListener('mousedown', function(e) {
+                    e.preventDefault();
+                });
+                button.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const was = openPd === wrap;
+                    closePd();
+                    if (!was) {
+                        wrap.classList.add('is-open');
+                        const card = wrap.closest('.proto-l-card');
+                        card.classList.add('has-open');
+                        raise(cards[card.dataset.card]);
+                        openPd = wrap;
+                    }
+                });
+                return wrap;
+            }
+
+            /** Up to 3 choices stay one click away as a segmented row; more become a pulldown. */
+            function choice(items, onPick, cls) {
+                if (items.length > 3) {
+                    return pulldown(items, onPick, {cls: cls});
+                }
+                const row = el('div', {class: 'proto-l-seg ' + (cls || '')});
+                items.forEach(function(it) {
+                    const b = btn('proto-l-segbtn' + (it.on ? ' is-on' : ''), '', function() {
+                        onPick(it.value);
+                    }, it.label);
+                    fillChoice(b, it);
+                    row.appendChild(b);
+                });
+                return row;
             }
 
             let layout = readJSON(LS_LAYOUT, null) || {};
@@ -545,8 +650,7 @@
 
             const mouseCard = makeCard('mouse', 'Mouse');
             const pinsCard = makeCard('pins', 'Pinned modes');
-            const toolCard = makeCard('tool', 'Tool settings');
-            const browserCard = makeCard('browser', 'All modes');
+            const toolCard = makeCard('tool', 'Tool');
             const rulesCard = makeCard('rules', 'Rules');
             rulesCard.body.innerHTML = info.rules || '<em>No rules in this link.</em>';
             placeAll();
@@ -611,7 +715,9 @@
                     pins.push(mode);
                     savePins();
                 }
-                prime(mode, sub);
+                if (B.getMode().mode !== mode) {
+                    prime(mode, sub); // pinning the current mode must not change its sub-mode
+                }
                 renderAll(true);
             }
 
@@ -747,44 +853,49 @@
                         'Pin more modes to Tab between them.',
                     seed.fromTabSet ? '' : ' (This link has no Tab set; seeded with the mode it opened in.)'
                 ]));
-                const actions = el('div', {class: 'proto-l-row'}, [
-                    btn('', 'Pin current mode', function() {
+                // Presets: one pulldown (built-ins, then saved ones with a delete ×, then "save these pins as").
+                const contents = function(p) {
+                    return el('span', {class: 'proto-l-pddetail'}, [p.pins.map(function(x) {
+                        return toolName(x[0], x[1], '');
+                    }).join(', ')]);
+                };
+                const items = [{header: true, label: 'Built-in'}];
+                BUILTIN_PRESETS.forEach(function(p, i) {
+                    items.push({value: 'b' + i, label: p.name, extra: contents(p)});
+                });
+                const saved = savedPresets();
+                if (saved.length) {
+                    items.push({header: true, label: 'Saved'});
+                }
+                saved.forEach(function(p, i) {
+                    const del = btn('proto-l-pdx', '×', function() {
+                        writeJSON(LS_PRESETS, savedPresets().filter(function(q) {
+                            return q.name !== p.name;
+                        }));
+                        closePd();
+                        renderPins();
+                    }, 'Delete this preset');
+                    const extra = el('span', {class: 'proto-l-pdextra'}, [contents(p), del]);
+                    items.push({value: 's' + i, label: p.name, extra: extra});
+                });
+                const footer = el('div', {class: 'proto-l-pdfoot'}, [presetName, btn('', 'Save', saveCurrentPreset)]);
+                footer.addEventListener('mousedown', function(e) {
+                    e.stopPropagation();
+                });
+                const presets = pulldown(items, function(v) {
+                    applyPreset(v[0] === 'b' ? BUILTIN_PRESETS[+v.slice(1)] : saved[+v.slice(1)]);
+                }, {cls: 'proto-l-pd-presets', fixed: 'Presets', footer: footer});
+                b.appendChild(el('div', {class: 'proto-l-row'}, [
+                    presets,
+                    btn('', 'Pin current', function() {
                         pinMode(B.getMode().mode, null);
-                    }),
-                    btn('', 'Reset to link\'s pins', function() {
+                    }, 'Pin the current mode'),
+                    btn('', 'Reset', function() {
                         pins = seed.pins.slice();
                         savePins();
                         renderAll(true);
-                    })
-                ]);
-                b.appendChild(actions);
-                b.appendChild(el('div', {class: 'proto-l-sub'}, ['Presets']));
-                const pl = el('div', {class: 'proto-l-presets'});
-                BUILTIN_PRESETS.forEach(function(p) {
-                    pl.appendChild(btn('proto-l-preset', p.name, function() {
-                        applyPreset(p);
-                    }, 'Pin: ' + p.pins.map(function(x) {
-                        return toolName(x[0], x[1], '');
-                    }).join(', ')));
-                });
-                savedPresets().forEach(function(p) {
-                    const wrap = el('span', {class: 'proto-l-saved'}, [
-                        btn('proto-l-preset is-saved', p.name, function() {
-                            applyPreset(p);
-                        }, 'Your preset: ' + p.pins.map(function(x) {
-                            return toolName(x[0], x[1], '');
-                        }).join(', ')),
-                        btn('proto-l-unpin', '×', function() {
-                            writeJSON(LS_PRESETS, savedPresets().filter(function(q) {
-                                return q.name !== p.name;
-                            }));
-                            renderPins();
-                        }, 'Delete this preset')
-                    ]);
-                    pl.appendChild(wrap);
-                });
-                b.appendChild(pl);
-                b.appendChild(el('div', {class: 'proto-l-row'}, [presetName, btn('', 'Save', saveCurrentPreset)]));
+                    }, 'Back to the link\'s own pins')
+                ]));
             }
 
             // ---- Mouse card -------------------------------------------------------------------------------------
@@ -837,22 +948,7 @@
                 return bg && bg !== 'rgba(0, 0, 0, 0)' ? bg : null;
             }
 
-            // ---- Tool settings card -----------------------------------------------------------------------------
-            function chips(label, items, onPick) {
-                const row = el('div', {class: 'proto-l-chips'});
-                items.forEach(function(it) {
-                    const b = btn('proto-l-chip' + (it.on ? ' is-on' : ''), '', function() {
-                        onPick(it.value);
-                    }, it.title || it.label);
-                    if (it.color) {
-                        b.appendChild(el('i', {class: 'proto-l-dot', style: 'background:' + it.color}));
-                    }
-                    b.appendChild(document.createTextNode(it.label));
-                    row.appendChild(b);
-                });
-                return el('div', {}, [el('div', {class: 'proto-l-sub'}, [label]), row]);
-            }
-
+            // ---- Tool card: the current mode with a searchable picker, then its sub-mode and style ------------------
             function shapeItems(current) {
                 const out = [];
                 let group = '';
@@ -872,64 +968,7 @@
                 return out;
             }
 
-            function renderTool(m) {
-                const b = toolCard.body;
-                b.textContent = '';
-                b.appendChild(el('div', {class: 'proto-l-toolname'}, [MODE_NAME[m.mode] || m.mode]));
-                if (m.mode === 'combi') {
-                    b.appendChild(chips('Tool', B.listComposite().map(function(c) {
-                        return {value: c.name, label: COMBI[c.name] ? COMBI[c.name][0] : c.label, on: c.name === m.submode,
-                            title: 'Penpa: ' + c.label};
-                    }), function(v) {
-                        B.setComposite(v);
-                    }));
-                } else if (m.mode === 'symbol') {
-                    b.appendChild(chips('Shape', shapeItems(m.submode), function(v) {
-                        B.setShape(v);
-                    }));
-                } else {
-                    const subs = B.listSubmodes(m.mode);
-                    if (subs.length) {
-                        b.appendChild(chips('Sub-mode', subs.map(function(s) {
-                            return {value: s.value, label: subName(m.mode, s.value) || s.label, on: String(s.value) === m.submode};
-                        }), function(v) {
-                            B.setSubmode(v);
-                        }));
-                    }
-                }
-                const styles = m.mode === 'combi' ? [] : B.listStyles(m.mode);
-                if (styles.length) {
-                    b.appendChild(chips(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style', styles.map(function(s) {
-                        return {value: s.value, label: styleName(m.mode, s.value) || s.label, on: s.value === m.style,
-                            color: swatchColor(m.mode, s.value)};
-                    }), function(v) {
-                        B.setStyle(v);
-                    }));
-                }
-            }
-
-            // ---- Mode browser -----------------------------------------------------------------------------------
-            const search = el('input', {type: 'text', class: 'proto-l-input proto-l-search', placeholder: 'Search modes (name or what it does)…'});
-            const list = el('div', {class: 'proto-l-list'});
-            browserCard.body.appendChild(search);
-            browserCard.body.appendChild(list);
-            search.addEventListener('input', function() {
-                renderBrowser(B.getMode());
-            });
-            search.addEventListener('keydown', function(e) {
-                if (e.key === 'Escape') {
-                    search.value = '';
-                    search.blur();
-                    renderBrowser(B.getMode());
-                } else if (e.key === 'Enter') {
-                    const first = list.querySelector('.proto-l-entry');
-                    if (first) {
-                        first.click();
-                    }
-                    search.blur();
-                }
-            });
-
+            /** Picker entries for this grid. Composite tools carry Penpa's own label (often a genre) as a tag. */
             function browserEntries() {
                 const subsOf = {};
                 const out = [];
@@ -948,29 +987,135 @@
                             return;
                         }
                     }
-                    out.push({group: e[0], mode: mode, sub: e[2], name: e[3], desc: e[4], penpa: ''});
+                    out.push({group: e[0], mode: mode, sub: e[2], name: e[3], desc: e[4], tags: []});
                 });
                 if (available.combi) {
                     Object.keys(composites).forEach(function(name) {
                         const c = COMBI[name] || [composites[name], 'symbols', ''];
-                        out.push({group: c[1], mode: 'combi', sub: name, name: c[0], desc: c[2], penpa: composites[name]});
+                        out.push({group: c[1], mode: 'combi', sub: name, name: c[0], desc: c[2], tags: [composites[name]]});
                     });
                 }
                 return out;
             }
             const allEntries = browserEntries();
 
-            function renderBrowser(m) {
-                const q = search.value.trim().toLowerCase();
+            function currentEntry(m) {
+                return allEntries.filter(function(e) {
+                    return e.mode === m.mode && e.sub === m.submode;
+                })[0] || allEntries.filter(function(e) {
+                    return e.mode === m.mode && e.sub == null;
+                })[0] || null;
+            }
+
+            const pickInput = el('input', {type: 'text', class: 'proto-l-input proto-l-search', spellcheck: 'false',
+                placeholder: 'Search: name, what it does, or a tag…'});
+            const pickList = el('div', {class: 'proto-l-list'});
+            const picker = el('div', {class: 'proto-l-picker'}, [
+                el('div', {class: 'proto-l-pickfield'}, [pickInput, el('span', {class: 'proto-l-caret'}, ['▾'])]), pickList
+            ]);
+            const pickMode = el('span', {class: 'proto-l-pickmode'});
+            const toolOpts = el('div', {class: 'proto-l-toolopts'});
+            toolCard.body.appendChild(el('div', {class: 'proto-l-sub'}, ['Mode: ', pickMode]));
+            toolCard.body.appendChild(picker);
+            toolCard.body.appendChild(toolOpts);
+            let pickOpen = false;
+            let active = -1;
+
+            function showCurrent() {
+                const m = B.getMode();
+                const e = currentEntry(m);
+                pickInput.value = e ? e.name : (MODE_NAME[m.mode] || m.mode);
+                pickMode.textContent = MODE_NAME[m.mode] || m.mode;
+            }
+
+            function openPicker() {
+                if (pickOpen) {
+                    return;
+                }
+                pickOpen = true;
+                closePd();
+                picker.classList.add('is-open');
+                toolCard.card.classList.add('has-open');
+                raise(toolCard);
+                pickInput.value = '';
+                active = -1;
+                renderPicker();
+            }
+
+            function closePicker() {
+                if (!pickOpen) {
+                    return;
+                }
+                pickOpen = false;
+                picker.classList.remove('is-open');
+                toolCard.card.classList.remove('has-open');
+                showCurrent();
+            }
+
+            pickInput.addEventListener('focus', openPicker);
+            pickInput.addEventListener('mousedown', function() {
+                if (document.activeElement === pickInput) {
+                    openPicker();
+                }
+            });
+            pickInput.addEventListener('blur', closePicker);
+            pickInput.addEventListener('input', function() {
+                openPicker();
+                active = -1;
+                renderPicker();
+            });
+            pickInput.addEventListener('keydown', function(e) {
+                const rows = pickList.querySelectorAll('.proto-l-entry');
+                if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    openPicker();
+                    active = Math.max(0, Math.min(rows.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
+                    markActive();
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const r = rows[active >= 0 ? active : 0];
+                    if (r) {
+                        r.click();
+                    }
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    pickInput.blur();
+                } else {
+                    openPicker();
+                }
+            });
+
+            function markActive() {
+                pickList.querySelectorAll('.proto-l-entry').forEach(function(r, i) {
+                    r.classList.toggle('is-active', i === active);
+                    if (i === active) {
+                        r.scrollIntoView({block: 'nearest'});
+                    }
+                });
+            }
+
+            function pickEntry(e) {
+                if (B.getMode().mode !== e.mode) {
+                    B.setMode(e.mode);
+                }
+                if (e.sub != null) {
+                    applySub(e.mode, e.sub);
+                }
+                pickInput.blur();
+            }
+
+            function renderPicker() {
+                const m = B.getMode();
+                const q = pickOpen ? pickInput.value.trim().toLowerCase() : '';
                 const words = q ? q.split(/\s+/) : [];
-                list.textContent = '';
+                pickList.textContent = '';
                 let shown = 0;
                 GROUPS.forEach(function(g) {
                     const items = allEntries.filter(function(e) {
                         if (e.group !== g[0]) {
                             return false;
                         }
-                        const hay = [e.name, e.desc, MODE_NAME[e.mode], e.penpa, g[1]].join(' ').toLowerCase();
+                        const hay = [e.name, e.desc, MODE_NAME[e.mode], e.tags.join(' '), g[1]].join(' ').toLowerCase();
                         return words.every(function(w) {
                             return hay.indexOf(w) !== -1;
                         });
@@ -978,16 +1123,17 @@
                     if (!items.length) {
                         return;
                     }
-                    list.appendChild(el('div', {class: 'proto-l-group'}, [g[1]]));
+                    pickList.appendChild(el('div', {class: 'proto-l-group'}, [g[1]]));
                     items.forEach(function(e) {
                         shown++;
                         const current = e.mode === m.mode && (e.sub == null || e.sub === m.submode);
                         const pinned = pins.indexOf(e.mode) !== -1;
+                        const name = el('div', {class: 'proto-l-ename'}, [e.name, el('span', {class: 'proto-l-emode'}, [MODE_NAME[e.mode]])]);
+                        e.tags.forEach(function(t) {
+                            name.appendChild(el('span', {class: 'proto-l-tag'}, [t]));
+                        });
                         const row = el('div', {class: 'proto-l-entry' + (current ? ' is-on' : ''), 'data-mode': e.mode,
-                            'data-sub': e.sub == null ? '' : e.sub}, [
-                            el('div', {class: 'proto-l-ename'}, [e.name, el('span', {class: 'proto-l-emode'}, [MODE_NAME[e.mode]])]),
-                            el('div', {class: 'proto-l-edesc'}, [e.desc + (e.penpa ? '  Penpa: ' + e.penpa + '.' : '')])
-                        ]);
+                            'data-sub': e.sub == null ? '' : e.sub}, [name, el('div', {class: 'proto-l-edesc'}, [e.desc])]);
                         const pinBtn = btn('proto-l-pinbtn' + (pinned ? ' is-pinned' : ''), pinned ? 'Pinned' : 'Pin', function() {
                             if (pinned) {
                                 unpin(e.mode);
@@ -997,26 +1143,63 @@
                         }, pinned ? 'Unpin ' + MODE_NAME[e.mode] : 'Pin the ' + MODE_NAME[e.mode] + ' mode (Tab lands on it)');
                         row.appendChild(pinBtn);
                         row.addEventListener('mousedown', function(ev) {
-                            if (!ev.target.closest('button')) {
-                                ev.preventDefault();
-                            }
+                            ev.preventDefault(); // keep focus in the search box
                         });
                         row.addEventListener('click', function(ev) {
-                            if (ev.target.closest('button')) {
-                                return;
-                            }
-                            if (B.getMode().mode !== e.mode) {
-                                B.setMode(e.mode);
-                            }
-                            if (e.sub != null) {
-                                applySub(e.mode, e.sub);
+                            if (!ev.target.closest('button')) {
+                                pickEntry(e);
                             }
                         });
-                        list.appendChild(row);
+                        pickList.appendChild(row);
                     });
                 });
                 if (!shown) {
-                    list.appendChild(el('div', {class: 'proto-l-note'}, ['No mode matches “' + q + '”.']));
+                    pickList.appendChild(el('div', {class: 'proto-l-note'}, ['No mode matches “' + q + '”.']));
+                }
+                markActive();
+            }
+
+            function optRow(label, control) {
+                return el('div', {class: 'proto-l-opt'}, [el('span', {class: 'proto-l-optlabel'}, [label]), control]);
+            }
+
+            function renderTool(m) {
+                if (pickOpen) {
+                    renderPicker();
+                } else {
+                    showCurrent();
+                }
+                toolOpts.textContent = '';
+                let subItems = null;
+                let subLabel = 'Sub-mode';
+                if (m.mode === 'combi') {
+                    subLabel = 'Tool';
+                    subItems = B.listComposite().map(function(c) {
+                        return {value: c.name, label: COMBI[c.name] ? COMBI[c.name][0] : c.label, tags: [c.label],
+                            on: c.name === m.submode};
+                    });
+                } else if (m.mode === 'symbol') {
+                    subLabel = 'Shape';
+                    subItems = shapeItems(m.submode);
+                } else {
+                    subItems = B.listSubmodes(m.mode).map(function(s) {
+                        return {value: s.value, label: subName(m.mode, s.value) || s.label, on: String(s.value) === m.submode};
+                    });
+                }
+                if (subItems.length) {
+                    toolOpts.appendChild(optRow(subLabel, choice(subItems, function(v) {
+                        applySub(m.mode, v);
+                    }, 'proto-l-pd-sub')));
+                }
+                const styles = m.mode === 'combi' ? [] : B.listStyles(m.mode);
+                if (styles.length) {
+                    toolOpts.appendChild(optRow(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style',
+                        choice(styles.map(function(s) {
+                            return {value: s.value, label: styleName(m.mode, s.value) || s.label, on: s.value === m.style,
+                                color: swatchColor(m.mode, s.value)};
+                        }), function(v) {
+                            B.setStyle(v);
+                        }, 'proto-l-pd-style')));
                 }
             }
 
@@ -1078,7 +1261,6 @@
                 renderMouse(m);
                 renderPins();
                 renderTool(m);
-                renderBrowser(m);
             }
 
             function render(state) {
@@ -1114,6 +1296,7 @@
                 return pins.slice();
             }, cards: cards, resetLayout: resetLayout};
             renderAll(true);
+            placeAll(); // again, now that cards have content: default columns stack by measured height
             render(B.getState());
         }
     };
