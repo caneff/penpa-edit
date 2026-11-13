@@ -29,6 +29,8 @@ const EXPECTED_SUFFIX = '.expected.json'
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
+// Duplicate-link pages one replay has open at once.
+const ROUND_TRIPS_AT_ONCE = 4
 
 // Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
 export const ANSWER_CELLS = [5, 9]
@@ -288,24 +290,40 @@ export async function replay (browser, recording, { id = 'recording', expected, 
   const read = () => readPage(page)
   // Each duplicate link checked so far: a step that changed nothing gives the same link, and loads the same board.
   const duplicates = new Set()
-  // The report of how the board a fresh page loads from the duplicate link of `state` differs from it, else null.
-  const roundTrip = async (n, state) => {
+  // The round trips under way, in step order, each resolving to its report or null. They run beside the replay, at
+  // most ROUND_TRIPS_AT_ONCE pages at a time, since each waits on a page load.
+  const roundTrips = []
+  let running = 0
+  const waiting = []
+  const slot = async () => {
+    if (running >= ROUND_TRIPS_AT_ONCE) await new Promise((resolve) => waiting.push(resolve))
+    running++
+  }
+  const free = () => { running--; waiting.shift()?.() }
+  // Starts the check that a fresh page loads the duplicate link of `state`, the board at checkpoint `n`, as `state`.
+  const startRoundTrip = async (n, state) => {
     const link = await page.evaluate(duplicateLinkInPage)
-    if (duplicates.has(link)) return null
+    if (duplicates.has(link)) return
     duplicates.add(link)
     const want = withoutDuplicateDrops(state)
-    const fresh = await open(link)
-    try {
-      const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
-      if (got === want) return null
-      return [
-        `${id}: step ${n} (${checkpointWords(steps, n)}): its duplicate link loads a different board`,
-        ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
-      ].join('\n')
-    } finally {
-      await fresh.context.close()
-    }
+    roundTrips.push((async () => {
+      await slot()
+      const fresh = await open(link)
+      try {
+        const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
+        if (got === want) return null
+        return [
+          `${id}: step ${n} (${checkpointWords(steps, n)}): its duplicate link loads a different board`,
+          ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
+        ].join('\n')
+      } finally {
+        await fresh.context.close()
+        free()
+      }
+    })())
   }
+  // The report of the earliest round trip that failed, else `report`.
+  const withRoundTrips = async (report) => (await Promise.all(roundTrips)).find(Boolean) ?? report
   const { steps } = recording
   const checkpoints = []
   // The report of the first way checkpoint `n` differs from the expected file, else null.
@@ -319,11 +337,12 @@ export async function replay (browser, recording, { id = 'recording', expected, 
     const state = want ? await settle(read, want.state) : n === 0 ? await settle(read) : await read()
     checkpoints.push({ step: n, state })
     if (want && state !== want.state) return failureReport({ id, step: n, steps, since, want: want.state, got: state, errors })
-    return roundTrip(n, state)
+    await startRoundTrip(n, state)
+    return null
   }
   try {
     let report = await checkpoint(0, [])
-    if (report) return { checkpoints, report }
+    if (report) return { checkpoints, report: await withRoundTrips(report) }
     let since = []
     for (const [index, step] of steps.entries()) {
       const n = index + 1
@@ -337,14 +356,16 @@ export async function replay (browser, recording, { id = 'recording', expected, 
       }
       if (!endsGroup(step) && n < steps.length) continue
       report = await checkpoint(n, since)
-      if (report) return { checkpoints, report }
+      if (report) return { checkpoints, report: await withRoundTrips(report) }
       since = []
     }
     if (expected && expected.length > checkpoints.length) {
-      return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}` }
+      return { checkpoints, report: await withRoundTrips(`${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}`) }
     }
-    return { checkpoints, report: finalReport({ id, recording, state: checkpoints.at(-1).state, errors }) }
+    return { checkpoints, report: await withRoundTrips(finalReport({ id, recording, state: checkpoints.at(-1).state, errors })) }
   } finally {
+    // A step that could not be replayed leaves round trips under way; none outlives the replay.
+    await Promise.allSettled(roundTrips)
     await context.close()
   }
 }

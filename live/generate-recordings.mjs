@@ -37,7 +37,8 @@ const SHAPE_TOOLS = ['circle_L', 'cross']
 const GRID_BOARDS = { hex: 2, tri: 3, pyramid: 3, uniform: 2 }
 // The uniform tilings share one class (`class_uniform.js`); this one stands for them.
 const UNIFORM_TILING = 'truncated_square'
-const GRID_MODES = ['surface', 'line', 'number']
+// The only modes the solve link of a new hex, tri, pyramid or uniform board shows.
+const GRID_MODES = ['surface', 'line']
 
 const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
