@@ -34,3 +34,50 @@ describe('a changed setting', () => {
     await second.context.close()
   })
 })
+
+describe('conflict detection', () => {
+  const OFF_THIS_PUZZLE = 2
+  const OFF_ALL_PUZZLES = 3
+  // Read once Penpa+ has loaded its cookies, so the default is not read before a saved value lands.
+  const read = async (page) => {
+    await page.waitForFunction(() => typeof UserSettings !== 'undefined' && UserSettings._settingsLoaded)
+    return page.evaluate(() => UserSettings.conflict_detection)
+  }
+
+  // Setting another setting afterwards makes Penpa+ save every can_save setting, conflict_detection included.
+  const setThenSaveOthers = (page, value) => page.evaluate((v) => {
+    UserSettings.conflict_detection = v
+    UserSettings.color_theme = THEME_DARK
+  }, value)
+
+  it('"off for this puzzle" is on again after the browser restarts', async () => {
+    const first = await openPenpa(browser(), '', { served: true })
+    await setThenSaveOthers(first.page, OFF_THIS_PUZZLE)
+    const kept = await survivingCookies(first.context)
+    await first.context.close()
+
+    const second = await openPenpa(browser(), '', { served: true, cookies: kept })
+    assert.equal(await read(second.page), 1)
+    await second.context.close()
+  })
+
+  it('"off for this puzzle" is on again in a second puzzle of the same browser', async () => {
+    const { context, page } = await openPenpa(browser(), '', { served: true })
+    await setThenSaveOthers(page, OFF_THIS_PUZZLE)
+    const next = await context.newPage()
+    await next.goto(page.url())
+    assert.equal(await read(next), 1)
+    await context.close()
+  })
+
+  it('"off for every puzzle" survives a restart', async () => {
+    const first = await openPenpa(browser(), '', { served: true })
+    await setThenSaveOthers(first.page, OFF_ALL_PUZZLES)
+    const kept = await survivingCookies(first.context)
+    await first.context.close()
+
+    const second = await openPenpa(browser(), '', { served: true, cookies: kept })
+    assert.equal(await read(second.page), OFF_ALL_PUZZLES)
+    await second.context.close()
+  })
+})
