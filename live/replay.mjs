@@ -2,10 +2,11 @@
 // UI driver, through Playwright's mouse and keyboard. Not a check itself, so `live/**/*.live.mjs` skips
 // it.
 //
-// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family. As
-// `docs/js/recorder.js` writes it, it holds a header (`source`: the link's query and `#` part; `gridtype`; `genre`: the
-// page's genre tags; `recorder`: the recorder's version), `final` (the recording page's engine state once the steps
-// were made, as `readEngineState` reads it) and its steps, one per line:
+// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family, or
+// `fuzz` for a failing run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
+// (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the recorder's
+// version), `final` (the recording page's engine state once the steps were made, as `readEngineState` reads it) and its
+// steps, one per line:
 //   { kind: 'pointer', action: 'down' | 'move' | 'up' | 'out' | 'double', button: 'left' | 'right' | null, ctrl, x, y, num }
 //     with `x, y` in board units and `num` an index of `pu.point`;
 //   { kind: 'key', call, args }, `call` one of `pu`'s `key_*` methods;
@@ -13,11 +14,12 @@
 //   { kind: 'undo' } and { kind: 'redo' };
 //   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
+// The fuzz writes `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
-// and never by hand.
+// and never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { openPenpa } from './page.mjs'
+import { linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const RECORDINGS = new URL('./recordings/', import.meta.url)
@@ -54,13 +56,8 @@ export async function cellPixel (page, index) {
 }
 
 // The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
-export async function makeSurfaceSolveLink (browser) {
-  const { context, page } = await openPenpa(browser)
-  try {
-    return await page.evaluate(surfaceSolveLinkInPage, ANSWER_CELLS)
-  } finally {
-    await context.close()
-  }
+export function makeSurfaceSolveLink (browser) {
+  return linkFromNewBoard(browser, surfaceSolveLinkInPage, ANSWER_CELLS)
 }
 
 // Opens `query`, a solve link's `#` part, with the recorder on, once its answer has loaded.
@@ -94,7 +91,14 @@ export async function readRecording (id) {
 
 // The expected checkpoints, each state back as the string `canonicalState` writes.
 export async function readExpected (id) {
-  const { checkpoints } = JSON.parse(await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8'))
+  let text
+  try {
+    text = await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8')
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e
+    throw new Error(`${id} has no expected file: once the replay is right, run node live/write-expected.mjs ${id}`)
+  }
+  const { checkpoints } = JSON.parse(text)
   return checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
 }
 
@@ -163,7 +167,7 @@ async function switchMode (page, step, choose) {
 // A driver's `start(page)` returns the function that makes a step's input on that page, and `checkpointAfter(step,
 // next)` says whether a checkpoint follows `step`, `next` being the step after it.
 // The engine driver: each step as the engine call its input made.
-const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
+export const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
 
 function startEngineDriver (page) {
   const choose = {
@@ -311,7 +315,7 @@ function startUiDriver (page) {
 }
 
 // A step in words, for a failure report.
-function stepWords (step) {
+export function stepWords (step) {
   switch (step.kind) {
     case 'pointer':
       return `${step.button ? step.button + ' ' : ''}${step.action}${step.ctrl ? ' with Ctrl' : ''} at point ${step.num}`
@@ -326,12 +330,12 @@ function stepWords (step) {
 
 // A checkpoint follows every step but the down and the moves of a gesture, so a gesture is compared once it has ended,
 // and every key, mode change, undo and redo on its own.
-function endsGroup (step) {
+export function endsGroup (step) {
   return !(step.kind === 'pointer' && (step.action === 'down' || step.action === 'move'))
 }
 
 // A canonical state as its lines' keys and values.
-function entries (state) {
+export function entries (state) {
   return new Map(state.split('\n').filter(Boolean).map((line) => {
     const at = line.indexOf(' = ')
     return [line.slice(0, at), line.slice(at + 3)]
@@ -341,7 +345,7 @@ function entries (state) {
 const isReplayWrite = (key) => /\.command_replay\.\d+$/.test(key)
 
 // Every key whose value differs between two states, in the expected state's order, then the replay's new keys.
-function changedKeys (want, got) {
+export function changedKeys (want, got) {
   return [...new Set([...want.keys(), ...got.keys()])].filter((k) => want.get(k) !== got.get(k))
 }
 
