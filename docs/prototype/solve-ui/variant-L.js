@@ -25,6 +25,9 @@
  *      entry); picking closes it. Under the field: the sub-mode (or Composite tool / Shape) and style pulldowns.
  *      Round 2 rule for one-of-N rows: more than 3 choices -> a pulldown (style keeps its swatch); 3 or fewer stay a
  *      one-click segmented row (Sudoku normal / corner / centre, Cage, Move).
+ *      Round 3: styles are back to one button each (colour swatch, or a drawn sample for thin / dotted / fat dots /
+ *      ...; the name is the title); the open picker list sits in the card's flow and pushes the sub-mode and style
+ *      controls down; the Mouse card is as tall as its content, and the Tool card follows it while neither was moved.
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
@@ -938,7 +941,16 @@
                     'Not pinned: Tab returns to the pins.']));
             }
 
+            /**
+             * Colour of a colour style, from its legacy label. Non-colour styles get null: a checked legacy label has a
+             * grey background of its own, which is not the style's colour.
+             */
             function swatchColor(mode, style) {
+                const name = styleName(mode, style);
+                const colours = Object.values(SURFACE_STYLE).concat(['green', 'black', 'grey', 'red', 'blue', 'dark blue']);
+                if (colours.indexOf(name) === -1) {
+                    return null;
+                }
                 const m = mode === 'multicolor' ? 'surface' : mode;
                 const lb = document.getElementById('st_' + m + style + '_lb');
                 if (!lb) {
@@ -1040,6 +1052,18 @@
                 pickInput.value = '';
                 active = -1;
                 renderPicker();
+                sizePicker();
+            }
+
+            /**
+             * Round 3: the open list sits in the card's flow, between the field and the sub-mode / style controls, so it
+             * pushes them down instead of covering them. Its height is what is left of the window below the field once
+             * the controls are counted.
+             */
+            function sizePicker() {
+                const top = pickInput.getBoundingClientRect().bottom;
+                const room = window.innerHeight - top - toolOpts.offsetHeight - 40;
+                pickList.style.maxHeight = Math.max(160, Math.min(470, room)) + 'px';
             }
 
             function closePicker() {
@@ -1191,16 +1215,62 @@
                         applySub(m.mode, v);
                     }, 'proto-l-pd-sub')));
                 }
+                // Round 3: styles are one button each (colour swatch, or a drawn sample for non-colour styles); the
+                // name is the button's title.
                 const styles = m.mode === 'combi' ? [] : B.listStyles(m.mode);
                 if (styles.length) {
-                    toolOpts.appendChild(optRow(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style',
-                        choice(styles.map(function(s) {
-                            return {value: s.value, label: styleName(m.mode, s.value) || s.label, on: s.value === m.style,
-                                color: swatchColor(m.mode, s.value)};
-                        }), function(v) {
-                            B.setStyle(v);
-                        }, 'proto-l-pd-style')));
+                    const row = el('div', {class: 'proto-l-styles'});
+                    styles.forEach(function(s) {
+                        const name = styleName(m.mode, s.value) || s.label;
+                        const b = btn('proto-l-stylebtn' + (s.value === m.style ? ' is-on' : ''), '', function() {
+                            B.setStyle(s.value);
+                        }, name);
+                        b.setAttribute('data-name', name);
+                        b.innerHTML = styleSample(name, swatchColor(m.mode, s.value));
+                        row.appendChild(b);
+                    });
+                    toolOpts.appendChild(optRow(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style', row));
                 }
+                if (pickOpen) {
+                    sizePicker();
+                }
+            }
+
+            /** A 30x18 SVG sample of a style: a swatch for colours, a drawn line or mark for the rest. */
+            function styleSample(name, color) {
+                const svg = function(inner) {
+                    return '<svg width="30" height="18" viewBox="0 0 30 18" aria-hidden="true">' + inner + '</svg>';
+                };
+                const line = function(attrs) {
+                    return '<line x1="4" y1="9" x2="26" y2="9" stroke-linecap="round" ' + attrs + '/>';
+                };
+                if (color) {
+                    return svg('<rect x="5" y="1.5" width="20" height="15" rx="3" fill="' + color +
+                        '" stroke="rgba(0,0,0,.3)"/>');
+                }
+                const t = function(txt, extra) {
+                    return svg((extra || '') + '<text x="15" y="13.5" text-anchor="middle" font-size="11" font-weight="700" ' +
+                        'font-family="system-ui,sans-serif">' + txt + '</text>');
+                };
+                switch (name) {
+                case 'thin': return svg(line('stroke="#222" stroke-width="1"'));
+                case 'thicker': return svg(line('stroke="#222" stroke-width="5"'));
+                case 'dotted': return svg(line('stroke="#222" stroke-width="2.5" stroke-dasharray="0.1 4.5"'));
+                case 'fat dots': return svg(line('stroke="#222" stroke-width="5.5" stroke-dasharray="0.1 8"'));
+                case 'short': return svg('<line x1="11" y1="9" x2="19" y2="9" stroke="#222" stroke-width="3" stroke-linecap="round"/>');
+                case 'double': return svg('<line x1="4" y1="6" x2="26" y2="6" stroke="#222" stroke-width="1.5"/>' +
+                    '<line x1="4" y1="12" x2="26" y2="12" stroke="#222" stroke-width="1.5"/>');
+                case 'grey dot': return svg('<circle cx="15" cy="9" r="4" fill="#999"/>');
+                case 'dotted line': return svg(line('stroke="#222" stroke-width="1.5" stroke-dasharray="2 3"'));
+                case 'grey line': return svg(line('stroke="#999" stroke-width="2"'));
+                case 'grey dots': return svg(line('stroke="#999" stroke-width="3" stroke-dasharray="0.1 4.5"'));
+                case 'solid line': return svg(line('stroke="#222" stroke-width="2"'));
+                case 'white': return t('1', '<rect x="5" y="1.5" width="20" height="15" rx="3" fill="#555"/>').replace('<text', '<text fill="#fff"');
+                case 'white background': return t('1', '<rect x="5" y="1.5" width="20" height="15" rx="2" fill="#fff" stroke="#999"/>');
+                case 'behind lines': return svg('<circle cx="15" cy="9" r="6" fill="#bbb"/>' + line('stroke="#222" stroke-width="2"'));
+                case 'in front of lines': return svg(line('stroke="#222" stroke-width="2"') + '<circle cx="15" cy="9" r="6" fill="#bbb"/>');
+                }
+                return t(String(name).replace(/^style /, '#'));
             }
 
             // ---- Keys -------------------------------------------------------------------------------------------
@@ -1261,6 +1331,20 @@
                 renderMouse(m);
                 renderPins();
                 renderTool(m);
+                reflow();
+            }
+
+            /**
+             * Round 3: the Mouse and Pins cards size to their content. While the solver has moved neither card of a
+             * column, the card below follows the one above it (Tool under Mouse, Rules under Pins).
+             */
+            function reflow() {
+                if (!layout.mouse && !layout.tool) {
+                    place(cards.tool);
+                }
+                if (!layout.pins && !layout.rules) {
+                    place(cards.rules);
+                }
             }
 
             function render(state) {
