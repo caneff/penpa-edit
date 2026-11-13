@@ -1,13 +1,510 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant A styles. Owned by variant A's builder. */
-.proto-a-banner {
+/*
+ * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant A, "Dock (baseline)". Owned by variant A's builder.
+ * Dark app shell; the board sits on a light card on the left, the dock on the right. All layers below z-index 1000.
+ */
+html.proto-variant-A,
+html.proto-variant-A body {
+    background: #111317;
+    overflow: hidden;
+}
+
+.proto-a-app {
+    --cur: #5aa9ff;
+    --bg: #111317;
+    --panel: #181b21;
+    --panel2: #20242c;
+    --line: #2c313b;
+    --text: #e6e9ef;
+    --muted: #8d95a3;
     position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
-    color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    font: 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+}
+
+/* ---- Stage: the board ------------------------------------------------------------------------------------------ */
+.proto-a-stage {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 18px 70px; /* bottom room for the scaffold's switcher pill */
+}
+
+.proto-a-stagehead {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 34px;
+}
+
+.proto-a-pill {
+    display: inline-flex;
+    align-items: stretch;
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid var(--cur);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.proto-a-pillfam {
+    background: var(--cur);
+    color: #111317;
+    padding: 4px 10px;
+    text-transform: uppercase;
+    font-size: 11px;
+    letter-spacing: .06em;
+    display: flex;
+    align-items: center;
+}
+
+.proto-a-pillmode {
+    padding: 4px 12px;
+    color: var(--cur);
+    font-size: 15px;
+}
+
+.proto-a-hint {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.proto-a-boardslot {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.proto-a-boardcard {
+    padding: 8px;
+    background: #fff;
+    border-radius: 6px;
+    box-shadow: 0 0 0 3px var(--cur), 0 10px 40px rgba(0, 0, 0, .55);
+    transition: box-shadow .15s;
+}
+
+html.proto-variant-A #dvique {
+    margin: 0;
+    border: 0;
+    box-shadow: none;
+    width: auto !important;
+}
+
+/* ---- Dock ------------------------------------------------------------------------------------------------------ */
+.proto-a-dock {
+    flex: 0 0 420px;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    min-height: 0;
+}
+
+.proto-a-head {
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+}
+
+.proto-a-headrow {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+}
+
+.proto-a-headtext {
+    flex: 1;
+    min-width: 0;
+}
+
+.proto-a-title {
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.proto-a-byline {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.proto-a-timer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.proto-a-timer-text {
+    font: 600 17px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+}
+
+.proto-a-chiprow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 6px;
+}
+
+.proto-a-tags {
+    display: contents;
+}
+
+.proto-a-chip {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    background: var(--panel2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+}
+
+.proto-a-chip-on {
+    color: #8fe3a9;
+    border-color: #2f6b45;
+}
+
+.proto-a-rules {
+    font-size: 13px;
+    color: #c9ced8;
+    max-height: 112px;
+    overflow: auto;
+    padding-right: 4px;
+}
+
+.proto-a-dockscroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 4px 16px 10px;
+}
+
+.proto-a-section {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+}
+
+.proto-a-section:last-child {
+    border-bottom: 0;
+}
+
+.proto-a-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 8px;
+}
+
+.proto-a-kbd-hint {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+}
+
+/* ---- Buttons --------------------------------------------------------------------------------------------------- */
+.proto-a-btn {
+    font: inherit;
+    color: var(--text);
+    background: var(--panel2);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.proto-a-btn:hover:not(:disabled) {
+    background: #2a2f39;
+    border-color: #3a404c;
+}
+
+.proto-a-btn.is-on:not(.proto-a-swatch):not(.proto-a-colkey):hover {
+    background: var(--fam, var(--cur));
+    border-color: var(--fam, var(--cur));
+}
+
+.proto-a-btn:disabled {
+    opacity: .35;
+    cursor: default;
+}
+
+.proto-a-btn.is-on {
+    background: var(--cur);
+    border-color: var(--cur);
+    color: #111317;
+    font-weight: 600;
+}
+
+.proto-a-timer-btn {
+    font-size: 12px;
+    padding: 3px 8px;
+}
+
+/* Mode palette */
+.proto-a-famrow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 5px;
+}
+
+.proto-a-famlabel {
+    flex: 0 0 52px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--fam);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.proto-a-modebtn {
+    border-left: 3px solid var(--fam);
+}
+
+.proto-a-modebtn.is-on {
+    background: var(--fam);
+    border-color: var(--fam);
+}
+
+/* Tool rows */
+.proto-a-choicerow {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-bottom: 7px;
+}
+
+.proto-a-choicelabel {
+    flex: 0 0 52px;
+    font-size: 12px;
+    color: var(--muted);
+    padding-top: 5px;
+}
+
+.proto-a-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex: 1;
+}
+
+.proto-a-choice {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.proto-a-toolgrid .proto-a-choices {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.proto-a-toolgrid .proto-a-choice {
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.proto-a-swatch {
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: var(--sw);
+    border: 2px solid var(--line);
+}
+
+.proto-a-swatch:hover:not(:disabled) {
+    background: var(--sw);
+}
+
+.proto-a-swatch.is-on {
+    background: var(--sw);
+    border-color: #fff;
+    box-shadow: 0 0 0 2px var(--cur);
+}
+
+.proto-a-note {
+    font-size: 12px;
+    color: var(--muted);
+}
+
+/* ---- Pad ------------------------------------------------------------------------------------------------------- */
+.proto-a-pad {
+    display: flex;
+    gap: 8px;
+}
+
+.proto-a-keys {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+}
+
+.proto-a-key {
+    height: 44px;
+    font-size: 22px;
+    font-weight: 600;
+    padding: 0;
+}
+
+.proto-a-key-wide {
+    grid-column: span 2;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.proto-a-colkey {
+    background: var(--sw);
+    color: rgba(0, 0, 0, .55);
+    font-size: 13px;
+    border: 2px solid transparent;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 4px 6px;
+}
+
+.proto-a-colkey:hover:not(:disabled) {
+    background: var(--sw);
+    border-color: #fff;
+}
+
+.proto-a-colkey.is-on {
+    background: var(--sw);
+    color: rgba(0, 0, 0, .7);
+    border-color: #fff;
+    box-shadow: 0 0 0 2px var(--cur);
+}
+
+.proto-a-padcol {
+    flex: 0 0 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.proto-a-padmode {
+    height: 44px;
+    font-weight: 600;
+}
+
+/* ---- Footer ---------------------------------------------------------------------------------------------------- */
+.proto-a-foot {
+    border-top: 1px solid var(--line);
+    padding: 10px 16px 14px;
+    background: #15181d;
+}
+
+.proto-a-status {
+    font-size: 13px;
+    border-radius: 6px;
+    padding: 0 10px;
+    margin-bottom: 0;
+    min-height: 0;
+}
+
+.proto-a-status:not(:empty) {
+    padding: 7px 10px;
+    margin-bottom: 8px;
+}
+
+.proto-a-status.is-solved {
+    background: #183a26;
+    color: #8fe3a9;
+}
+
+.proto-a-status.is-wrong {
+    background: #3a2a18;
+    color: #f2c27a;
+}
+
+.proto-a-status.is-none {
+    background: var(--panel2);
+    color: var(--muted);
+}
+
+.proto-a-footrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.proto-a-actions {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+}
+
+.proto-a-act {
+    flex: 1;
+    padding: 8px 6px;
+}
+
+.proto-a-act-icon {
+    flex: 0 0 40px;
+    font-size: 17px;
+    padding: 4px;
+}
+
+.proto-a-act-check {
+    background: #1d3a5c;
+    border-color: #2d5a8c;
+}
+
+.proto-a-hist {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+}
+
+.proto-a-resetwrap {
+    position: relative;
+    flex: 1;
+    display: flex;
+}
+
+.proto-a-menu {
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 6px;
+    background: #23272f;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .5);
+    min-width: 200px;
+}
+
+.proto-a-menu[hidden] {
+    display: none;
+}
+
+.proto-a-menuitem {
+    text-align: left;
+}
+
+.proto-a-danger {
+    color: #ff9a9a;
+}
+
+.proto-a-colkey.is-dark,
+.proto-a-colkey.is-dark.is-on {
+    color: rgba(255, 255, 255, .75);
 }
