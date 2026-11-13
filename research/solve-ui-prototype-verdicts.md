@@ -85,3 +85,11 @@ Chris, 2026-11-13: "It is getting closer." Changes asked for:
 - All modes and Tool settings can be integrated together better.
 - Genre names are not banned. Penpa's own tool labels (often genre names) stay as searchable tags on the descriptions.
   What is ruled out is grouping or organising by genre.
+
+Chris, 2026-11-13, on round 3: "changing tool on the tool window shouldn't change a pin if selected", and "we are pinning a
+sub mode. style can change and be remembered but we are pinning a specific sub mode". This replaces "a pinned item is a
+mode" above:
+- A pin is a mode and one sub-mode (Line · Helper; Sudoku · Corner; Shape or Composite with the tool picked from its list).
+  The same mode can be pinned more than once with different sub-modes.
+- The pin's style is the last one used on it; Tab lands on the pin with that style.
+- Picking another tool or sub-mode in the Tool card never changes a pin: the pick becomes current and the pin stays as it was.
