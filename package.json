@@ -2,7 +2,8 @@
   "name": "penpa-tests",
   "scripts": {
     "test": "nodemon --watch test/test_server.js test/test_server.js",
-    "local": "npx browser-sync start --server"
+    "local": "npx browser-sync start --server",
+    "prototype": "node docs/prototype/solve-ui/serve.mjs"
   },
   "devDependencies": {
     "browser-sync": "^2.29.3",
