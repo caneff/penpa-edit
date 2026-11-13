@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Penpa+ to ChinStrap fork
+// @name         Penpa+ to caneff's fork
 // @namespace    https://github.com/caneff/penpa-edit
 // @version      1.0.0
 // @description  Opens every Penpa+ link on caneff's fork, with the same path, query and # data.

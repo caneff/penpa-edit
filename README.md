@@ -9,7 +9,7 @@ If the message “Invalid address” is displayed on a supported browser, try cl
 Depending on the browser you can update the page without using the cache with <kbd>Ctrl</kbd> + <kbd>R</kbd>, <kbd>Ctrl</kbd> + <kbd>F5</kbd>, <kbd>Shift</kbd> + <kbd>F5</kbd>, etc.
 
 <!-- caneff: our own section, kept apart from upstream's text to keep merges clean -->
-## Redirect Penpa+ links to this fork (ChinStrap)
+## Redirect Penpa+ links to this fork
 1. Install [Tampermonkey](https://www.tampermonkey.net/).
 2. Open [`penpa-redirect.user.js`](https://raw.githubusercontent.com/caneff/penpa-edit/master/userscript/penpa-redirect.user.js) and click Install.
 
