@@ -7722,7 +7722,7 @@ class Puzzle {
         // var str_replace = ["+-=*", "＋－＝＊"];
         // if (str_replace[0].indexOf(key) != -1) { key = str_replace[1][str_replace[0].indexOf(key)]; }
         if (edit_mode === "number") {
-            // caneff: every single-cell entry starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
             this.undoredo_counter = this.undoredo_counter + 1;
             let cells = null;
             if (this.number_multi_enabled())
@@ -7904,7 +7904,7 @@ class Puzzle {
             switch (submode[0]) {
                 case "1": // Normal mode
                     if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
-                        // caneff: every single-cell entry starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                        // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
                         this.undoredo_counter = this.undoredo_counter + 1;
                         for (var k of this.selection) {
                             if (((this.mode.qa === "pu_a") &&
@@ -8006,7 +8006,7 @@ class Puzzle {
                     if (this.grid_is_square()) {
                         if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
 
-                            // caneff: every single-cell entry starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
                             this.undoredo_counter = this.undoredo_counter + 1;
 
                             // if the selected cell is on the edge then do not proceed
@@ -8121,7 +8121,7 @@ class Puzzle {
                     break;
                 case "3": // Centre mode
                     if (this.selection.length > 0 && str_all.indexOf(key) != -1) {
-                        // caneff: every single-cell entry starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                        // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
                         this.undoredo_counter = this.undoredo_counter + 1;
                         // First step: go through all cells in the selection that don't have a main single digit, and
                         // collect the digits that are in the center of each
@@ -8321,16 +8321,8 @@ class Puzzle {
         if (this.mode[this.mode.qa].edit_mode === "number") {
             let submode = this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0];
             if (this.selection.length > 0) {
-                if (this.selection.length === 1) {
-                    let clean_flag = this.check_neighbors(this.selection[0]);
-                    if (!clean_flag) {
-                        this.undoredo_counter = 0;
-                    } else {
-                        this.undoredo_counter = this.undoredo_counter + 1;
-                    }
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
+                // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                this.undoredo_counter = this.undoredo_counter + 1;
                 let cells = null;
                 if (this.number_multi_enabled())
                     cells = this.selection;
@@ -8386,11 +8378,8 @@ class Puzzle {
             }
             this.record_replay("symbol", this.cursol);
         } else if (this.mode[this.mode.qa].edit_mode === "sudoku") {
-            if (this.selection.length === 1) {
-                this.undoredo_counter = 0;
-            } else {
-                this.undoredo_counter = this.undoredo_counter + 1;
-            }
+            // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+            this.undoredo_counter = this.undoredo_counter + 1;
             if (keypressed === 46 || keypressed === 8 || this.ondown_key === "touchstart") {
                 if (this.selection.length > 0) {
                     if (!ctrl_key && !shift_key) {
@@ -8528,16 +8517,8 @@ class Puzzle {
         if (this.mode[this.mode.qa].edit_mode === "number") {
             let submode = this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0];
             if (this.selection.length > 0) {
-                if (this.selection.length === 1) {
-                    let clean_flag = this.check_neighbors(this.selection[0]);
-                    if (!clean_flag) {
-                        this.undoredo_counter = 0;
-                    } else {
-                        this.undoredo_counter = this.undoredo_counter + 1;
-                    }
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
+                // caneff: every single-cell edit starts a new undo group, because group 0 lets the next group reuse an id still on the undo stack
+                this.undoredo_counter = this.undoredo_counter + 1;
                 let cells = null;
                 if (this.number_multi_enabled()) {
                     cells = this.selection;

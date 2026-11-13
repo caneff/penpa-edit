@@ -27,6 +27,23 @@ function typeDigitInPage ({ index, editMode, submode }) {
   pu.key_number('5')
 }
 
+// The ways to delete the digit of one cell: the key handler and the edit mode it runs in.
+const DELETES = [
+  { name: 'backspace in number mode', key: 'key_backspace', editMode: 'number' },
+  { name: 'space in number mode', key: 'key_space', editMode: 'number' },
+  { name: 'space in sudoku mode', key: 'key_space', editMode: 'sudoku' }
+]
+
+// Runs in the page: puts a digit in the cell at `index` of the center list with no undo record, then deletes it through `key`.
+function deleteDigitInPage ({ index, key, editMode }) {
+  const cell = pu.centerlist[index]
+  pu.pu_a.number[cell] = ['5', 1, '1']
+  pu.mode_set(editMode)
+  pu.selection = [cell]
+  pu.cursol = cell
+  pu[key]()
+}
+
 describe('undo after typing a number in a single cell', () => {
   for (const way of WAYS) {
     it(`removes one shaded cell, not two, when an undo of the number lay between them: ${way.name}`, async () => {
@@ -36,6 +53,26 @@ describe('undo after typing a number in a single cell', () => {
       await page.evaluate(typeDigitInPage, { index: TYPED, ...way })
       const typed = await page.evaluate(() => pu.pu_a.command_undo.__a.length)
       assert.equal(typed, 2, 'the digit was entered as one move on top of the shading')
+      await page.evaluate(() => pu.undo())
+      await page.evaluate(shadeInPage, SECOND_SHADED)
+      await page.evaluate(() => pu.undo())
+      const shaded = await page.evaluate(() => Object.keys(pu.pu_a.surface))
+      const first = String(await page.evaluate((i) => pu.centerlist[i], FIRST_SHADED))
+      assert.deepEqual(shaded, [first], 'the first shaded cell survives the undo of the second')
+      await context.close()
+    })
+  }
+})
+
+describe('undo after deleting the digit of a single cell', () => {
+  for (const way of DELETES) {
+    it(`removes one shaded cell, not two, when an undo of the deletion lay between them: ${way.name}`, async () => {
+      const { context, page } = await openPenpa(browser())
+      await page.evaluate(() => { pu.mode.qa = 'pu_a' })
+      await page.evaluate(shadeInPage, FIRST_SHADED)
+      await page.evaluate(deleteDigitInPage, { index: TYPED, ...way })
+      const deleted = await page.evaluate((i) => pu.pu_a.number[pu.centerlist[i]], TYPED)
+      assert.equal(deleted, undefined, 'the digit was deleted')
       await page.evaluate(() => pu.undo())
       await page.evaluate(shadeInPage, SECOND_SHADED)
       await page.evaluate(() => pu.undo())
