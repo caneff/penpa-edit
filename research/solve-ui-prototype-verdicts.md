@@ -57,3 +57,8 @@ switch with Alt+←/→; `npm run prototype` in a checkout of that branch; contr
 "Looking at the prototypes and none are quite right. We never want to have it be grouped by genre necessarily."
 None of the eleven variants is the design. The UI is not organised by genre: the per-genre kit the variants converged on
 (tools chosen and named per genre) is ruled out as the organising principle. What replaces it is open (Layout and look, #8).
+
+Chris, 2026-11-13, on what to keep: "I kind of like the mouse card idea demonstrating whatever mode we are in more
+loudly. I like the desk setup." Kept as directions: K's mouse card (what left, right and drag do with the current tool),
+made a more prominent statement of the current mode; I's desk (the board with movable cards around it). Loupes were
+explained; his verdict on them is pending.
