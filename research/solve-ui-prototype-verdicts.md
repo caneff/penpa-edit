@@ -51,3 +51,9 @@ switch with Alt+←/→; `npm run prototype` in a checkout of that branch; contr
 - Penpa's Congratulations popup blocks the page and reopens on every redo into the solved state.
 - `setMode` opens modes a link hides (Galaxies' Composite), undocumented.
 - `pu.solution` is a JSON string on single-answer links and an array on multi-answer links.
+
+## Chris's verdict (2026-11-13)
+
+"Looking at the prototypes and none are quite right. We never want to have it be grouped by genre necessarily."
+None of the eleven variants is the design. The UI is not organised by genre: the per-genre kit the variants converged on
+(tools chosen and named per genre) is ruled out as the organising principle. What replaces it is open (Layout and look, #8).
