@@ -18,6 +18,11 @@ describe('puzz.link import snapshots', () => {
   let page, errors
   before(async () => { ({ page, errors } = await openPenpa(browser())) })
 
+  // Runs before any import, which clears `errors`.
+  it('boots with no page error or console.error', () => {
+    assert.deepEqual(errors, [])
+  })
+
   it('reads the puzzle list from puzz_link_parser.js', () => {
     assert.notEqual(cases.length, 0, 'no puzzle found in test/public/puzz_link_parser.js')
   })
