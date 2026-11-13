@@ -107,7 +107,7 @@ Ranked by what a solver or setter loses.
   reset, `main.js:269-270, 417-427, 895-904`), and any key within 15 ms of Shift-up forces Corner (`main.js:320-324`).
 - **I6 MED LIVE: Surface mode, the default, swallows every non-Ctrl key's browser action**: F5, F11, F1, Tab
   (`main.js:681-693`). Alt+Left (Back) is swallowed in every mode (`main.js:346-353`).
-- **I7 MED LIVE: "conflict detection off for this puzzle" carries over to every later puzzle** (`settings.js:105-120, 472`).
+- **I7 MED LIVE (fixed in #72): "conflict detection off for this puzzle" carries over to every later puzzle** (`settings.js:105-120, 472`).
 - **I8 MED LIVE (synthetic): AZERTY digits in Number mode store `&é"`**; the `e.code` fix is Sudoku-only
   (`main.js:456-489`). IME input (`keyCode 229`) is unhandled (SUSPECT).
 - **I9 MED-LOW LIVE: keys reach the board through Penpa's own dialogs** (Settings, Share, New Grid; `main.js:294-298`).
