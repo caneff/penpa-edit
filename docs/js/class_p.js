@@ -2046,7 +2046,7 @@ class Puzzle {
         // Replace base URL with canonical github url if shortening, so links are still valid externally
         if (UserSettings.shorten_links &&
             (location.href.startsWith('http://localhost') || location.href.startsWith('file://')))
-            return 'https://swaroopg92.github.io/penpa-edit/';
+            return 'https://caneff.github.io/penpa-edit/'; // caneff: share links point at the fork
 
         // This is to account for old links and new links together
         else if (location.hash)
