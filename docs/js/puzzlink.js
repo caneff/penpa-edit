@@ -970,6 +970,53 @@ class DisjointSets {
     }
 }
 
+// caneff: a puzz.link import that fails keeps the current board and shows an error (#18). Returns whether it succeeded.
+function import_puzzlink(url) {
+    var previous = pu;
+    var space_ids = ["nb_space1", "nb_space2", "nb_space3", "nb_space4"];
+    var space = space_ids.map(id => document.getElementById(id).value);
+    try {
+        puzzlink_check_size(url);
+        decode_puzzlink(url);
+        return true;
+    } catch (e) {
+        // decode_puzzlink has already swapped in a new board, the grid-size inputs and the canvas by the time it throws
+        pu = previous;
+        space_ids.forEach((id, i) => { document.getElementById(id).value = space[i]; });
+        pu.reset_frame();
+        panel_pu.draw_panel();
+        pu.mode_qa(pu.mode.qa);
+        errorMsg(PenpaText.get('puzzlink_import_failed'));
+        return false;
+    }
+}
+
+// caneff: decode_puzzlink builds the board before it reads the clues, so a size that is not a whole number of at least 1 stops here.
+function puzzlink_check_size(url) {
+    var urldata = url.split("?")[1].split("/");
+    if (urldata[1] === 'v:') {
+        urldata.splice(1, 1);
+    }
+    if (urldata[1] === 'b') {
+        urldata.splice(1, 1); // castle and yajilin's shading variant
+    }
+    if (!/^[1-9]\d*$/.test(urldata[1]) || !/^[1-9]\d*$/.test(urldata[2])) {
+        throw new Error("puzz.link size is not a whole number of at least 1: " + urldata[1] + "x" + urldata[2]);
+    }
+}
+
+// caneff: a clue cut off in the link decodes to NaN or null; throws when the board holds one.
+function puzzlink_check_clues(puzzle) {
+    for (var layer of ["number", "numberS"]) {
+        for (var cell in puzzle.pu_q[layer]) {
+            var text = puzzle.pu_q[layer][cell][0];
+            if (text === null || text === undefined || Number.isNaN(text) || text === "NaN") {
+                throw new Error("puzz.link clue " + cell + " in " + layer + " is " + text);
+            }
+        }
+    }
+}
+
 function decode_puzzlink(url) {
     var parts, urldata, type, cols, rows, bstr;
 
@@ -3015,6 +3062,8 @@ function decode_puzzlink(url) {
             errorMsg(PenpaText.get('puzzlink_not_supported', type));
             break;
     }
+
+    puzzlink_check_clues(pu); // caneff: stop before the tail touches the page (#18)
 
     // Set PenpaLite
     // document.getElementById('advance_button').value = "1";
