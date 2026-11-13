@@ -1,13 +1,359 @@
-/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant D styles. Owned by variant D's builder. */
-.proto-d-banner {
+/* PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant D styles ("Radial menu"). Owned by variant D's
+   builder. Every layer stays below z-index 1000 (legacy dialogs). */
+html.proto-variant-D, html.proto-variant-D body {
+    background: #14161b;
+}
+.proto-d-root {
     position: fixed;
-    top: 0;
+    inset: 0;
+    z-index: 10;
+    background: radial-gradient(ellipse at 50% 45%, #1f232b 0%, #14161b 70%);
+    color: #e6e8ee;
+    font: 14px/1.3 system-ui, "Segoe UI", sans-serif;
+    user-select: none;
+}
+.proto-d-stage {
+    position: absolute;
+    inset: 56px 40px 90px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.proto-d-stage #dvique {
+    margin: 0 !important;
+    position: relative !important;
+    left: auto !important;
+    top: auto !important;
+    box-shadow: 0 6px 40px rgba(0, 0, 0, .55);
+}
+
+/* ---- Pill (top-left) ---- */
+.proto-d-pill {
+    --fam: #888;
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 6px 10px;
+    border-radius: 999px;
+    background: #23272f;
+    border: 1px solid #343a45;
+    cursor: pointer;
+    transition: box-shadow .2s;
+}
+.proto-d-pill:hover {
+    border-color: var(--fam);
+}
+.proto-d-pill-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--fam);
+    box-shadow: 0 0 8px var(--fam);
+}
+.proto-d-pill-fam {
+    color: var(--fam);
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+.proto-d-pill-mode {
+    font-weight: 600;
+}
+.proto-d-pill-timer {
+    color: #8a91a0;
+    font-variant-numeric: tabular-nums;
+    font-size: 12px;
+    padding-left: 6px;
+    border-left: 1px solid #3a404c;
+}
+.proto-d-pill-timer:empty {
+    display: none;
+}
+.proto-d-pill.is-flash {
+    animation: proto-d-flash .5s ease-out;
+}
+@keyframes proto-d-flash {
+    0% { box-shadow: 0 0 0 0 var(--fam); }
+    100% { box-shadow: 0 0 0 10px transparent; }
+}
+
+.proto-d-title {
+    position: absolute;
+    top: 20px;
     left: 50%;
     transform: translateX(-50%);
-    z-index: 100000;
-    padding: 8px 18px;
-    background: #2a4d8f;
-    color: #fff;
-    font: 600 16px/1.2 system-ui, sans-serif;
-    border-radius: 0 0 8px 8px;
+    color: #9aa1af;
+    font-size: 13px;
+    cursor: help;
+    white-space: nowrap;
+}
+
+/* ---- Corner actions (top-right) ---- */
+.proto-d-corner {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    display: flex;
+    gap: 6px;
+}
+.proto-d-btn {
+    min-width: 36px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid #343a45;
+    background: #23272f;
+    color: #e6e8ee;
+    font: 600 15px system-ui, sans-serif;
+    cursor: pointer;
+}
+.proto-d-btn:hover:not(:disabled) {
+    background: #2d323c;
+}
+.proto-d-btn:disabled {
+    opacity: .35;
+    cursor: default;
+}
+.proto-d-check {
+    font-size: 13px;
+}
+
+.proto-d-hint {
+    position: absolute;
+    left: 16px;
+    bottom: 16px;
+    color: #737b8a;
+    font-size: 12px;
+}
+.proto-d-hint kbd {
+    font: 11px ui-monospace, monospace;
+    padding: 1px 5px;
+    border: 1px solid #454c58;
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    color: #c4c9d3;
+}
+
+/* ---- Radial menu ---- */
+.proto-d-trail {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 40;
+    display: none;
+}
+.proto-d-trail.is-on {
+    display: block;
+}
+.proto-d-trail polyline {
+    fill: none;
+    stroke: rgba(124, 92, 255, .75);
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.proto-d-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+    display: none;
+}
+.proto-d-overlay.is-on {
+    display: block;
+}
+.proto-d-overlay.is-sticky {
+    pointer-events: auto;
+    background: rgba(10, 12, 16, .25);
+}
+.proto-d-hub {
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    margin: -30px 0 0 -30px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, .25);
+}
+.proto-d-hub2 {
+    width: 64px;
+    height: 64px;
+    margin: -32px 0 0 -32px;
+    border: 2px solid var(--fam);
+    background: rgba(20, 22, 27, .92);
+    color: var(--fam);
+    font-weight: 700;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .5);
+}
+.proto-d-overlay.is-sticky .proto-d-hub2 {
+    cursor: pointer;
+}
+.proto-d-link {
+    position: absolute;
+    height: 0;
+    border-top: 2px dashed var(--fam);
+    opacity: .5;
+    transform-origin: 0 0;
+}
+.proto-d-bubble {
+    --fam: #888;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    padding: 5px 11px;
+    border-radius: 999px;
+    background: rgba(32, 36, 44, .96);
+    border: 1.5px solid color-mix(in srgb, var(--fam) 55%, transparent);
+    color: #e6e8ee;
+    font-weight: 600;
+    font-size: 13px;
+    white-space: nowrap;
+    box-shadow: 0 3px 12px rgba(0, 0, 0, .5);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: transform .08s, background .08s;
+}
+.proto-d-ring1 {
+    color: var(--fam);
+    font-size: 14px;
+    padding: 7px 14px;
+}
+.proto-d-ring2 {
+    flex-direction: column;
+    gap: 0;
+    padding: 4px 11px;
+    line-height: 1.15;
+}
+.proto-d-subtext {
+    font-weight: 400;
+    font-size: 11px;
+    color: #aab1bf;
+}
+.proto-d-subtext:empty {
+    display: none;
+}
+.proto-d-swatch {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    border: 1px solid rgba(255, 255, 255, .4);
+}
+.proto-d-ring2 .proto-d-swatch {
+    position: absolute;
+    left: -6px;
+    top: -4px;
+    width: 12px;
+    height: 12px;
+}
+.proto-d-bubble.is-current {
+    border-style: dashed;
+    border-color: var(--fam);
+}
+.proto-d-bubble.is-default {
+    border-color: var(--fam);
+}
+.proto-d-bubble.is-hot {
+    background: var(--fam);
+    color: #111;
+    transform: translate(-50%, -50%) scale(1.12);
+}
+.proto-d-bubble.is-hot .proto-d-subtext {
+    color: #222;
+}
+.proto-d-bubble.is-dim {
+    opacity: .3;
+}
+.proto-d-bubble.is-off {
+    background: rgba(32, 36, 44, .75);
+    border: 1.5px dashed #4a505c;
+    color: #9aa1ad;
+    box-shadow: none;
+    cursor: default;
+}
+.proto-d-bubble.is-off .proto-d-subtext {
+    color: #7d8490;
+}
+.proto-d-overlay.is-sticky .proto-d-bubble:not(.is-off) {
+    cursor: pointer;
+}
+.proto-d-overlay.is-sticky .proto-d-bubble:not(.is-off):hover {
+    background: var(--fam);
+    color: #111;
+}
+.proto-d-overlay.is-sticky .proto-d-bubble:not(.is-off):hover .proto-d-subtext {
+    color: #222;
+}
+
+/* ---- Toast and More panel ---- */
+.proto-d-toast {
+    --fam: #888;
+    position: fixed;
+    z-index: 60;
+    transform: translate(-50%, -50%);
+    padding: 4px 12px;
+    border-radius: 999px;
+    background: var(--fam);
+    color: #111;
+    font-weight: 700;
+    font-size: 13px;
+    pointer-events: none;
+    opacity: 0;
+    white-space: nowrap;
+}
+.proto-d-toast.is-on {
+    animation: proto-d-toast .9s ease-out forwards;
+}
+@keyframes proto-d-toast {
+    0% { opacity: 0; margin-top: 6px; }
+    15% { opacity: 1; margin-top: 0; }
+    70% { opacity: 1; }
+    100% { opacity: 0; margin-top: -8px; }
+}
+.proto-d-more {
+    position: fixed;
+    z-index: 55;
+    display: grid;
+    grid-template-columns: repeat(3, auto);
+    gap: 4px;
+    padding: 10px;
+    border-radius: 10px;
+    background: #23272f;
+    border: 1px solid #e070d0;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, .6);
+}
+.proto-d-more-title {
+    grid-column: 1 / -1;
+    color: #e070d0;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    padding: 0 4px 4px;
+}
+.proto-d-more-item {
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #343a45;
+    background: #1b1e25;
+    color: #e6e8ee;
+    font: 13px system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+.proto-d-more-item:hover {
+    background: #e070d0;
+    color: #111;
+}
+.proto-d-more-item.is-current {
+    border-color: #e070d0;
 }
