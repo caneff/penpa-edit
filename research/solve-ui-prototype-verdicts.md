@@ -64,3 +64,9 @@ made a more prominent statement of the current mode; I's desk (the board with mo
 explained; his verdict on them is pending.
 
 Chris, 2026-11-13: loupes dropped for now. Tools: "I want to be able to pin specific ones I tab between like penpa does now, and otherwise a more intuitive full browsing of modes."
+
+Chris, 2026-11-13, rulings for the new solve UI:
+- The mouse card is a fixed card on the desk (no badge at the pointer); the desk's cards can be rearranged.
+- A pinned item is a mode, not a full tool: Tab lands on the mode, keeping its last sub-mode and style.
+- Pins are seeded from the link's Tab set, editable per puzzle, "plus maybe some preset options to pick between".
+- The full mode browser is grouped by what a tool puts on the board, with a search box ("I think a+c", tentative).
