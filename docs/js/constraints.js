@@ -45,8 +45,8 @@ const penpa_constraints = {
     "setting": {
         "all": {
             "modeset": ["surface", "multicolor", "line", "lineE", "wall", "cage", "number", "symbol", "special", "combi", "sudoku"],
-            "submodeset": ["", "1", "1", "", "1", "1", "circle_L", "thermo", "battleship", "1"],
-            "styleset": [1, 2, 2, 2, 10, 1, 2, "", "", 1]
+            "submodeset": ["", "", "1", "1", "", "1", "1", "circle_L", "thermo", "battleship", "1"], // caneff: multicolor entry added (matches modeset)
+            "styleset": [1, 1, 2, 2, 2, 10, 1, 2, "", "", 1] // caneff: multicolor entry added (matches modeset)
         },
         "general": ["input_sudoku", "rotation", "custom_color_lb"],
         "classic": {
