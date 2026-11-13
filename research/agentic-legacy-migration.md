@@ -426,6 +426,9 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
 - Required on every PR: the import snapshots (test plan § 1), the engine-driver replay of all recordings, the UI-driver
   replay of tiers A and C, and the expected-file gate above. The nightly upstream merge (#3) pushes only when these are
   green (test plan § 6).
+- Measured at #30 (2026-11-13): the UI-driver replay runs every recording, not a sample, on every PR. With one recording
+  and the UI driver's own tests, the whole `npm run test:live` took 23 s on this box and CI's whole job about 1.5 min,
+  under the 5-minute bar the map set for running everything on every PR. Re-time it when the corpus grows.
 - Before the harness is trusted as a gate, measure it: Chromium JS coverage of `class_p.js`'s `mouse_*` and `key_*`
   functions over the whole corpus ([PWCov]), with a gesture added for every handler not reached; then a planted-bug
   table, one-line mutations of the mode handlers caught or missed, copied from sudokupad-scripts' `fuzz:plants`
