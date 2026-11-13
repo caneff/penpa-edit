@@ -3191,10 +3191,11 @@ function set_contestmode() {
     pu.comp = true;
 }
 
-// caneff: a Source comes from the link, so only an http(s) address becomes a link; any other leaves `anchor` unlinked (#11).
+// caneff: a Source comes from the link, so a scheme such as javascript: must never become a link (#11).
 function set_source_href(anchor, source) {
-    if (/^https?:\/\//i.test(source)) {
-        anchor.setAttribute("href", source);
+    let address = source.trim();
+    if (/^(https?:)?\/\//i.test(address)) {
+        anchor.setAttribute("href", address);
     } else {
         anchor.removeAttribute("href");
     }

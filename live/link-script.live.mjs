@@ -1,6 +1,7 @@
 // A link's data never runs as script in the page (#11): no dialog fires and no `on*` attribute appears.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -8,6 +9,8 @@ const browser = useBrowser()
 
 // A payload that opens a dialog if the page parses it as HTML.
 const IMG_ALERT = '<img src=x onerror=alert("link-script")>'
+// How long a dialog from that payload's `onerror`, which fires after the image fails to load, is waited for.
+const NO_DIALOG_MS = 500
 
 // Opens Penpa+ blank, runs `build` in it to make a link, and returns that link's `#` part.
 async function makeLink (build, arg) {
@@ -52,6 +55,8 @@ for (const { name, editMode, id } of SUB_MODES) {
       const read = () => page.evaluate((id) => document.getElementById(id).textContent, id)
       assert.equal(await settle(read, IMG_ALERT), IMG_ALERT)
       assert.deepEqual(await onAttributes(page, id), [])
+      // A "nothing happened in N ms" check (CODING_STANDARDS.md rule 4): no dialog can be awaited when none fires.
+      await sleep(NO_DIALOG_MS)
       assert.deepEqual(dialogs, [])
     })
   })
@@ -88,34 +93,27 @@ describe('a contest link whose Source breaks out of the link quote', () => {
   })
 })
 
-describe('a javascript: Source', () => {
-  const SOURCE = 'javascript:alert("link-script")'
+// Each Source and the `href` it gets in a solve link's Source link and in a contest note: only an http(s) address,
+// or one that resolves to the page's own scheme, is linked.
+const SOURCES = [
+  { source: 'javascript:alert("link-script")', href: null },
+  { source: 'https://example.com/puzzle?id=1', href: 'https://example.com/puzzle?id=1' },
+  { source: ' https://example.com/p', href: 'https://example.com/p' },
+  { source: '//example.com/p', href: '//example.com/p' }
+]
+// Where each kind of link shows its Source.
+const SOURCE_ANCHORS = { solve: '#puzzlesourcelink', contest: '#answer_key a' }
 
-  it('is not linked from a solve link', async () => {
-    const { context, page } = await openPenpa(browser(), await sourceLink('solve', SOURCE))
-    assert.equal(await hrefOf(page, '#puzzlesourcelink'), null)
-    await context.close()
-  })
+for (const { source, href } of SOURCES) {
+  for (const [kind, selector] of Object.entries(SOURCE_ANCHORS)) {
+    describe(`a ${kind} link whose Source is ${JSON.stringify(source)}`, () => {
+      let opened
+      before(async () => { opened = await openPenpa(browser(), await sourceLink(kind, source)) })
+      after(async () => { await opened?.context.close() })
 
-  it('is not linked from a contest note', async () => {
-    const { context, page } = await openPenpa(browser(), await sourceLink('contest', SOURCE))
-    assert.equal(await hrefOf(page, '#answer_key a'), null)
-    await context.close()
-  })
-})
-
-describe('an https Source', () => {
-  const SOURCE = 'https://example.com/puzzle?id=1'
-
-  it('is linked from a solve link', async () => {
-    const { context, page } = await openPenpa(browser(), await sourceLink('solve', SOURCE))
-    assert.equal(await hrefOf(page, '#puzzlesourcelink'), SOURCE)
-    await context.close()
-  })
-
-  it('is linked from a contest note', async () => {
-    const { context, page } = await openPenpa(browser(), await sourceLink('contest', SOURCE))
-    assert.equal(await hrefOf(page, '#answer_key a'), SOURCE)
-    await context.close()
-  })
-})
+      it(href === null ? 'is not linked' : `links to ${href}`, async () => {
+        assert.equal(await hrefOf(opened.page, selector), href)
+      })
+    })
+  }
+}
