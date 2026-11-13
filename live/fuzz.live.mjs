@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fuzz, FUZZ_SEEDS, FUZZ_STEPS } from './fuzz.mjs'
-import { AKARI_SOLVE, numberSolveLinkInPage, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, numberSolveLinkInPage, openPenpa, takePageErrors, useBrowser } from './page.mjs'
 import { makeSurfaceSolveLink, replay } from './replay.mjs'
 
 const browser = useBrowser()
@@ -20,32 +20,50 @@ const ANSWER_CELL = 1
 const PLANT_SEED = 1
 const PLANT_STEPS = 40
 
-// Each plant: a source change to `class_p.js` that breaks one invariant, and the start of the failure it must report.
+// Each plant: a source change to `class_p.js` that breaks one invariant, the failure the fuzz must report, and what the
+// saved recording's replay on the planted page must show: its report (null when it reaches the board the fuzz failed
+// on), the step it threw at, and the page errors of every page the test opened.
 const PLANTS = [
   {
-    invariant: 'no page error',
+    invariant: 'no page error, from a step that throws',
     from: /(\r?\n {4}key_backspace\(\) \{\r?\n)/,
     to: '$1        throw new Error("planted");\n',
-    failure: /^step \d+ \(key_backspace\(\)\) threw: planted$/
+    failure: /^step \d+ \(key_backspace\(\)\) threw: planted$/,
+    replays: ({ thrown }) => assert.match(thrown ?? 'no throw', /could not be replayed: planted$/)
+  },
+  {
+    // `redraw`'s own catch logs the throw with `console.error`.
+    invariant: 'no page error, from a console.error',
+    from: /(\r?\n {12}this\.draw\(\);\r?\n)/,
+    to: '$1            if (this.pu_a.command_undo.__a.length > 1) throw new Error("planted draw");\n',
+    failure: /^step \d+ \(.*\): page error: console\.error: .*planted draw/,
+    replays: ({ report }, raised) => {
+      assert.equal(report, null)
+      assert.ok(raised.some((e) => /planted draw/.test(e)), `the replay page logged the planted error:\n${raised.join('\n')}`)
+    }
   },
   {
     invariant: 'one draw() per redraw()',
     from: /(\r?\n {12}this\.draw\(\);\r?\n)/,
     to: '$1            if (this.pu_a.command_undo.__a.length) this.draw();\n',
-    failure: /^step \d+ \(.*\) ran a redraw\(\) with 2 draw\(\) calls$/
+    failure: /^step \d+ \(.*\) ran a redraw\(\) with 2 draw\(\) calls$/,
+    replays: ({ report }) => assert.equal(report, null)
   },
   {
-    // The answer board's redo puts back every entry but its first one's content in a group.
+    // The answer board's first redo with two entries pending drops the oldest, so redo-all leaves an edit undone.
     invariant: 'undo-all then redo-all',
     from: /(\r?\n {4}redo\(replay = false\) \{\r?\n)/,
     to: '$1        if (this.mode.qa === "pu_a" && this.pu_a.command_redo.__a.length > 1 && !this.planted) { this.planted = true; this.pu_a.command_redo.__a.shift(); this.pu_a_col.command_redo.__a.shift(); }\n',
-    failure: /^step \d+ \(.*\): undo-all then redo-all changed the state:\n/
+    failure: /^step \d+ \(.*\): undo-all then redo-all changed the state:\n/,
+    replays: ({ report }) => assert.equal(report, null)
   },
   {
+    // Making the Clone link drops the newest undo entry.
     invariant: 'save/load round trip',
     from: /(\r?\n {4}maketext_duplicate\(\) \{\r?\n)/,
     to: '$1        if (this.pu_a.command_undo.__a.length > 2) { this.pu_a.command_undo.__a.pop(); }\n',
-    failure: /^step \d+ \(.*\): the save\/load round trip changed the state:\n/
+    failure: /^step \d+ \(.*\): the save\/load round trip changed the state:\n/,
+    replays: ({ report }) => assert.equal(report, null)
   }
 ]
 
@@ -95,21 +113,16 @@ describe('the fuzz', () => {
           contentType: 'text/javascript', body: planted
         }))
         const puzzle = puzzles.find((p) => p.name === 'surface-4x4')
-        const { failure, saved, errors } = await fuzz(browser(), puzzle, {
+        const { failure, saved } = await fuzz(browser(), puzzle, {
           seed: PLANT_SEED, count: PLANT_STEPS, saveDir, served: true, setup
         })
-        // A planted throw is the page's error by design; emptied so `useBrowser` does not fail the test on it.
-        errors.splice(0)
         assert.match(failure ?? 'no failure', plant.failure)
         const recording = JSON.parse(await readFile(saved, 'utf8'))
         assert.deepEqual(recording.header.fuzz, { puzzle: 'surface-4x4', seed: PLANT_SEED })
         assert.match(recording.header.commit, /^[0-9a-f]{7,40}$/)
         const replayed = await replay(browser(), recording, { id: 'planted', served: true, setup }).catch((e) => ({ thrown: e.message }))
-        if (plant.invariant === 'no page error') {
-          assert.match(replayed.thrown ?? '', /could not be replayed: planted$/)
-        } else {
-          assert.equal(replayed.report, null)
-        }
+        // A planted error is the pages' own by design, so it is taken here and `useBrowser` does not fail the test on it.
+        plant.replays(replayed, takePageErrors())
       })
     }
   })
