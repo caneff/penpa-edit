@@ -7,7 +7,11 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Mode**: one of Penpa+'s top-row input modes (Surface, Line, Number, Shape, Sudoku, ...), in `pu.mode[pu.mode.qa].edit_mode`.
 - **Sub-mode**: the choice within a mode (Number's Normal, Long, Candidates, ...).
 - **Style**: the color or look choice within a sub-mode (the digit keys pick one in Surface).
-- **Tab cycle**: Penpa+'s Tab and Enter keys, which step through the modes checked in its Tab settings (`#mode_choices`).
+- **Tab set**: the modes checked in Penpa+'s Tab settings (`#mode_choices`), which a link carries; Penpa+'s Tab and
+  Enter keys step through it. In the new solve UI it only seeds the pins.
+- **Pin**: a mode and one of its sub-modes the solver keeps for Tab in the new solve UI; its style is the last one used
+  on it. The same mode can be pinned with different sub-modes.
+- **Tab cycle**: Tab and Shift+Tab stepping through the pins in the new solve UI. Not the Tab set, which only seeds them.
 - **Upstream**: `swaroopg92/penpa-edit`, the Penpa+ this repo forks.
 - **The fork**: this repo, served at `https://caneff.github.io/penpa-edit/`.
 - **Redirect script**: `userscript/penpa-redirect.user.js`, which sends upstream's links to the fork.
