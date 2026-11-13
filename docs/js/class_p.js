@@ -12615,7 +12615,12 @@ class Puzzle {
             if (!this.bg_image_data.foreground)
                 this.draw_bg_image();
             if (check_sol) {
-                this.check_solution();
+                // caneff: a checker error is logged and must not skip draw() after flushcanvas() blanked the board.
+                try {
+                    this.check_solution();
+                } catch (err) {
+                    console.error(err);
+                }
             }
             panel_pu.draw_panel();
             this.draw();
