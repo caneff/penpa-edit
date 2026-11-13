@@ -5,7 +5,8 @@
 // `live/**/*.live.mjs` skips it. The design is `research/agentic-legacy-migration.md` § Corpus:
 // - tier A, every solve mode's sub-modes, Composite tools and Shape's two key paths on one small square puzzle;
 // - tier B, the smallest of upstream's puzz.link imports per genre in the mode the import opens in, and a Penpa+ board
-//   of each grid class no import builds.
+//   of each grid class no import builds. A genre whose smallest import does not record (its solve link does not boot)
+//   takes its next smallest, and the header's `import` names the one taken.
 import { execFileSync } from 'node:child_process'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
@@ -40,11 +41,14 @@ const GRID_MODES = ['surface', 'line', 'number']
 
 const slug = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
-// Runs in the page: page pixels of a run of `length` points of `type`, from the one nearest the centre of the cell at
-// `cell` of the center list, each next point the nearest one to the right of the last.
+// Runs in the page: page pixels of a run of up to `length` points of `type` on the board, from the one nearest the
+// centre of the cell at `cell` of the center list, each next point the nearest one to the right of the last.
 function runInPage ({ cell, type, length }) {
   const canvas = document.getElementById('canvas')
-  const points = pu.point.filter((p) => p && p.type === type)
+  const pixel = (p) => ({ x: canvas.offsetLeft + p.x - window.scrollX, y: canvas.offsetTop + p.y - window.scrollY })
+  const board = canvas.getBoundingClientRect()
+  const onBoard = ({ x, y }) => x > board.left && x < board.right && y > board.top && y < board.bottom
+  const points = pu.point.filter((p) => p && p.type === type && onBoard(pixel(p)))
   const centre = pu.point[pu.centerlist[cell % pu.centerlist.length]]
   const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
   const nearest = (from, among) => among.reduce((best, p) => (!best || distance(from, p) < distance(from, best) ? p : best), null)
@@ -55,7 +59,15 @@ function runInPage ({ cell, type, length }) {
     if (!next) break
     run.push(next)
   }
-  return run.filter(Boolean).map((p) => ({ x: canvas.offsetLeft + p.x - window.scrollX, y: canvas.offsetTop + p.y - window.scrollY }))
+  // The key panel Shape mode opens floats over the board, and a click on it never reaches the board; a solver drags
+  // it aside. Still open, so `UserSettings.panel_shown` stays as the engine set it.
+  document.getElementById('float-key').style.left = '-10000px'
+  const pixels = run.filter(Boolean).map(pixel)
+  for (const { x, y } of pixels) {
+    const hit = document.elementFromPoint(x, y)
+    if (hit !== canvas) throw new Error(`the gesture's point ${x},${y} is on ${hit?.id || hit?.tagName}, not the board`)
+  }
+  return pixels
 }
 
 async function drag (page, run) {
@@ -160,7 +172,7 @@ async function tierA (browser) {
   const pairs = await page.evaluate(tierAInPage, SHAPE_TOOLS).finally(() => context.close())
   return pairs.map((pair) => ({
     id: `${FAMILY[pair.mode]}/${slug([pair.mode, pair.name].filter(Boolean).join(' '))}`,
-    query,
+    boards: [async () => ({ query })],
     act: async (page) => {
       if (pair.mode === 'move') {
         // Something of the solver's to move: a digit where the drag starts.
@@ -175,49 +187,73 @@ async function tierA (browser) {
   }))
 }
 
-// The smallest of each genre's imports, by cell count, the earlier one on a tie.
-function smallestPerGenre () {
-  const smallest = new Map()
+// Each genre's imports, smallest first by cell count, the earlier one on a tie.
+function importsPerGenre () {
+  const byGenre = new Map()
   for (const c of cases) {
     const genre = c.name.replace(/ \d+$/, '')
     const [w, h] = readSnapshot(c.name).grid_size
-    const kept = smallest.get(genre)
-    if (!kept || w * h < kept.cells) smallest.set(genre, { ...c, genre, cells: w * h })
+    byGenre.set(genre, [...byGenre.get(genre) ?? [], { ...c, cells: w * h }])
   }
-  return [...smallest.values()]
+  return [...byGenre].map(([genre, imports]) => ({ genre, imports: imports.sort((a, b) => a.cells - b.cells) }))
 }
 
-async function tierB (browser) {
-  const { context, page } = await openPenpa(browser)
+// Each recording to make: its id, the boards it may be made on in order of preference (each a function returning a
+// link's `#` part and the name of what it is), and what it does on the board.
+async function tierB (page) {
   const recordings = []
-  try {
-    for (const { genre, url } of smallestPerGenre()) {
-      await page.evaluate((u) => import_url(u), url)
-      const query = await page.evaluate(solveLinkInPage)
-      recordings.push({ id: `genre/${slug(genre)}`, query, act: (p) => gestures(p) })
-    }
-    for (const [grid, size] of Object.entries(GRID_BOARDS)) {
+  for (const { genre, imports } of importsPerGenre()) {
+    recordings.push({
+      id: `genre/${slug(genre)}`,
+      boards: imports.map(({ name, url }) => async () => {
+        await page.evaluate((u) => import_url(u), url)
+        return { query: await page.evaluate(solveLinkInPage), name }
+      }),
+      act: (p) => gestures(p)
+    })
+  }
+  for (const [grid, size] of Object.entries(GRID_BOARDS)) {
+    const board = async () => {
       await page.evaluate(newBoardInPage, { gridtype: grid === 'uniform' ? UNIFORM_TILING : grid, size })
-      const query = await page.evaluate(solveLinkInPage)
-      for (const mode of GRID_MODES) {
-        recordings.push({ id: `grid/${grid}-${mode}`, query, act: async (p) => { await chooseMode(p, { mode }); await gestures(p) } })
-      }
+      return { query: await page.evaluate(solveLinkInPage) }
     }
-  } finally {
-    await context.close()
+    for (const mode of GRID_MODES) {
+      recordings.push({ id: `grid/${grid}-${mode}`, boards: [board], act: async (p) => { await chooseMode(p, { mode }); await gestures(p) } })
+    }
   }
   return recordings
+}
+
+// Records on the first of `boards` that records, naming each one that failed.
+async function recordOnFirst (browser, { id, boards, act }) {
+  for (const board of boards) {
+    const { query, name } = await board()
+    try {
+      const recording = await record(browser, query, act)
+      if (name) recording.header.import = name
+      return recording
+    } catch (e) {
+      console.log(`${id}: could not record on ${name ?? 'its board'}: ${e.message.split('\n')[0]}`)
+    }
+  }
+  return null
 }
 
 const prefixes = process.argv.slice(2)
 const browser = await chromium.launch()
 const refused = []
+const importPage = await openPenpa(browser)
 try {
-  const plan = [...await tierA(browser), ...await tierB(browser)]
+  const plan = [...await tierA(browser), ...await tierB(importPage.page)]
     .filter(({ id }) => !prefixes.length || prefixes.some((p) => id.startsWith(p)))
-  for (const { id, query, act } of plan) {
+  for (const item of plan) {
+    const { id } = item
     const started = Date.now()
-    const recording = await record(browser, query, act)
+    const recording = await recordOnFirst(browser, item)
+    if (!recording) {
+      refused.push(`${id}: no board it could be recorded on`)
+      continue
+    }
     await mkdir(new URL(id.slice(0, id.lastIndexOf('/') + 1), RECORDINGS), { recursive: true })
     await writeFile(new URL(id + '.steps.json', RECORDINGS), recordingText(recording))
     const { checkpoints, report } = await replay(browser, recording, { id })
