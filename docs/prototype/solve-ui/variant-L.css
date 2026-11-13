@@ -62,6 +62,7 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 /* ---- Cards ---- */
 .proto-l-card {
     position: absolute;
+    box-sizing: border-box; /* round 4: a saved size is offsetWidth / offsetHeight, border included */
     background: #fbfaf7;
     border: 1px solid #cfcabd;
     border-radius: 9px;
@@ -94,13 +95,13 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-body { padding: 10px 12px; overflow: auto; }
 
 .proto-l-card-board .proto-l-body { padding: 8px; overflow: visible; }
-.proto-l-card-pins { width: 310px; }
+.proto-l-card-pins { width: 380px; }
 .proto-l-card-pins .proto-l-body { min-height: 150px; overflow: visible; }
-.proto-l-card-rules { width: 310px; }
+.proto-l-card-rules { width: 380px; }
 .proto-l-card-rules .proto-l-body { max-height: 520px; box-sizing: border-box; font-size: 12.5px; color: #3b3e45; } /* max-height also set by place() */
-.proto-l-card-tool { width: 414px; }
-.proto-l-card-tool .proto-l-body { overflow: visible; }
-.proto-l-card-mouse { width: 414px; border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
+.proto-l-card-mode { width: 380px; }
+.proto-l-card-mode .proto-l-body { overflow: visible; }
+.proto-l-card-mouse { width: 380px; border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
 .proto-l-card-mouse .proto-l-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 
 /* Buttons inside cards are light. */
@@ -200,13 +201,7 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-card .proto-l-body .proto-l-pdx:hover { background: rgba(0, 0, 0, .08); color: #222; }
 .proto-l-pdfoot { display: flex; gap: 6px; padding: 6px 4px 2px; border-top: 1px solid #ece8de; margin-top: 4px; min-width: 300px; }
 .proto-l-pd-presets .proto-l-pdlist { min-width: 380px; }
-.proto-l-card-tool .proto-l-pd .proto-l-pdbtn { min-width: 200px; }
 
-/* Segmented row for 3 or fewer choices. */
-.proto-l-seg { display: inline-flex; justify-self: start; border: 1px solid #cfcabd; border-radius: 6px; overflow: hidden; }
-.proto-l-card .proto-l-body .proto-l-segbtn { border: 0; border-radius: 0; border-right: 1px solid #cfcabd; padding: 4px 12px; }
-.proto-l-card .proto-l-body .proto-l-segbtn:last-child { border-right: 0; }
-.proto-l-card .proto-l-body .proto-l-segbtn.is-on { background: #3b6fd4; color: #fff; }
 
 /* Tag chips (Penpa's own labels, often a genre name): searchable, never a group. */
 .proto-l-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: 9px; background: #efe7d2; color: #6b5a2c; font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; }
@@ -226,22 +221,19 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-picker.is-open .proto-l-list { display: block; }
 .proto-l-entry.is-active { outline: 2px solid #8aa6e0; outline-offset: -2px; }
 .proto-l-toolopts { margin-top: 10px; display: grid; gap: 8px; }
-.proto-l-opt { display: grid; grid-template-columns: 80px 1fr; align-items: center; gap: 8px; }
-.proto-l-opt > .proto-l-pd { justify-self: start; }
-.proto-l-optlabel { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8b8676; }
 .proto-l-card.has-open { z-index: 800 !important; }
 
 /* ---- Round 3: one button per style ---- */
-.proto-l-styles { display: flex; flex-wrap: wrap; gap: 4px; }
+.proto-l-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
 .proto-l-card .proto-l-body .proto-l-stylebtn {
-    display: inline-flex; align-items: center; justify-content: center; padding: 2px 3px; line-height: 0;
-    background: #fff; border: 1px solid #cfcabd; border-radius: 6px;
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; line-height: 0;
+    color: #23262c; background: #fff; border: 1px solid #cfcabd; border-radius: 5px; box-sizing: border-box;
 }
 .proto-l-card .proto-l-body .proto-l-stylebtn:hover { border-color: #8aa6e0; background: #fff; }
 .proto-l-card .proto-l-body .proto-l-stylebtn.is-on { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 
 /* ---- Round 4: the Recent card (left column, under Pinned modes) ---- */
-.proto-l-card-recent { width: 310px; }
+.proto-l-card-recent { width: 380px; }
 .proto-l-recentempty { margin: 2px 0; }
 .proto-l-recentlist { display: flex; flex-direction: column; gap: 5px; }
 .proto-l-card .proto-l-body .proto-l-recentbtn {
@@ -259,3 +251,24 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 
 /* Held Shift / Ctrl in Sudoku: the Mouse card names the temporary tool with this tag. */
 .proto-l-heldtag { display: inline-block; margin-left: 10px; padding: 1px 8px; border-radius: 9px; background: #ffe6a6; color: #7a5300; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
+
+/* ---- Round 4: resizable cards ---- */
+.proto-l-rs { position: absolute; z-index: 2; }
+.proto-l-rs-r { top: 8px; right: -4px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.proto-l-rs-b { left: 8px; right: 8px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.proto-l-rs-c { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: nwse-resize; }
+.proto-l-rs-c::after { content: ""; position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px;
+    border-right: 2px solid #b9b3a2; border-bottom: 2px solid #b9b3a2; }
+.proto-l-card.is-resizing { box-shadow: 0 10px 28px rgba(40, 35, 20, .3); user-select: none; }
+.proto-l-card.is-sized .proto-l-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.proto-l-card.is-sized.has-open .proto-l-body { overflow: visible; }
+.proto-l-card-board.is-sized .proto-l-body { overflow: auto; display: flex; }
+/* Centred while it fits; when zoomed past the card it starts at the top left and the body scrolls (margin: auto never clips). */
+.proto-l-card-board .proto-l-body > #dvique { margin: auto; flex: none; }
+
+/* Round 4: genre presets show their pins as a muted line under the title. */
+.proto-l-pditem.has-note { flex-wrap: wrap; row-gap: 0; }
+.proto-l-pdnote { flex-basis: 100%; order: 9; font-size: 11px; color: #8b8676; white-space: normal; line-height: 1.25; }
+.proto-l-pditem.has-note .proto-l-pdextra { margin-left: auto; }
+.proto-l-pditem.is-disabled { opacity: .5; cursor: default; }
+.proto-l-pditem.is-disabled:hover { background: transparent; }

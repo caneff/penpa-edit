@@ -4,10 +4,15 @@
  *
  * Built to Chris's rulings of 2026-11-13 (research/solve-ui-prototype-verdicts.md, last section), on the kept ideas of
  * I (the desk) and K (the mouse card):
- *   1. Desk: the board and four cards (Mouse, Pinned modes, Tool, Rules) lie on one desk. Every card, the board
- *      included, is dragged by its header. One layout for every puzzle, kept in localStorage (PROTOTYPE key
- *      `proto-L-layout-v2`; round 1's six-card layout under v1 is ignored); "Reset layout" restores the default.
- *   2. Mouse card: fixed on the desk, large. Its headline names the whole tool, mode · sub-mode · style
+ *   1. Desk: the board and five cards lie on one desk; round 4 default: Mouse and Rules on the left, Pinned modes,
+ *      Mode and Recent on the right, the Board card filling the space between. Every card is dragged by its header
+ *      and resized by its right edge, bottom edge or corner (minimum sizes in MIN_SIZE); cards stack 10px apart in a
+ *      column until the solver moves or resizes one there. One layout for every puzzle, kept in localStorage
+ *      (PROTOTYPE key `proto-L-layout-v4`; older keys are ignored); "Reset layout" restores the default. On every
+ *      window resize (browser zoom fires one) the default cards re-run the layout for the new viewport and the moved
+ *      or resized ones keep their gap to the nearer edges, clamped and shrunk to stay inside (see place()).
+ *      The board always fits its card (setCellSize, 12-90 px); − / + step from the fitted size and scroll inside.
+ *   2. Mouse card: fixed on the desk, large, with one fixed height (round 4: the tallest any tool needs). Its headline names the whole tool, mode · sub-mode · style
  *      ("Line · helper × · green"); rows below say what Left, Right and Drag do with it. Re-rendered on every
  *      bridge onChange, so legacy keys (Z/X/C/V, Shift/Ctrl in Sudoku, Surface digits) update it too.
  *   3. Pinned tools (round 3, Chris: "we are pinning a sub mode"): a pin is a mode plus one sub-mode (for Shape,
@@ -22,10 +27,12 @@
  *      Held Shift / Ctrl in Sudoku (#69): the temporary sub-mode never enters Recent and never changes or unlights a
  *      pin; the Mouse card tags it "held". Tab during a hold drops the hold first; blur, a hidden page and a legacy
  *      dialog drop it too (see the comment above `hold`). A picker pick that exactly matches a pin lands on it.
- *   4. Presets: built-in pin sets named by their contents, plus sets the solver saves under a typed name
- *      (`proto-L-presets-v1`), all in one "Presets" pulldown on the pins card (save field at its foot). Each preset
- *      pin is [mode, sub-mode or null, style or null]; null takes the mode's current value.
- *   5. Tool card (round 2: the old Tool settings and All modes cards merged): a field showing the current mode entry;
+ *   4. Presets: round 4 (Chris), built-ins titled by puzzle genre under genre-family headings (Loops, Shading,
+ *      Objects, Regions, Sudoku), each with its pins as a muted line; the solver's own under "Saved"
+ *      (`proto-L-presets-v1`); all in one "Presets" pulldown on the Pinned modes card (save field at its foot). Each
+ *      preset pin is [mode, sub-mode or null, style or null]; null takes the mode's current value. A preset none of
+ *      whose pins the grid offers is dimmed.
+ *   5. Mode card (round 4: renamed from Tool; round 2: the old Tool settings and All modes cards merged): a field showing the current mode entry;
  *      focusing, clicking or typing in it opens the picker (every solve mode and sub-mode, Composite tools and Special
  *      objects included, in seven groups by what it puts on the board, filtered by the typed words, a Pin toggle per
  *      entry); picking closes it. Under the field: the sub-mode (or Composite tool / Shape) and style pulldowns.
@@ -42,7 +49,9 @@
  *      Chris: "if a sub mode has no style options we should just show the pulldown of other sub modes": a tool with
  *      no style shows only the sub-mode pulldown (any count of 2+), and no options area at all when it has neither.
  *      Composite tools get the line / edge styles Penpa shows for them (class_p.js subcombimode).
- *   6. Genre names: Chris ruled them fine as searchable tags, not groups. Each Composite entry carries Penpa+'s own label
+ *      Round 4: the card is the picker field plus style buttons only (24px squares); every sub-mode, every Shape
+ *      included, is a picker entry; no sub-mode control.
+ *   6. Genre names: Chris ruled them fine as searchable tags, not groups (presets, round 4, are titled by genre). Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
@@ -68,7 +77,7 @@
 (function() {
     'use strict';
 
-    const LS_LAYOUT = 'proto-L-layout-v3'; // v1: six cards; v2: five; v3 (round 4): Recent is its own card
+    const LS_LAYOUT = 'proto-L-layout-v4'; // v1: six cards; v2: five; v3: Recent card; v4: columns swapped, sizes
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v2:'; // v2: a pin is {mode, sub, style}; v1 held bare modes
     const LS_RECENT = 'proto-L-recent-v2:';
@@ -152,6 +161,14 @@
         }
         return t[style] || ('style ' + style);
     }
+
+    /** Readable names for the legacy shape groups (ms1_ / ms3_ / ms4_ ids in index.html). */
+    const SHAPE_GROUP = {
+        circle: 'Circle', square: 'Square', triup: 'Triangle up', tridown: 'Triangle down', triright: 'Triangle right',
+        trileft: 'Triangle left', diamond: 'Diamond', hexpoint: 'Hexagon, point up', hexflat: 'Hexagon, flat',
+        ox: '○ △ □ ×', bars: 'Bars', math: 'Math', degital: 'Digital digits', arrow_B: 'Arrow', arrow_N: 'Arrow, notched',
+        arrow_tri: 'Arrow, triangle', arrow_fouredge: 'Arrows, four edges', arrow_GP: 'Arrow, graphic', battleship: 'Ship'
+    };
 
     function shapeName(sub) {
         return String(sub || '').replace(/_/g, ' ');
@@ -315,7 +332,6 @@
         ['numbers', 'sudoku', '1', 'Digits', 'Select cells, type a digit. Shift: corner, Ctrl: centre.'],
         ['numbers', 'sudoku', '2', 'Corner marks', 'Pencil marks in the corners.'],
         ['numbers', 'sudoku', '3', 'Centre marks', 'Pencil marks in the centre.'],
-        ['symbols', 'symbol', null, 'Shape', 'Circles, squares, triangles, arrows, ... at the cursor.'],
         ['objects', 'special', 'thermo', 'Thermometer', 'Drag a thermometer through cells.'],
         ['objects', 'special', 'nobulbthermo', 'Thermometer, no bulb', 'Drag a bulbless thermometer.'],
         ['objects', 'special', 'arrows', 'Arrow with circle', 'Drag an arrow from a circled cell.'],
@@ -330,17 +346,27 @@
     ];
 
     /**
-     * Built-in presets, named by their contents only. Each pin: [mode, sub-mode or null (the mode's current one)].
-     * Round 3: a pin is a mode plus a sub-mode, so a set may hold one mode twice (Line normal + Line helper ×).
+     * Built-in presets (round 4, Chris: "Presets should not be named as types but grouped as puzzle genres and titled
+     * as such. I only didnt want the modes themselves titled by genre."): titled by genre, grouped by genre family.
+     * Pins are the genre kits the round-2 variants found (variant-E.js GENRES / KINDS, variant-K.js inferKit; a kit's
+     * "swap" kind such as Dot or Cross is the same Composite tool, so one pin). Each pin: [mode, sub-mode or null (the
+     * mode's current one)]. Modes, pins, the picker and Recent stay named by what they do.
      */
     const BUILTIN_PRESETS = [
-        {name: 'Shading + dots', pins: [['combi', 'blpo'], ['surface', null]]},
-        {name: 'Loop + ×', pins: [['combi', 'linex'], ['line', '1'], ['line', '4']]},
-        {name: 'Edges + ×', pins: [['combi', 'edgex'], ['lineE', '1'], ['lineE', '4']]},
-        {name: 'Lines + edges + ×', pins: [['line', '1'], ['line', '4'], ['lineE', '1'], ['lineE', '4']]},
-        {name: 'Numbers + candidates', pins: [['number', '1'], ['number', '7'], ['surface', null]]},
-        {name: 'Digits + corner + centre', pins: [['sudoku', '1'], ['sudoku', '2'], ['sudoku', '3']]},
-        {name: 'Digits + colours', pins: [['sudoku', '1'], ['multicolor', null]]}
+        {group: 'Loops', name: 'Masyu', pins: [['combi', 'linex'], ['combi', 'lineox']]},
+        {group: 'Loops', name: 'Slitherlink', pins: [['combi', 'edgex'], ['combi', 'edgexoi']]},
+        {group: 'Loops', name: 'Yajilin', pins: [['combi', 'yajilin'], ['combi', 'linex']]},
+        {group: 'Shading', name: 'Nurikabe', pins: [['combi', 'blpo']]},
+        {group: 'Shading', name: 'Yin-Yang', pins: [['combi', 'blwh']]},
+        {group: 'Shading', name: 'Heyawake / LITS', pins: [['combi', 'blpo']]},
+        {group: 'Objects', name: 'Star Battle', pins: [['combi', 'star']]},
+        {group: 'Objects', name: 'Akari', pins: [['combi', 'akari']]},
+        {group: 'Objects', name: 'Battleships', pins: [['combi', 'battleship']]},
+        {group: 'Objects', name: 'Tents', pins: [['combi', 'tents']]},
+        {group: 'Regions', name: 'Fillomino', pins: [['number', '1'], ['combi', 'edgex']]},
+        {group: 'Regions', name: 'Galaxies', pins: [['combi', 'edgex']]},
+        {group: 'Sudoku', name: 'Classic sudoku', pins: [['sudoku', '1'], ['sudoku', '2'], ['sudoku', '3']]},
+        {group: 'Sudoku', name: 'Sudoku with colours', pins: [['sudoku', '1'], ['sudoku', '2'], ['sudoku', '3'], ['multicolor', null]]}
     ];
 
     // ---- Storage ------------------------------------------------------------------------------------------------
@@ -463,6 +489,7 @@
 
             // ---- Cards ------------------------------------------------------------------------------------------
             const cards = {};
+            let mouseDefaultH = 0; // round 4: the Mouse card's fixed default height (measureMouse)
             let zTop = 20;
 
             function makeCard(id, title, extraHead) {
@@ -483,7 +510,75 @@
                 card.addEventListener('mousedown', function() {
                     raise(cards[id]);
                 });
+                // Round 4 (Chris: "windows should be resizeable"): right edge, bottom edge and corner handles.
+                ['r', 'b', 'c'].forEach(function(dir) {
+                    const hnd = el('div', {class: 'proto-l-rs proto-l-rs-' + dir, title: 'Drag to resize'});
+                    hnd.addEventListener('mousedown', function(e) {
+                        if (e.button === 0) {
+                            startResize(cards[id], dir, e);
+                        }
+                    });
+                    card.appendChild(hnd);
+                });
                 return cards[id];
+            }
+
+            /** Smallest size a card can be dragged to, [width, height] in px. */
+            const MIN_SIZE = {board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80],
+                rules: [200, 80]};
+
+            let resize = null;
+            function startResize(c, dir, e) {
+                e.preventDefault();
+                e.stopPropagation();
+                raise(c);
+                resize = {c: c, dir: dir, sx: e.clientX, sy: e.clientY, w: c.card.offsetWidth, h: c.card.offsetHeight};
+                c.card.classList.add('is-resizing');
+            }
+            document.addEventListener('mousemove', function(e) {
+                if (!resize) {
+                    return;
+                }
+                const min = MIN_SIZE[resize.c.id] || [160, 80];
+                if (resize.dir !== 'b') {
+                    resize.c.card.style.width = Math.max(min[0], resize.w + e.clientX - resize.sx) + 'px';
+                }
+                if (resize.dir !== 'r') {
+                    resize.c.card.style.height = Math.max(min[1], resize.h + e.clientY - resize.sy) + 'px';
+                    resize.c.card.classList.add('is-sized');
+                }
+            });
+            document.addEventListener('mouseup', function() {
+                if (!resize) {
+                    return;
+                }
+                const c = resize.c;
+                c.card.classList.remove('is-resizing');
+                resize = null;
+                const p = layout[c.id] || {};
+                p.x = c.card.offsetLeft;
+                p.y = c.card.offsetTop;
+                p.w = c.card.offsetWidth;
+                p.vw = desk.clientWidth;
+                p.cw = c.card.offsetWidth;
+                p.ch = c.card.offsetHeight;
+                p.vh = desk.clientHeight;
+                if (c.card.style.height) {
+                    p.h = c.card.offsetHeight;
+                }
+                layout[c.id] = p;
+                writeJSON(LS_LAYOUT, layout);
+                afterResize(c);
+            });
+
+            /** Content that follows a card's size: the board refits, the picker list re-sizes, Rules caps its height. */
+            function afterResize(c) {
+                if (c.id === 'board') {
+                    fitBoard(); // a Board resize drops any manual zoom
+                } else if (c.id === 'mode' && pickOpen) {
+                    sizePicker();
+                }
+                renderAll(true);
             }
 
             function raise(c) {
@@ -491,22 +586,30 @@
                 c.card.style.zIndex = zTop;
             }
 
-            // Default layout at 1600x900: a left column (pins, rules), the board in the middle, the mouse card and the
-            // Tool card on the right. Columns stack by measured height.
+            // Default layout (round 4, Chris: "the pinned modes and mode and recent mode should all be on the right side,
+            // mouse and rules on the left"): left column Mouse, Rules; board in the middle; right column Pinned modes,
+            // Mode, Recent. Each column stacks by measured height, 10px apart.
+            // Column width: 380px, narrower on a small viewport (browser zoom) so the board keeps at least 300px.
+            const COL_W = 380;
+            function columns() {
+                const W = desk.clientWidth || window.innerWidth;
+                const colW = Math.max(240, Math.min(COL_W, Math.floor((W - 4 * 14 - 300) / 2)));
+                return {left: 14, colW: colW, board: 14 + colW + 14, right: W - 14 - colW};
+            }
             function defaults() {
-                const W = window.innerWidth;
-                const right = Math.max(W - 430, 900);
+                const c = columns();
                 const gap = 10;
                 const h = function(id) {
                     return cards[id] ? cards[id].card.offsetHeight : 200;
                 };
+                // The Board card fills the space between the columns, above the prototype switcher pill (about 64px).
                 return {
-                    pins: {x: 14, y: 12},
-                    recent: {x: 14, y: 12 + h('pins') + gap},
-                    rules: {x: 14, y: 12 + h('pins') + h('recent') + 2 * gap},
-                    board: {x: 340, y: 12},
-                    mouse: {x: right, y: 12},
-                    tool: {x: right, y: 12 + h('mouse') + gap}
+                    mouse: {x: c.left, y: 12, w: c.colW},
+                    rules: {x: c.left, y: 12 + h('mouse') + gap, w: c.colW},
+                    board: {x: c.board, y: 12, w: c.right - 14 - c.board, h: Math.max(200, desk.clientHeight - 12 - 64)},
+                    pins: {x: c.right, y: 12, w: c.colW},
+                    mode: {x: c.right, y: 12 + h('pins') + gap, w: c.colW},
+                    recent: {x: c.right, y: 12 + h('pins') + h('mode') + 2 * gap, w: c.colW}
                 };
             }
 
@@ -516,8 +619,14 @@
             let openPd = null;
             function closePd() {
                 if (openPd) {
+                    // The open pulldown may have been re-rendered away (Save rebuilds the Pinned modes card while the
+                    // Presets list is open); a detached one has no card, so clear the flag on every card instead.
                     openPd.classList.remove('is-open');
-                    openPd.closest('.proto-l-card').classList.remove('has-open');
+                    document.querySelectorAll('.proto-l-card.has-open').forEach(function(c) {
+                        if (!c.querySelector('.proto-l-picker.is-open')) {
+                            c.classList.remove('has-open');
+                        }
+                    });
                     openPd = null;
                 }
             }
@@ -535,6 +644,10 @@
                 (it.tags || []).forEach(function(t) {
                     node.appendChild(el('span', {class: 'proto-l-tag'}, [t]));
                 });
+                if (it.note) {
+                    node.classList.add('has-note');
+                    node.appendChild(el('span', {class: 'proto-l-pdnote'}, [it.note]));
+                }
             }
 
             /**
@@ -566,8 +679,15 @@
                     row.addEventListener('mousedown', function(e) {
                         e.preventDefault();
                     });
+                    if (it.disabled) {
+                        row.classList.add('is-disabled');
+                    }
                     row.addEventListener('click', function(e) {
                         if (e.target.closest('.proto-l-pdx')) {
+                            return;
+                        }
+                        if (it.disabled) {
+                            closePd();
                             return;
                         }
                         closePd();
@@ -592,36 +712,78 @@
                         card.classList.add('has-open');
                         raise(cards[card.dataset.card]);
                         openPd = wrap;
+                        // Keep the list inside the window: right-column cards open it leftwards.
+                        list.style.left = '';
+                        list.style.right = '';
+                        if (list.getBoundingClientRect().right > window.innerWidth - 8) {
+                            list.style.left = 'auto';
+                            list.style.right = '0';
+                        }
                     }
                 });
                 return wrap;
             }
 
-            /** Up to 3 choices stay one click away as a segmented row; more become a pulldown. */
-            function choice(items, onPick, cls) {
-                if (items.length > 3) {
-                    return pulldown(items, onPick, {cls: cls});
-                }
-                const row = el('div', {class: 'proto-l-seg ' + (cls || '')});
-                items.forEach(function(it) {
-                    const b = btn('proto-l-segbtn' + (it.on ? ' is-on' : ''), '', function() {
-                        onPick(it.value);
-                    }, it.label);
-                    fillChoice(b, it);
-                    row.appendChild(b);
-                });
-                return row;
-            }
-
             let layout = readJSON(LS_LAYOUT, null) || {};
 
+            /**
+             * Place a card for the current viewport (round 4, Chris on browser zoom: "only some cards stayed in, others
+             * scrolled out"). A card still in its default place takes the automatic layout for this viewport (the
+             * bottom card of a column shrinks, content scrolling, rather than leave the desk). A card the solver moved
+             * or resized keeps its distance from the nearer edges of the viewport it was saved in (so zooming out and
+             * back in returns the same layout), is shrunk (to its minimum at most) if it is larger than the desk, and
+             * is clamped inside it. The saved layout itself is never rewritten here.
+             */
             function place(c) {
-                const p = layout[c.id] || defaults()[c.id] || {x: 20, y: 20};
-                c.card.style.left = p.x + 'px';
-                c.card.style.top = p.y + 'px';
-                if (c.id === 'rules') {
-                    c.body.style.maxHeight = Math.max(120, desk.clientHeight - p.y - c.head.offsetHeight - 14) + 'px';
+                const dw = desk.clientWidth;
+                const dh = desk.clientHeight;
+                const saved = layout[c.id];
+                const min = MIN_SIZE[c.id] || [160, 80];
+                const d = defaults()[c.id] || {x: 20, y: 20};
+                let x, y, w, h;
+                if (saved) {
+                    w = saved.w || d.w || null;
+                    h = saved.h || (c.id === 'mouse' ? mouseDefaultH : d.h) || null;
+                    x = saved.x;
+                    y = saved.y;
+                } else {
+                    x = d.x;
+                    y = d.y;
+                    w = d.w || null;
+                    h = (c.id === 'mouse' ? mouseDefaultH : d.h) || null;
                 }
+                c.card.style.width = w ? w + 'px' : '';
+                c.card.style.height = h ? h + 'px' : '';
+                c.card.classList.toggle('is-sized', !!h);
+                if (saved && saved.vw) {
+                    // Anchor to the nearer edge of the viewport it was saved in, keeping that edge's gap (the right gap
+                    // for a right-column card, so it does not slide into the board when the column narrows).
+                    const sw = saved.cw || c.card.offsetWidth;
+                    const sh = saved.ch || c.card.offsetHeight;
+                    if (saved.x + sw / 2 > saved.vw / 2) {
+                        x = dw - (saved.vw - saved.x - sw) - c.card.offsetWidth;
+                    }
+                    if (saved.y + sh / 2 > saved.vh / 2) {
+                        y = dh - (saved.vh - saved.y - sh) - c.card.offsetHeight;
+                    }
+                }
+                const shrinkH = function(to) {
+                    c.card.style.height = Math.max(min[1], to) + 'px';
+                    c.card.classList.add('is-sized');
+                };
+                if (c.card.offsetWidth > dw - 8) {
+                    c.card.style.width = Math.max(min[0], dw - 8) + 'px';
+                }
+                if (!saved && y + c.card.offsetHeight > dh - 8) {
+                    shrinkH(dh - 8 - y);
+                }
+                if (c.card.offsetHeight > dh - 8) {
+                    shrinkH(dh - 8);
+                }
+                x = Math.max(0, Math.min(x, dw - c.card.offsetWidth));
+                y = Math.max(0, Math.min(y, dh - c.card.offsetHeight));
+                c.card.style.left = x + 'px';
+                c.card.style.top = y + 'px';
             }
 
             function placeAll() {
@@ -644,8 +806,9 @@
                 }
                 const dw = desk.clientWidth;
                 const dh = desk.clientHeight;
-                const x = Math.max(-drag.c.card.offsetWidth + 60, Math.min(dw - 60, drag.x + e.clientX - drag.sx));
-                const y = Math.max(0, Math.min(dh - 30, drag.y + e.clientY - drag.sy));
+                // The whole card stays on the desk, the same rule place() applies after a reload or a window resize.
+                const x = Math.max(0, Math.min(dw - drag.c.card.offsetWidth, drag.x + e.clientX - drag.sx));
+                const y = Math.max(0, Math.min(dh - drag.c.card.offsetHeight, drag.y + e.clientY - drag.sy));
                 drag.c.card.style.left = x + 'px';
                 drag.c.card.style.top = y + 'px';
             });
@@ -654,7 +817,8 @@
                     return;
                 }
                 drag.c.card.classList.remove('is-dragging');
-                layout[drag.c.id] = {x: drag.c.card.offsetLeft, y: drag.c.card.offsetTop};
+                layout[drag.c.id] = Object.assign(layout[drag.c.id] || {}, {x: drag.c.card.offsetLeft, y: drag.c.card.offsetTop,
+                    vw: desk.clientWidth, vh: desk.clientHeight, cw: drag.c.card.offsetWidth, ch: drag.c.card.offsetHeight});
                 writeJSON(LS_LAYOUT, layout);
                 drag = null;
             });
@@ -663,46 +827,88 @@
                 localStorage.removeItem(LS_LAYOUT);
                 layout = {};
                 placeAll();
+                fitBoard();
+                requestAnimationFrame(function() {
+                    placeAll(); // again once the board has its default size
+                });
             }
 
             // Board card: the board is moved like any card; zoom buttons change the cell size (never CSS scale).
             const zoomOut = btn('proto-l-mini', '−', function() {
-                B.setCellSize(Math.max(12, Math.round(cellPx()) - 4));
+                zoomStep--;
+                applyZoom();
             }, 'Smaller board');
             const zoomIn = btn('proto-l-mini', '+', function() {
-                B.setCellSize(Math.min(90, Math.round(cellPx()) + 4));
-            }, 'Larger board');
-            const zoomFit = btn('proto-l-mini', 'Fit', fitBoard, 'Fit the board to its default size');
+                zoomStep++;
+                applyZoom();
+            }, 'Larger board (the card scrolls)');
+            const zoomFit = btn('proto-l-mini', 'Fit', function() {
+                fitBoard();
+            }, 'Fit the board to its card');
             const boardCard = makeCard('board', 'Board', [el('span', {class: 'proto-l-spacer'}), zoomOut, zoomIn, zoomFit]);
             ctx.helpers.adoptBoard(boardCard.body);
             ctx.helpers.hideLegacy();
 
             const mouseCard = makeCard('mouse', 'Mouse');
             const pinsCard = makeCard('pins', 'Pinned modes');
-            const toolCard = makeCard('tool', 'Tool');
+            // Round 4: the Tool card is called "Mode" (Chris).
+            const modeCard = makeCard('mode', 'Mode');
             // Round 4 (Chris: "Recent tools should be its own window i think"): Recent is a desk card of its own.
             const recentCard = makeCard('recent', 'Recent');
             const rulesCard = makeCard('rules', 'Rules');
             rulesCard.body.innerHTML = info.rules || '<em>No rules in this link.</em>';
             placeAll();
 
-            function cellPx() {
-                const w = ctx.canvas.getBoundingClientRect().width;
-                return pu.size || (w / 10);
-            }
+            /*
+             * The board always fits its card (round 4, Chris approved): Fit runs on load, on every window resize or
+             * zoom, and on every Board card resize, taking the largest cell size (12-90 px) whose canvas fits the card's
+             * body; always bridge.setCellSize, never CSS scale. − and + step 4px from that fitted size; a larger board
+             * scrolls inside the card (the bridge's pointer-offset fix reads the canvas's live page box, so clicks stay
+             * right while scrolled). The manual step survives a window resize (keepZoom) and is dropped by Fit or a
+             * Board card resize.
+             */
+            let zoomStep = 0;
+            let fittedPx = 0;
 
-            /** Fit the board into its default box (820 x 820 at 1600x900), whatever the card's position. */
-            function fitBoard() {
-                const r = ctx.canvas.getBoundingClientRect();
-                if (!r.width || !pu.size) {
-                    return;
-                }
-                const boxW = Math.max(300, window.innerWidth - 340 - 440 - 20);
-                const boxH = Math.max(300, desk.clientHeight - 40 - 24 - 56); // 56: room for the switcher pill
-                const px = Math.max(12, Math.min(90, Math.floor(Math.min(boxW / (r.width / pu.size), boxH / (r.height / pu.size)))));
-                if (Math.abs(px - pu.size) >= 1) {
+            function applyZoom() {
+                const px = Math.max(12, Math.min(90, (fittedPx || pu.size) + 4 * zoomStep));
+                if (px !== pu.size) {
                     B.setCellSize(px);
                 }
+            }
+
+            function fitBoard(keepZoom) {
+                if (!keepZoom) {
+                    zoomStep = 0;
+                }
+                const r = ctx.canvas.getBoundingClientRect();
+                const boxW = boardCard.body.clientWidth - 16;
+                const boxH = boardCard.body.clientHeight - 16;
+                if (!r.width || !pu.size || boxW < 40 || boxH < 40) {
+                    return;
+                }
+                const px = Math.max(12, Math.min(90, Math.floor(Math.min(boxW / (r.width / pu.size), boxH / (r.height / pu.size)))));
+                if (px !== pu.size) {
+                    B.setCellSize(px);
+                }
+                // The canvas is not exactly proportional to the cell size (fixed margins): step down until it fits.
+                const shrink = function(n) {
+                    const c2 = ctx.canvas.getBoundingClientRect();
+                    if (n > 0 && pu.size > 12 && (c2.width > boxW + 0.5 || c2.height > boxH + 0.5)) {
+                        B.setCellSize(pu.size - 1);
+                        requestAnimationFrame(function() {
+                            shrink(n - 1);
+                        });
+                        return;
+                    }
+                    fittedPx = pu.size;
+                    if (zoomStep) {
+                        applyZoom();
+                    }
+                };
+                requestAnimationFrame(function() {
+                    shrink(10);
+                });
             }
 
             // ---- Pins -------------------------------------------------------------------------------------------
@@ -997,18 +1203,30 @@
                 b.appendChild(strip);
                 b.appendChild(el('div', {class: 'proto-l-note'}, [
                     pins.length > 1 ? 'Tab / Shift+Tab cycle these; each pin comes back with its own sub-mode and style.' :
-                        'Pin more tools to Tab between them.',
-                    seed.fromTabSet ? '' : ' (This link has no Tab set; seeded with the tool it opened on.)'
+                        'Pin more modes to Tab between them.',
+                    seed.fromTabSet ? '' : ' (This link has no Tab set; seeded with the mode it opened on.)'
                 ]));
-                // Presets: one pulldown (built-ins, then saved ones with a delete ×, then "save these pins as").
+                // Presets: one pulldown. Built-ins under genre-family headings, each with its pins as a muted line;
+                // then the solver's own under "Saved" (with a delete ×); then "save these pins as".
                 const contents = function(p) {
-                    return el('span', {class: 'proto-l-pddetail'}, [p.pins.map(function(x) {
-                        return toolName(x[0], x[1] != null ? String(x[1]) : remembered(x[0]).sub, '');
-                    }).join(', ')]);
+                    return p.pins.map(function(x) {
+                        const sub = x[1] != null ? String(x[1]) : remembered(x[0]).sub;
+                        return x[0] === 'combi' ? subName('combi', sub) : toolName(x[0], sub, '');
+                    }).join(' · ');
                 };
-                const items = [{header: true, label: 'Built-in'}];
+                const items = [];
+                let lastGroup = null;
                 BUILTIN_PRESETS.forEach(function(p, i) {
-                    items.push({value: 'b' + i, label: p.name, extra: contents(p)});
+                    if (p.group !== lastGroup) {
+                        items.push({header: true, label: p.group});
+                        lastGroup = p.group;
+                    }
+                    // A preset none of whose pins this grid offers (Battleships on the hex sample) is shown dimmed.
+                    const usable = p.pins.some(function(x) {
+                        return validPair({mode: x[0], sub: x[1] != null ? String(x[1]) : remembered(x[0]).sub});
+                    });
+                    items.push({value: 'b' + i, label: p.name, note: contents(p) + (usable ? '' : ' (not on this grid)'),
+                        disabled: !usable});
                 });
                 const saved = savedPresets();
                 if (saved.length) {
@@ -1022,7 +1240,7 @@
                         closePd();
                         renderPins();
                     }, 'Delete this preset');
-                    items.push({value: 's' + i, label: p.name, extra: el('span', {class: 'proto-l-pdextra'}, [contents(p), del])});
+                    items.push({value: 's' + i, label: p.name, note: contents(p), extra: el('span', {class: 'proto-l-pdextra'}, [del])});
                 });
                 const footer = el('div', {class: 'proto-l-pdfoot'}, [presetName, btn('', 'Save', saveCurrentPreset)]);
                 footer.addEventListener('mousedown', function(e) {
@@ -1047,9 +1265,9 @@
             }
 
             // ---- Mouse card -------------------------------------------------------------------------------------
-            function renderMouse(m) {
+            function renderMouse(m, target, forceHeld) {
                 const r = mouseRows(m.mode, m.submode, m.style);
-                const b = mouseCard.body;
+                const b = target || mouseCard.body;
                 b.textContent = '';
                 const headline = el('div', {class: 'proto-l-headline'});
                 headline.appendChild(el('span', {class: 'proto-l-hmode'}, [MODE_NAME[m.mode] || m.mode]));
@@ -1068,8 +1286,9 @@
                     }
                     headline.appendChild(sw);
                 }
-                if (hold) {
-                    headline.appendChild(el('span', {class: 'proto-l-heldtag', title: 'While ' + hold.key + ' is held'}, ['held']));
+                if (hold || forceHeld) {
+                    headline.appendChild(el('span', {class: 'proto-l-heldtag', title: 'While ' + (hold ? hold.key : 'Shift') +
+                        ' is held'}, ['held']));
                 }
                 b.appendChild(headline);
                 const rows = el('div', {class: 'proto-l-mrows'});
@@ -1087,6 +1306,29 @@
                 const pinned = onPin >= 0;
                 b.appendChild(el('div', {class: 'proto-l-note'}, [pinned ? 'Pinned: Tab moves on to the next pin.' :
                     'Not pinned: Tab returns to the pins.']));
+            }
+
+            /**
+             * Round 4 (Chris: "size of mouse window should be fixed not change based on mode"): the Mouse card's default
+             * height is the tallest content any picker entry needs, measured once in an off-screen copy of the card's
+             * body at the card's width, with the held tag shown. Shorter content sits at the top. A size the solver
+             * drags wins; content taller than it scrolls.
+             */
+            function measureMouse() {
+                const probe = el('div', {class: 'proto-l-body proto-l-mouse-probe'});
+                probe.style.cssText = 'position:absolute;visibility:hidden;left:0;top:0;width:' + mouseCard.body.clientWidth +
+                    'px;box-sizing:border-box;height:auto;';
+                mouseCard.card.appendChild(probe);
+                let max = 0;
+                allEntries.forEach(function(e) {
+                    const pair = entryPair(e);
+                    [false, true].forEach(function(held) {
+                        renderMouse({mode: pair.mode, submode: pair.sub, style: pair.style}, probe, held);
+                        max = Math.max(max, probe.offsetHeight);
+                    });
+                });
+                probe.remove();
+                mouseDefaultH = max + mouseCard.head.offsetHeight + 4; // + borders
             }
 
             /**
@@ -1111,17 +1353,30 @@
             function shapeItems(current) {
                 const out = [];
                 let group = '';
-                document.querySelectorAll('#mode_symbolul1 [id^=ms]').forEach(function(n) {
-                    if (n.id.indexOf('ms1_') === 0) {
-                        group = n.id.slice(4);
+                // Round 4: all five shape lists (Shape, Number, Arrow, Special 1, Special 2: index.html 283-480), since every
+                // Shape sub-mode is now chosen in the picker. ms<N> are section labels, ms<N>_<x> groups, ms_<x> shapes.
+                document.querySelectorAll('[id^="mode_symbolul"] [id^="ms"]').forEach(function(n) {
+                    if (/^ms\d+$/.test(n.id)) {
+                        group = '';
+                        return;
+                    }
+                    if (/^ms\d+_/.test(n.id)) {
+                        group = n.id.replace(/^ms\d+_/, '');
                         return;
                     }
                     if (n.id.indexOf('ms_') !== 0) {
                         return;
                     }
+                    // Shapes the legacy menu hides for this grid type (hex: side triangles, bars, ◢): picking one makes
+                    // Penpa throw (class_hex.js draw_tri calls an undefined draw_square), so the picker leaves them out.
+                    const li = n.closest('li');
+                    if (n.style.display === 'none' || n.closest('.is_hidden') || (li && li.style.display === 'none')) {
+                        return;
+                    }
                     const name = n.id.slice(3);
                     const size = n.textContent.trim();
-                    const label = name.indexOf(group + '_') === 0 ? group + ' ' + size : size || name;
+                    const inGroup = group && (name === group || name.indexOf(group + '_') === 0);
+                    const label = inGroup ? (SHAPE_GROUP[group] || group.replace(/_/g, ' ')) + ' ' + size : size || name;
                     out.push({value: name, label: label, on: name === current});
                 });
                 return out;
@@ -1148,6 +1403,12 @@
                     }
                     out.push({group: e[0], mode: mode, sub: e[2], name: e[3], desc: e[4], tags: []});
                 });
+                if (available.symbol) {
+                    shapeItems(null).forEach(function(sh) {
+                        out.push({group: 'symbols', mode: 'symbol', sub: sh.value, name: sh.label.charAt(0).toUpperCase() +
+                            sh.label.slice(1), desc: 'Shape at the cursor; digits pick its variant.', tags: []});
+                    });
+                }
                 if (available.combi) {
                     Object.keys(composites).forEach(function(name) {
                         const c = COMBI[name] || [composites[name], 'symbols', ''];
@@ -1174,9 +1435,9 @@
             ]);
             const pickMode = el('span', {class: 'proto-l-pickmode'});
             const toolOpts = el('div', {class: 'proto-l-toolopts'});
-            toolCard.body.appendChild(el('div', {class: 'proto-l-sub'}, ['Mode: ', pickMode]));
-            toolCard.body.appendChild(picker);
-            toolCard.body.appendChild(toolOpts);
+            modeCard.body.appendChild(el('div', {class: 'proto-l-sub'}, ['Mode: ', pickMode]));
+            modeCard.body.appendChild(picker);
+            modeCard.body.appendChild(toolOpts);
 
             // ---- Recent: the last tools used, each a {mode, sub, style} like a pin, most recent first, without the
             // current tool or a tool that matches a pin. A button goes to that mode and sub-mode with its last style; its
@@ -1257,8 +1518,8 @@
                 pickOpen = true;
                 closePd();
                 picker.classList.add('is-open');
-                toolCard.card.classList.add('has-open');
-                raise(toolCard);
+                modeCard.card.classList.add('has-open');
+                raise(modeCard);
                 pickInput.value = '';
                 active = -1;
                 renderPicker();
@@ -1272,7 +1533,12 @@
              */
             function sizePicker() {
                 const top = pickInput.getBoundingClientRect().bottom;
-                const room = window.innerHeight - top - toolOpts.offsetHeight - 40;
+                let room = window.innerHeight - top - toolOpts.offsetHeight - 40;
+                if (layout.mode && layout.mode.h) {
+                    room = modeCard.card.getBoundingClientRect().bottom - top - toolOpts.offsetHeight - 30;
+                    pickList.style.maxHeight = Math.max(80, room) + 'px';
+                    return;
+                }
                 pickList.style.maxHeight = Math.max(160, Math.min(470, room)) + 'px';
             }
 
@@ -1282,7 +1548,7 @@
                 }
                 pickOpen = false;
                 picker.classList.remove('is-open');
-                toolCard.card.classList.remove('has-open');
+                modeCard.card.classList.remove('has-open');
                 showCurrent();
             }
 
@@ -1411,10 +1677,6 @@
                 markActive();
             }
 
-            function optRow(label, control) {
-                return el('div', {class: 'proto-l-opt'}, [el('span', {class: 'proto-l-optlabel'}, [label]), control]);
-            }
-
             function renderTool(m) {
                 if (pickOpen) {
                     renderPicker();
@@ -1422,33 +1684,10 @@
                     showCurrent();
                 }
                 toolOpts.textContent = '';
-                let subItems = null;
-                let subLabel = 'Sub-mode';
-                if (m.mode === 'combi') {
-                    subLabel = 'Tool';
-                    subItems = B.listComposite().map(function(c) {
-                        return {value: c.name, label: COMBI[c.name] ? COMBI[c.name][0] : c.label, tags: [c.label],
-                            on: c.name === m.submode};
-                    });
-                } else if (m.mode === 'symbol') {
-                    subLabel = 'Shape';
-                    subItems = shapeItems(m.submode);
-                } else {
-                    subItems = B.listSubmodes(m.mode).map(function(s) {
-                        return {value: s.value, label: subName(m.mode, s.value) || s.label, on: String(s.value) === m.submode};
-                    });
-                }
-                // Chris: "if a sub mode has no style options we should just show the pulldown of other sub modes".
+                // Round 4 (Chris: "we should not show a sub-mode picker. that is only in the mode pulldown. After the
+                // pulldown all that we should see are style things."): no sub-mode control here; every mode + sub-mode
+                // is a picker entry. A tool without styles shows the picker field alone.
                 const styles = stylesOf(m.mode, m.submode);
-                if (subItems.length >= 2) {
-                    const pickSub = function(v) {
-                        applySub(m.mode, v);
-                    };
-                    toolOpts.appendChild(optRow(subLabel, styles.length ? choice(subItems, pickSub, 'proto-l-pd-sub') :
-                        pulldown(subItems, pickSub, {cls: 'proto-l-pd-sub'})));
-                }
-                // Round 3: styles are one button each (colour swatch, or a drawn sample for non-colour styles); the
-                // name is the button's title.
                 if (styles.length) {
                     const row = el('div', {class: 'proto-l-styles'});
                     styles.forEach(function(s) {
@@ -1460,7 +1699,9 @@
                         b.innerHTML = styleSample(name, swatchColor(m.mode, s.value, m.submode));
                         row.appendChild(b);
                     });
-                    toolOpts.appendChild(optRow(m.mode === 'surface' || m.mode === 'multicolor' ? 'Colour' : 'Style', row));
+                    toolOpts.appendChild(el('div', {class: 'proto-l-sub'}, [m.mode === 'surface' || m.mode === 'multicolor' ?
+                        'Colour' : 'Style']));
+                    toolOpts.appendChild(row);
                 }
                 toolOpts.hidden = !toolOpts.children.length;
                 if (pickOpen) {
@@ -1468,39 +1709,42 @@
                 }
             }
 
-            /** A 30x18 SVG sample of a style: a swatch for colours, a drawn line or mark for the rest. */
+            /**
+             * A 20x20 SVG sample of a style for a 24px button (round 4, Chris: "make the buttons for types more
+             * compact"): a plain swatch for colours, a tiny drawing for the rest. Black strokes use currentColor.
+             */
             function styleSample(name, color) {
                 const svg = function(inner) {
-                    return '<svg width="30" height="18" viewBox="0 0 30 18" aria-hidden="true">' + inner + '</svg>';
+                    return '<svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">' + inner + '</svg>';
                 };
                 const line = function(attrs) {
-                    return '<line x1="4" y1="9" x2="26" y2="9" stroke-linecap="round" ' + attrs + '/>';
+                    return '<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ' + attrs + '/>';
                 };
+                const ink = 'stroke="currentColor"';
                 if (color) {
-                    return svg('<rect x="5" y="1.5" width="20" height="15" rx="3" fill="' + color +
-                        '" stroke="rgba(0,0,0,.3)"/>');
+                    return svg('<rect x="1" y="1" width="18" height="18" rx="3" fill="' + color + '" stroke="rgba(0,0,0,.3)"/>');
                 }
-                const t = function(txt, extra) {
-                    return svg((extra || '') + '<text x="15" y="13.5" text-anchor="middle" font-size="11" font-weight="700" ' +
-                        'font-family="system-ui,sans-serif">' + txt + '</text>');
+                const t = function(txt, extra, fill) {
+                    return svg((extra || '') + '<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" ' +
+                        'font-family="system-ui,sans-serif" fill="' + (fill || 'currentColor') + '">' + txt + '</text>');
                 };
                 switch (name) {
-                case 'thin': return svg(line('stroke="#222" stroke-width="1"'));
-                case 'thicker': return svg(line('stroke="#222" stroke-width="5"'));
-                case 'dotted': return svg(line('stroke="#222" stroke-width="2.5" stroke-dasharray="0.1 4.5"'));
-                case 'fat dots': return svg(line('stroke="#222" stroke-width="5.5" stroke-dasharray="0.1 8"'));
-                case 'short': return svg('<line x1="11" y1="9" x2="19" y2="9" stroke="#222" stroke-width="3" stroke-linecap="round"/>');
-                case 'double': return svg('<line x1="4" y1="6" x2="26" y2="6" stroke="#222" stroke-width="1.5"/>' +
-                    '<line x1="4" y1="12" x2="26" y2="12" stroke="#222" stroke-width="1.5"/>');
-                case 'grey dot': return svg('<circle cx="15" cy="9" r="4" fill="#999"/>');
-                case 'dotted line': return svg(line('stroke="#222" stroke-width="1.5" stroke-dasharray="2 3"'));
+                case 'thin': return svg(line(ink + ' stroke-width="1"'));
+                case 'thicker': return svg(line(ink + ' stroke-width="4.5"'));
+                case 'dotted': return svg(line(ink + ' stroke-width="2.2" stroke-dasharray="0.1 3.6"'));
+                case 'fat dots': return svg(line(ink + ' stroke-width="4.5" stroke-dasharray="0.1 6.5"'));
+                case 'short': return svg('<line x1="7" y1="10" x2="13" y2="10" ' + ink + ' stroke-width="3" stroke-linecap="round"/>');
+                case 'double': return svg('<line x1="3" y1="7" x2="17" y2="7" ' + ink + ' stroke-width="1.5"/>' +
+                    '<line x1="3" y1="13" x2="17" y2="13" ' + ink + ' stroke-width="1.5"/>');
+                case 'grey dot': return svg('<circle cx="10" cy="10" r="3.5" fill="#999"/>');
+                case 'dotted line': return svg(line(ink + ' stroke-width="1.5" stroke-dasharray="2 2.5"'));
                 case 'grey line': return svg(line('stroke="#999" stroke-width="2"'));
-                case 'grey dots': return svg(line('stroke="#999" stroke-width="3" stroke-dasharray="0.1 4.5"'));
-                case 'solid line': return svg(line('stroke="#222" stroke-width="2"'));
-                case 'white': return t('1', '<rect x="5" y="1.5" width="20" height="15" rx="3" fill="#555"/>').replace('<text', '<text fill="#fff"');
-                case 'white background': return t('1', '<rect x="5" y="1.5" width="20" height="15" rx="2" fill="#fff" stroke="#999"/>');
-                case 'behind lines': return svg('<circle cx="15" cy="9" r="6" fill="#bbb"/>' + line('stroke="#222" stroke-width="2"'));
-                case 'in front of lines': return svg(line('stroke="#222" stroke-width="2"') + '<circle cx="15" cy="9" r="6" fill="#bbb"/>');
+                case 'grey dots': return svg(line('stroke="#999" stroke-width="3" stroke-dasharray="0.1 4"'));
+                case 'solid line': return svg(line(ink + ' stroke-width="2"'));
+                case 'white': return t('1', '<rect x="2" y="2" width="16" height="16" rx="3" fill="#555"/>', '#fff');
+                case 'white background': return t('1', '<rect x="2" y="2" width="16" height="16" rx="2" fill="#fff" stroke="#999"/>', '#222');
+                case 'behind lines': return svg('<circle cx="10" cy="10" r="5" fill="#bbb"/>' + line(ink + ' stroke-width="2"'));
+                case 'in front of lines': return svg(line(ink + ' stroke-width="2"') + '<circle cx="10" cy="10" r="5" fill="#bbb"/>');
                 }
                 return t(String(name).replace(/^style /, '#'));
             }
@@ -1650,14 +1894,15 @@
              * one follows the upper (Tool under Mouse; Recent under Pins; Rules under Recent).
              */
             function reflow() {
-                if (!layout.mouse && !layout.tool) {
-                    place(cards.tool);
-                }
-                if (!layout.pins && !layout.recent) {
-                    place(cards.recent);
-                }
-                if (!layout.recent && !layout.rules) {
+                // Round 4 columns: Mouse > Rules on the left; Pinned modes > Mode > Recent on the right.
+                if (!layout.mouse && !layout.rules) {
                     place(cards.rules);
+                }
+                if (!layout.pins && !layout.mode) {
+                    place(cards.mode);
+                }
+                if (!layout.mode && !layout.recent) {
+                    place(cards.recent);
                 }
             }
 
@@ -1680,8 +1925,14 @@
             B.onTimer(function(t) {
                 timerText.textContent = t.text;
             });
+            // Window resize, which browser zoom fires too: re-place every card and refit the board, debounced.
+            let resizeTimer = null;
             window.addEventListener('resize', function() {
-                placeAll();
+                clearTimeout(resizeTimer);
+                resizeTimer = setTimeout(function() {
+                    placeAll();
+                    fitBoard(true);
+                }, 100);
             });
             requestAnimationFrame(function() {
                 fitBoard();
@@ -1694,12 +1945,18 @@
                 return pins.map(function(p) {
                     return p.mode + ":" + p.sub;
                 });
+            }, setPins: function(keys) { // test hook: apply a pin set as a preset would, e.g. ["line:1", "line:4"]
+                applyPreset({pins: keys.map(function(k) {
+                    const i = k.indexOf(":");
+                    return [k.slice(0, i), k.slice(i + 1) === "" ? null : k.slice(i + 1)];
+                })});
             }, pinStyles: function() {
                 return pins.map(function(p) {
                     return p.style;
                 });
             }, cards: cards, resetLayout: resetLayout};
             renderAll(true);
+            measureMouse();
             placeAll(); // again, now that cards have content: default columns stack by measured height
             render(B.getState());
         }
