@@ -44,9 +44,10 @@ export function serveDocs (context, base) {
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
 // `url` opens that address (plus `query`) instead of the checkout's page, and `setup(context)` runs before the page opens.
-// `dialogs` holds the message of every native dialog the page opened, each dismissed.
-export async function openPenpa (browser, query = '', { cookies = [], served = false, url, setup } = {}) {
-  const context = await browser.newContext()
+// `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
+// dismissed, and `errors` every page error and `console.error` so far.
+export async function openPenpa (browser, query = '', { cookies = [], served = false, url, setup, contextOptions } = {}) {
+  const context = await browser.newContext(contextOptions)
   if (cookies.length) await context.addCookies(cookies)
   // Penpa+'s only network loads are Google Tag Manager's: answered empty, so a run needs no network and counts as no visit.
   await context.route(/^https?:\/\//, (route) => route.fulfill({ status: 200, body: '' }))
@@ -65,7 +66,7 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await page.goto((url ?? (served ? PENPA_ORIGIN + '/' : PENPA_URL)) + query)
   await page.waitForFunction(() => typeof pu !== 'undefined')
-  return { context, page, dialogs }
+  return { context, page, dialogs, errors }
 }
 
 // Runs in the page: shades the cell at `index` of the center list as its own undo group, through the call a click makes.

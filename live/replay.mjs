@@ -1,4 +1,28 @@
-// Replaying a recording (GLOSSARY.md) on the engine. Not a check itself, so `live/**/*.live.mjs` skips it.
+// Recordings (GLOSSARY.md) and the engine driver that replays them. Not a check itself, so `live/**/*.live.mjs` skips
+// it.
+//
+// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family. It
+// holds a header (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the
+// recorder's version) and its steps, one per line, as `docs/js/recorder.js` writes them:
+//   { kind: 'pointer', action: 'down' | 'move' | 'up' | 'out' | 'double', button: 'left' | 'right' | null, ctrl, x, y, num }
+//     with `x, y` in board units and `num` an index of `pu.point`;
+//   { kind: 'key', call: one of KEY_CALLS, args };
+//   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change;
+//   { kind: 'undo' } and { kind: 'redo' }.
+// Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
+// and never by hand.
+import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { canonicalState, readEngineState } from './canonical-state.mjs'
+import { openPenpa } from './page.mjs'
+import { settle } from './settle.mjs'
+
+const RECORDINGS = new URL('./recordings/', import.meta.url)
+const STEPS_SUFFIX = '.steps.json'
+const EXPECTED_SUFFIX = '.expected.json'
+// The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
+// replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
+const CLOCK_START = new Date('2026-01-01T00:00:00Z')
+const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
 
 // Runs in the page. Builds a 4x4 grid whose author's answer shades two cells, checked as shading, and returns its solve
 // link's `#` part.
@@ -13,4 +37,190 @@ export function surfaceSolveLinkInPage () {
   for (const index of answerCells) pu.pu_a.surface[pu.centerlist[index]] = 1
   const url = pu.maketext_solve_solution()
   return url.slice(url.indexOf('#'))
+}
+
+// Runs in the page: the page pixel of the centre of the cell at `index` of the center list, as `coord_point` in
+// `main.js` maps it back.
+export function cellPixelInPage (index) {
+  const canvas = document.getElementById('canvas')
+  const point = pu.point[pu.centerlist[index]]
+  return { x: canvas.offsetLeft + point.x - window.scrollX, y: canvas.offsetTop + point.y - window.scrollY }
+}
+
+// Clicks the recorder's download button on a `?record=1` page and returns the file's name and its recording.
+export async function downloadRecording (page) {
+  const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
+  return { name: file.suggestedFilename(), recording: JSON.parse(await readFile(await file.path(), 'utf8')) }
+}
+
+// The id of every recording under `live/recordings/`, sorted.
+export async function listRecordings () {
+  const files = await readdir(RECORDINGS, { recursive: true })
+  return files.filter((f) => f.endsWith(STEPS_SUFFIX)).map((f) => f.slice(0, -STEPS_SUFFIX.length)).sort()
+}
+
+export async function readRecording (id) {
+  return JSON.parse(await readFile(new URL(id + STEPS_SUFFIX, RECORDINGS), 'utf8'))
+}
+
+// The expected checkpoints, each state back as the string `canonicalState` writes.
+export async function readExpected (id) {
+  const { checkpoints } = JSON.parse(await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8'))
+  return checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
+}
+
+// Each state written one line per array entry, so a changed line reads as one line of the file's diff.
+export async function writeExpected (id, checkpoints) {
+  const file = { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
+  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(file, null, 1) + '\n')
+}
+
+// Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
+export function applyStepInPage (step) {
+  const KEY_CALLS = ['key_number', 'key_space', 'key_shiftspace', 'key_backspace', 'key_arrow']
+  switch (step.kind) {
+    case 'pointer': {
+      const { action, button, ctrl, x, y, num } = step
+      if (action === 'down' || action === 'double') pu.select_remove = ctrl && pu.selection.indexOf(num) !== -1
+      if (action === 'double') {
+        pu.mouse_mode = 'down_left'
+        pu.mouse_click = 0
+        pu.dblmouseevent(x, y, num, ctrl)
+        return
+      }
+      pu.mouse_mode = action === 'down' ? 'down_' + button : action
+      pu.mouse_click = button === 'right' ? 2 : 0
+      if (action === 'down') pu.mouse_click_last = button === 'right' ? 2 : 1
+      // A down passes its event, which the engine reads only for Alt; the recorder writes no step for an Alt-drag.
+      pu.mouseevent(x, y, num, ctrl, action === 'down' ? { altKey: false } : null, null)
+      return
+    }
+    case 'key':
+      if (!KEY_CALLS.includes(step.call)) throw new Error(`no key call ${step.call}`)
+      pu[step.call](...step.args)
+      return
+    case 'mode': {
+      // Multicolor keeps its styles under Surface's ids, as `mode_set` reads them.
+      const styleIds = step.mode === 'multicolor' ? 'surface' : step.mode
+      if (pu.mode[pu.mode.qa].edit_mode !== step.mode) pu.mode_set(step.mode)
+      const now = () => pu.mode[pu.mode.qa][step.mode]
+      if (now()[0] !== step.submode) pu.submode_check('sub_' + step.mode + step.submode)
+      if (now()[1] !== step.style) pu.stylemode_check('st_' + styleIds + step.style)
+      if (now()[0] !== step.submode || now()[1] !== step.style) {
+        throw new Error(`mode ${step.mode} has no sub-mode ${step.submode} and style ${step.style} to switch to`)
+      }
+      return
+    }
+    case 'undo':
+      pu.undo()
+      return
+    case 'redo':
+      pu.redo()
+      return
+    default:
+      throw new Error(`no engine call for a step of kind ${step.kind}${step.what ? ` (${step.what})` : ''}`)
+  }
+}
+
+// A step in words, for a failure report.
+export function stepWords (step) {
+  switch (step.kind) {
+    case 'pointer':
+      return `${step.button ? step.button + ' ' : ''}${step.action}${step.ctrl ? ' with Ctrl' : ''} at point ${step.num}`
+    case 'key':
+      return `${step.call}(${step.args.map((a) => JSON.stringify(a)).join(', ')})`
+    case 'mode':
+      return `mode ${step.mode}, sub-mode ${JSON.stringify(step.submode)}, style ${step.style}`
+    default:
+      return step.kind
+  }
+}
+
+// A checkpoint follows each step that ends an undo group: every step but the down and the moves of a gesture.
+function endsGroup (step) {
+  return !(step.kind === 'pointer' && (step.action === 'down' || step.action === 'move'))
+}
+
+// A canonical state as its lines' keys and values.
+function entries (state) {
+  return new Map(state.split('\n').filter(Boolean).map((line) => {
+    const at = line.indexOf(' = ')
+    return [line.slice(0, at), line.slice(at + 3)]
+  }))
+}
+
+const isReplayWrite = (key) => /\.command_replay\.\d+$/.test(key)
+
+// Every key whose value differs between two states, in the expected state's order, then the replay's new keys.
+function changedKeys (want, got) {
+  return [...new Set([...want.keys(), ...got.keys()])].filter((k) => want.get(k) !== got.get(k))
+}
+
+function failureReport ({ id, step, steps, since, want, got, errors }) {
+  const w = entries(want)
+  const g = entries(got)
+  const changed = changedKeys(w, g)
+  const firstWrite = changed.find(isReplayWrite)
+  const value = (map, key) => map.get(key) ?? 'absent'
+  return [
+    `${id}: step ${step} (${stepWords(steps[step - 1])}) differs from the recording`,
+    `  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`,
+    'State, expected → replayed:',
+    ...changed.filter((k) => !isReplayWrite(k)).map((k) => `  ${k}: ${value(w, k)} → ${value(g, k)}`),
+    firstWrite
+      ? `First differing command_replay write: ${firstWrite.replace(/\.command_replay\.(\d+)$/, ' #$1')}: expected ${value(w, firstWrite)} got ${value(g, firstWrite)}`
+      : 'First differing command_replay write: none',
+    `Page errors: ${errors.length ? '\n  ' + errors.join('\n  ') : 'none'}`
+  ].join('\n')
+}
+
+// Replays `recording` through the engine in a fresh page and returns its checkpoints. With `expected` (as
+// `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of it, else `report`
+// is null. `served` and `setup` go to `openPenpa`.
+export async function replay (browser, recording, { id = 'recording', expected, served = false, setup } = {}) {
+  const { context, page, errors } = await openPenpa(browser, recording.header.source, {
+    served,
+    contextOptions: CONTEXT_OPTIONS,
+    setup: async (c) => {
+      await c.clock.install({ time: CLOCK_START })
+      await c.clock.pauseAt(CLOCK_START)
+      await setup?.(c)
+    }
+  })
+  const read = () => page.evaluate(readEngineState).then(canonicalState)
+  const { steps } = recording
+  const checkpoints = []
+  try {
+    // The board loads after `pu` exists; every later change is a synchronous engine call made below.
+    await settle(read)
+    let since = []
+    for (const [index, step] of steps.entries()) {
+      const n = index + 1
+      since.push(n)
+      try {
+        await page.evaluate(applyStepInPage, step)
+      } catch (e) {
+        throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${e.message}`)
+      }
+      if (!endsGroup(step) && n < steps.length) continue
+      const want = expected?.[checkpoints.length]
+      if (expected && want?.step !== n) {
+        return { checkpoints, report: `${id}: step ${n} is a checkpoint, where the expected file has ${want ? `step ${want.step}` : 'none'}` }
+      }
+      // Under the paused clock no page timer runs, so the state after the call is final; `settle` only waits out a
+      // mismatch before it is reported.
+      const state = want ? await settle(read, want.state) : await read()
+      checkpoints.push({ step: n, state })
+      if (want && state !== want.state) {
+        return { checkpoints, report: failureReport({ id, step: n, steps, since, want: want.state, got: state, errors }) }
+      }
+      since = []
+    }
+    if (expected && expected.length > checkpoints.length) {
+      return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}` }
+    }
+    return { checkpoints, report: null }
+  } finally {
+    await context.close()
+  }
 }

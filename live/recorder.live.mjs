@@ -1,11 +1,10 @@
 // The recorder (`docs/js/recorder.js`) on a live page: with `?record=1` it writes a solver's real clicks, keys, mode
 // changes, undo and redo as steps and downloads them; without the flag it does nothing.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
 import { openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
-import { surfaceSolveLinkInPage } from './replay.mjs'
+import { cellPixelInPage, downloadRecording, surfaceSolveLinkInPage } from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -13,13 +12,6 @@ const browser = useBrowser()
 const LEFT_CELL = 5
 const RIGHT_CELL = 6
 const NUMBER_CELL = 10
-
-// Runs in the page: the page pixel of the centre of the cell at `index`, as `coord_point` in `main.js` maps it back.
-function cellPixelInPage (index) {
-  const canvas = document.getElementById('canvas')
-  const point = pu.point[pu.centerlist[index]]
-  return { x: canvas.offsetLeft + point.x - window.scrollX, y: canvas.offsetTop + point.y - window.scrollY }
-}
 
 async function openRecording (query) {
   const opened = await openPenpa(browser(), '?record=1' + query)
@@ -30,11 +22,6 @@ async function openRecording (query) {
 async function clickCell (page, index, options) {
   const { x, y } = await page.evaluate(cellPixelInPage, index)
   await page.mouse.click(x, y, options)
-}
-
-async function download (page) {
-  const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
-  return { name: file.suggestedFilename(), recording: JSON.parse(await readFile(await file.path(), 'utf8')) }
 }
 
 describe('the recorder', () => {
@@ -60,7 +47,7 @@ describe('the recorder', () => {
       await page.click('#mo_number_lb')
       await clickCell(page, NUMBER_CELL)
       await page.keyboard.press('3')
-      const { name, recording } = await download(page)
+      const { name, recording } = await downloadRecording(page)
 
       assert.equal(name, 'recording.steps.json')
       assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 1 })
@@ -99,7 +86,7 @@ describe('the recorder', () => {
       await clickCell(page, LEFT_CELL)
       await page.evaluate(() => { pu.replay = false })
       // Moving off the board to the download button is an `out`, made after the replay ended.
-      const steps = (await download(page)).recording.steps
+      const steps = (await downloadRecording(page)).recording.steps
       assert.deepEqual(steps.filter((s) => s.action !== 'out'), [])
     } finally {
       await context.close()
