@@ -95,3 +95,7 @@ Nothing here was run for this note.
 8. **Not checked.** The uncommitted variant-L working copy. Any behaviour on master that differs from the prototype
    branch beyond the #13 check. Whether `install()` still hooks correctly on master. INFERRED: the six method names
    and the `Puzzle` class are unchanged.
+
+## Checked since (2026-11-13)
+
+- Held-modifier revert on blur works by dispatching a synthetic keyup for the held key to `document`: it runs Penpa's own key-up path (`main.js:883-905`), which restores the saved sub-mode. Run on all 12 prototype samples (variant L, `prototype/solve-ui` `470eb70`, `verify-held.cjs`), also for a hidden `visibilitychange` and a dialog opening. Two traps: the late real keyup must be swallowed, or Penpa restores twice; Windows auto-repeat keydowns of a held Shift must be swallowed until the key is pressed again, or a new hold starts.
