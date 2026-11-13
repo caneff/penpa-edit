@@ -351,17 +351,24 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
   battle, a slitherlink. Recorded by hand with the recorder (below), several hundred steps each.
 - **Tier D, the audit bugs**: one recording per LIVE finding in Correctness and Input (C1-C15, I1-I9 where the step
   vocabulary reaches them), marked `todo: #<ticket>` until fixed, as sudokupad-scripts does.
-  - **What was recorded (#35, 2026-11-13).** Every engine fix (C1-C15, I1) had landed before the recordings were made,
+  - **What was recorded (#35, 2026-11-13).** #35 narrowed the scope to C1-C15 and I1; I2-I9 are UI-file bugs and belong
+    to the Interaction contract and Layout and look maps. Every audit fix in that scope had landed before the recordings were made,
     so none is `todo`: each replays green, and each went red with its fix stripped in a throwaway worktree, at the step
     the bug shows. Recorded with the recorder through Playwright at `fe79bfc`, under `live/recordings/<family>/audit-c<n>-*`:
     - C1 (`paint/audit-c1-or-empty-category`): OR answer with an empty black-square category; shading a wrong cell
       leaves `sol_flag` 0, the answer cell solves it.
-    - C4 (`paint/audit-c4-tracking-parameter`): a solve link behind `?fbclid=x`; the board loads in solve mode.
-    - C7 (`value/audit-c7-alphabet-digit`): two `1`s typed in an alphabet sudoku are flagged, with no `console.error`.
+    - C4, its tracking-parameter half (`paint/audit-c4-tracking-parameter`): a solve link behind `?fbclid=x`; the board
+      loads in solve mode.
+    - C7 (`value/audit-c7-alphabet-digit`): two `1`s typed in one box of an alphabet sudoku, in no shared row or column,
+      are flagged by the box check that used to throw, with no `console.error`. The `redraw` try/catch half of the fix acts
+      only when a checker throws, which none does on the fixed engine; `live/redraw.live.mjs` covers it.
     - C13 (`value/audit-c13-consecutive-inequality`): an inequality sign between 1 and 3 is not a bar; the grid solves.
-    - C14 (`value/audit-c14-small-sudoku-conflict`): two `1`s in a row, then in a box, of a 6x6 are flagged.
+    - C14 (`value/audit-c14-small-sudoku-conflict`): two `1`s in a row, then in a 2-row by 3-column box (cells that
+      would not share a 3-by-2 box), of a 6x6 are flagged. Its Ctrl+Z undo is recorded between two Sudoku sub-mode
+      steps, because holding Ctrl switches Sudoku mode to its Ctrl sub-mode and releasing it switches back.
   - **Not reached by the step vocabulary** (a recording opens a finished link, then makes pointer, key, mode, undo and
-    redo steps): C2 and C6 (resize), C3 (the unescaped comma is written by `maketext`, and a recording's link is already
+    redo steps): C2 and C6 (resize), C4's truncated-link half (the fixed page shows an error and loads no puzzle to
+    record on), C3 (the unescaped comma is written by `maketext`, and a recording's link is already
     made), C5 (the constraint dropdown), C8 (reload of saved progress, which the recorder's final-board check refuses),
     C9 (clipboard events), C10 (the import dialog), C11 (reload), C12 (making an edit link), C15 (a draw count, not
     engine state) and I1 (cookie expiry). Their live tests stay their only net.
