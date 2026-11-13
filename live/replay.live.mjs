@@ -1,6 +1,8 @@
-// The engine driver (`live/replay.mjs`): a recording replays through `pu`'s own calls to the states it was recorded
-// at, every checked-in recording still does, a planted change in the Surface handler fails at the step it breaks, and
-// a recording whose replay cannot reach the board it was recorded on is refused.
+// The two drivers (`live/replay.mjs`). The engine driver: a recording replays through `pu`'s own calls to the states it
+// was recorded at, every checked-in recording still does, a planted change in the Surface handler fails at the step it
+// breaks, and a recording whose replay cannot reach the board it was recorded on is refused. The UI driver: every
+// recording replays through real mouse and keyboard to the engine driver's states, and a planted pixel offset in
+// `main.js` makes the two disagree.
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
@@ -8,13 +10,14 @@ import { fileURLToPath } from 'node:url'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { useBrowser } from './page.mjs'
 import {
-  ANSWER_CELLS, cellPixelInPage, clickCell, downloadRecording, listRecordings, makeSurfaceSolveLink, openRecordingPage,
-  readExpected, readRecording, replay
+  ANSWER_CELLS, cellPixelInPage, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
+  openRecordingPage, readExpected, readRecording, replay
 } from './replay.mjs'
 
 const browser = useBrowser()
 
 const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
+const MAIN = fileURLToPath(new URL('../docs/js/main.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
 // The colour argument of the `set_surface` call in `re_surface_twobutton` that a left click on an empty cell runs.
@@ -24,6 +27,10 @@ const RIGHT_CELL = 6
 const CTRL_CELL = 10
 const DRAG_FROM = 0
 const DRAG_TO = 2
+// The board-unit x `coord_point` in `main.js` reads off a pointer event.
+const COORD_X = /(function coord_point\(e, fittype = 'none', eventmode = 'none'\) \{\s*var x = e\.pageX - canvas\.offsetLeft)(;)/
+// The planted offset: one cell of the 4x4 board, so a click lands on the next cell to the right.
+const PIXEL_OFFSET = 38
 const ids = await listRecordings()
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
@@ -152,6 +159,67 @@ describe('the engine driver', () => {
       assert.ok(lines.some((l) => /^First differing command_replay write: pu_a #0: expected .*"surface".* got .*"surface"/.test(l)),
         `the first differing replay write:\n${report}`)
       assert.ok(lines.includes('Page errors: none'), report)
+    })
+  })
+})
+
+describe('the UI driver', () => {
+  for (const id of ids) {
+    it(`replays ${id} through mouse and keyboard to the engine driver's states`, async () => {
+      assert.equal(await compareDrivers(browser(), await readRecording(id), { id }), null)
+    })
+  }
+
+  // Number mode's keys: a digit, an arrow that moves the selection, Backspace, Space, Shift+Space, Delete and Ctrl+Space.
+  it('replays a recorded number entry through the keyboard to the engine driver\'s states', async () => {
+    const query = await makeSurfaceSolveLink(browser())
+    const { state, recording } = await record(query, async (page) => {
+      await page.click('#mo_number_lb')
+      await clickCell(page, DRAG_FROM)
+      await page.keyboard.press('3')
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('4')
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('5')
+      await page.keyboard.press('Backspace')
+      await page.keyboard.press('ArrowDown')
+      await page.keyboard.press('6')
+      await page.keyboard.press('Space')
+      await page.keyboard.press('ArrowLeft')
+      await page.keyboard.press('Shift+Space')
+      await page.keyboard.press('7')
+      await page.keyboard.press('Delete')
+      await page.keyboard.press('8')
+      await page.keyboard.press('Control+Space')
+    })
+    assert.match(state, /^pu_a\.number\.\d+ = \["3",/m, 'the recording page entered a digit (the premise)')
+    for (const call of ['key_number', 'key_arrow', 'key_backspace', 'key_space', 'key_shiftspace']) {
+      assert.ok(recording.steps.some((s) => s.call === call), `the recording holds a ${call} step (the premise)`)
+    }
+    assert.equal(await compareDrivers(browser(), recording, { id: 'number-keys' }), null)
+  })
+
+  describe('with a planted pixel offset in main.js', () => {
+    let planted
+    before(async () => {
+      const source = await readFile(MAIN, 'utf8')
+      planted = source.replace(COORD_X, `$1 + ${PIXEL_OFFSET}$2`)
+      assert.notEqual(planted, source, 'the line to plant in is in main.js')
+    })
+
+    it('disagrees with the engine driver at the first gesture it moves, and says so', async () => {
+      const report = await compareDrivers(browser(), await readRecording(SURFACE_ID), {
+        id: SURFACE_ID,
+        served: true,
+        setup: (context) => context.route(/\/js\/main\.js(\?|$)/, (route) => route.fulfill({
+          contentType: 'text/javascript', body: planted
+        }))
+      })
+      assert.notEqual(report, null, 'the planted offset fails the comparison')
+      const lines = report.split('\n')
+      assert.match(lines[0], new RegExp(`^${SURFACE_ID}: step \\d+ \\(up at point \\d+\\) differs from the engine driver$`))
+      assert.ok(lines.includes('State, engine driver → UI driver:'), report)
+      assert.ok(lines.some((l) => /^ {2}pu_a\.surface\.\d+: /.test(l)), `a semantic diff line:\n${report}`)
     })
   })
 })
