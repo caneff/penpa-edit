@@ -7722,16 +7722,8 @@ class Puzzle {
         // var str_replace = ["+-=*", "＋－＝＊"];
         // if (str_replace[0].indexOf(key) != -1) { key = str_replace[1][str_replace[0].indexOf(key)]; }
         if (edit_mode === "number") {
-            if (this.selection.length === 1) {
-                let clean_flag = this.check_neighbors(this.selection[0]);
-                if (!clean_flag) {
-                    this.undoredo_counter = 0;
-                } else {
-                    this.undoredo_counter = this.undoredo_counter + 1;
-                }
-            } else {
-                this.undoredo_counter = this.undoredo_counter + 1;
-            }
+            // caneff: a reset to 0 let the next group reuse an id still on the undo stack, so one undo removed two moves
+            this.undoredo_counter = this.undoredo_counter + 1;
             let cells = null;
             if (this.number_multi_enabled())
                 cells = this.selection;
