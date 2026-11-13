@@ -21,6 +21,14 @@
  *     NORMAL (Esc) and in p / e / x it is a count. In s a digit picks the Surface brush (when the puzzle shades with
  *     Surface) and is a count otherwise.
  *
+ * Round 2, genre kits: NORMAL (Esc) carries the puzzle's genre, found from the title and tags, then the rules, then
+ * the answer check's text, then the link's starting Composite tool. Each kit is one or two Composite tools on the
+ * Penpa convention left = main mark, right = helper mark: Space puts the main mark on the selection, '-' the helper
+ * ('--' when the genre also crosses edges), Shift+HJKL draws the loop / border in loop and border genres and grows the
+ * selection in the others, '-' + motion crosses edges (-l, -3l), '=' formats Battleships pieces. Slitherlink,
+ * Galaxies and Fillomino put the cursor on grid corners so borders draw like paths. Space and '-' toggle.
+ * j / k keep vim's curswant so they run straight on hex grids.
+ *
  * Keyboard capture: a capture-phase keydown/keyup listener on window. For every trusted key the grammar owns it calls
  * preventDefault + stopImmediatePropagation, so Penpa's document listener (main.js:84-85) never sees it, including
  * bare Shift / Ctrl (which would flip Sudoku's temporary Corner / Centre sub-mode). Synthetic keys from
@@ -34,6 +42,14 @@
  *   - The link's Composite tool when Composite is not the current mode: pu.mode[qa].combi[0].
  *   - Edge midpoint between two cells (for crosses): nearest pu.point to the midpoint of two centres.
  *   - Keyboard drawing goes through bridge.pointer (point-index drags/clicks), one gesture per step.
+ *   - Round 2: no "set this cell's mark" call, so Space / '-' toggle by clicking through Penpa's Composite cycles and
+ *     reading pu.pu_a.surface / .symbol to see where the cycle is; a clear can cost several undo steps.
+ *   - No genre call: genre comes from getInfo / genreTags / answerCheckInfo text (genreTags is empty on 10 of 11).
+ *   - Grid corners and their adjacency (pu.point[c].surround, pu.point[v].adjacent); edge crosses read
+ *     pu.pu_a.line / .lineE[edge] (98 = x).
+ *   - Battleships '=' sets pieces by the Composite tool's drag gesture (bridge.pointer with page points); no call
+ *     sets a symbol value.
+ *   - bridge.pointer fires untrusted mouse events on the canvas: the cursor-follows-mouse listener must skip them.
  */
 (function() {
     'use strict';
@@ -53,6 +69,143 @@
     const COMBI_EDGE = ['edgex', 'edgexoi'];
     const COMBI_SHADE = ['blpo', 'blwh', 'yajilin', 'star', 'lineox', 'tents', 'akari', 'mines', 'doublemines'];
     const COMBI_CROSS = ['linex', 'lineox', 'yajilin', 'edgex', 'edgexoi'];
+
+    /*
+     * ---- Genre kits (round 2) ----
+     * Most genres need one or two Composite tools: the left button does the main mark, the right button the helper
+     * mark. A kit gives NORMAL mode the genre's verbs, each a Composite tool (or a plain mode when the link hides
+     * Composite) plus a mouse button:
+     *   draw   Shift+HJKL draws the loop / border as the cursor moves (3L = three segments)
+     *   cross  the '-' operator with a motion crosses edges: -l the edge to the right, -3l three in a row
+     *   space  Space: the main mark on the selection (shade, star, bulb, white circle, ship)
+     *   minus  '-' (or '--' when the kit also crosses edges): the helper mark (dot, x, water, black circle)
+     * cursor 'vertex' puts the cursor on grid corners, so loops and borders on edges are drawn like paths.
+     * Space and '-' toggle: the same key on a cell already holding that mark clears it.
+     */
+    const KITS = {
+        slitherlink: {label: 'Slitherlink', cursor: 'vertex',
+            draw: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}, what: 'loop edge'},
+            cross: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}}},
+        masyu: {label: 'Masyu', cursor: 'cell',
+            draw: {combi: 'linex', fb: {mode: 'line', sub: '1'}, what: 'loop'},
+            cross: {combi: 'linex', fb: {mode: 'line', sub: '1'}},
+            minus: {combi: 'lineox', button: 2, what: 'X: no loop in this cell'}},
+        yajilin: {label: 'Yajilin', cursor: 'cell',
+            draw: {combi: 'yajilin', fb: {mode: 'line', sub: '1'}, what: 'loop'},
+            cross: {combi: 'yajilin', fb: {mode: 'line', sub: '1'}},
+            space: {combi: 'yajilin', button: 0, what: 'shade'},
+            minus: {combi: 'yajilin', button: 2, what: 'dot: loop cell'}},
+        nurikabe: {label: 'Nurikabe', cursor: 'cell',
+            space: {combi: 'blpo', fb: {mode: 'surface'}, button: 0, what: 'shade'},
+            minus: {combi: 'blpo', button: 2, what: 'dot: unshaded'}},
+        yinyang: {label: 'Yin-Yang', cursor: 'cell',
+            space: {combi: 'blwh', button: 0, what: 'white circle'},
+            minus: {combi: 'blwh', button: 2, what: 'black circle'}},
+        starbattle: {label: 'Star Battle', cursor: 'cell',
+            space: {combi: 'star', button: 0, what: 'star'},
+            minus: {combi: 'star', button: 2, what: 'cross out'}},
+        galaxies: {label: 'Galaxies', cursor: 'vertex',
+            draw: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}, what: 'region border'},
+            cross: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}},
+            extra: [['s', 'SHADE tool, Space shades (Esc back)']]},
+        fillomino: {label: 'Fillomino', cursor: 'vertex',
+            draw: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}, what: 'region border'},
+            cross: {combi: 'edgex', fb: {mode: 'lineE', sub: '1'}},
+            extra: [['i', 'VALUE tool: type sizes (Esc back)'], ['r5', 'a 5 in the cell below-right']]},
+        akari: {label: 'Akari', cursor: 'cell',
+            space: {combi: 'akari', button: 0, what: 'light bulb'},
+            minus: {combi: 'akari', button: 2, what: 'dot: no bulb'},
+            extra: [['s', 'SHADE tool (Esc back)']]},
+        battleships: {label: 'Battleships', cursor: 'cell', shape: true,
+            space: {combi: 'battleship', button: 0, what: 'ship segment'},
+            minus: {combi: 'battleship', button: 2, what: 'water'},
+            extra: [['=', 'format the ships: round ends, singles, middles']]}
+    };
+
+    /** Genre names, searched in the title and tags first, then the rules, then the answer check's text. */
+    const GENRE_WORDS = [
+        ['slitherlink', /slither/i], ['masyu', /masyu|maysu|pearl/i], ['yajilin', /yajilin|yajikazu/i],
+        ['nurikabe', /nurikabe/i], ['yinyang', /yin.?ya/i], ['starbattle', /star ?battle/i],
+        ['galaxies', /galax|tentaisho|spiral/i], ['fillomino', /fillomino/i], ['akari', /akari|light ?up/i],
+        ['battleships', /battleship|\bships?\b/i]
+    ];
+    /** The link's own Composite tool, when the link starts on Composite: the setter chose it for the genre. */
+    const COMBI_GENRE = {edgex: 'slitherlink', edgexoi: 'slitherlink', linex: 'masyu', lineox: 'masyu',
+        yajilin: 'yajilin', blpo: 'nurikabe', blwh: 'yinyang', star: 'starbattle', akari: 'akari',
+        battleship: 'battleships'};
+
+    function detectGenre() {
+        const info = B.getInfo();
+        const strip = function(s) {
+            return (s || '').replace(/<[^>]*>/g, ' ');
+        };
+        const texts = [(info.title || '') + ' ' + B.genreTags().join(' '), strip(info.rules), strip(B.answerCheckInfo())];
+        for (let i = 0; i < texts.length; i++) {
+            for (let j = 0; j < GENRE_WORDS.length; j++) {
+                if (GENRE_WORDS[j][1].test(texts[i])) {
+                    return GENRE_WORDS[j][0];
+                }
+            }
+        }
+        const m = B.getMode();
+        if (m.mode === 'combi' && COMBI_GENRE[m.submode]) {
+            return COMBI_GENRE[m.submode];
+        }
+        return null;
+    }
+
+    let kit = null;      // the puzzle's kit, verbs resolved to engine targets; null = no kit (sudoku and the like)
+
+    /** Resolve each verb of the detected kit to {mode, combi?, sub?, button, what}; drop verbs the link cannot do. */
+    function buildKit() {
+        const genre = detectGenre();
+        if (!genre) {
+            kit = null;
+            return;
+        }
+        const def = KITS[genre];
+        const visible = B.listModes().filter(function(m) {
+            return !m.hidden;
+        }).map(function(m) {
+            return m.mode;
+        });
+        const combis = B.listComposite().map(function(c) {
+            return c.name;
+        });
+        const resolve = function(v) {
+            if (!v) {
+                return null;
+            }
+            if (v.combi && visible.indexOf('combi') !== -1 && combis.indexOf(v.combi) !== -1) {
+                return {mode: 'combi', combi: v.combi, button: v.button || 0, what: v.what};
+            }
+            if (v.fb && visible.indexOf(v.fb.mode) !== -1) {
+                return {mode: v.fb.mode, sub: v.fb.sub, button: v.button || 0, what: v.what};
+            }
+            return null;
+        };
+        kit = {genre: genre, label: def.label, cursor: def.cursor, extra: def.extra || [], shape: !!def.shape,
+            draw: resolve(def.draw), cross: resolve(def.cross), space: resolve(def.space), minus: resolve(def.minus)};
+        if (!kit.draw && !kit.space && !kit.minus) {
+            kit = null;
+        } else if (kit.cursor === 'vertex' && !kit.draw) {
+            kit.cursor = 'cell';
+        }
+    }
+
+    /** Put the engine on one kit verb's target. */
+    function engageVerb(v) {
+        const cur = B.getMode();
+        if (cur.mode !== v.mode) {
+            B.setMode(v.mode);
+        }
+        if (v.sub && B.getMode().submode !== v.sub) {
+            B.setSubmode(v.sub);
+        }
+        if (v.combi && B.getMode().submode !== v.combi) {
+            B.setComposite(v.combi);
+        }
+    }
 
     /**
      * For each tool, how it reaches the engine on this puzzle: {mode, sub?, combi?, how}. Built once at mount from the
@@ -97,10 +250,11 @@
         } else if (combi && COMBI_EDGE.indexOf(combi) !== -1) {
             p.e = {mode: 'combi', combi: combi, how: 'side'};
         }
-        if (combi && COMBI_SHADE.indexOf(combi) !== -1) {
-            p.s = {mode: 'combi', combi: combi, how: 'click'};
-        } else if (has('surface')) {
+        // Round 2: the kit owns the genre's Composite marks, so s is plain Surface whenever the link has it.
+        if (has('surface')) {
             p.s = {mode: 'surface', how: 'click', brush: true};
+        } else if (combi && COMBI_SHADE.indexOf(combi) !== -1) {
+            p.s = {mode: 'combi', combi: combi, how: 'click'};
         }
         if (has('line')) {
             p.x = {mode: 'line', sub: '4', how: 'edgeLeft'}; // Helper (x): a left click on an edge toggles an x
@@ -112,6 +266,11 @@
 
     /** Put the engine in the mode, sub-mode or Composite tool the tool's plan names (only if it is not already). */
     function engage(tool) {
+        if (tool === 'n' && kit) {
+            // NORMAL in a kit: the mouse does the genre's main Composite tool too.
+            engageVerb(kit.draw || kit.space || kit.minus);
+            return;
+        }
         const plan = plans[tool];
         if (!plan || !plan.mode) {
             return;
@@ -132,21 +291,79 @@
 
     let cells = [];       // pu.centerlist, in reading order
     let cellSet = null;
+    let verts = [];       // grid corners (point type 1), in reading order: the cursor's points in vertex kits
+    let vertSet = null;
 
-    function readCells() {
-        cells = pu.centerlist.filter(function(c) {
-            return pu.point[c] && pu.point[c].use === 1;
-        });
+    function readingOrder(list) {
         const tol = pu.size / 4;
-        cells.sort(function(a, b) {
+        return list.sort(function(a, b) {
             const pa = pu.point[a];
             const pb = pu.point[b];
             return Math.abs(pa.y - pb.y) > tol ? pa.y - pb.y : pa.x - pb.x;
         });
+    }
+
+    function readCells() {
+        cells = readingOrder(pu.centerlist.filter(function(c) {
+            return pu.point[c] && pu.point[c].use === 1;
+        }));
         cellSet = new Set(cells);
+        const vs = new Set();
+        cells.forEach(function(c) {
+            (pu.point[c].surround || []).forEach(function(v) {
+                if (pu.point[v]) {
+                    vs.add(v);
+                }
+            });
+        });
+        verts = readingOrder(Array.from(vs));
+        vertSet = vs;
+    }
+
+    /** Whether the cursor sits on grid corners: NORMAL in a vertex kit (Slitherlink, Galaxies, Fillomino). */
+    function onVertex() {
+        return tool === 'n' && !!kit && kit.cursor === 'vertex';
+    }
+    function points() {
+        return onVertex() ? verts : cells;
+    }
+    function pointSet() {
+        return onVertex() ? vertSet : cellSet;
+    }
+
+    /** A cell's top-left corner, and back: how the cursor crosses between cell and vertex tools. */
+    function cellToVertex(c) {
+        let best = null;
+        (pu.point[c].surround || []).forEach(function(v) {
+            const q = pu.point[v];
+            if (q && (best === null || q.x + q.y < pu.point[best].x + pu.point[best].y)) {
+                best = v;
+            }
+        });
+        return best === null ? c : best;
+    }
+    function vertexToCell(v) {
+        const p = pu.point[v];
+        let best = cells[0];
+        let min = Infinity;
+        cells.forEach(function(c) {
+            const q = pu.point[c];
+            const d = (q.x - p.x - pu.size / 2) ** 2 + (q.y - p.y - pu.size / 2) ** 2;
+            if (d < min) {
+                min = d;
+                best = c;
+            }
+        });
+        return best;
     }
 
     const DIRS = {h: [-1, 0], l: [1, 0], k: [0, -1], j: [0, 1]};
+
+    /**
+     * vim's curswant: the x a run of j / k moves tries to keep. On a hex grid j and k have two equal candidates
+     * (down-left, down-right); picking the one nearer this x zigzags straight down instead of drifting.
+     */
+    let wantX = null;
 
     /** The neighbour of cell c in direction d ('h'|'j'|'k'|'l'), by geometry, so hex grids work too. */
     function neighbour(c, d) {
@@ -154,8 +371,10 @@
         const p = pu.point[c];
         let best = null;
         let bestDot = 0.3;
+        const vertical = d === 'j' || d === 'k';
+        const set = vertSet.has(c) && !cellSet.has(c) ? vertSet : cellSet;
         (p.adjacent || []).forEach(function(a) {
-            if (!cellSet.has(a)) {
+            if (!set.has(a)) {
                 return;
             }
             const q = pu.point[a];
@@ -163,7 +382,9 @@
             const dy = q.y - p.y;
             const len = Math.hypot(dx, dy) || 1;
             const dot = (dx * v[0] + dy * v[1]) / len;
-            if (dot > bestDot + 1e-6) {
+            const tie = best !== null && Math.abs(dot - bestDot) < 0.05 && vertical && wantX !== null &&
+                Math.abs(q.x - wantX) < Math.abs(pu.point[best].x - wantX);
+            if (dot > bestDot + 0.05 || tie) {
                 bestDot = dot;
                 best = a;
             }
@@ -183,7 +404,8 @@
         const ys = [];
         const xs = [];
         const tol = pu.size / 4;
-        cells.forEach(function(k) {
+        const list = cellSet.has(c) ? cells : verts;
+        list.forEach(function(k) {
             const p = pu.point[k];
             if (!ys.some(function(y) {
                 return Math.abs(y - p.y) <= tol;
@@ -209,7 +431,7 @@
         const col = xs.findIndex(function(x) {
             return Math.abs(x - p.x) <= tol;
         }) + 1;
-        return 'r' + r + 'c' + col;
+        return (list === verts ? 'corner ' : '') + 'r' + r + 'c' + col;
     }
 
     /** The board point nearest the midpoint of two adjacent cells (their shared edge), any type but centre/vertex. */
@@ -306,13 +528,27 @@
             say(TOOL_NAME[t] + ' does not apply to this puzzle', 'err');
             return;
         }
+        const wasVertex = onVertex();
         tool = t;
         engage(t);
-        if (VALUE_TOOLS.indexOf(t) === -1 && sel.length > 1) {
+        if (wasVertex !== onVertex() && cursor !== null) {
+            cursor = wasVertex ? vertexToCell(cursor) : cellToVertex(cursor);
+            sel = [cursor];
+        }
+        if (!multiSelect() && sel.length > 1) {
             sel = [cursor];
         }
         syncSelection();
         say('');
+    }
+
+    /** Tools whose selection is Penpa's own (Sudoku / Number keys act on it). */
+    function usesPenpaSel() {
+        return VALUE_TOOLS.indexOf(tool) !== -1 || (tool === 'n' && !kit);
+    }
+    /** Tools where Shift+motion grows a selection that Space / - / digits then act on. */
+    function multiSelect() {
+        return usesPenpaSel() || (tool === 'n' && !!kit && !kit.draw);
     }
 
     function moveTo(c, extend) {
@@ -332,9 +568,9 @@
 
     /** Mirror our selection into Penpa's (its own highlight, and what its key handler acts on). */
     function syncSelection() {
-        if (VALUE_TOOLS.indexOf(tool) !== -1 || tool === 'n') {
+        if (usesPenpaSel()) {
             B.select(sel);
-        } else {
+        } else if (!onVertex()) {
             pu.cursol = cursor;
         }
         render();
@@ -344,6 +580,176 @@
 
     function record(label, run) {
         lastChange = {label: label, run: run};
+    }
+
+    // ---- Kit verbs -------------------------------------------------------------------------------------------------
+
+    const EMPTY_SIG = '[null,null]';
+    /** What the solver has put in a cell that a Composite click changes: its shading and its symbol. */
+    function cellSig(c) {
+        const a = pu.pu_a;
+        const sf = a.surface && a.surface[c] !== undefined ? a.surface[c] : null;
+        const sy = a.symbol && a.symbol[c] ? a.symbol[c] : null;
+        return JSON.stringify([sf, sy]);
+    }
+    /** Per verb ('space' / 'minus'), the signature one click of it leaves on an empty cell: how a toggle knows. */
+    const learned = {};
+
+    function clickCell(c, button) {
+        B.pointer([c], button === 2 ? {button: 2} : {});
+    }
+
+    /**
+     * Empty one cell. Penpa's Composite cycles run left E->a->b->E and right the other way, so one click of the
+     * opposite button undoes a mark one click made; otherwise cycle the main verb's left button (at most 5 clicks).
+     */
+    function clearCell(c) {
+        const s0 = cellSig(c);
+        if (s0 === EMPTY_SIG) {
+            return true;
+        }
+        const keys = ['space', 'minus'];
+        for (let i = 0; i < keys.length; i++) {
+            const v = kit[keys[i]];
+            if (v && learned[keys[i]] === s0) {
+                engageVerb(v);
+                clickCell(c, v.button === 2 ? 0 : 2);
+                break;
+            }
+        }
+        const v = kit.space || kit.minus;
+        engageVerb(v);
+        for (let i = 0; i < 5 && cellSig(c) !== EMPTY_SIG; i++) {
+            clickCell(c, 0);
+        }
+        return cellSig(c) === EMPTY_SIG;
+    }
+
+    /** Space / '-' over the selection: put the verb's mark on every cell, or clear it if every cell has it. */
+    function markCells(key) {
+        const v = kit[key];
+        const all = learned[key] && sel.every(function(c) {
+            return cellSig(c) === learned[key];
+        });
+        sel.forEach(function(c) {
+            if (all) {
+                clearCell(c);
+                return;
+            }
+            if (learned[key] && cellSig(c) === learned[key]) {
+                return;
+            }
+            if (!clearCell(c)) {
+                return; // a given the tool cannot clear
+            }
+            engageVerb(v);
+            clickCell(c, v.button);
+            if (cellSig(c) !== EMPTY_SIG) {
+                learned[key] = cellSig(c);
+            }
+        });
+        engage('n');
+        record((key === 'space' ? 'Space' : '-') + ' (' + v.what + ')', function() {
+            markCells(key);
+        });
+    }
+
+    /**
+     * '=' in Battleships, vim's "format": give every ship cell the piece its neighbours imply. Space marks a plain
+     * segment (Penpa's square); '=' turns lone cells into circles and ends into rounded tips by Penpa's own gestures
+     * (two left clicks = circle; a drag out of the cell = a tip pointing that way, main.js re_combi_battleship).
+     */
+    function shapeShips() {
+        const isShip = function(c) {
+            const q = pu.pu_q.symbol && pu.pu_q.symbol[c];
+            const a = pu.pu_a.symbol && pu.pu_a.symbol[c];
+            const v = a || q;
+            return !!v && /^battleship/.test(v[1]) && v[0] >= 1 && v[0] <= 6;
+        };
+        engageVerb(kit.space);
+        let changed = 0;
+        cells.forEach(function(c) {
+            const a = pu.pu_a.symbol && pu.pu_a.symbol[c];
+            if (!a || !isShip(c)) {
+                return;
+            }
+            const nb = ['h', 'j', 'k', 'l'].filter(function(d) {
+                const n = neighbour(c, d);
+                return n !== null && isShip(n);
+            });
+            // An end piece is made by dragging toward its neighbour (Penpa names the piece by the drag direction).
+            const want = nb.length === 0 ? 1 : nb.length === 1 ? nb[0] : 2;
+            if (typeof want === 'number') {
+                if (a[0] === want) {
+                    return;
+                }
+                clearCell(c);
+                engageVerb(kit.space);
+                for (let i = 0; i < 3 && !(pu.pu_a.symbol[c] && pu.pu_a.symbol[c][0] === want); i++) {
+                    clickCell(c, 0);
+                }
+            } else {
+                const tip = {h: 5, k: 6, l: 3, j: 4}[want]; // class_p.js: a = [6, 5, 4, 3] by up, left, down, right
+                if (a[0] === tip) {
+                    return;
+                }
+                const r = B.cellRect(c);
+                const cx = r.left + r.width / 2;
+                const cy = r.top + r.height / 2;
+                const v = DIRS[want];
+                B.pointer([{x: cx, y: cy}, {x: cx + v[0] * r.width * 0.45, y: cy + v[1] * r.height * 0.45}]);
+            }
+            changed++;
+        });
+        engage('n');
+        say('= formatted ' + changed + ' ship cell' + (changed === 1 ? '' : 's'));
+    }
+
+    /** Where the kit's lines live: edges between corners (lineE) or paths between centres (line). */
+    function lineStore() {
+        return onVertex() ? (pu.pu_a.lineE || {}) : (pu.pu_a.line || {});
+    }
+    function segmentKey(a, b) {
+        return Math.min(a, b) + ',' + Math.max(a, b);
+    }
+
+    /** -{count}{hjkl}: cross the edges the motion passes over (between corners, or beside the cursor's cell). */
+    function crossEdges(d, n) {
+        let c = cursor;
+        engageVerb(kit.cross);
+        for (let i = 0; i < n; i++) {
+            const next = neighbour(c, d);
+            if (next === null) {
+                break;
+            }
+            const e = edgeBetween(c, next);
+            if (!lineStore()[segmentKey(c, next)]) {
+                B.pointer([e], {button: 2});
+            }
+            c = next;
+        }
+        engage('n');
+        record('-' + (n > 1 ? n : '') + d, function() {
+            crossEdges(d, n);
+        });
+    }
+
+    /** d{hjkl} in a kit: take the segment or the cross off the edge that way. */
+    function eraseEdge(d) {
+        const next = neighbour(cursor, d);
+        if (next === null) {
+            return;
+        }
+        const store = lineStore();
+        const e = edgeBetween(cursor, next);
+        if (kit.draw && store[segmentKey(cursor, next)]) {
+            engageVerb(kit.draw);
+            B.pointer([cursor, next]);
+        } else if (kit.cross && store[e] !== undefined) {
+            engageVerb(kit.cross);
+            B.pointer([e], {button: 2});
+        }
+        engage('n');
     }
 
     function enterValue(key, asTool) {
@@ -359,6 +765,16 @@
     /** Clear the selection's contents in the current tool's layer. */
     function deleteSel() {
         const t = tool;
+        if (t === 'n' && kit) {
+            if (kit.draw) {
+                ['h', 'j', 'k', 'l'].forEach(eraseEdge);
+            } else {
+                sel.forEach(clearCell);
+                engage('n');
+            }
+            record('dd', deleteSel);
+            return;
+        }
         if (t === 'n' || VALUE_TOOLS.indexOf(t) !== -1) {
             engage(t === 'n' ? (plans.v ? 'v' : 'n') : t);
             B.select(sel);
@@ -410,6 +826,15 @@
     function actStep(d) {
         const n = neighbour(cursor, d);
         const plan = plans[tool];
+        if (tool === 'n' && kit && kit.draw) {
+            if (n === null) {
+                return false;
+            }
+            engageVerb(kit.draw);
+            B.pointer([cursor, n]);
+            moveTo(n, false);
+            return true;
+        }
         if (tool === 'e') {
             const vs = sideVertices(cursor, d);
             if (vs) {
@@ -438,7 +863,14 @@
     }
 
     function motion(d, n, act) {
-        if (act && tool !== 'n' && VALUE_TOOLS.indexOf(tool) === -1) {
+        if (d === 'j' || d === 'k') {
+            if (wantX === null) {
+                wantX = pu.point[cursor].x;
+            }
+        } else {
+            wantX = null;
+        }
+        if (act && !multiSelect()) {
             for (let i = 0; i < n; i++) {
                 if (!actStep(d)) {
                     break;
@@ -467,8 +899,9 @@
     }
 
     function nextWhere(pred, dir, n) {
-        let i = cells.indexOf(cursor);
-        let found = cursor;
+        const vtx = onVertex();
+        let i = cells.indexOf(vtx ? vertexToCell(cursor) : cursor);
+        let found = vtx ? vertexToCell(cursor) : cursor;
         for (let k = 0; k < n; k++) {
             let j = i;
             for (let step = 0; step < cells.length; step++) {
@@ -484,16 +917,16 @@
             i = j;
             found = cells[j];
         }
-        moveTo(found, false);
+        moveTo(vtx ? cellToVertex(found) : found, false);
     }
 
     function selectWhere(pred, label) {
+        if (!multiSelect()) {
+            setTool(plans.v ? 'v' : 'n');
+        }
         sel = cells.filter(pred);
         if (sel.indexOf(cursor) === -1) {
             sel.push(cursor);
-        }
-        if (VALUE_TOOLS.indexOf(tool) === -1 && tool !== 'n') {
-            setTool(plans.v ? 'v' : 'n');
         }
         syncSelection();
         say(label + ': ' + sel.length + ' cells');
@@ -551,6 +984,9 @@
     /** Feed one key (KeyboardEvent.key plus shift/ctrl). Returns true if the grammar consumed it. */
     function feed(key, ev) {
         message = '';
+        if (!/^([jkJK0-9]|ArrowUp|ArrowDown|Shift)$/.test(key)) {
+            wantX = null;
+        }
         const ctrl = ev.ctrlKey || ev.metaKey;
 
         if (ctrl) {
@@ -580,10 +1016,30 @@
         }
 
         // Prefixes waiting for their second key.
+        if (pending === '-') {
+            if (/^[0-9]$/.test(key) && !(key === '0' && !count)) {
+                count += key;
+                render();
+                return true;
+            }
+            pending = '';
+            const dir = {ArrowLeft: 'h', ArrowRight: 'l', ArrowUp: 'k', ArrowDown: 'j'}[key] || (DIRS[key] ? key : null);
+            if (dir && kit.cross) {
+                crossEdges(dir, takeCount());
+            } else if ((key === '-' || key === ' ') && kit.minus) {
+                count = '';
+                markCells('minus');
+            } else {
+                count = '';
+                say('-' + key + ': ' + (kit.minus ? '-- marks the cell, ' : '') + '-hjkl crosses an edge', 'err');
+            }
+            render();
+            return true;
+        }
         if (pending === 'g') {
             pending = '';
             if (key === 'g') {
-                moveTo(cells[0], false);
+                moveTo(points()[0], false);
             } else if (key === 'r') {
                 selectWhere(function(k) {
                     return sameRow(k, cursor);
@@ -607,8 +1063,13 @@
         if (pending === 'r') {
             pending = '';
             if (/^[0-9a-zA-Z]$/.test(key) && plans.v) {
+                const keep = sel;
+                if (onVertex()) {
+                    sel = [vertexToCell(cursor)];
+                }
                 enterValue(key, 'v');
-                engage(tool === 'n' ? 'v' : tool);
+                sel = keep;
+                engage(tool);
             } else {
                 say('r' + key + ': needs a value tool and a digit', 'err');
             }
@@ -619,6 +1080,8 @@
             pending = '';
             if (key === 'd') {
                 deleteSel();
+            } else if (DIRS[key] && tool === 'n' && kit) {
+                eraseEdge(key);
             } else if (DIRS[key] && tool === 'p') {
                 const n = neighbour(cursor, key);
                 const line = pu.pu_a.line || {};
@@ -692,9 +1155,11 @@
         case '$':
             nextRowEdge(1);
             break;
-        case 'G':
-            moveTo(count ? cells[Math.min(cells.length, takeCount()) - 1] : cells[cells.length - 1], false);
+        case 'G': {
+            const list = points();
+            moveTo(count ? list[Math.min(list.length, takeCount()) - 1] : list[list.length - 1], false);
             break;
+        }
         case 'g':
         case 'r':
         case 'd':
@@ -717,10 +1182,35 @@
             break;
         case ' ':
         case 'Enter':
-            applyPrimary(false);
+            if (tool === 'n' && kit) {
+                if (kit.space) {
+                    markCells('space');
+                } else {
+                    say('Space: ' + kit.label + ' has no cell mark; Shift+HJKL draws', 'err');
+                }
+            } else {
+                applyPrimary(false);
+            }
             break;
         case '-':
-            applyPrimary(true);
+            if (tool === 'n' && kit) {
+                if (kit.cross) {
+                    pending = '-';
+                } else if (kit.minus) {
+                    markCells('minus');
+                } else {
+                    say('-: nothing to mark in ' + kit.label, 'err');
+                }
+            } else {
+                applyPrimary(true);
+            }
+            break;
+        case '=':
+            if (tool === 'n' && kit && kit.shape) {
+                shapeShips();
+            } else {
+                say('=: formats ships in Battleships only', 'err');
+            }
             break;
         case '.':
             if (lastChange) {
@@ -754,7 +1244,7 @@
     }
 
     function nextRowEdge(dir) {
-        const row = cells.filter(function(k) {
+        const row = points().filter(function(k) {
             return sameRow(k, cursor);
         });
         moveTo(dir < 0 ? row[0] : row[row.length - 1], false);
@@ -806,7 +1296,8 @@
         const m = /^(\d+)$/.exec(line);
         if (m) {
             // ':12' jumps the cursor to cell 12 in reading order, as vim's :N goes to a line.
-            moveTo(cells[Math.min(cells.length, Math.max(1, +m[1])) - 1], false);
+            const list = points();
+            moveTo(list[Math.min(list.length, Math.max(1, +m[1])) - 1], false);
             return;
         }
         const parts = line.split(/\s+/);
@@ -997,6 +1488,14 @@
             ['x', 'CROSS: x on the edge between two cells'],
             ['Tab', 'next tool (Shift+Tab previous)']
         ]],
+        ['Genre verbs (NORMAL, Esc)', [
+            ['Space', 'the main mark on the selection: shade, star, bulb, ship, white circle (again: clear)'],
+            ['-', 'the helper mark: dot, x, water, black circle; -- when the genre also crosses edges'],
+            ['H J K L', 'loop / border genres: draw as you move (3L); others: grow the selection'],
+            ['-l  -3l', 'cross the edge(s) that way'],
+            ['dl  dd', 'erase that way / around the cursor or the selection'],
+            ['', 'Slitherlink, Galaxies, Fillomino put the cursor on grid corners']
+        ]],
         ['Motions (take a count: 3j)', [
             ['h j k l', 'left down up right (arrows too)'],
             ['w  b', 'next / previous empty cell'],
@@ -1064,6 +1563,33 @@
 
     // ---- Which-key panel: what the next key does ------------------------------------------------------------------
 
+    /** The which-key rows for NORMAL in a kit: the genre's verbs first. */
+    function kitKeys() {
+        const rows = [];
+        if (kit.space) {
+            rows.push(['Space', kit.space.what + (kit.draw ? '' : ' (selection)')]);
+        }
+        if (kit.minus) {
+            rows.push([kit.cross ? '--' : '-', kit.minus.what]);
+        }
+        if (kit.draw) {
+            rows.push(['HJKL', 'draw the ' + kit.draw.what + ' and move']);
+            rows.push(['3L', 'three segments']);
+        } else {
+            rows.push(['HJKL', 'grow the selection, then Space / -']);
+        }
+        if (kit.cross) {
+            rows.push(['-hjkl', 'cross the edge that way (-3l: three)']);
+        }
+        if (kit.draw) {
+            rows.push(['dl  dd', 'erase that way / around the cursor']);
+        } else {
+            rows.push(['dd', 'clear the selection']);
+        }
+        rows.push(['.', 'repeat at the cursor']);
+        return rows.concat(kit.extra);
+    }
+
     function whichKey() {
         if (pending === 'g') {
             return [['g', 'first cell'], ['r', 'select row'], ['c', 'select column'], ['b', 'select box'], ['a', 'select all']];
@@ -1072,7 +1598,18 @@
             return [['0-9', 'put this value in the selection']];
         }
         if (pending === 'd') {
-            return [['d', 'clear the selection'], ['hjkl', 'erase the segment that way (p)']];
+            return [['d', 'clear the selection'], ['hjkl', 'erase the segment that way']];
+        }
+        if (pending === '-') {
+            const rows = [['hjkl', 'cross the edge that way'], ['3l', 'cross three edges in a row']];
+            if (kit.minus) {
+                rows.unshift(['-  Space', kit.minus.what]);
+            }
+            return rows;
+        }
+        if (tool === 'n' && kit) {
+            return kitKeys().concat([['hjkl', 'move (count first: 3j)'], ['w b ] [', 'empty / clue'],
+                ['u U', 'undo / redo'], [':w', 'answer check']]);
         }
         const common = [['hjkl', 'move (count first: 3j)'], ['w b ] [', 'empty / clue'], ['u U', 'undo / redo']];
         const by = {
@@ -1103,7 +1640,7 @@
             b.classList.toggle('is-off', t !== 'n' && !plans[t]);
         });
         ui.root.dataset.tool = tool;
-        ui.mode.textContent = '-- ' + TOOL_NAME[tool] + ' --';
+        ui.mode.textContent = '-- ' + (tool === 'n' && kit ? kit.label.toUpperCase() : TOOL_NAME[tool]) + ' --';
         ui.pending.textContent = count + pending;
         ui.selInfo.textContent = cursor === null ? '' : (sel.length > 1 ? sel.length + ' cells' : rc(cursor));
         const em = B.getMode();
@@ -1123,7 +1660,8 @@
         ui.which.replaceChildren.apply(ui.which, whichKey().map(function(row) {
             return H.el('div', {class: 'proto-h-wk-row'}, [H.el('kbd', {}, [row[0]]), H.el('span', {}, [row[1]])]);
         }));
-        ui.whichTitle.textContent = pending ? 'after ' + count + pending : (count ? 'count ' + count + ', then a motion' : TOOL_NAME[tool] + ' keys');
+        ui.whichTitle.textContent = pending ? 'after ' + count + pending : (count ? 'count ' + count + ', then a motion' :
+            (tool === 'n' && kit ? kit.label + ' keys (NORMAL)' : TOOL_NAME[tool] + ' keys'));
 
         drawOverlay();
     }
@@ -1132,7 +1670,7 @@
         const wrap = ui.boardWrap.getBoundingClientRect();
         const ox = wrap.left + window.scrollX + ui.boardWrap.clientLeft;
         const oy = wrap.top + window.scrollY + ui.boardWrap.clientTop;
-        const showSel = VALUE_TOOLS.indexOf(tool) === -1 && tool !== 'n';
+        const showSel = !usesPenpaSel();
         const boxes = [];
         if (showSel) {
             sel.forEach(function(c) {
@@ -1151,8 +1689,19 @@
             ui.overlay.appendChild(document.createElement('div'));
         }
         boxes.forEach(function(b, i) {
-            const r = B.cellRect(b.c);
             const d = ui.overlay.children[i];
+            if (!cellSet.has(b.c)) {
+                // A corner cursor: a ring around the grid vertex.
+                const pt = B.pointToPage(b.c);
+                const rad = Math.max(7, pu.size * 0.22);
+                d.className = 'proto-h-vcursor';
+                d.style.left = (pt.x - ox - rad) + 'px';
+                d.style.top = (pt.y - oy - rad) + 'px';
+                d.style.width = (2 * rad) + 'px';
+                d.style.height = (2 * rad) + 'px';
+                return;
+            }
+            const r = B.cellRect(b.c);
             d.className = b.cls;
             d.style.left = (r.left - ox) + 'px';
             d.style.top = (r.top - oy) + 'px';
@@ -1185,7 +1734,7 @@
             const b = el('button', {class: 'proto-h-tab', type: 'button', title: TOOL_NAME[t] + ' (' + (t === 'n' ? 'Esc' : t) + ')',
                 onclick: function() {
                     setTool(t);
-                }}, [el('b', {}, [t === 'n' ? 'Esc' : t]), ' ' + TOOL_NAME[t].toLowerCase()]);
+                }}, [el('b', {}, [t === 'n' ? 'Esc' : t]), ' ' + (t === 'n' && kit ? kit.label.toLowerCase() : TOOL_NAME[t].toLowerCase())]);
             ui.tabs[t] = b;
             return b;
         }));
@@ -1256,8 +1805,8 @@
 
         /** For the headless test only: the grammar's state. */
         debug() {
-            return {tool: tool, cursor: cursor, sel: sel.slice(), index: cells.indexOf(cursor), message: message,
-                pending: count + pending};
+            return {tool: tool, cursor: cursor, sel: sel.slice(), index: points().indexOf(cursor), message: message,
+                pending: count + pending, kit: kit && kit.genre, vertex: onVertex(), points: points().slice()};
         },
 
         /** @param {object} ctx see README.md, "The variant contract" */
@@ -1265,13 +1814,21 @@
             B = ctx.bridge;
             H = ctx.helpers;
             buildPlans();
+            buildKit();
             readCells();
             build(ctx);
             fitBoard();
             initCursor();
             // Start in VALUE if the puzzle has values to enter, else NORMAL.
             tool = 'n';
-            if (plans.v && B.getMode().mode === 'sudoku') {
+            if (kit) {
+                if (kit.cursor === 'vertex') {
+                    cursor = cellToVertex(cursor);
+                    sel = [cursor];
+                }
+                engage('n');
+                syncSelection();
+            } else if (plans.v && B.getMode().mode === 'sudoku') {
                 setTool('v');
             } else {
                 syncSelection();
@@ -1283,8 +1840,11 @@
 
             // Mouse is secondary: Penpa's own handlers act; the cursor follows the click.
             ctx.canvas.addEventListener('mouseup', function(e) {
+                if (!e.isTrusted) {
+                    return; // the grammar's own bridge.pointer gestures: the cursor is already where it should be
+                }
                 requestAnimationFrame(function() {
-                    if (VALUE_TOOLS.indexOf(tool) !== -1 || tool === 'n') {
+                    if (usesPenpaSel()) {
                         const s = B.getSelection();
                         if (s.cells.length) {
                             sel = s.cells.filter(function(c) {
@@ -1293,8 +1853,8 @@
                             cursor = cellSet.has(s.cursor) ? s.cursor : sel[sel.length - 1];
                         }
                     } else {
-                        const c = B.pageToPoint(e.pageX, e.pageY, [0]);
-                        if (c !== null && cellSet.has(c)) {
+                        const c = B.pageToPoint(e.pageX, e.pageY, onVertex() ? [1] : [0]);
+                        if (c !== null && pointSet().has(c)) {
                             cursor = c;
                             sel = [c];
                         }

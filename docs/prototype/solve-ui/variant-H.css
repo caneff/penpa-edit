@@ -81,6 +81,13 @@ html.proto-variant-H, html.proto-variant-H body {
     box-shadow: 0 0 0 1px #16181d, inset 0 0 0 1px #16181d;
     animation: proto-h-blink 1.1s steps(1) infinite;
 }
+.proto-h-vcursor {
+    border: 3px solid var(--h-tool);
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--h-tool) 35%, transparent);
+    box-shadow: 0 0 0 1px #16181d;
+    animation: proto-h-blink 1.1s steps(1) infinite;
+}
 .proto-h-selbox { background: color-mix(in srgb, var(--h-tool) 30%, transparent); }
 @keyframes proto-h-blink { 50% { border-color: color-mix(in srgb, var(--h-tool) 40%, transparent); } }
 
