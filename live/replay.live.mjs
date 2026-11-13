@@ -251,16 +251,17 @@ describe('the UI driver', () => {
   })
 
   // main.js reads `1` then a digit within 300 ms as a two-digit Surface colour; the recording page's clock passes the
-  // window between them.
+  // window between them. Two 1s keep colour 1, so no mode step follows to set the colour either way.
   it('replays keys pressed further apart than main.js\'s key windows as separate keys', async () => {
     const { recording } = await record(query, async (page) => {
       await page.clock.install()
       await page.click('#mo_surface_lb')
       await page.keyboard.press('1')
       await page.clock.fastForward(KEY_PAUSE_MS)
-      await page.keyboard.press('2')
+      await page.keyboard.press('1')
     })
-    assert.ok(recording.steps.some((s) => s.call === 'key_number' && s.args[0] === '2'), 'the 2 was its own key (the premise)')
+    assert.deepEqual(recording.steps.slice(-2), [1, 2].map(() => ({ kind: 'key', call: 'key_number', args: ['1'] })),
+      'the two 1s were two keys, and the solve ends on them (the premise)')
     assert.equal(await compareDrivers(browser(), recording, { id: 'keys-apart' }), null)
   })
 
