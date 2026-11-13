@@ -2055,7 +2055,7 @@ async function load(urlParam, type = 'url', origurl = null) {
     }
     if (rtext_para[17] && rtext_para[17] !== "") {
         psource = DOMPurify.sanitize(rtext_para[17].replace(/%2C/g, ',')); // caneff: maketext escapes commas in Source
-        document.getElementById("puzzlesourcelink").href = psource;
+        set_source_href(document.getElementById("puzzlesourcelink"), psource); // caneff: no javascript: link (#11)
         document.getElementById("puzzlesource").innerHTML = "Source";
         document.getElementById("saveinfosource").value = psource;
     }
@@ -3191,9 +3191,21 @@ function set_contestmode() {
     document.getElementById("mo_move_lb").classList.add('is_hidden');
     document.getElementById("puzzlesourcelink").style.display = "none";
     let sourceUrl = document.getElementById("saveinfosource").value;
-    document.getElementById("answer_key").innerHTML = PenpaText.get('contest_answer', sourceUrl);
+    // caneff: the Source never enters the HTML, where a quote in it could add an attribute (#11).
+    document.getElementById("answer_key").innerHTML = PenpaText.get('contest_answer', '#');
+    set_source_href(document.querySelector("#answer_key a"), sourceUrl);
     pu.undoredo_disable = true;
     pu.comp = true;
+}
+
+// caneff: a Source comes from the link, so a scheme such as javascript: must never become a link (#11).
+function set_source_href(anchor, source) {
+    let address = source.trim();
+    if (/^(https?:)?\/\//i.test(address)) {
+        anchor.setAttribute("href", address);
+    } else {
+        anchor.removeAttribute("href");
+    }
 }
 
 function set_solvemodetitle() {

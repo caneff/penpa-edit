@@ -1,3 +1,6 @@
+// caneff: [rows, columns] of a box per grid size, as Penpa+'s sudoku grids draw them (`draw_sudokugrid`).
+const SUDOKU_BOX_SIZE = {4: [2, 2], 6: [2, 3], 8: [2, 4], 9: [3, 3]};
+
 class Conflicts {
     constructor(pu) {
         this.pu = pu;
@@ -138,14 +141,17 @@ class Conflicts {
     check_sudoku(alphabet = false) {
         const data = this.get_data('number_grid');
         const n = data.length;
-        if (n !== 9 || data[0].length !== 9) {
-            // Not a 9x9 grid
+        // caneff: box shape by grid size, one entry per sudoku size Penpa+ draws.
+        const box = SUDOKU_BOX_SIZE[n];
+        if (!box || data[0].length !== n) {
+            // Not a sudoku size
             return;
         }
+        const [box_h, box_w] = box;
         this.check_latin_square(alphabet);
-        // Check 3x3 cells
-        for (let i = 0; i < 9; i++) {
-            for (let j = 0; j < 9; j++) {
+        // Check boxes
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
                 const el = data[i][j];
                 if (alphabet) {
                     if (el == undefined) continue;
@@ -154,11 +160,11 @@ class Conflicts {
                 }
 
                 // Get coordinates of this box's top-left corner
-                let bi = 3 * ((i / 3) | 0);
-                let bj = 3 * ((j / 3) | 0);
+                let bi = box_h * ((i / box_h) | 0);
+                let bj = box_w * ((j / box_w) | 0);
 
-                for (let k = 0; k < 3; k++) {
-                    for (let l = 0; l < 3; l++) {
+                for (let k = 0; k < box_h; k++) {
+                    for (let l = 0; l < box_w; l++) {
                         let kk = bi + k;
                         let ll = bj + l;
                         if (kk === i && ll === j)
@@ -499,7 +505,8 @@ class Conflicts {
         const symbol_indices = Object.keys(this.pu.pu_q.symbol);
         for (let index of symbol_indices) {
             const symbol = this.pu.pu_q.symbol[index];
-            if (!Array.isArray(symbol) && (symbol[1] !== "bars_G" || symbol[1] !== "circle_SS")) {
+            // caneff: only grey bars and white circles are bars; any other symbol is not.
+            if (!Array.isArray(symbol) || (symbol[1] !== "bars_G" && symbol[1] !== "circle_SS")) {
                 // Not a grey bar.
                 continue;
             }

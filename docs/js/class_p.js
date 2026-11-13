@@ -1722,7 +1722,8 @@ class Puzzle {
 
     subsymbolmode(mode, skipredraw = false) {
         this.mode[this.mode.qa].symbol[0] = mode;
-        document.getElementById("symmode_content").innerHTML = mode;
+        // caneff: textContent, since a link's saved mode name is untrusted (#11).
+        document.getElementById("symmode_content").textContent = mode;
         if (UserSettings.custom_colors_on) {
             // set the custom color to default
             let cc = CustomColor.default_symbol_color(mode);
@@ -1735,7 +1736,8 @@ class Puzzle {
 
     subcombimode(mode, skipredraw = false) {
         this.mode[this.mode.qa].combi[0] = mode;
-        document.getElementById("combimode_content").innerHTML = mode;
+        // caneff: textContent, since a link's saved mode name is untrusted (#11).
+        document.getElementById("combimode_content").textContent = mode;
 
         // Display line/edge style selector for appropriate modes
         let line_style = 'none',
