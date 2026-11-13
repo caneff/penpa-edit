@@ -1,7 +1,8 @@
 // Recordings (GLOSSARY.md) and the engine driver that replays them. Not a check itself, so `live/**/*.live.mjs` skips
 // it.
 //
-// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family. As
+// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family, or
+// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`). As
 // `docs/js/recorder.js` writes it, it holds a header (`source`: the link's query and `#` part; `gridtype`; `genre`: the
 // page's genre tags; `recorder`: the recorder's version), `final` (the recording page's engine state once the steps
 // were made, as `readEngineState` reads it) and its steps, one per line:
@@ -14,7 +15,8 @@
 //   { kind: 'undo' } and { kind: 'redo' };
 //   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection, a key that
 //     changed the selection to neither none nor all), refused here.
-// Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
+// Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know;
+// the generator also adds `import`, the name of the puzz.link import a genre's recording was made on.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
 // and never by hand.
 import { readdir, readFile, writeFile } from 'node:fs/promises'

@@ -46,7 +46,7 @@ describe('the recorder', () => {
         { kind: 'pointer', action: 'up', button: null, ctrl: false, num: cells[1] },
         { kind: 'undo' },
         { kind: 'redo' },
-        { kind: 'mode', mode: 'number', submode: '1', style: 2 },
+        { kind: 'mode', mode: 'number', submode: '1', style: 2, orientation: 'R' },
         { kind: 'pointer', action: 'down', button: 'left', ctrl: false, num: cells[2] },
         { kind: 'pointer', action: 'up', button: null, ctrl: false, num: cells[2] },
         { kind: 'key', call: 'key_number', args: ['3'] }
