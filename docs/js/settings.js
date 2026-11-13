@@ -547,6 +547,10 @@ const UserSettings = {
 
         // caneff: arrow functions, so `this._expDate` is bound inside the callbacks.
         this.can_save.forEach((setting) => {
+            // caneff: the conflict_detection setter owns its cookie (only "off for all puzzles" is saved).
+            if (setting === 'conflict_detection') {
+                return;
+            }
             setCookie(setting, UserSettings[setting], this._expDate);
         });
         this.gridtype_size.forEach((setting) => {

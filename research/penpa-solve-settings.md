@@ -52,7 +52,7 @@ browser restart, given the 400-day cookie. "Link" is whether a puzzle link overr
 | Warn on long links | `warn_long_links_dropdown` (`H:1772`), `warn_long_links_chk` | `warn_long_links` bool (`S:443-451`) | Warns before a very long link | cookie | global | yes (`S:447`) | yes |
 | Mouse middle button | `mousemiddle_settings_opt` (`H:1808`) | `mousemiddle_button` 1 no / 2 yes (`S:99-105`) | Middle click toggles Problem/Solution (`M:1079`) | cookie | global | yes | yes |
 | Reload protection | `reload_button` (`H:1819`) | `reload_button` (getter returns bool, `S:291-304`) | `beforeunload` prompt (`M:2062-2068`) | cookie | global | yes | yes |
-| Conflict detection | `conflict_detection_opt` (`H:1830`) | `conflict_detection` 1 on / 2 off this puzzle / 3 off all (`S:125-139`); read via `show_conflicts` (`S:143`) | Highlights conflicting cells (`class_p.js:13691`, `class_hex.js:2966`), redraws | cookie `conflict_detection`, but see I7 note | 3 global; 2 "this puzzle" | writes its own cookie only for 3 (`S:132-136`), and `attemptSave` rewrites it with whatever value is current | 3 yes; 2 see note |
+| Conflict detection | `conflict_detection_opt` (`H:1830`) | `conflict_detection` 1 on / 2 off this puzzle / 3 off all (`S:125-139`); read via `show_conflicts` (`S:143`) | Highlights conflicting cells (`class_p.js:13691`, `class_hex.js:2966`), redraws | cookie `conflict_detection`, only for 3 | 3 global; 2 "this puzzle" | writes its own cookie only for 3 (`S:132-136`); `attemptSave` skips it (fixed, #72) | 3 yes; 2 see note |
 | Check pencil marks | `check_pencil_marks_opt` (`H:1842`) | `check_pencil_marks` bool (`S:149-157`) | Conflicts also check pencil marks | cookie | global | yes | yes |
 | Edit tags for conflict checker | button `saveinfogenre2` (`H:1850`) | genre tags, `pu.user_tags`, set by `set_genre_tags` | Which rules the conflict checker applies; `alphabet` turns shortcuts off (`G:2249-2250`) | in the link (tag list) | per puzzle | n/a | link only |
 | Any colour matches green line | `ignore_line_style_opt` (`H:1858`) | `ignore_line_style` bool (`S:251-258`) | Looser line/edge answer check (`class_p.js:2496, 2543`) | cookie | global | yes | yes |
@@ -82,7 +82,7 @@ Add `gridtype`, `displaysize` and `tab_settings` for the 23 cookies the audit co
 - **I3 (a Tab-set-only change is not saved): still live.** The `mode_choices` handler (`M:2221-2222`) only assigns
   `UserSettings.tab_settings`, and that setter (`S:328-331`) has no `attemptSave`. The change reaches the cookie on the
   next save of any other setting.
-- **I7 ("conflict detection off for this puzzle" carries over): still live, and the fix to I1 sharpened it.** Value 2
+- **I7 ("conflict detection off for this puzzle" carries over): fixed in #72.** `make_class` resets 2 to 1 for the next puzzle, and `attemptSave` skips `conflict_detection`. Before the fix: value 2
   is memory only: the setter deletes the cookie unless the value is 3 (`S:132-136`), and no puzzle load resets
   `_conflict_detection` (`rg` finds no other writer outside `S`). So it carries over to every puzzle loaded in the
   same page. New on master: `conflict_detection` is also in `can_save`, so any later `attemptSave` writes
