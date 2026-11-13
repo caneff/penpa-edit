@@ -391,10 +391,232 @@ html.proto-variant-F body {
     paint-order: stroke;
     stroke: #1b1e26;
     stroke-width: 3px;
-    text-anchor: middle;
 }
 
 .proto-f-tag.small {
-    font-size: 11px;
-    text-anchor: end;
+    font-size: 12px;
+}
+
+.proto-f-tag.side {
+    font-size: 13px;
+}
+
+/* A pinned check stays on while solving: fills only, no per-cell strokes, so the board stays legible. */
+.is-pin .proto-f-item.cell.ok {
+    fill: rgba(80, 220, 140, 0.13);
+    stroke: none;
+}
+
+.is-pin .proto-f-item.cell.lit {
+    fill: rgba(255, 226, 90, 0.22);
+}
+
+.proto-f-tag.ok {
+    fill: #9ff0c0;
+}
+
+.proto-f-tag.bad {
+    fill: #ffb3b3;
+}
+
+.proto-f-item.cell.lit {
+    fill: rgba(255, 226, 90, 0.28);
+    stroke: none;
+}
+
+.proto-f-item.cell.dark {
+    fill: rgba(40, 60, 120, 0.18);
+    stroke: #6c7fb8;
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+}
+
+.proto-f-item.pt.bad {
+    stroke: #e23b3b;
+    fill: rgba(255, 80, 80, 0.25);
+}
+
+.proto-f-item.seg.tone {
+    stroke: rgba(61, 139, 255, 0.7);
+}
+
+.proto-f-item.seg.ok {
+    stroke: rgba(47, 179, 107, 0.7);
+}
+
+.is-pin .proto-f-item.seg {
+    stroke-width: 3;
+}
+
+/* ---- Round 2: rule verbs arm tools ---- */
+.proto-f-verb {
+    cursor: pointer;
+    color: #9fc4ff;
+    font-weight: 600;
+    border-bottom: 2px solid rgba(159, 196, 255, 0.55);
+    border-radius: 2px;
+    padding: 0 2px;
+}
+
+.proto-f-verb::after {
+    content: " \270E";
+    font-size: 12px;
+    color: #7d9ad1;
+}
+
+.proto-f-verb:hover {
+    background: rgba(125, 154, 209, 0.25);
+}
+
+.proto-f-verb.is-on {
+    background: #3a4a6b;
+    color: #fff;
+}
+
+.proto-f-note {
+    margin: 0 0 6px !important;
+    font: italic 13px/1.4 system-ui, sans-serif !important;
+    color: #c79b5a !important;
+}
+
+.proto-f-note-line {
+    margin-top: 2px;
+    color: #c3c9d4;
+}
+
+.proto-f-note-line.bad {
+    color: #ff8f8f;
+}
+
+.proto-f-note-line.ok {
+    color: #7ee2a8;
+}
+
+/* ---- Round 2: live checks, pinned between the document and the tools ---- */
+.proto-f-live {
+    flex: none;
+    padding: 0 16px 8px;
+    border-top: 1px solid #2c313c;
+    background: #191c24;
+}
+
+.proto-f-live .proto-f-h2 {
+    margin: 10px 0 6px;
+}
+
+.proto-f-live .proto-f-under {
+    min-height: 34px;
+    margin-top: 6px;
+    padding: 4px 10px;
+}
+.proto-f-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.proto-f-check {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 4px 10px;
+    border: 1px solid #2f3542;
+    border-radius: 8px;
+    background: #20242e;
+    color: #dfe3ea;
+    font: 13.5px/1.3 system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+
+.proto-f-check:hover,
+.proto-f-check.is-active,
+.proto-f-check.is-under {
+    border-color: #ffb020;
+}
+
+.proto-f-check.is-pinned {
+    border-color: #ffb020;
+    box-shadow: inset 3px 0 0 #ffb020;
+}
+
+.proto-f-check-dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #7f8797;
+    align-self: center;
+}
+
+.proto-f-check.st-ok .proto-f-check-dot {
+    background: #3fcf7f;
+}
+
+.proto-f-check.st-bad .proto-f-check-dot {
+    background: #ff5a5a;
+}
+
+.proto-f-check-label {
+    flex: none;
+    min-width: 150px;
+    font-weight: 600;
+}
+
+.proto-f-check-text {
+    color: #aab2c0;
+}
+
+.proto-f-check.st-bad .proto-f-check-text {
+    color: #ff9b9b;
+}
+
+.proto-f-check.st-ok .proto-f-check-text {
+    color: #8fe3b4;
+}
+
+/* ---- Round 2: genre tools above the folded mode list ---- */
+.proto-f-gtools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+}
+
+.proto-f-gtools:empty {
+    display: none;
+}
+
+.proto-f-gtools-h {
+    font: 600 11px/1 system-ui, sans-serif;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #7f8797;
+    margin-right: 4px;
+}
+
+.proto-f-btn.proto-f-tool {
+    padding: 6px 12px;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.proto-f-btn.proto-f-fold {
+    margin-left: auto;
+    border-style: dashed;
+    color: #9aa3b3;
+}
+
+.proto-f-hint {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: #b9c0cc;
+}
+
+.proto-f-modewrap.is-folded {
+    display: none;
+}
+
+.proto-f-btn.is-solved {
+    background: #2fb36b;
 }

@@ -2,21 +2,31 @@
  * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant F, "Live rules".
  *
  * Idea: the rules are a living document beside the board, and the document is the primary chrome. The rules text is
- * parsed and its phrases are linked to the board: hovering "killer cages", "thermometers", "arrows", "black dots",
- * "rows", "islands", a clue type or a number spotlights every matching element on the board; clicking a phrase pins
- * the spotlight while you solve. The link runs both ways: hovering the board lights up the phrases (and the sentence)
- * that talk about what is under the cursor. Elements found on the board that the rules never name are listed under
- * "On this board" (the fallback by clue-type layer). Some phrases are live: the loop, shaded cells, islands, 2x2
- * blocks and digit values are recomputed from the solver's own marks after every change. Modes are a compact row
- * under the document.
+ * parsed and its phrases are linked to the board: hovering "black circles", "rows", "islands", "light bulbs", a clue
+ * type or a number spotlights every matching element on the board; clicking a phrase pins the spotlight while you
+ * solve. The link runs both ways: hovering the board lights up the phrases that talk about what is under the cursor,
+ * and says what each live check makes of that cell ("row 4: 2 of 4 stars"). Elements the rules never name are listed
+ * under "On this board".
+ *
+ * Round 2 (genres other than sudoku): the variant recognises the genre (tags, title, rules) and adds
+ *  - rule verbs as tools: "Shade", "Draw", "Place", "Divide" in the rules arm the genre's tool (a Composite tool, Edge,
+ *    Surface or Number); the same tools are buttons above a folded "All modes" list;
+ *  - live checks, one row each, always in view: loop pieces/loose ends/branches (Slitherlink, Masyu, Yajilin), pearl
+ *    turns (Masyu), cells neither shaded nor on the loop (Yajilin), island sizes, shaded connectivity and 2x2 (Nurikabe),
+ *    black/white connectivity and 2x2 (Yin-Yang), stars per row/column/region and touching stars (Star Battle),
+ *    regions with one centre and symmetry (Galaxies), region sizes vs numbers, same-size and common-factor neighbours
+ *    (Fillomino), lit cells, bulbs seeing bulbs and numbered walls (Akari, square and hex), ship sizes, touching ships
+ *    and ship cells per row/column vs the outside clues (Battleships), repeated digits (Sudoku). The rules' nouns point
+ *    at these checks, so "row" in Star Battle shows each row's star count;
+ *  - standard rules when the setter wrote none (Yin-Yang).
  *
  * Claim tested: solvers constantly cross-reference rules and board, so the rules deserve to be the main chrome and
  * should point at the board.
  *
- * Bridge gaps worked around here (reads `pu` directly): the board's clue model (pu.pu_q: number, symbol, thermo,
- * arrows, killercages, line, lineE, surface), the solver's marks (pu.pu_a), the cell list (pu.centerlist) and cell
- * geometry (pu.point[i].surround / .adjacent / .x / .y), and the legacy style swatch colours (`<id>_lb`).
- * Test hook: window.ProtoF.setRules(html) swaps the rules text in memory (no such call in the bridge).
+ * Bridge gaps worked around here (reads `pu` directly): the board's clue model and the solver's marks (pu.pu_q,
+ * pu.pu_a: number, symbol, surface, line, lineE, thermo, arrows, killercages), cell geometry (pu.centerlist,
+ * pu.point[i].adjacent / adjacent_dia / surround / x / y, pu.size), pu.solution (only to read Star Battle's star count
+ * when the rules give none), and the legacy style swatch colours (`<id>_lb`). Test hook: window.ProtoF.
  */
 (function() {
     'use strict';
@@ -119,7 +129,7 @@
      * Build the catalog of kinds. A kind: {id, label, live, items()} where items() returns
      * [{cells, pts, path, label, tone}] in board point indices.
      */
-    function buildCatalog() {
+    function buildCatalog(profile, info) {
         const q = pu.pu_q;
         const kinds = {};
         const add = function(k) {
@@ -142,22 +152,37 @@
 
         // Shapes in the clue layer, grouped by family, colour and whether they sit in cells or on edges/vertices.
         const groups = {};
+        const box = gridBox(cellSet);
         Object.keys(q.symbol).forEach(function(k) {
             const idx = Number(k);
             const s = q.symbol[k];
             const fam = symbolFamily(s[1]);
             const onCell = cellSet.has(idx);
-            const color = COLOR_NAMES[s[0]] || ('style ' + s[0]);
-            const id = 'sym:' + fam + ':' + color + ':' + (onCell ? 'cell' : 'edge');
+            const p = pu.point[idx];
+            const outside = !onCell && p && (p.x < box.minX - 1 || p.x > box.maxX + 1 || p.y < box.minY - 1 ||
+                p.y > box.maxY + 1);
+            // Arrow styles are direction arrays; battleship styles are piece shapes: neither is a colour.
+            let color = Array.isArray(s[0]) ? '' : (COLOR_NAMES[s[0]] || '');
+            let word = fam === 'circle' ? (onCell ? 'circles' : 'dots') : fam === 'arrow' ? 'arrow clues' :
+                fam === 'sun' ? 'bulbs' : fam + 's';
+            if (fam === 'battleship') {
+                color = '';
+                word = s[0] === 7 ? 'water' : outside ? 'fleet pieces' : 'ship parts';
+            }
+            const id = fam === 'battleship' && s[0] === 7 && onCell ? 'water' :
+                'sym:' + fam + ':' + (color || 'any') + ':' + (onCell ? 'cell' : outside ? 'out' : 'edge') +
+                (fam === 'battleship' ? ':' + word.replace(/ /g, '-') : '');
             if (!groups[id]) {
-                const word = fam === 'circle' ? (onCell ? 'circles' : 'dots') : fam + 's';
-                groups[id] = {id: id, fam: fam, color: color, onCell: onCell, label: color + ' ' + word, idx: []};
+                groups[id] = {id: id, fam: fam, color: color || null, onCell: onCell, outside: outside,
+                    label: (onCell || outside ? 'given ' : '') + (color ? color + ' ' : '') + word +
+                        (outside ? ' (outside the grid)' : !onCell && fam !== 'circle' ? ' (on lines)' : ''),
+                    idx: []};
             }
             groups[id].idx.push(idx);
         });
         Object.keys(groups).forEach(function(id) {
             const g = groups[id];
-            add({id: id, label: g.label, fam: g.fam, color: g.color, onCell: g.onCell, items: function() {
+            add({id: id, label: g.label, fam: g.fam, color: g.color, onCell: g.onCell, outside: g.outside, items: function() {
                 return g.idx.map(function(i) {
                     return g.onCell ? {cells: [i]} : {pts: [i]};
                 });
@@ -297,6 +322,11 @@
             }});
         }
 
+        // The genre's live checks (round 2).
+        if (profile) {
+            profile.checks(cellSet, info).forEach(add);
+        }
+
         /** The cell next to c at offset (dx, dy) in cell steps, through adjacency (square grids). */
         function find(c, dx, dy) {
             const p = pu.point[c];
@@ -308,6 +338,18 @@
         }
 
         return kinds;
+    }
+
+    function gridBox(set) {
+        const xs = [];
+        const ys = [];
+        set.forEach(function(c) {
+            xs.push(pu.point[c].x);
+            ys.push(pu.point[c].y);
+        });
+        const half = pu.size / 2;
+        return {minX: Math.min.apply(null, xs) - half, maxX: Math.max.apply(null, xs) + half,
+            minY: Math.min.apply(null, ys) - half, maxY: Math.max.apply(null, ys) + half};
     }
 
     /** Given lines or the solver's lines ("a,b" keys between points) as connected paths. */
@@ -352,6 +394,948 @@
         return Array.from(groups.values()).map(function(g) {
             return {segs: g.segs, cells: Array.from(g.cells), noFill: true};
         });
+    }
+
+    // ---- Genres: the solver's tools and the live checks, per genre ----------------------------------------------
+    //
+    // Round 2. A genre profile names (1) the tools a solver of that genre uses, armed by clicking a rule's verb
+    // ("Shade", "Draw", "Place", "Divide") or a tool button, and (2) live checks recomputed from the solver's marks
+    // after every change. Each check is a catalog kind, so the rules' nouns ("row", "island", "light bulb") point at
+    // it: hovering shows every item with its count, red where a rule is broken. All geometry goes through
+    // pu.point[i].adjacent / adjacent_dia / surround and point coordinates, so the checks run on hex grids too.
+
+    const SHADE_ANY = new Set([1, 3, 4, 8]); // DG, LG, BK, GR: the answer check's shading colours
+
+    function cellSetNow() {
+        return new Set(pu.centerlist);
+    }
+
+    function nbrs(c, set) {
+        return pu.point[c].adjacent.filter(function(n) {
+            return set.has(n);
+        });
+    }
+
+    /** Cells sharing a vertex with c (orthogonal and diagonal neighbours), on any grid. */
+    function touching(c, set) {
+        const out = new Set(nbrs(c, set));
+        (pu.point[c].adjacent_dia || []).forEach(function(n) {
+            if (set.has(n)) {
+                out.add(n);
+            }
+        });
+        return Array.from(out);
+    }
+
+    /** The next cell after `n` going in the direction c -> n, or null (works on square and hex grids). */
+    function stepOn(c, n, set) {
+        const a = pu.point[c];
+        const b = pu.point[n];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len = Math.hypot(dx, dy);
+        let best = null;
+        nbrs(n, set).forEach(function(m) {
+            const p = pu.point[m];
+            if (Math.abs(p.x - b.x - dx) < len * 0.2 && Math.abs(p.y - b.y - dy) < len * 0.2) {
+                best = m;
+            }
+        });
+        return best;
+    }
+
+    function sym(layer, c) {
+        return pu[layer].symbol[c] || null;
+    }
+
+    function anySym(c) {
+        return sym('pu_a', c) || sym('pu_q', c);
+    }
+
+    function shadedIn(layer, c) {
+        return SHADE_ANY.has(pu[layer].surface[c]);
+    }
+
+    function isStar(c) {
+        const s = anySym(c);
+        return !!s && s[1] === 'star' && s[0] !== 0;
+    }
+
+    function isBulb(c) {
+        const s = anySym(c);
+        return !!s && s[1] === 'sun_moon';
+    }
+
+    function isShip(c) {
+        const s = anySym(c);
+        return !!s && /^battleship_B/.test(s[1]) && s[0] >= 1 && s[0] <= 6;
+    }
+
+    function yyColor(c) {
+        const s = anySym(c);
+        if (s && /^circle/.test(s[1]) && (s[0] === 1 || s[0] === 2)) {
+            return s[0] === 2 ? 'black' : 'white';
+        }
+        return null;
+    }
+
+    /** A whole number written in a cell (the setter's clue, or the solver's full-size entry), or null. */
+    function numIn(layer, c) {
+        const n = pu[layer].number[c];
+        if (!n || !/^\d+$/.test(String(n[0]))) {
+            return null;
+        }
+        return layer === 'pu_q' || n[2] === '1' ? String(n[0]) : null;
+    }
+
+    /** Edges the solver or the setter drew (crosses, value 98, are not borders). */
+    function borderBlocked(a, b) {
+        const key = sharedEdgeKey(a, b);
+        if (!key) {
+            return false;
+        }
+        const qa = pu.pu_q.lineE[key];
+        const aa = pu.pu_a.lineE[key];
+        return (qa && qa !== 98) || (aa && aa !== 98);
+    }
+
+    function linesOf(dict) {
+        return Object.keys(dict).filter(function(k) {
+            return dict[k] !== 98;
+        }).map(function(k) {
+            return k.split(',').map(Number);
+        });
+    }
+
+    function gcd(a, b) {
+        return b ? gcd(b, a % b) : a;
+    }
+
+    /** Rows or columns of cells, by point coordinate (square grids). */
+    function linesOfCells(set, axis) {
+        const m = new Map();
+        set.forEach(function(c) {
+            const k = Math.round(pu.point[c][axis] * 100);
+            if (!m.has(k)) {
+                m.set(k, []);
+            }
+            m.get(k).push(c);
+        });
+        return Array.from(m.keys()).sort(function(a, b) {
+            return a - b;
+        }).map(function(k) {
+            return m.get(k);
+        });
+    }
+
+    function clueRegions(set) {
+        if (!Object.keys(pu.pu_q.lineE).length) {
+            return [];
+        }
+        const regs = components(set, function(a, b) {
+            const key = sharedEdgeKey(a, b);
+            return key && pu.pu_q.lineE[key];
+        });
+        return regs.length > 1 && regs.length < set.size ? regs : [];
+    }
+
+    /** One summary per check: {text, state: 'ok' | 'bad' | 'open'}. */
+    function summarize(items, opts) {
+        const bad = items.filter(function(it) {
+            return it.bad;
+        }).length;
+        const ok = items.filter(function(it) {
+            return it.ok;
+        }).length;
+        const total = opts.total !== undefined ? opts.total : items.length;
+        let text = opts.text ? opts.text(ok, bad, total, items) : ok + ' of ' + total + ' done';
+        if (bad && !opts.text) {
+            text += ', ' + bad + ' broken';
+        }
+        return {text: text, state: bad ? 'bad' : (total && ok === total ? 'ok' : 'open')};
+    }
+
+    // -- Loop health: one loop, no dead ends, no branches (crossings allowed where `cross(point)` says so) --
+    function loopCheck(getSegs, cross, label) {
+        return {id: 'chk:loop', label: label || 'the loop', live: true, check: true, items: function() {
+            const segs = getSegs();
+            const deg = new Map();
+            segs.forEach(function(s) {
+                s.forEach(function(p) {
+                    deg.set(p, (deg.get(p) || 0) + 1);
+                });
+            });
+            const pieces = lineGroups(segs.reduce(function(o, s) {
+                o[s[0] + ',' + s[1]] = 1;
+                return o;
+            }, {}));
+            const out = pieces.map(function(g, i) {
+                return {segs: g.segs, noFill: true, tone: i % 2, ok: pieces.length === 1,
+                    label: 'piece ' + (i + 1) + ': ' + g.segs.length + ' segments'};
+            });
+            deg.forEach(function(d, p) {
+                if (d === 1) {
+                    out.push({pts: [p], bad: true, label: 'dead end'});
+                } else if (d > 2 && !(d === 4 && cross && cross(p))) {
+                    out.push({pts: [p], bad: true, label: 'branch'});
+                }
+            });
+            out.summary = function() {
+                const ends = out.filter(function(it) {
+                    return it.label === 'dead end';
+                }).length;
+                const br = out.filter(function(it) {
+                    return it.label === 'branch';
+                }).length;
+                if (!segs.length) {
+                    return {text: 'nothing drawn yet', state: 'open'};
+                }
+                const closed = pieces.length === 1 && !ends && !br;
+                return {text: pieces.length + (pieces.length === 1 ? ' piece' : ' pieces') + ', ' + ends +
+                    ' loose ends' + (br ? ', ' + br + ' branches' : '') + (closed ? ': closed loop' : ''),
+                state: br ? 'bad' : closed ? 'ok' : 'open'};
+            };
+            return out;
+        }};
+    }
+
+    function lineDegree(c) {
+        let d = 0;
+        linesOf(pu.pu_a.line).forEach(function(s) {
+            if (s[0] === c || s[1] === c) {
+                d++;
+            }
+        });
+        return d;
+    }
+
+    function lineTurns(c) {
+        const ends = [];
+        linesOf(pu.pu_a.line).forEach(function(s) {
+            if (s[0] === c) {
+                ends.push(s[1]);
+            } else if (s[1] === c) {
+                ends.push(s[0]);
+            }
+        });
+        if (ends.length !== 2) {
+            return null;
+        }
+        const p = pu.point[c];
+        const a = pu.point[ends[0]];
+        const b = pu.point[ends[1]];
+        const cross = (a.x - p.x) * (b.y - p.y) - (a.y - p.y) * (b.x - p.x);
+        return Math.abs(cross) > 1e-6;
+    }
+
+    /** Every genre check. Each returns a catalog kind; items carry `label` for the board hover. */
+    const CHECKS = {
+        slitherLoop: function() {
+            return loopCheck(function() {
+                return linesOf(pu.pu_a.lineE);
+            }, null, 'your loop');
+        },
+        cellLoop: function() {
+            const ice = new Set(Object.keys(pu.pu_q.surface).map(Number));
+            return loopCheck(function() {
+                return linesOf(pu.pu_a.line);
+            }, function(p) {
+                return ice.has(p);
+            }, 'your loop');
+        },
+        pearls: function(set) {
+            return {id: 'chk:pearls', label: 'circles on the loop', live: true, check: true, items: function() {
+                const out = [];
+                Object.keys(pu.pu_q.symbol).map(Number).filter(function(c) {
+                    return set.has(c) && /^circle/.test(pu.pu_q.symbol[c][1]);
+                }).forEach(function(c) {
+                    const black = pu.pu_q.symbol[c][0] === 2;
+                    const d = lineDegree(c);
+                    const turn = lineTurns(c);
+                    const it = {cells: [c], label: (black ? 'black' : 'white') + ' circle'};
+                    if (d === 2 && turn !== null) {
+                        it.bad = black ? !turn : turn;
+                        it.ok = !it.bad;
+                        it.label += it.bad ? (black ? ': must turn here' : ': must go straight here') : ': ok';
+                    } else {
+                        it.label += d ? ': loop half through' : ': not visited yet';
+                    }
+                    out.push(it);
+                });
+                return out;
+            }, summary: function(items) {
+                return summarize(items, {text: function(ok, bad, total) {
+                    return ok + ' of ' + total + ' circles passed correctly' + (bad ? ', ' + bad + ' wrong' : '');
+                }});
+            }};
+        },
+        unvisited: function(set) {
+            return {id: 'chk:unvisited', label: 'cells still empty', live: true, check: true, items: function() {
+                const onLoop = new Set();
+                linesOf(pu.pu_a.line).forEach(function(s) {
+                    onLoop.add(s[0]);
+                    onLoop.add(s[1]);
+                });
+                return Array.from(set).filter(function(c) {
+                    return !onLoop.has(c) && pu.pu_q.surface[c] === undefined && !pu.pu_a.surface[c] &&
+                        !pu.pu_q.symbol[c] && !pu.pu_q.number[c];
+                }).map(function(c) {
+                    return {cells: [c], label: 'neither shaded nor on the loop'};
+                });
+            }, summary: function(items) {
+                return {text: items.length + ' cells neither shaded nor on the loop', state: items.length ? 'open' : 'ok'};
+            }};
+        },
+        islands: function(set) {
+            return {id: 'chk:islands', label: 'dry islands', live: true, check: true, items: function() {
+                const shaded = function(c) {
+                    return shadedIn('pu_a', c) || shadedIn('pu_q', c);
+                };
+                const known = new Set(Array.from(set).filter(function(c) {
+                    return !shaded(c) && (pu.pu_q.number[c] || pu.pu_a.symbol[c]);
+                }));
+                return components(known).map(function(comp, i) {
+                    const clues = comp.map(function(c) {
+                        return pu.pu_q.number[c] && String(pu.pu_q.number[c][0]);
+                    }).filter(Boolean);
+                    const target = clues.length === 1 && /^\d+$/.test(clues[0]) ? Number(clues[0]) : null;
+                    const closed = comp.every(function(c) {
+                        return nbrs(c, set).every(function(n) {
+                            return comp.indexOf(n) >= 0 || shaded(n);
+                        });
+                    });
+                    const it = {cells: comp, tone: i % 2, corner: comp.length + (target !== null ? '/' + target :
+                        clues.length ? '/' + clues[0] : '')};
+                    it.bad = clues.length > 1 || (target !== null && comp.length > target) ||
+                        (closed && clues.length === 0) || (closed && target !== null && comp.length < target);
+                    it.ok = !it.bad && closed && clues.length === 1 && (target === null || comp.length === target);
+                    it.label = 'island of ' + comp.length + (clues.length === 1 ? ' (clue ' + clues[0] + ')' :
+                        clues.length ? ' with ' + clues.length + ' clues' : ', no clue') + (closed ? ', walled in' : '');
+                    return it;
+                });
+            }, summary: function(items) {
+                const clued = Object.keys(pu.pu_q.number).filter(function(c) {
+                    return set.has(Number(c));
+                }).length;
+                return summarize(items, {total: clued, text: function(ok, bad, total) {
+                    return ok + ' of ' + total + ' islands finished' + (bad ? ', ' + bad + ' broken' : '');
+                }});
+            }};
+        },
+        wet: function(set) {
+            return {id: 'chk:wet', label: 'shaded groups', live: true, check: true, items: function() {
+                const wet = new Set(Array.from(set).filter(function(c) {
+                    return shadedIn('pu_a', c) || shadedIn('pu_q', c);
+                }));
+                const comps = components(wet);
+                return comps.map(function(comp, i) {
+                    return {cells: comp, tone: i % 2, ok: comps.length === 1,
+                        label: 'shaded group ' + (i + 1) + ' of ' + comps.length + ' (' + comp.length + ' cells)'};
+                });
+            }, summary: function(items) {
+                return {text: items.length ? items.length + (items.length === 1 ? ' connected group' :
+                    ' separate groups (must join into one)') : 'nothing shaded yet', state: items.length === 1 ? 'ok' : 'open'};
+            }};
+        },
+        block2: function(set, isFilled, id, label) {
+            return {id: id || 'chk:block2', label: label || '2x2 all shaded', live: true, check: true, items: function() {
+                const out = [];
+                set.forEach(function(c) {
+                    // A 2x2 block: c, a right neighbour r, a down neighbour d, and the cell diagonal to both.
+                    const p = pu.point[c];
+                    const right = nbrs(c, set).filter(function(n) {
+                        return pu.point[n].x > p.x + 1e-6 && Math.abs(pu.point[n].y - p.y) < 1e-6;
+                    })[0];
+                    const down = nbrs(c, set).filter(function(n) {
+                        return pu.point[n].y > p.y + 1e-6 && Math.abs(pu.point[n].x - p.x) < 1e-6;
+                    })[0];
+                    if (right === undefined || down === undefined) {
+                        return;
+                    }
+                    const diag = nbrs(right, set).filter(function(n) {
+                        return nbrs(down, set).indexOf(n) >= 0 && n !== c;
+                    })[0];
+                    if (diag === undefined) {
+                        return;
+                    }
+                    const four = [c, right, down, diag];
+                    const v = isFilled(c);
+                    if (v && four.every(function(x) {
+                        return isFilled(x) === v;
+                    })) {
+                        out.push({cells: four, bad: true, label: '2x2 block all ' + (v === true ? 'shaded' : v)});
+                    }
+                });
+                return out;
+            }, summary: function(items) {
+                return {text: items.length ? items.length + ' 2x2 blocks broken' : 'none', state: items.length ? 'bad' : 'ok'};
+            }};
+        },
+        yyGroups: function(set, color) {
+            return {id: 'chk:yy' + color, label: color + ' groups', live: true, check: true, items: function() {
+                const mine = new Set(Array.from(set).filter(function(c) {
+                    return yyColor(c) === color;
+                }));
+                const comps = components(mine);
+                return comps.map(function(comp, i) {
+                    return {cells: comp, tone: i % 2, ok: comps.length === 1,
+                        label: color + ' group ' + (i + 1) + ' of ' + comps.length};
+                });
+            }, summary: function(items) {
+                return {text: items.length ? items.length + (items.length === 1 ? ' group: connected' :
+                    ' separate groups') : 'none placed', state: items.length === 1 ? 'ok' : 'open'};
+            }};
+        },
+        yyEmpty: function(set) {
+            return {id: 'chk:yyempty', label: 'empty cells', live: true, check: true, items: function() {
+                return Array.from(set).filter(function(c) {
+                    return !yyColor(c);
+                }).map(function(c) {
+                    return {cells: [c], label: 'empty'};
+                });
+            }, summary: function(items) {
+                return {text: items.length + ' cells without a circle', state: items.length ? 'open' : 'ok'};
+            }};
+        },
+        countPer: function(id, label, groups, isIt, target, noun, side) {
+            return {id: id, label: label, live: true, check: true, items: function() {
+                return groups().map(function(g, i) {
+                    const n = g.cells.filter(isIt).length;
+                    const t = g.target !== undefined ? g.target : target;
+                    return {cells: g.cells, tone: i % 2, corner: n + (t !== null ? '/' + t : ''), side: side,
+                        ok: t !== null && n === t, bad: t !== null && n > t,
+                        label: g.name + ': ' + n + (t !== null ? ' of ' + t : '') + ' ' + noun};
+                });
+            }, summary: function(items) {
+                return summarize(items, {text: function(ok, bad, total) {
+                    return ok + ' of ' + total + ' full' + (bad ? ', ' + bad + ' over' : '');
+                }});
+            }};
+        },
+        touchingPairs: function(id, label, set, isIt, noun) {
+            return {id: id, label: label, live: true, check: true, items: function() {
+                const out = [];
+                set.forEach(function(c) {
+                    if (!isIt(c)) {
+                        return;
+                    }
+                    out.push({cells: [c], label: noun});
+                    touching(c, set).forEach(function(n) {
+                        if (n > c && isIt(n)) {
+                            out.push({cells: [c, n], bad: true, label: 'two ' + noun + 's touch'});
+                        }
+                    });
+                });
+                return out;
+            }, summary: function(items) {
+                const bad = items.filter(function(it) {
+                    return it.bad;
+                }).length;
+                return {text: (items.length - bad) + ' placed' + (bad ? ', ' + bad + ' touching pairs' : ', none touch'),
+                    state: bad ? 'bad' : 'open'};
+            }};
+        },
+        ships: function(set) {
+            return {id: 'chk:ships', label: 'ships', live: true, check: true, items: function() {
+                const ship = new Set(Array.from(set).filter(isShip));
+                const comps = components(ship);
+                const owner = new Map();
+                comps.forEach(function(comp, i) {
+                    comp.forEach(function(c) {
+                        owner.set(c, i);
+                    });
+                });
+                return comps.map(function(comp, i) {
+                    const touch = comp.some(function(c) {
+                        return touching(c, set).some(function(n) {
+                            return owner.has(n) && owner.get(n) !== i;
+                        });
+                    });
+                    return {cells: comp, tone: i % 2, corner: String(comp.length), bad: touch,
+                        label: 'ship of ' + comp.length + (touch ? ', touching another ship' : '')};
+                });
+            }, summary: function(items) {
+                const sizes = items.map(function(it) {
+                    return it.cells.length;
+                }).sort(function(a, b) {
+                    return b - a;
+                });
+                const bad = items.filter(function(it) {
+                    return it.bad;
+                }).length;
+                return {text: items.length ? 'sizes ' + sizes.join(' ') + (bad ? ', ' + bad + ' touching' : '') :
+                    'none placed', state: bad ? 'bad' : 'open'};
+            }};
+        },
+        lit: function(set) {
+            const wall = function(c) {
+                return shadedIn('pu_a', c) || pu.pu_q.surface[c] !== undefined;
+            };
+            const litBy = function() {
+                const lit = new Map();
+                set.forEach(function(c) {
+                    if (!isBulb(c)) {
+                        return;
+                    }
+                    lit.set(c, (lit.get(c) || []).concat([c]));
+                    nbrs(c, set).forEach(function(n) {
+                        let prev = c;
+                        let cur = n;
+                        while (cur !== null && !wall(cur)) {
+                            lit.set(cur, (lit.get(cur) || []).concat([c]));
+                            const next = stepOn(prev, cur, set);
+                            prev = cur;
+                            cur = next;
+                        }
+                    });
+                });
+                return lit;
+            };
+            return {id: 'chk:lit', label: 'lit cells', live: true, check: true, wall: wall, items: function() {
+                const lit = litBy();
+                const out = [];
+                set.forEach(function(c) {
+                    if (wall(c)) {
+                        return;
+                    }
+                    const by = lit.get(c) || [];
+                    if (isBulb(c) && by.length > 1) {
+                        out.push({cells: [c], bad: true, label: 'bulb lit by another bulb'});
+                    } else if (by.length) {
+                        out.push({cells: [c], ok: true, faintOk: true, label: 'lit by ' + by.length + ' bulb' +
+                            (by.length > 1 ? 's' : '')});
+                    } else {
+                        out.push({cells: [c], label: 'dark'});
+                    }
+                });
+                return out;
+            }, summary: function(items) {
+                const dark = items.filter(function(it) {
+                    return it.label === 'dark';
+                }).length;
+                const bad = items.filter(function(it) {
+                    return it.bad;
+                }).length;
+                return {text: (items.length - dark) + ' of ' + items.length + ' lit' + (bad ? ', ' + bad +
+                    ' bulbs see each other' : ''), state: bad ? 'bad' : dark ? 'open' : 'ok'};
+            }};
+        },
+        bulbClues: function(set) {
+            return {id: 'chk:bulbclues', label: 'numbered walls', live: true, check: true, items: function() {
+                return Array.from(set).filter(function(c) {
+                    return pu.pu_q.surface[c] !== undefined && pu.pu_q.number[c] && /^\d+$/.test(pu.pu_q.number[c][0]);
+                }).map(function(c) {
+                    const t = Number(pu.pu_q.number[c][0]);
+                    const n = nbrs(c, set).filter(isBulb).length;
+                    return {cells: [c], corner: n + '/' + t, ok: n === t, bad: n > t,
+                        label: 'clue ' + t + ': ' + n + ' bulbs next to it'};
+                });
+            }, summary: function(items) {
+                return summarize(items, {text: function(ok, bad, total) {
+                    return ok + ' of ' + total + ' satisfied' + (bad ? ', ' + bad + ' over' : '');
+                }});
+            }};
+        },
+        borderRegions: function(set, mode) {
+            // Regions cut by borders (setter's and solver's). Fillomino: numbers inside must equal the size.
+            // Galaxies: exactly one circle inside, and the region symmetric around it.
+            return {id: 'chk:bregions', label: 'your regions', live: true, check: true, items: function() {
+                const regs = components(set, borderBlocked);
+                if (regs.length === 1) {
+                    return [];
+                }
+                const regionOf = new Map();
+                regs.forEach(function(r, i) {
+                    r.forEach(function(c) {
+                        regionOf.set(c, i);
+                    });
+                });
+                if (mode === 'galaxies') {
+                    const dots = galaxyDots(set);
+                    const count = regs.map(function() {
+                        return [];
+                    });
+                    dots.forEach(function(d) {
+                        const ids = new Set(d.cells.map(function(c) {
+                            return regionOf.get(c);
+                        }));
+                        if (ids.size === 1) {
+                            count[Array.from(ids)[0]].push(d);
+                        }
+                    });
+                    return regs.map(function(r, i) {
+                        const ds = count[i];
+                        const sym = ds.length === 1 && r.every(function(c) {
+                            const m = mirror(c, ds[0], set);
+                            return m !== null && regionOf.get(m) === i;
+                        });
+                        return {cells: r, tone: i % 2, corner: ds.length + '●', bad: ds.length === 0,
+                            ok: ds.length === 1 && sym,
+                            label: 'region of ' + r.length + ': ' + ds.length + ' circles' +
+                                (ds.length === 1 ? (sym ? ', symmetric' : ', not symmetric yet') : '')};
+                    });
+                }
+                const sizes = regs.map(function(r) {
+                    return r.length;
+                });
+                const numsOf = function(r) {
+                    return Array.from(new Set(r.map(function(c) {
+                        return numIn('pu_q', c) || numIn('pu_a', c);
+                    }).filter(Boolean))).map(Number);
+                };
+                const done = regs.map(function(r) {
+                    const nums = numsOf(r);
+                    return nums.length === 1 && nums[0] === r.length;
+                });
+                return regs.map(function(r, i) {
+                    const nums = numsOf(r);
+                    const it = {cells: r, tone: i % 2, corner: String(r.length),
+                        label: 'region of ' + r.length + (nums.length ? ' holding ' + nums.join(', ') : '')};
+                    // Too small: a number bigger than its walled-in region can never fit.
+                    it.bad = nums.some(function(n) {
+                        return n > r.length;
+                    });
+                    if (it.bad) {
+                        it.label += '; too small';
+                    }
+                    if (done[i]) {
+                        // Neighbours of the same size, or (when the rules say so) sizes with no common factor.
+                        const seen = new Set();
+                        r.forEach(function(c) {
+                            nbrs(c, set).forEach(function(n) {
+                                const j = regionOf.get(n);
+                                if (j === i || !done[j] || seen.has(j)) {
+                                    return;
+                                }
+                                seen.add(j);
+                                if (sizes[j] === r.length) {
+                                    it.bad = true;
+                                    it.label += '; touches another ' + r.length;
+                                } else if (mode === 'fillomino-gcd' && gcd(sizes[j], r.length) === 1) {
+                                    it.bad = true;
+                                    it.label += '; touches a ' + sizes[j] + ' (no common factor)';
+                                }
+                            });
+                        });
+                    }
+                    it.ok = done[i] && !it.bad;
+                    return it;
+                });
+            }, summary: function(items) {
+                if (!items.length) {
+                    return {text: 'no borders drawn yet', state: 'open'};
+                }
+                return summarize(items, {text: function(ok, bad, total) {
+                    return total + ' regions, ' + ok + ' finished' + (bad ? ', ' + bad + ' broken' : '');
+                }});
+            }};
+        }
+    };
+
+    /** Sudoku: a digit twice in a row, column or box. */
+    CHECKS.dupes = function(set) {
+        return {id: 'chk:dupes', label: 'repeated digits', live: true, check: true, items: function() {
+            const houses = [['row', linesOfCells(set, 'y')], ['column', linesOfCells(set, 'x')], ['box', clueRegions(set)]];
+            const out = [];
+            let full = 0;
+            let total = 0;
+            houses.forEach(function(h) {
+                h[1].forEach(function(cells, i) {
+                    total++;
+                    const by = {};
+                    cells.forEach(function(c) {
+                        const v = cellValue(c);
+                        if (v) {
+                            (by[v.v] = by[v.v] || []).push(c);
+                        }
+                    });
+                    if (Object.keys(by).length === cells.length) {
+                        full++;
+                    }
+                    Object.keys(by).forEach(function(d) {
+                        if (by[d].length > 1) {
+                            out.push({cells: by[d], bad: true, label: d + ' twice in ' + h[0] + ' ' + (i + 1)});
+                        }
+                    });
+                });
+            });
+            out.summary = function() {
+                return {text: out.length ? out.length + ' repeats' : full + ' of ' + total + ' houses full, no repeats',
+                    state: out.length ? 'bad' : full === total ? 'ok' : 'open'};
+            };
+            return out;
+        }};
+    };
+
+    /** Galaxy centres: the clue circles, each with the cells it touches (1 in a cell, 2 on an edge, 4 on a vertex). */
+    function galaxyDots(set) {
+        const out = [];
+        Object.keys(pu.pu_q.symbol).map(Number).forEach(function(i) {
+            if (!/^circle/.test(pu.pu_q.symbol[i][1])) {
+                return;
+            }
+            const p = pu.point[i];
+            const near = [];
+            let dmin = Infinity;
+            set.forEach(function(c) {
+                const d = Math.hypot(pu.point[c].x - p.x, pu.point[c].y - p.y);
+                dmin = Math.min(dmin, d);
+            });
+            set.forEach(function(c) {
+                const d = Math.hypot(pu.point[c].x - p.x, pu.point[c].y - p.y);
+                if (d < dmin + 1) {
+                    near.push(c);
+                }
+            });
+            if (dmin < pu.size) {
+                out.push({point: i, x: p.x, y: p.y, cells: near});
+            }
+        });
+        return out;
+    }
+
+    function mirror(c, dot, set) {
+        const p = pu.point[c];
+        const x = 2 * dot.x - p.x;
+        const y = 2 * dot.y - p.y;
+        let hit = null;
+        set.forEach(function(n) {
+            if (Math.abs(pu.point[n].x - x) < 1 && Math.abs(pu.point[n].y - y) < 1) {
+                hit = n;
+            }
+        });
+        return hit;
+    }
+
+    /** Clue numbers outside the grid, matched to the row or column they sit in line with. */
+    function outsideClues(set, rows, cols) {
+        const xs = Array.from(set).map(function(c) {
+            return pu.point[c].x;
+        });
+        const ys = Array.from(set).map(function(c) {
+            return pu.point[c].y;
+        });
+        const minX = Math.min.apply(null, xs);
+        const maxX = Math.max.apply(null, xs);
+        const minY = Math.min.apply(null, ys);
+        const maxY = Math.max.apply(null, ys);
+        const rowT = rows.map(function() {
+            return null;
+        });
+        const colT = cols.map(function() {
+            return null;
+        });
+        Object.keys(pu.pu_q.number).map(Number).forEach(function(k) {
+            if (set.has(k) || !pu.point[k]) {
+                return;
+            }
+            const v = String(pu.pu_q.number[k][0]);
+            if (!/^\d+$/.test(v)) {
+                return;
+            }
+            const p = pu.point[k];
+            if (p.x > maxX || p.x < minX) {
+                rows.forEach(function(r, i) {
+                    if (Math.abs(pu.point[r[0]].y - p.y) < 1) {
+                        rowT[i] = Number(v);
+                    }
+                });
+            } else if (p.y > maxY || p.y < minY) {
+                cols.forEach(function(col, i) {
+                    if (Math.abs(pu.point[col[0]].x - p.x) < 1) {
+                        colT[i] = Number(v);
+                    }
+                });
+            }
+        });
+        return {rows: rowT, cols: colT};
+    }
+
+    /** Tools a genre's solver uses: what to click, and which rule verbs arm them. */
+    const T = {
+        edgex: {id: 'edgex', label: 'Loop on edges', hint: 'drag along grid lines · right-click an edge: ✕',
+            mode: 'combi', combi: 'edgex', roles: ['draw']},
+        borders: {id: 'borders', label: 'Borders', hint: 'drag along grid lines · right-click an edge: ✕',
+            mode: 'combi', combi: 'edgex', roles: ['border', 'draw']},
+        linex: {id: 'linex', label: 'Loop + edge ✕', hint: 'drag through cells · right-click an edge: ✕',
+            mode: 'combi', combi: 'linex', roles: ['draw']},
+        lineox: {id: 'lineox', label: 'Loop + cell ○/✕', hint: 'drag through cells · click a cell: ○ then ✕ · right-click: ✕',
+            mode: 'combi', combi: 'lineox', roles: []},
+        yajilin: {id: 'yajilin', label: 'Shade + loop', hint: 'click: shade · drag: loop · right-click: dot (cell) or ✕ (edge)',
+            mode: 'combi', combi: 'yajilin', roles: ['draw', 'shade']},
+        blpo: {id: 'blpo', label: 'Shade + dot', hint: 'click: shade (again: dot) · right-click: dot · drag paints many',
+            mode: 'combi', combi: 'blpo', roles: ['shade']},
+        blwh: {id: 'blwh', label: 'Circles', hint: 'click: white (again: black) · right-click: black · drag paints many',
+            mode: 'combi', combi: 'blwh', roles: ['place', 'shade']},
+        star: {id: 'star', label: 'Stars', hint: 'click: star · right-click: ✕ · right-drag: many ✕',
+            mode: 'combi', combi: 'star', roles: ['place']},
+        akari: {id: 'akari', label: 'Bulbs', hint: 'click: bulb · right-click: dot (no bulb here)',
+            mode: 'combi', combi: 'akari', roles: ['place']},
+        surface: {id: 'surface', label: 'Shade', hint: 'click: shade · right-click: green · drag paints many',
+            mode: 'surface', style: 1, roles: ['shade']},
+        ships: {id: 'ships', label: 'Ships + water', hint: 'click cycles ○ end, ■ middle, • part, ≈ water · drag from a cell: ship end in that direction · right-drag: water',
+            mode: 'combi', combi: 'battleship', roles: ['place']},
+        numbers: {id: 'numbers', label: 'Numbers', hint: 'click a cell, type a number (two digits for 10+)',
+            mode: 'number', sub: 1, roles: ['number']},
+        rgb: {id: 'rgb', label: 'Colour letters', hint: 'click a cell, type R, G or B',
+            mode: 'number', sub: 1, roles: ['colour']},
+        sudoku: {id: 'sudoku', label: 'Digits', hint: 'select cells, type · Shift: corner · Ctrl: centre',
+            mode: 'sudoku', sub: 1, roles: ['number', 'place']}
+    };
+
+    /** Rule verbs -> tool roles. */
+    const VERBS = [
+        ['draw(?:ing)?|connect(?:ing)?', 'draw'],
+        ['shad(?:e|ing)|blacken|paint', 'shade'],
+        ['place|placing|put', 'place'],
+        ['divide|dividing|split', 'border'],
+        ['write|enter|fill in', 'number']
+    ];
+
+    const STANDARD_RULES = {
+        yinyang: 'Place a black or a white circle in every empty cell. All black circles form one orthogonally ' +
+            'connected group, and so do all white circles. No 2x2 block holds four circles of one colour.'
+    };
+
+    /**
+     * Genre profiles. `test` is matched against tags, title and rules. `phrases` link genre nouns to its checks and
+     * win ties with the generic phrases. `checks(set, ctx)` builds the check kinds.
+     */
+    const GENRES = [
+        {key: 'sudoku', name: 'Sudoku', test: /sudoku|classic/, tools: ['sudoku'],
+            phrases: [['once each|no repeats?|repeat', ['chk:dupes']]],
+            checks: function(set) {
+                return [CHECKS.dupes(set)];
+            }},
+        {key: 'slitherlink', name: 'Slitherlink', test: /slither/, tools: ['edgex'],
+            phrases: [['(?:single\\s+)?(?:non-branching\\s+)?(?:closed\\s+)?loop', ['chk:loop']]],
+            checks: function() {
+                return [CHECKS.slitherLoop()];
+            }},
+        {key: 'masyu', name: 'Masyu', test: /masyu|maysu|pearl/, tools: ['linex', 'lineox'],
+            phrases: [['loop', ['chk:loop']], ['black circles?', ['chk:pearls', 'sym:circle:black:*']],
+                ['white circles?', ['chk:pearls', 'sym:circle:white:*']], ['circles?', ['chk:pearls', 'sym:circle:*']],
+                ['ice cells?|cells shaded blue', ['givenShade']]],
+            checks: function(set) {
+                return [CHECKS.cellLoop(), CHECKS.pearls(set)];
+            }},
+        {key: 'yajilin', name: 'Yajilin', test: /yajilin/, tools: ['yajilin'],
+            phrases: [['loop', ['chk:loop']], ['(?:all\\s+)?remaining cells', ['chk:unvisited']],
+                ['clue cells?|brown clue cells', ['givenShade']]],
+            checks: function(set) {
+                return [CHECKS.cellLoop(), CHECKS.unvisited(set)];
+            }},
+        {key: 'nurikabe', name: 'Nurikabe', test: /nurikabe/, tools: ['blpo', 'surface'],
+            phrases: [['wet(?: cells?)?', ['chk:wet']], ['(?:connected\\s+)?groups? of unshaded cells|unshaded cells|dry(?: cells?| regions?)?|islands?',
+                ['chk:islands']], ['2\\s*[x×]\\s*2(?: groups?(?: of cells)?)?', ['chk:block2']]],
+            checks: function(set) {
+                return [CHECKS.islands(set), CHECKS.wet(set), CHECKS.block2(set, function(c) {
+                    return shadedIn('pu_a', c) || shadedIn('pu_q', c);
+                })];
+            }},
+        {key: 'yinyang', name: 'Yin-Yang', test: /yin.?ya/, tools: ['blwh'],
+            phrases: [['black circles?|black', ['chk:yyblack']], ['white circles?|white', ['chk:yywhite', 'sym:circle:white:*']],
+                ['empty cells?', ['chk:yyempty']], ['2\\s*[x×]\\s*2(?: blocks?)?', ['chk:yy2x2']]],
+            checks: function(set) {
+                return [CHECKS.yyGroups(set, 'black'), CHECKS.yyGroups(set, 'white'), CHECKS.yyEmpty(set),
+                    CHECKS.block2(set, yyColor, 'chk:yy2x2', '2x2 of one colour')];
+            }},
+        {key: 'starbattle', name: 'Star Battle', test: /star ?battle/, tools: ['star'],
+            phrases: [['stars?', ['chk:stouch']], ['rows?', ['chk:srows']], ['columns?', ['chk:scols']],
+                ['(?:outlined\\s+)?regions?', ['chk:sregions']], ['touch(?:es)?(?: each other)?', ['chk:stouch']]],
+            checks: function(set, info) {
+                const n = starsPer(info.rules, set);
+                const rows = linesOfCells(set, 'y');
+                const cols = linesOfCells(set, 'x');
+                const regs = clueRegions(set);
+                const named = function(list, word) {
+                    return function() {
+                        return list.map(function(cs, i) {
+                            return {cells: cs, name: word + ' ' + (i + 1)};
+                        });
+                    };
+                };
+                return [
+                    CHECKS.touchingPairs('chk:stouch', 'your stars', set, isStar, 'star'),
+                    CHECKS.countPer('chk:srows', 'stars per row', named(rows, 'row'), isStar, n, 'stars', 'left'),
+                    CHECKS.countPer('chk:scols', 'stars per column', named(cols, 'column'), isStar, n, 'stars', 'top'),
+                    CHECKS.countPer('chk:sregions', 'stars per region', named(regs, 'region'), isStar, n, 'stars')
+                ];
+            }},
+        {key: 'galaxies', name: 'Galaxies', test: /galax|tentaisho|spiral/, tools: ['borders', 'surface'],
+            phrases: [['regions?|aquariums?', ['chk:bregions']], ['circles?', ['chk:bregions', 'sym:circle:*']],
+                ['rotationally symmetric', ['chk:bregions']]],
+            checks: function(set) {
+                return [CHECKS.borderRegions(set, 'galaxies')];
+            }},
+        {key: 'fillomino', name: 'Fillomino', test: /fillomino/, tools: ['borders', 'numbers'],
+            phrases: [['(?:orthogonally connected\\s+)?regions?', ['chk:bregions']],
+                ['same size|common factor', ['chk:bregions']]],
+            checks: function(set, info) {
+                return [CHECKS.borderRegions(set, /common factor/i.test(info.rules) ? 'fillomino-gcd' : 'fillomino')];
+            }},
+        {key: 'battleships', name: 'Battleships', test: /battleship|ships/, tools: ['ships'],
+            phrases: [['(?:given\\s+)?ships?', ['chk:ships']], ['touch(?:es)?', ['chk:ships']],
+                ['rows?', ['chk:brows']], ['columns?', ['chk:bcols']], ['water(?: cells?)?', ['water']]],
+            checks: function(set) {
+                const rows = linesOfCells(set, 'y');
+                const cols = linesOfCells(set, 'x');
+                const t = outsideClues(set, rows, cols);
+                const named = function(list, word, targets) {
+                    return function() {
+                        return list.map(function(cs, i) {
+                            return {cells: cs, name: word + ' ' + (i + 1), target: targets[i]};
+                        });
+                    };
+                };
+                return [CHECKS.ships(set),
+                    CHECKS.countPer('chk:brows', 'ship cells per row', named(rows, 'row', t.rows), isShip, null, 'ship cells', 'left'),
+                    CHECKS.countPer('chk:bcols', 'ship cells per column', named(cols, 'column', t.cols), isShip, null, 'ship cells', 'top')];
+            }},
+        {key: 'akari', name: 'Akari', test: /akari|light ?up/, tools: ['akari', 'surface'],
+            phrases: [['(?:light\\s+)?bulbs?|lights?|lamps?', ['chk:lit']], ['illuminat\\w*|lit', ['chk:lit']],
+                ['unshaded(?: white)? cells?|white cells?', ['chk:lit']],
+                ['numbered cells?|(?:a\\s+)?numbers? in a shaded cell|numbers?', ['chk:bulbclues']]],
+            checks: function(set) {
+                return [CHECKS.lit(set), CHECKS.bulbClues(set)];
+            }}
+    ];
+
+    function starsPer(rules, set) {
+        const m = /contains?\s+(\d+)\s+stars?/i.exec(rules) || /(\d+)\s+stars?\s+(?:in|per|each)/i.exec(rules) ||
+            /(\d+)\s*★/.exec(rules);
+        if (m) {
+            return Number(m[1]);
+        }
+        try {
+            const sol = typeof pu.solution === 'string' ? JSON.parse(pu.solution) : pu.solution;
+            const list = sol.filter(function(a) {
+                return a && a.length;
+            })[0] || [];
+            const rows = linesOfCells(set, 'y').length;
+            return rows ? Math.round(list.length / rows) || null : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function detectGenre(info, tags) {
+        const hay = (tags.join(' ') + ' ' + (info.title || '') + ' ' + (info.rules || '').slice(0, 200)).toLowerCase();
+        if (pu.gridtype === 'sudoku') {
+            return GENRES[0];
+        }
+        // Akari before "light"; Yin-Yang before anything that says "circle".
+        const order = ['yinyang', 'starbattle', 'slitherlink', 'masyu', 'yajilin', 'nurikabe', 'galaxies',
+            'fillomino', 'battleships', 'akari', 'sudoku'];
+        for (let i = 0; i < order.length; i++) {
+            const g = GENRES.filter(function(x) {
+                return x.key === order[i];
+            })[0];
+            if (g.test.test(hay)) {
+                return g;
+            }
+        }
+        return null;
     }
 
     // ---- Phrase matcher -----------------------------------------------------------------------------------------
@@ -493,8 +1477,51 @@
 
     const SUBJECTS = new Set(['cages', 'arrows', 'thermo', 'givenLines']);
 
-    /** Split text into [{text}|{text, kinds}] tokens using the phrase rules. */
-    function tokenize(text, cat, para) {
+    function compile(re, resolve) {
+        return {re: new RegExp('(?:' + re + ')(?![A-Za-z0-9])', 'iy'), resolve: resolve};
+    }
+
+    /** The phrase list for a genre: rule verbs first (they arm tools), then the genre's nouns, then the generic ones. */
+    function compilePhrases(profile) {
+        const list = VERBS.map(function(v) {
+            return compile(v[0], function() {
+                return ['tool:' + v[1]];
+            });
+        });
+        // Genre names are not clue types: "Star Battle" must not link "Star".
+        list.push(compile('star battle|yin-?yang|light ?up|statue park|fillomino|nurikabe|masyu|yajilin|slitherlink|' +
+            'battleships?(?= puzzle)|tentaisho|aquarium(?=:)', function() {
+            return ['-'];
+        }));
+        (profile ? profile.phrases : []).forEach(function(p) {
+            list.push(compile(p[0], function() {
+                return p[1].slice();
+            }));
+        });
+        return list.concat(COMPILED);
+    }
+
+    /** Memoize a kind's items per board generation: one computation per change, however many readers. */
+    let GEN = 0;
+    function memo(kind) {
+        const raw = kind.items;
+        let at = -1;
+        let cache = null;
+        kind.items = function() {
+            if (at !== GEN) {
+                cache = raw();
+                at = GEN;
+            }
+            return cache;
+        };
+        return kind;
+    }
+
+    /**
+     * Split text into [{text}|{text, kinds}] tokens. At each word start the longest phrase wins; ties go to the
+     * earlier list entry. `roles` is the set of tool roles this genre has: verbs without a tool stay plain text.
+     */
+    function tokenize(text, cat, para, compiled, roles) {
         const out = [];
         let plain = '';
         let i = 0;
@@ -502,33 +1529,56 @@
             const prev = i > 0 ? text[i - 1] : ' ';
             let best = null;
             if (!/[A-Za-z0-9]/.test(prev)) {
-                COMPILED.forEach(function(p) {
+                compiled.forEach(function(p) {
                     p.re.lastIndex = i;
                     const m = p.re.exec(text);
                     if (m && m[0].length && (!best || m[0].length > best.m[0].length)) {
-                        best = {m: m, p: p};
+                        // "sym:circle:*" stands for every clue-circle kind on this board.
+                        const raw = [];
+                        p.resolve(m, cat, para.subject).forEach(function(id) {
+                            if (id.slice(-1) === '*') {
+                                Object.keys(cat).forEach(function(k) {
+                                    if (k.indexOf(id.slice(0, -1)) === 0) {
+                                        raw.push(k);
+                                    }
+                                });
+                            } else {
+                                raw.push(id);
+                            }
+                        });
+                        const ids = raw.filter(function(id) {
+                            if (id === '-') {
+                                return true;
+                            }
+                            if (id.indexOf('tool:') === 0) {
+                                return roles.has(id.slice(5));
+                            }
+                            if (id.indexOf('v:') === 0 && !cat[id]) {
+                                cat[id] = memo(valueKind(id.slice(2)));
+                            }
+                            if (id === 'digits' && !cat[id]) {
+                                cat[id] = memo(digitsKind());
+                            }
+                            return !!cat[id];
+                        });
+                        if (ids.length) {
+                            best = {m: m, ids: ids};
+                        }
                     }
                 });
             }
-            let ids = null;
             if (best) {
-                ids = best.p.resolve(best.m, cat, para.subject).filter(function(id) {
-                    if (id.indexOf('v:') === 0 && !cat[id]) {
-                        cat[id] = valueKind(id.slice(2));
-                    }
-                    if (id === 'digits' && !cat[id]) {
-                        cat[id] = digitsKind();
-                    }
-                    return !!cat[id];
-                });
-            }
-            if (ids && ids.length) {
+                if (best.ids[0] === '-') {
+                    plain += best.m[0];
+                    i += best.m[0].length;
+                    continue;
+                }
                 if (plain) {
                     out.push({text: plain});
                     plain = '';
                 }
-                out.push({text: best.m[0], kinds: ids});
-                ids.forEach(function(id) {
+                out.push({text: best.m[0], kinds: best.ids});
+                best.ids.forEach(function(id) {
                     if (SUBJECTS.has(id)) {
                         para.subject = id;
                     }
@@ -555,30 +1605,63 @@
         mount(ctx) {
             const bridge = ctx.bridge;
             const el = ctx.helpers.el;
-            let catalog = buildCatalog();
+            const info0 = bridge.getInfo();
+            const profile = detectGenre(info0, bridge.genreTags());
+            const standardRules = !(info0.rules || '').trim() && profile && STANDARD_RULES[profile.key];
+            const ruleText = standardRules || info0.rules || '';
+            const tools = profile ? profile.tools.map(function(id) {
+                return T[id];
+            }).filter(function(t) {
+                // Composite tools differ per grid type (hex has no Battleships tool, for one).
+                return !t.combi || bridge.listComposite().some(function(c) {
+                    return c.name === t.combi;
+                });
+            }) : [];
+            const roles = new Set();
+            tools.forEach(function(t) {
+                t.roles.forEach(function(r) {
+                    roles.add(r);
+                });
+            });
+            const compiled = compilePhrases(profile);
+            let catalog = null;
             let hoverKinds = null;   // kinds under the mouse in the document
-            let pinned = [];         // kinds pinned by click
+            let pinned = [];         // kinds pinned by click (several may be pinned at once)
             let boardHover = [];     // kinds under the mouse on the board
 
-            // Layout: the document on the left (rules, legend, check), the mode strip under it, the board right.
+            function newCatalog() {
+                const cat = buildCatalog(profile, {rules: ruleText, title: info0.title});
+                Object.keys(cat).forEach(function(id) {
+                    memo(cat[id]);
+                });
+                return cat;
+            }
+            catalog = newCatalog();
+
+            // Layout: the document on the left (rules, live checks, legend, answer check), tools under it, board right.
             const docBody = el('div', {class: 'proto-f-doc-body'});
             const rulesBox = el('div', {class: 'proto-f-rules'});
+            const checksBox = el('div', {class: 'proto-f-checks'});
             const legendBox = el('div', {class: 'proto-f-legend'});
             const statusBox = el('div', {class: 'proto-f-status'});
             const underCursor = el('div', {class: 'proto-f-under'}, ['Hover the board to see which rule talks about it.']);
             const titleEl = el('div', {class: 'proto-f-title'});
             const bylineEl = el('div', {class: 'proto-f-byline'});
+            const genreTools = el('div', {class: 'proto-f-gtools'});
             const modeRow = el('div', {class: 'proto-f-modes'});
             const subRow = el('div', {class: 'proto-f-subs'});
             const toolRow = el('div', {class: 'proto-f-tools'});
+            const modesWrap = el('div', {class: 'proto-f-modewrap' + (tools.length ? ' is-folded' : '')}, [modeRow]);
             const doc = el('div', {class: 'proto-f-doc'}, [
                 el('div', {class: 'proto-f-doc-head'}, [titleEl, bylineEl]),
                 docBody,
-                el('div', {class: 'proto-f-strip'}, [modeRow, subRow, toolRow])
+                // The live checks and the cursor's reverse lookup stay in view however long the rules are.
+                el('div', {class: 'proto-f-live'}, [el('div', {class: 'proto-f-h2'}, ['Live checks']), checksBox,
+                    underCursor]),
+                el('div', {class: 'proto-f-strip'}, [genreTools, modesWrap, subRow, toolRow])
             ]);
             docBody.appendChild(el('div', {class: 'proto-f-h2'}, ['Rules']));
             docBody.appendChild(rulesBox);
-            docBody.appendChild(underCursor);
             docBody.appendChild(el('div', {class: 'proto-f-h2'}, ['On this board']));
             docBody.appendChild(legendBox);
             docBody.appendChild(el('div', {class: 'proto-f-h2'}, ['Answer check']));
@@ -614,21 +1697,55 @@
             }
 
             // ---- Rules document ----
+            function linkFor(tok) {
+                const toolIds = tok.kinds.filter(function(k) {
+                    return k.indexOf('tool:') === 0;
+                });
+                if (toolIds.length) {
+                    // A rule verb: clicking arms the genre's tool for it.
+                    const role = toolIds[0].slice(5);
+                    const tool = tools.filter(function(t) {
+                        return t.roles.indexOf(role) >= 0;
+                    })[0];
+                    const v = el('span', {class: 'proto-f-verb', tabindex: '0', 'data-tool': tool.id,
+                        title: 'Click to use ' + tool.label + ': ' + tool.hint}, [tok.text]);
+                    v.addEventListener('click', function() {
+                        armTool(tool);
+                    });
+                    return v;
+                }
+                const link = el('span', {class: 'proto-f-link', tabindex: '0', 'data-kinds': tok.kinds.join(' ')},
+                    [tok.text]);
+                link.appendChild(el('sup', {class: 'proto-f-count'}));
+                link.addEventListener('mouseenter', function() {
+                    setHover(tok.kinds);
+                });
+                link.addEventListener('mouseleave', function() {
+                    setHover(null);
+                });
+                link.addEventListener('click', function() {
+                    togglePin(tok.kinds);
+                });
+                return link;
+            }
+
             function renderInfo() {
-                const info = bridge.getInfo();
-                titleEl.textContent = info.title || 'Untitled puzzle';
+                titleEl.textContent = info0.title || 'Untitled puzzle';
                 const tags = bridge.genreTags();
-                bylineEl.textContent = [info.author ? 'by ' + info.author : '', tags.length ? tags.join(', ') : '']
-                    .filter(Boolean).join(' · ');
+                bylineEl.textContent = [info0.author ? 'by ' + info0.author : '', profile ? profile.name :
+                    tags.join(', ')].filter(Boolean).join(' · ');
                 rulesBox.innerHTML = '';
-                const rules = info.rules || '';
-                if (!rules.trim()) {
+                if (!ruleText.trim()) {
                     rulesBox.appendChild(el('p', {class: 'proto-f-empty'},
                         ['This puzzle has no rules text. The board’s clue types are listed below.']));
                 }
+                if (standardRules) {
+                    rulesBox.appendChild(el('p', {class: 'proto-f-note'},
+                        ['The setter wrote no rules. Standard ' + profile.name + ' rules:']));
+                }
                 // Paragraphs split on <br>; each sentence is its own span so a board hover can light it.
                 const tpl = document.createElement('template');
-                tpl.innerHTML = rules.replace(/<br\s*\/?>/gi, '\n');
+                tpl.innerHTML = ruleText.replace(/<br\s*\/?>/gi, '\n');
                 const text = tpl.content.textContent;
                 text.split(/\n+/).forEach(function(para) {
                     if (!para.trim()) {
@@ -638,25 +1755,8 @@
                     const paraCtx = {subject: null};
                     (para.match(/[^.!?;:]+[.!?;:]*\s*/g) || [para]).forEach(function(sentence) {
                         const sEl = el('span', {class: 'proto-f-sentence'});
-                        tokenize(sentence, catalog, paraCtx).forEach(function(tok) {
-                            if (!tok.kinds) {
-                                sEl.appendChild(document.createTextNode(tok.text));
-                                return;
-                            }
-                            const link = el('span', {class: 'proto-f-link', tabindex: '0',
-                                'data-kinds': tok.kinds.join(' ')}, [tok.text]);
-                            const badge = el('sup', {class: 'proto-f-count'});
-                            link.appendChild(badge);
-                            link.addEventListener('mouseenter', function() {
-                                setHover(tok.kinds);
-                            });
-                            link.addEventListener('mouseleave', function() {
-                                setHover(null);
-                            });
-                            link.addEventListener('click', function() {
-                                togglePin(tok.kinds);
-                            });
-                            sEl.appendChild(link);
+                        tokenize(sentence, catalog, paraCtx, compiled, roles).forEach(function(tok) {
+                            sEl.appendChild(tok.kinds ? linkFor(tok) : document.createTextNode(tok.text));
                         });
                         p.appendChild(sEl);
                     });
@@ -674,12 +1774,24 @@
                 return set;
             }
 
+            function hoverable(node, ids) {
+                node.addEventListener('mouseenter', function() {
+                    setHover(ids);
+                });
+                node.addEventListener('mouseleave', function() {
+                    setHover(null);
+                });
+                node.addEventListener('click', function() {
+                    togglePin(ids);
+                });
+            }
+
             function renderLegend() {
                 legendBox.innerHTML = '';
                 const said = mentioned();
                 const ids = Object.keys(catalog).filter(function(id) {
                     const k = catalog[id];
-                    if (id.indexOf('v:') === 0 || id === 'digits') {
+                    if (id.indexOf('v:') === 0 || id === 'digits' || k.check) {
                         return false;
                     }
                     // Live kinds and row/column scaffolding are listed only when the rules use them.
@@ -699,52 +1811,91 @@
                         el('span', {class: 'proto-f-chip-label'}, [k.label]),
                         el('span', {class: 'proto-f-chip-count'})
                     ]);
-                    if (!said.has(id)) {
+                    if (!said.has(id) && !k.outside) {
                         chip.appendChild(el('span', {class: 'proto-f-chip-flag'}, ['not in rules']));
                     }
-                    chip.addEventListener('mouseenter', function() {
-                        setHover([id]);
-                    });
-                    chip.addEventListener('mouseleave', function() {
-                        setHover(null);
-                    });
-                    chip.addEventListener('click', function() {
-                        togglePin([id]);
-                    });
+                    hoverable(chip, [id]);
                     legendBox.appendChild(chip);
+                });
+            }
+
+            // ---- Live checks: one row per genre check, its verdict recomputed after every change ----
+            function checkIds() {
+                return Object.keys(catalog).filter(function(id) {
+                    return catalog[id].check;
+                });
+            }
+
+            function renderChecks() {
+                const ids = checkIds();
+                if (!ids.length) {
+                    checksBox.innerHTML = '';
+                    checksBox.appendChild(el('p', {class: 'proto-f-empty'}, [profile ?
+                        'No live checks for ' + profile.name + '; the rule links above still count.' :
+                        'No genre recognised from the tags, title or rules, so no live checks.']));
+                    return;
+                }
+                if (!checksBox.children.length || checksBox.firstChild.tagName === 'P') {
+                    checksBox.innerHTML = '';
+                    ids.forEach(function(id) {
+                        const row = el('button', {type: 'button', class: 'proto-f-check', 'data-kinds': id,
+                            title: 'Hover to see it on the board; click to keep it shown while you solve'}, [
+                            el('span', {class: 'proto-f-check-dot'}),
+                            el('span', {class: 'proto-f-check-label'}, [catalog[id].label]),
+                            el('span', {class: 'proto-f-check-text'})
+                        ]);
+                        hoverable(row, [id]);
+                        checksBox.appendChild(row);
+                    });
+                }
+                checksBox.querySelectorAll('.proto-f-check').forEach(function(row) {
+                    const k = catalog[row.dataset.kinds];
+                    const items = k.items();
+                    const sum = items.summary ? items.summary() : k.summary ? k.summary(items) : summarize(items, {});
+                    row.querySelector('.proto-f-check-text').textContent = sum.text;
+                    row.classList.remove('st-ok', 'st-bad', 'st-open');
+                    row.classList.add('st-' + sum.state);
                 });
             }
 
             function updateCounts() {
                 document.querySelectorAll('.proto-f-root [data-kinds]').forEach(function(node) {
+                    const ids = node.dataset.kinds.split(' ');
                     let n = 0;
-                    node.dataset.kinds.split(' ').forEach(function(id) {
+                    ids.forEach(function(id) {
                         if (catalog[id]) {
-                            // Pencil-mark hits are drawn faintly but not counted.
+                            // Pencil-mark hits and plain lit cells are drawn but not counted.
                             n += catalog[id].items().filter(function(it) {
-                                return !it.faint;
+                                return !it.faint && !it.faintOk && it.label !== 'dark';
                             }).length;
                         }
                     });
-                    const live = node.dataset.kinds.split(' ').some(function(id) {
+                    const live = ids.some(function(id) {
                         return catalog[id] && catalog[id].live;
                     });
                     const badge = node.querySelector('.proto-f-count, .proto-f-chip-count');
                     // Digit phrases ("1", "digits") are everywhere in sudoku rules; a count on each is noise.
-                    const quiet = node.dataset.kinds.split(' ').every(function(id) {
+                    const quiet = ids.every(function(id) {
                         return id.indexOf('v:') === 0 || id === 'digits' || id === 'givens';
                     }) && node.classList.contains('proto-f-link');
-                    if (badge) {
+                    // A check's badge is its verdict, not an item count.
+                    const chk = ids.filter(function(id) {
+                        return catalog[id] && catalog[id].check;
+                    })[0];
+                    if (badge && chk && node.classList.contains('proto-f-link')) {
+                        const row = checksBox.querySelector('[data-kinds="' + chk + '"]');
+                        badge.textContent = !row ? '' : row.classList.contains('st-ok') ? '✓' :
+                            row.classList.contains('st-bad') ? '✗' : '';
+                    } else if (badge) {
                         badge.textContent = quiet ? '' : String(n);
                     }
                     node.classList.toggle('is-live', live);
                     node.classList.toggle('is-zero', n === 0);
-                    const bad = node.dataset.kinds.split(' ').some(function(id) {
+                    node.classList.toggle('is-bad', ids.some(function(id) {
                         return catalog[id] && catalog[id].items().some(function(it) {
                             return it.bad;
                         });
-                    });
-                    node.classList.toggle('is-bad', bad);
+                    }));
                 });
             }
 
@@ -756,8 +1907,14 @@
             }
 
             function togglePin(kinds) {
-                const key = kinds.join(' ');
-                pinned = pinned.join(' ') === key ? [] : kinds.slice();
+                const all = kinds.every(function(k) {
+                    return pinned.indexOf(k) >= 0;
+                });
+                pinned = all ? pinned.filter(function(k) {
+                    return kinds.indexOf(k) < 0;
+                }) : pinned.concat(kinds.filter(function(k) {
+                    return pinned.indexOf(k) < 0;
+                }));
                 drawOverlay();
                 markActive();
             }
@@ -770,7 +1927,9 @@
                     node.classList.toggle('is-active', ids.some(function(i) {
                         return active.has(i);
                     }));
-                    node.classList.toggle('is-pinned', pinned.length > 0 && ids.join(' ') === pinned.join(' '));
+                    node.classList.toggle('is-pinned', ids.every(function(i) {
+                        return pinned.indexOf(i) >= 0;
+                    }));
                     node.classList.toggle('is-under', ids.some(function(i) {
                         return under.has(i);
                     }));
@@ -839,7 +1998,9 @@
                         class: 'proto-f-dim', mask: 'url(#proto-f-mask)'}));
                 }
                 const marks = svgEl('g', {class: hoverKinds ? 'is-hover' : 'is-pin'});
+                const tags = svgEl('g', {});
                 svg.appendChild(marks);
+                svg.appendChild(tags);
                 ids.forEach(function(id) {
                     const kind = catalog[id];
                     if (!kind) {
@@ -847,14 +2008,18 @@
                     }
                     scopeItems(kind, kind.items()).forEach(function(it) {
                         const cls = 'proto-f-item' + (it.tone ? ' tone' : '') + (it.bad ? ' bad' : '') +
-                            (it.ok ? ' ok' : '') + (it.faint ? ' faint' : '');
+                            (it.ok && !it.faintOk ? ' ok' : '') + (it.faint ? ' faint' : '') +
+                            (it.faintOk ? ' lit' : '') + (it.label === 'dark' ? ' dark' : '');
+                        // A pinned check shows only what matters while solving: broken items, finished ones, and
+                        // its counts; plain members (every cell of every row) would cover the board.
+                        const quietPin = !hoverKinds && kind.check && !it.bad && !it.ok && it.label !== 'dark';
                         (it.cells || []).forEach(function(c) {
                             if (!pu.point[c] || pu.point[c].type !== 0) {
                                 return;
                             }
                             const poly = cellPoly(c);
                             mask.appendChild(svgEl('polygon', {points: poly, fill: 'black'}));
-                            if (!it.noFill) {
+                            if (!it.noFill && !quietPin) {
                                 marks.appendChild(svgEl('polygon', {points: poly, class: cls + ' cell'}));
                             }
                         });
@@ -877,17 +2042,18 @@
                                 class: cls + ' seg'}));
                         });
                         if (it.corner && it.cells && it.cells.length) {
-                            const p = pagePt(it.cells[0]);
-                            const t = svgEl('text', {x: p.x + cellPx * 0.3, y: p.y - cellPx * 0.26,
-                                class: 'proto-f-tag small'});
+                            // Row counts sit left of the grid, column counts above it, the rest in a corner.
+                            const first = it.cells.slice().sort(function(a, b) {
+                                return it.side === 'top' ? pu.point[a].y - pu.point[b].y : pu.point[a].x - pu.point[b].x;
+                            })[0];
+                            const p = pagePt(it.side ? first : it.cells[0]);
+                            const at = it.side === 'left' ? {x: p.x - cellPx * 0.58, y: p.y + 5, a: 'end'} :
+                                it.side === 'top' ? {x: p.x, y: p.y - cellPx * 0.58, a: 'middle'} :
+                                    {x: p.x - cellPx * 0.47, y: p.y - cellPx * 0.2, a: 'start'};
+                            const t = svgEl('text', {x: at.x, y: at.y, 'text-anchor': at.a,
+                                class: 'proto-f-tag small' + (it.side ? ' side' : '') + (it.bad ? ' bad' : it.ok ? ' ok' : '')});
                             t.textContent = it.corner;
-                            marks.appendChild(t);
-                        }
-                        if (it.label && it.cells && it.cells.length) {
-                            const p = pagePt(it.cells[0]);
-                            const t = svgEl('text', {x: p.x, y: p.y - cellPx * 0.22, class: 'proto-f-tag'});
-                            t.textContent = it.label;
-                            marks.appendChild(t);
+                            tags.appendChild(t);
                         }
                     });
                 });
@@ -900,7 +2066,7 @@
                 const said = mentioned();
                 Object.keys(catalog).forEach(function(id) {
                     const k = catalog[id];
-                    if (k.scoped || id.indexOf('v:') === 0 || id === 'digits' || (k.live && !said.has(id))) {
+                    if (k.check || k.scoped || id.indexOf('v:') === 0 || id === 'digits' || (k.live && !said.has(id))) {
                         return;
                     }
                     k.items().forEach(function(it) {
@@ -911,6 +2077,45 @@
                             cellKinds.get(c).add(id);
                         });
                     });
+                });
+            }
+
+            /** What each live check says about this cell, e.g. "row 4: 2 of 4 stars". */
+            function checkNotes(cell) {
+                const notes = [];
+                const ids = [];
+                checkIds().forEach(function(id) {
+                    const hits = catalog[id].items().filter(function(it) {
+                        return (it.cells || []).indexOf(cell) >= 0 && it.label;
+                    });
+                    hits.forEach(function(it) {
+                        notes.push({text: it.label, bad: it.bad, ok: it.ok});
+                    });
+                    if (hits.length) {
+                        ids.push(id);
+                    }
+                });
+                return {notes: notes, ids: ids};
+            }
+
+            let lastCell = null;
+            function describeCell(cell, ids) {
+                underCursor.innerHTML = '';
+                const said = mentioned();
+                const labels = ids.filter(function(id) {
+                    return catalog[id] && !catalog[id].check;
+                }).map(function(id) {
+                    return catalog[id].label;
+                });
+                const notes = cell === null ? [] : checkNotes(cell).notes;
+                underCursor.appendChild(document.createTextNode(labels.length ?
+                    'Under the cursor: ' + labels.join(', ') + (ids.some(function(i) {
+                        return said.has(i) && !catalog[i].check;
+                    }) ? ' (lit above)' : ' (not named in the rules)') :
+                    notes.length ? 'Under the cursor, the live checks say:' : 'Under the cursor: nothing the rules name.'));
+                notes.slice(0, 4).forEach(function(n) {
+                    underCursor.appendChild(el('div', {class: 'proto-f-note-line' + (n.bad ? ' bad' : n.ok ? ' ok' : '')},
+                        [n.text]));
                 });
             }
 
@@ -930,40 +2135,53 @@
                     if (v && catalog['v:' + v.v]) {
                         ids.add('v:' + v.v);
                     }
+                    checkNotes(cell).ids.forEach(function(id) {
+                        ids.add(id);
+                    });
                 }
                 // A clue type under the cursor (thermo, cage, dot) outranks the generic digit phrases.
                 const specific = Array.from(ids).filter(function(id) {
                     return id !== 'givens' && id.indexOf('v:') !== 0;
                 });
                 const list = specific.length ? specific : Array.from(ids);
-                if (list.join(' ') === boardHover.join(' ')) {
+                if (list.join(' ') === boardHover.join(' ') && cell === lastCell) {
                     return;
                 }
                 boardHover = list;
+                lastCell = cell;
                 markActive();
-                const labels = list.filter(function(id) {
-                    return catalog[id];
-                }).map(function(id) {
-                    return catalog[id].label;
-                });
-                const said = mentioned();
-                underCursor.textContent = labels.length ?
-                    'Under the cursor: ' + labels.join(', ') +
-                    (list.some(function(i) {
-                        return said.has(i);
-                    }) ? ' (lit above)' : ' (not named in the rules)') :
-                    'Under the cursor: nothing the rules name.';
+                describeCell(cell, list);
             });
             boardWrap.addEventListener('mouseleave', function() {
                 boardHover = [];
+                lastCell = null;
                 markActive();
                 underCursor.textContent = 'Hover the board to see which rule talks about it.';
             });
 
-            // ---- Mode strip ----
+            // ---- Tools: the genre's own, then every mode folded under "All modes" ----
             function btn(label, cls, onclick, title) {
                 return el('button', {type: 'button', class: 'proto-f-btn ' + (cls || ''), title: title || label,
                     onclick: onclick}, [label]);
+            }
+
+            function armTool(t) {
+                bridge.setMode(t.mode);
+                if (t.combi) {
+                    bridge.setComposite(t.combi);
+                }
+                if (t.sub !== undefined) {
+                    bridge.setSubmode(t.sub);
+                }
+                if (t.style !== undefined) {
+                    bridge.setStyle(t.style);
+                }
+                renderModes();
+            }
+
+            function toolIsOn(t, st) {
+                return st.mode === t.mode && (!t.combi || st.submode === t.combi) &&
+                    (t.sub === undefined || String(st.submode) === String(t.sub));
             }
 
             function swatchColor(id) {
@@ -976,19 +2194,52 @@
                 return bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent' ? bg : cs.color;
             }
 
+            const foldBtn = btn('All modes ▸', 'proto-f-fold', function() {
+                modesWrap.classList.toggle('is-folded');
+                renderModes();
+            }, 'Show every Penpa+ mode');
+
             function renderModes() {
                 const st = bridge.getState();
-                modeRow.innerHTML = '';
-                let modes = bridge.listModes().filter(function(m) {
-                    return !m.hidden;
+                genreTools.innerHTML = '';
+                if (tools.length) {
+                    genreTools.appendChild(el('span', {class: 'proto-f-gtools-h'}, [profile.name + ' tools']));
+                    let onTool = null;
+                    tools.forEach(function(t) {
+                        const on = toolIsOn(t, st);
+                        if (on) {
+                            onTool = t;
+                        }
+                        const b = btn(t.label, 'proto-f-tool' + (on ? ' is-on' : ''), function() {
+                            armTool(t);
+                        }, t.hint);
+                        b.dataset.tool = t.id;
+                        genreTools.appendChild(b);
+                    });
+                    genreTools.appendChild(foldBtn);
+                    foldBtn.textContent = modesWrap.classList.contains('is-folded') ? 'All modes ▸' : 'All modes ▾';
+                    genreTools.appendChild(el('div', {class: 'proto-f-hint'}, [onTool ? onTool.hint :
+                        'Another mode is on. Pick a tool above, or click a verb in the rules.']));
+                }
+                rulesBox.querySelectorAll('.proto-f-verb').forEach(function(v) {
+                    const t = T[v.dataset.tool];
+                    v.classList.toggle('is-on', !!t && toolIsOn(t, st));
                 });
-                modes.forEach(function(m) {
+                modeRow.innerHTML = '';
+                bridge.listModes().filter(function(m) {
+                    return !m.hidden;
+                }).forEach(function(m) {
                     modeRow.appendChild(btn(m.label, m.mode === st.mode ? 'is-on' : '', function() {
                         bridge.setMode(m.mode);
                     }, m.label + ' mode'));
                 });
                 subRow.innerHTML = '';
-                if (st.mode === 'combi') {
+                // A genre tool sets mode, sub-mode and style itself: its knobs show only with "All modes" open.
+                const quiet = tools.length && modesWrap.classList.contains('is-folded') && tools.some(function(t) {
+                    return toolIsOn(t, st);
+                });
+                subRow.style.display = quiet ? 'none' : '';
+                if (st.mode === 'combi' && !quiet) {
                     const sel = el('select', {class: 'proto-f-select', title: 'Composite tool',
                         onchange: function(e) {
                             bridge.setComposite(e.target.value);
@@ -1066,7 +2317,7 @@
                 statusBox.innerHTML = '';
                 if (!res.hasAnswerCheck) {
                     statusBox.appendChild(el('p', {class: 'proto-f-empty'},
-                        ['This link has no answer check. Use the live counts above to check your work.']));
+                        ['This link has no answer check. Use the live checks above.']));
                     checkBtn.disabled = true;
                     return;
                 }
@@ -1081,6 +2332,9 @@
                         verdict ? 'Solved. The answer check accepts the grid.' :
                             'Not solved yet: the grid does not match the answer check.'
                 ]));
+                checkBtn.classList.toggle('is-solved', verdict === true);
+                // The verdict also shows on the button: the document's Answer check section may be scrolled away.
+                checkBtn.textContent = verdict === true ? 'Solved ✓' : verdict === false ? 'Check: not yet' : 'Check';
                 const info = bridge.answerCheckInfo();
                 if (info) {
                     const d = el('div', {class: 'proto-f-acinfo'});
@@ -1101,25 +2355,32 @@
 
             // ---- Wiring ----
             function refreshAll() {
-                catalog = buildCatalog();
+                GEN++;
+                catalog = newCatalog();
                 renderInfo();
                 renderLegend();
+                renderChecks();
                 indexBoard();
                 updateCounts();
                 markActive();
                 drawOverlay();
             }
 
+            refreshAll();
+            if (tools.length) {
+                armTool(tools[0]);
+            }
             renderModes();
             renderStatus(false);
             renderTools(bridge.getState());
-            refreshAll();
             fitBoard();
 
             bridge.onChange(function(st) {
                 // Notifications are coalesced per frame and carry only the first trigger, so always re-render.
+                GEN++;
                 renderModes();
                 renderTools(st);
+                renderChecks();
                 indexBoard();
                 updateCounts();
                 drawOverlay();
@@ -1149,12 +2410,19 @@
 
             window.ProtoF = {
                 refresh: refreshAll,
-                setRules: function(html) {
-                    pu.rules = html;
-                    refreshAll();
+                profile: function() {
+                    return profile ? profile.key : null;
                 },
                 catalog: function() {
                     return catalog;
+                },
+                checks: function() {
+                    return checkIds().map(function(id) {
+                        const k = catalog[id];
+                        const items = k.items();
+                        const sum = items.summary ? items.summary() : k.summary ? k.summary(items) : summarize(items, {});
+                        return id + ': ' + sum.state + ' — ' + sum.text;
+                    });
                 }
             };
         }
