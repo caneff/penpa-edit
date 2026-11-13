@@ -11,7 +11,15 @@
  * The claim it tests: the familiar layout, done cleanly, is enough; Penpa+'s modes fit a SudokuPad-style dock without
  * a new interaction idea.
  *
+ * Round 2 (judged on Logic Masters genres, not sudoku): with all 12 modes visible the round-1 dock became a long
+ * scrolling sheet. Now the dock leads with "Solve with": two or three ready tools read from the puzzle (its answer check,
+ * rules and visible modes), e.g. Masyu gets "Loop + edge x" and "Loop + cell marks", Fillomino "Numbers" and
+ * "Borders + x". Tab cycles them. The twelve modes shrink to a 4x3 grid under them, the Composite list folds
+ * behind the current tool, and each tool shows its mouse legend (left / right / drag) instead of a sentence.
+ *
  * Bridge gaps worked around here (read `pu` / the legacy DOM directly):
+ *   - No tool/genre hint: "Solve with" infers tools from answerCheckInfo() text, the rules and the title (keywords).
+ *   - Tab: Penpa+ cycles only a link's Tab set; a capture-phase keydown here takes Tab for the "Solve with" tools.
  *   - Shapes: no listShapes(); the Shape list is read from the legacy menu (#mode_symbol, ms1_* / ms_* spans).
  *   - Number sub-modes 3 and 9 have empty legacy labels (they are images); named here "1/4" and "Side".
  *   - Style swatch colours: read from the legacy label's computed background (`<id>_lb`).
@@ -61,6 +69,114 @@
         akari: 'Left click a light; right click dots a cell or crosses an edge.',
         mines: 'Left click a mine; right click an x (drag for many).'
     };
+
+    /** Mouse legend per Composite tool: [gesture, effect] (Penpa+ README § Composite, checked by hand). */
+    const TOOL_LEGEND = {
+        blpo: [['Click', 'shade (again: dot)'], ['Right', 'dot'], ['Drag', 'many']],
+        blwh: [['Click', 'white (again: black)'], ['Right', 'black'], ['Drag', 'many']],
+        linex: [['Drag', 'loop through centres'], ['Right edge', '× on the edge'], ['Right drag', 'many ×']],
+        lineox: [['Drag', 'loop through centres'], ['Click', '○ in cell (again: ×)'], ['Right', '× in cell']],
+        edgex: [['Drag', 'line on edges'], ['Right edge', '× on the edge'], ['Right drag', 'many ×']],
+        edgexoi: [['Drag', 'line on edges'], ['Right edge', '×'], ['Click cell', 'inside / outside']],
+        yajilin: [['Click', 'shade'], ['Drag', 'loop'], ['Right', 'dot in cell, × on edge']],
+        star: [['Click', 'star'], ['Right', '×'], ['Right drag', 'many ×'], ['Right edge', 'dot']],
+        akari: [['Click', 'bulb'], ['Right', 'dot in cell, × on edge'], ['Drag', 'dotted line']],
+        battleship: [['Click', 'cycle ● ■ · water'], ['Drag', 'ship end, toward the ship'], ['Right drag', 'water']],
+        tents: [['Click', 'tent'], ['Drag', 'link tent to tree'], ['Right', '×']],
+        mines: [['Click', 'mine'], ['Right', '×'], ['Right drag', 'many ×']],
+        hashi: [['Drag', 'bridge (again: double)']]
+    };
+
+    /** Mouse / key legend per plain mode. */
+    const MODE_LEGEND = {
+        sudoku: [['Click/drag', 'select'], ['Type', 'digit'], ['Shift / Ctrl', 'corner / centre']],
+        number: [['Click', 'select cell'], ['Type', 'digit or letter'], ['Delete', 'clear']],
+        surface: [['Click/drag', 'paint'], ['Right', 'second colour'], ['Again', 'erase']],
+        multicolor: [['Click/drag', 'select'], ['Pick', 'colour below']],
+        line: [['Drag', 'line through centres'], ['Drag again', 'erase']],
+        lineE: [['Drag', 'line on edges'], ['Drag again', 'erase']],
+        wall: [['Drag', 'wall']],
+        symbol: [['Click', 'place (again: cycle)'], ['Type', 'variant']],
+        special: [['Drag', 'draw']],
+        cage: [['Drag', 'cage']],
+        move: [['Drag', 'move an item']]
+    };
+
+    /**
+     * "Solve with": the tools this puzzle needs, read from its answer check (what it compares), its rules and title.
+     * Each: {label, mode, sub (sub-mode or Composite tool), style?}. Order: the genre's main tool first.
+     */
+    function inferTools(B, availableSet) {
+        const chk = (B.answerCheckInfo() || '').replace(/<[^>]+>/g, ' ');
+        const info = B.getInfo();
+        const text = [info.title, info.rules, B.genreTags().join(' ')].join(' ').replace(/<[^>]+>/g, ' ');
+        const combi = !!availableSet.combi;
+        const comp = {};
+        B.listComposite().forEach(function(c) {
+            comp[c.name] = true;
+        });
+        const out = [];
+        function add(label, mode, sub, style) {
+            if (!availableSet[mode] || (mode === 'combi' && !comp[sub])) {
+                return;
+            }
+            if (out.some(function(t) {
+                return t.mode === mode && t.sub === sub;
+            })) {
+                return;
+            }
+            out.push({label: label, mode: mode, sub: sub, style: style});
+        }
+        const has = function(re) {
+            return re.test(chk);
+        };
+        const says = function(re) {
+            return re.test(text);
+        };
+        const wantsNumbers = says(/fillomino|place (the )?digits|write (a )?(digit|number)|enter (a )?(digit|number)|each light has a colou?r/i);
+        if (has(/Light bulbs/)) {
+            add('Bulbs + dots', 'combi', 'akari');
+        }
+        if (has(/Stars/)) {
+            add('Stars + ×', 'combi', 'star');
+        }
+        if (has(/White and Black circles/)) {
+            add('Black / white', 'combi', 'blwh');
+        }
+        if (has(/Battleship fleet/)) {
+            add('Ships + water', 'combi', 'battleship');
+        }
+        if (has(/Line must/)) {
+            if (says(/yajilin|\bshade (some )?cells|shaded cells/i)) {
+                add('Shade + loop', 'combi', 'yajilin');
+            } else {
+                add('Loop + edge ×', 'combi', 'linex');
+                add('Loop + cell ○ ×', 'combi', 'lineox');
+            }
+            if (!combi) {
+                add('Loop', 'line', '1');
+            }
+        }
+        if (wantsNumbers && !has(/Line must/)) {
+            add('Numbers', 'number', '1');
+        }
+        if (has(/Edge must/)) {
+            add(says(/loop/i) ? 'Loop + edge ×' : 'Borders + ×', 'combi', 'edgex');
+            if (!combi) {
+                add('Borders', 'lineE', '1');
+            }
+        }
+        if (has(/Shade cells/) && !has(/ONE of/)) {
+            add('Shade + dot', 'combi', 'blpo');
+            if (!combi) {
+                add('Shade', 'surface', '', 1);
+            }
+        }
+        if (wantsNumbers && has(/Line must/)) {
+            add('Numbers', 'number', '1');
+        }
+        return out.slice(0, 4);
+    }
 
     /** Labels the legacy UI leaves empty (they are images there). */
     const SUBMODE_FALLBACK = {number: {'3': '1/4', '9': 'Side'}};
@@ -143,7 +259,8 @@
                 rules
             ]);
 
-            const modeSec = section('Mode', 'proto-a-modes');
+            const presetSec = section('Solve with', 'proto-a-presets');
+            const modeSec = section('All modes', 'proto-a-modes');
             const toolSec = section('Tool', 'proto-a-tools');
             const padSec = section('Enter', 'proto-a-padsec');
 
@@ -181,7 +298,7 @@
 
             const dock = el('div', {class: 'proto-a-dock'}, [
                 head,
-                el('div', {class: 'proto-a-dockscroll'}, [modeSec.root, toolSec.root, padSec.root]),
+                el('div', {class: 'proto-a-dockscroll'}, [presetSec.root, modeSec.root, toolSec.root, padSec.root]),
                 foot
             ]);
             const app = el('div', {class: 'proto-a-app'}, [stage, dock]);
@@ -243,28 +360,85 @@
             available.forEach(function(m) {
                 availableSet[m.mode] = m;
             });
+            // One compact grid, family order, each chip edged in its family's colour (12 modes = three rows of four).
             const modeButtons = {};
+            const modeGrid = el('div', {class: 'proto-a-modegrid'});
             FAMILIES.forEach(function(f) {
-                const modes = f.modes.filter(function(m) {
+                f.modes.filter(function(m) {
                     return availableSet[m];
-                });
-                if (!modes.length) {
-                    return;
-                }
-                const row = el('div', {class: 'proto-a-famrow', style: '--fam:' + f.color}, [
-                    el('span', {class: 'proto-a-famlabel'}, [f.label])
-                ]);
-                modes.forEach(function(m) {
+                }).forEach(function(m) {
                     const b = btn('proto-a-modebtn', availableSet[m].label, function() {
                         B.setMode(m);
-                    });
+                    }, f.label + ' family');
+                    b.style.setProperty('--fam', f.color);
                     modeButtons[m] = b;
-                    row.appendChild(b);
+                    modeGrid.appendChild(b);
                 });
-                modeSec.body.appendChild(row);
             });
-            if (available.length > 1) {
-                modeSec.head.appendChild(el('span', {class: 'proto-a-kbd-hint'}, ['Tab cycles']));
+            modeSec.body.appendChild(modeGrid);
+
+            // ---- Solve with: the puzzle's own tools ---------------------------------------------------------------
+            const tools = inferTools(B, availableSet);
+            const toolButtons = [];
+            function applyTool(t) {
+                if (B.getMode().mode !== t.mode) {
+                    B.setMode(t.mode);
+                }
+                if (t.mode === 'combi') {
+                    B.setComposite(t.sub);
+                } else if (t.sub) {
+                    B.setSubmode(t.sub);
+                }
+                if (t.style !== undefined && ['1', '8', '3', '4'].indexOf(String(B.getMode().style)) === -1) {
+                    B.setStyle(t.style);
+                }
+            }
+            function isCurrent(t, m) {
+                return t.mode === m.mode && (!t.sub || String(t.sub) === String(m.submode));
+            }
+            tools.forEach(function(t) {
+                const fam = familyOf(t.mode);
+                const legend = t.mode === 'combi' ? TOOL_LEGEND[t.sub] : MODE_LEGEND[t.mode];
+                const b = btn('proto-a-preset', '', function() {
+                    applyTool(t);
+                }, legend ? legend.map(function(r) {
+                    return r[0] + ': ' + r[1];
+                }).join('\n') : t.label);
+                b.style.setProperty('--fam', fam.color);
+                b.appendChild(el('span', {class: 'proto-a-preset-label'}, [t.label]));
+                (legend || []).slice(0, 2).forEach(function(r) {
+                    b.appendChild(el('span', {class: 'proto-a-preset-sub'}, [r[0] + ': ' + r[1]]));
+                });
+                toolButtons.push(b);
+                presetSec.body.appendChild(b);
+            });
+            presetSec.root.hidden = !tools.length;
+            // Start on the puzzle's first tool unless the link already starts on one of them.
+            if (tools.length && !tools.some(function(t) {
+                return isCurrent(t, B.getMode());
+            })) {
+                applyTool(tools[0]);
+            }
+            if (tools.length > 1) {
+                presetSec.head.appendChild(el('span', {class: 'proto-a-kbd-hint'}, ['Tab cycles']));
+                // Penpa+ cycles only the link's Tab set (main.js:695); here Tab cycles the puzzle's tools instead.
+                window.addEventListener('keydown', function(e) {
+                    if (e.key !== 'Tab' || e.ctrlKey || e.altKey || e.metaKey) {
+                        return;
+                    }
+                    const tag = (e.target && e.target.tagName) || '';
+                    if (/INPUT|TEXTAREA|SELECT/.test(tag) || document.querySelector('.swal2-container')) {
+                        return;
+                    }
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+                    const m = B.getMode();
+                    const cur = tools.findIndex(function(t) {
+                        return isCurrent(t, m);
+                    });
+                    const n = tools.length;
+                    applyTool(tools[cur === -1 ? 0 : (cur + (e.shiftKey ? n - 1 : 1)) % n]);
+                }, true);
             }
 
             // ---- Tool section (per mode) --------------------------------------------------------------------------
@@ -334,40 +508,82 @@
                 return groups;
             }
 
+            /** A gesture legend: one compact row per [gesture, effect]. */
+            function legendBox(rows) {
+                const box = el('div', {class: 'proto-a-legend'});
+                rows.forEach(function(r) {
+                    box.appendChild(el('span', {class: 'proto-a-legend-g'}, [r[0]]));
+                    box.appendChild(el('span', {class: 'proto-a-legend-e'}, [r[1]]));
+                });
+                return box;
+            }
+
+            // Which modes have their long option lists unfolded (Composite tools, Shapes, colours and styles).
+            const unfolded = {};
+            /** A fold: a summary line with a toggle; `build(body)` fills it only while open. */
+            function fold(mode, summary, build) {
+                const open = !!unfolded[mode];
+                const wrap = el('div', {class: 'proto-a-fold' + (open ? ' is-open' : '')});
+                const toggle = btn('proto-a-foldbtn', open ? 'Hide' : 'Change', function() {
+                    unfolded[mode] = !open;
+                    lastModeKey = '';
+                    render(B.getState());
+                });
+                wrap.appendChild(el('div', {class: 'proto-a-foldhead'}, [summary, toggle]));
+                if (open) {
+                    const body = el('div', {class: 'proto-a-foldbody'});
+                    build(body);
+                    wrap.appendChild(body);
+                }
+                return wrap;
+            }
+
             function renderTools(m) {
                 const body = toolSec.body;
                 body.textContent = '';
                 const mode = m.mode;
                 toolSec.root.hidden = false;
+                const legend = mode === 'combi' ? TOOL_LEGEND[m.submode] : MODE_LEGEND[mode];
                 if (mode === 'sudoku') {
                     // Sub-modes live in the pad (Normal / Corner / Centre); here only the digit colour.
-                    body.appendChild(choiceRow('Digit colour', styleItems(mode), m.style, B.setStyle, 'proto-a-swatchrow'));
+                    body.appendChild(choiceRow('Colour', styleItems(mode), m.style, B.setStyle, 'proto-a-swatchrow'));
                 } else if (mode === 'surface' || mode === 'multicolor') {
-                    body.appendChild(el('div', {class: 'proto-a-note'}, [mode === 'surface'
-                        ? 'Brush colours are in the pad below. Right-click paints the second colour.'
-                        : 'Pick cells on the board, then a colour below.']));
+                    // Colours are in the pad below.
                 } else if (mode === 'combi') {
-                    const tools = B.listComposite().map(function(c) {
+                    const list = B.listComposite().map(function(c) {
                         return {value: c.name, label: c.label};
                     });
-                    body.appendChild(choiceRow(null, tools, m.submode, B.setComposite, 'proto-a-toolgrid'));
+                    const cur = list.find(function(c) {
+                        return c.value === m.submode;
+                    });
+                    body.appendChild(fold(mode, el('span', {class: 'proto-a-foldtitle'}, [cur ? cur.label : m.submode]),
+                        function(fb) {
+                            fb.appendChild(choiceRow(null, list, m.submode, function(v) {
+                                unfolded[mode] = false;
+                                B.setComposite(v);
+                            }, 'proto-a-toolgrid'));
+                        }));
                 } else if (mode === 'symbol') {
                     const groups = shapeGroups();
                     const cur = m.submode;
                     const curGroup = groups.find(function(g) {
-                        return g.sizes.some(function(s) {
-                            return s.value === cur;
+                        return g.sizes.some(function(z) {
+                            return z.value === cur;
                         });
                     }) || groups[0];
-                    body.appendChild(choiceRow('Shape', groups.map(function(g, i) {
-                        return {value: i, label: g.label};
-                    }), groups.indexOf(curGroup), function(i) {
-                        B.setShape(groups[i].sizes[0].value);
-                    }, 'proto-a-toolgrid'));
+                    body.appendChild(fold(mode, el('span', {class: 'proto-a-foldtitle'}, [curGroup ? curGroup.label : cur]),
+                        function(fb) {
+                            fb.appendChild(choiceRow(null, groups.map(function(g, i) {
+                                return {value: i, label: g.label};
+                            }), groups.indexOf(curGroup), function(i) {
+                                unfolded[mode] = false;
+                                B.setShape(groups[i].sizes[0].value);
+                            }, 'proto-a-toolgrid'));
+                            fb.appendChild(choiceRow('Layer', styleItems(mode), m.style, B.setStyle));
+                        }));
                     if (curGroup && curGroup.sizes.length > 1) {
                         body.appendChild(choiceRow('Size', curGroup.sizes, cur, B.setShape));
                     }
-                    body.appendChild(choiceRow('Layer', styleItems(mode), m.style, B.setStyle));
                 } else {
                     const subs = submodeItems(mode);
                     if (subs.length) {
@@ -375,19 +591,35 @@
                     }
                     const styles = styleItems(mode);
                     if (styles.length) {
-                        const colours = styles.filter(function(s) {
-                            return s.color;
+                        const colours = styles.filter(function(z) {
+                            return z.color;
                         });
-                        const looks = styles.filter(function(s) {
-                            return !s.color;
+                        const looks = styles.filter(function(z) {
+                            return !z.color;
                         });
-                        if (colours.length) {
-                            body.appendChild(choiceRow('Colour', colours, m.style, B.setStyle, 'proto-a-swatchrow'));
+                        const curStyle = styles.find(function(z) {
+                            return String(z.value) === String(m.style);
+                        });
+                        const sum = el('span', {class: 'proto-a-foldtitle'}, ['Look: ']);
+                        if (curStyle && curStyle.color) {
+                            const sw = el('span', {class: 'proto-a-miniswatch'});
+                            sw.style.background = curStyle.color;
+                            sum.appendChild(sw);
+                        } else {
+                            sum.appendChild(document.createTextNode(curStyle ? curStyle.label : String(m.style)));
                         }
-                        if (looks.length) {
-                            body.appendChild(choiceRow('Style', looks, m.style, B.setStyle));
-                        }
+                        body.appendChild(fold(mode, sum, function(fb) {
+                            if (colours.length) {
+                                fb.appendChild(choiceRow('Colour', colours, m.style, B.setStyle, 'proto-a-swatchrow'));
+                            }
+                            if (looks.length) {
+                                fb.appendChild(choiceRow('Style', looks, m.style, B.setStyle));
+                            }
+                        }));
                     }
+                }
+                if (legend) {
+                    body.appendChild(legendBox(legend));
                 }
                 if (!body.childNodes.length) {
                     toolSec.root.hidden = true;
@@ -444,7 +676,8 @@
                 const pad = el('div', {class: 'proto-a-pad'}, [keys]);
 
                 // SudokuPad's right-hand column: Normal / Corner / Centre / Colour, when the puzzle has Sudoku mode.
-                if (sudokuSubs.length) {
+                // Only for sudoku-type puzzles (no genre tools) or while in Sudoku mode: elsewhere it is noise.
+                if (sudokuSubs.length && (mode === 'sudoku' || !tools.length)) {
                     const col = el('div', {class: 'proto-a-padcol'});
                     sudokuSubs.forEach(function(s) {
                         const b = btn('proto-a-padmode', s.label, function() {
@@ -484,11 +717,17 @@
                     Object.keys(modeButtons).forEach(function(k) {
                         modeButtons[k].classList.toggle('is-on', k === m.mode);
                     });
+                    tools.forEach(function(t, i) {
+                        toolButtons[i].classList.toggle('is-on', isCurrent(t, m));
+                    });
                     app.style.setProperty('--cur', fam.color);
                     pill.textContent = '';
                     pill.appendChild(el('span', {class: 'proto-a-pillfam'}, [fam.label]));
                     pill.appendChild(el('span', {class: 'proto-a-pillmode'}, [modeLabel(m)]));
-                    hint.textContent = (m.mode === 'combi' && TOOL_HINTS[m.submode]) || HINTS[m.mode] || '';
+                    const lg = m.mode === 'combi' ? TOOL_LEGEND[m.submode] : MODE_LEGEND[m.mode];
+                    hint.textContent = lg ? lg.map(function(r) {
+                        return r[0] + ': ' + r[1];
+                    }).join('   ·   ') : (m.mode === 'combi' && TOOL_HINTS[m.submode]) || HINTS[m.mode] || '';
                     renderTools(m);
                     renderPad(m);
                 }
