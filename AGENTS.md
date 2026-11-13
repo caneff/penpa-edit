@@ -15,10 +15,11 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   or dropped (git has no built-in `ours` driver: each clone and CI set `git config merge.ours.driver true`); every other upstream file follows `CODING_STANDARDS.md` § Upstream merges. Nothing ever goes back to upstream: no commit,
   push or PR (Chris, 2026-11-13). `gh repo set-default` names `caneff/penpa-edit`, so `gh pr create` targets the fork.
 - **Share links point at the fork** (Chris, 2026-11-09). `maketext_baseurl()` in `docs/js/class_p.js` already builds links from
-  `location.href`; only its localhost / `file://` branch names upstream's address.
+  `location.href`; its localhost / `file://` branch names the fork's address too.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
-  source, outside `docs/` so Pages does not serve them), `adr/` and `userscript/`.
+  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `docs/js/header_text.js`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/header-text.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/redirect-urls.mjs`,
+  `.github/workflows/`, `.github/actions/` and `.github/scripts/`.
 - **`GLOSSARY.md`**: the vocabulary.
 - **Phones and tablets**: no change of ours is checked, styled or demonstrated at a phone or tablet size, and no ticket asks for it.
   Upstream's own phone support is left as it is.
@@ -45,10 +46,17 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 
 ## End-to-end seam
 
-None yet. Upstream's `npm test` is a `nodemon` watch on `test/test_server.js` (snapshot checks under `test/snapshots/`), not a
-one-shot run, and `TESTING.md` lists puzzle links to try by hand. The first code ticket sets up the seam: a one-shot test command, live tests
-on the page in headless Chromium (Playwright) under `live/`, and CI. Until then, name what you ran by hand.
-
+- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/header-text.test.mjs` (a Node check of `docs/js/header_text.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`), `test/userscript.test.mjs` (the Redirect script), `test/upstream-merge.test.mjs` (the upstream merge's scripts, on scratch git repos) and, once in headless Chromium
+  (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
+  `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
+  it, and nothing writes one. `npm run test:live` runs
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs` and `live/canonical-state.mjs`). In both, a page error or
+  `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
+  waits use `settle`, never a sleep.
+- **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
+  merges upstream nightly and pushes only when both pass on the merged tree.
+- **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
+  Mocha page stays as `npm run test:browser`; it is not part of the seam.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
 - **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and
   the nightly upstream merge (#3) must run unattended (Chris, 2026-11-09).

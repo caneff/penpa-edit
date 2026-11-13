@@ -1,0 +1,13 @@
+name: Set up the tests
+description: Node, the npm dependencies and Playwright's Chromium, as `npm test` and `npm run test:live` need them.
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v6
+      with:
+        node-version: 24
+        cache: npm
+    - shell: bash
+      run: npm ci
+    - shell: bash
+      run: npx playwright install --with-deps chromium

@@ -27,7 +27,8 @@ async function boot() {
     set_input_patterns();
 
     var urlParam = location.search.substring(1);
-    if (!urlParam && location.hash) {
+    // caneff: a query with no puzzle data (?fbclid=, ?utm_source=) is not a link; the hash is
+    if (!/(^|&)p=/.test(urlParam)) {
         urlParam = location.hash.substring(1);
     }
     if (urlParam) {
@@ -54,13 +55,19 @@ async function boot() {
             } else {
                 url = local_data.split('?')[1];
             }
-            load(url, type = 'localstorage', origurl = paramArray.p);
+            await load(url, type = 'localstorage', origurl = paramArray.p); // caneff: awaited so bootFailed sees a failure
         } else {
-            load(urlParam);
+            await load(urlParam); // caneff: awaited so bootFailed sees a failure
         }
     } else {
         create();
     }
+}
+
+// caneff: shown in place of a dead page when boot() throws
+function bootFailed(e) {
+    errorMsg(PenpaText.get('link_load_failed') + "<br>" + DOMPurify.sanitize(String(e)));
+    create();
 }
 
 function boot_parameters() {
@@ -1953,8 +1960,10 @@ async function import_url(urlstring) {
             selectBox.setValue(UserSettings.tab_settings);
         }
     } else if (urlstring.match(/\/puzz.link\/p\?|pzprxs\.vercel\.app\/p\?|\/pzv\.jp\/p(\.html)?\?/)) {
-        decode_puzzlink(urlstring);
-        document.getElementById("modal-load").style.display = 'none';
+        // caneff: a failed import keeps the dialog open (#18)
+        if (import_puzzlink(urlstring)) {
+            document.getElementById("modal-load").style.display = 'none';
+        }
     } else {
         Swal.fire({
             html: PenpaText.get('invalid_url'),
@@ -2041,24 +2050,21 @@ async function load(urlParam, type = 'url', origurl = null) {
         }
     }
     if (rtext_para[15]) {
-        let ptitle = rtext_para[15].replace(/%2C/g, ',');
-        ptitle = ptitle.replace(/^Title\:\s/, '');
+        let ptitle = rtext_para[15].replace(/^Title\:\s/, '');
         if (ptitle !== "Title: ") {
-            ptitle = DOMPurify.sanitize(ptitle);
-            document.getElementById("saveinfotitle").value = ptitle;
+            // caneff: the field holds the text as typed; the page shows it with textContent (#21)
+            document.getElementById("saveinfotitle").value = HEADER_TEXT.line.decode(ptitle);
         }
     }
     if (rtext_para[16]) {
-        let pauthor = rtext_para[16].replace(/%2C/g, ',')
-        pauthor = pauthor.replace(/^Author\:\s/, '');
+        let pauthor = rtext_para[16].replace(/^Author\:\s/, '');
         if (pauthor != "") {
-            pauthor = DOMPurify.sanitize(pauthor);
-            document.getElementById("saveinfoauthor").value = pauthor;
+            document.getElementById("saveinfoauthor").value = HEADER_TEXT.line.decode(pauthor); // caneff: see Title (#21)
         }
     }
     if (rtext_para[17] && rtext_para[17] !== "") {
-        psource = DOMPurify.sanitize(rtext_para[17]);
-        document.getElementById("puzzlesourcelink").href = psource;
+        psource = HEADER_TEXT.line.decode(rtext_para[17]); // caneff: it reaches only a field value and an href attribute, never HTML (#21)
+        set_source_href(document.getElementById("puzzlesourcelink"), psource); // caneff: no javascript: link (#11)
         document.getElementById("puzzlesource").innerHTML = "Source";
         document.getElementById("saveinfosource").value = psource;
     }
@@ -2078,10 +2084,11 @@ async function load(urlParam, type = 'url', origurl = null) {
 
     if (rtext_para[18] && rtext_para[18] !== "") {
         document.getElementById("puzzlerules").classList.add("rules-present");
-        pu.rules = rtext_para[18].replace(/%2C/g, ',').replace(/%2D/g, '<br>').replace(/%2E/g, '&').replace(/%2F/g, '=');
-        pu.rules = DOMPurify.sanitize(pu.rules);
+        // caneff: the field holds the text as typed; pu.rules is its HTML form for display (#21)
+        let rules_text = HEADER_TEXT.rules.decode(rtext_para[18]);
+        pu.rules = header_text_to_html(rules_text);
         document.getElementById("ruletext").innerHTML = pu.rules;
-        document.getElementById("saveinforules").value = pu.rules.replace(/<br>/g, '\n');
+        document.getElementById("saveinforules").value = rules_text;
     }
 
     // Border button status
@@ -2670,8 +2677,7 @@ async function load(urlParam, type = 'url', origurl = null) {
             if (qstr.stime) {
                 disptext += 'Time: ' + qstr.stime + " (d:h:m:s:ts)";
             }
-            disptext = DOMPurify.sanitize(disptext);
-            document.getElementById("puzzletitle").innerHTML = disptext;
+            document.getElementById("puzzletitle").textContent = disptext; // caneff: the title and author are text (#21)
             document.getElementById("puzzletitle").style.display = '';
 
             // Calculate Total MS for later use
@@ -2682,10 +2688,26 @@ async function load(urlParam, type = 'url', origurl = null) {
     }
 
     // Make sure we start a new group
-    pu.undoredo_counter++;
+    // caneff: make_class restarts the counter at 0, so it must pass the group ids the loaded stacks already hold
+    pu.undoredo_counter = largest_undo_group() + 1;
 
     // Make any backwards compatibility updates to the data we need for format changes
     pu.load_compat_fixes();
+}
+
+// caneff: the largest group id in any loaded undo, redo or replay entry (the id is entry[4])
+function largest_undo_group() {
+    let largest = 0;
+    for (const store of [pu.pu_q, pu.pu_a, pu.pu_q_col, pu.pu_a_col]) {
+        for (const stack of [store.command_undo, store.command_redo, store.command_replay]) {
+            for (const entry of stack.__a) {
+                if (entry[4] > largest) {
+                    largest = entry[4];
+                }
+            }
+        }
+    }
+    return largest;
 }
 
 function loadver1(paramArray, rtext) {
@@ -3194,9 +3216,21 @@ function set_contestmode() {
     document.getElementById("mo_move_lb").classList.add('is_hidden');
     document.getElementById("puzzlesourcelink").style.display = "none";
     let sourceUrl = document.getElementById("saveinfosource").value;
-    document.getElementById("answer_key").innerHTML = PenpaText.get('contest_answer', sourceUrl);
+    // caneff: the Source never enters the HTML, where a quote in it could add an attribute (#11).
+    document.getElementById("answer_key").innerHTML = PenpaText.get('contest_answer', '#');
+    set_source_href(document.querySelector("#answer_key a"), sourceUrl);
     pu.undoredo_disable = true;
     pu.comp = true;
+}
+
+// caneff: a Source comes from the link, so a scheme such as javascript: must never become a link (#11).
+function set_source_href(anchor, source) {
+    let address = source.trim();
+    if (/^(https?:)?\/\//i.test(address)) {
+        anchor.setAttribute("href", address);
+    } else {
+        anchor.removeAttribute("href");
+    }
 }
 
 function set_solvemodetitle() {
@@ -3263,8 +3297,8 @@ function update_title() {
     let title = document.getElementById("saveinfotitle").value;
     let author = document.getElementById("saveinfoauthor").value;
 
-    document.getElementById("puzzletitle").innerHTML = title;
-    document.getElementById("puzzleauthor").innerHTML = author;
+    document.getElementById("puzzletitle").textContent = title; // caneff: title and author are text (#21)
+    document.getElementById("puzzleauthor").textContent = author; // caneff: see above (#21)
 
     let auth_str = (author ? (title ? ' by ' + author : author) : '');
     let auth_tit_str = (title ? title : (auth_str ? '' : 'Puzzle')) + auth_str;

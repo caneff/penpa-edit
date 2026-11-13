@@ -1,7 +1,9 @@
 {
   "name": "penpa-tests",
   "scripts": {
-    "test": "nodemon --watch test/test_server.js test/test_server.js",
+    "test": "node --test --test-timeout=60000 \"test/**/*.test.mjs\"",
+    "test:live": "node --test --test-timeout=60000 \"live/**/*.live.mjs\"",
+    "test:browser": "nodemon --watch test/test_server.js test/test_server.js",
     "local": "npx browser-sync start --server"
   },
   "devDependencies": {
@@ -9,6 +11,7 @@
     "chai": "^4.5.0",
     "express": "^4.21.2",
     "mocha": "^10.8.2",
-    "nodemon": "^2.0.22"
+    "nodemon": "^2.0.22",
+    "playwright": "^1.64.1"
   }
 }

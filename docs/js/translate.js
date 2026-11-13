@@ -961,6 +961,13 @@ const PenpaText = {
             ZH: '在格子边/角上放置线索：<br>将"沿格线放置"设置为"开"'
         },
 
+        puzzlink_import_failed: { // caneff: EN only; get() falls back to it
+            EN: 'This puzz.link link could not be imported. It may be incomplete or damaged. The board is unchanged.'
+        },
+        link_load_failed: { // caneff: EN only; get() falls back to it
+            EN: 'This link could not be loaded. It may be incomplete or damaged.'
+        },
+
         display_size_warning: {
             EN: 'Display size must be in the range <h2 class="warn">12-90</h2>',
             JP: '表示サイズは以下の範囲です <h2 class="warn">12-90</h2>',
