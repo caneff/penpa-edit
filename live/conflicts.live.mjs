@@ -18,6 +18,7 @@ function checkInPage ({ size, tag, givens, symbols = [] }) {
   for (const [x1, y1, x2, y2, symbol] of symbols) {
     const pair = [cell(x1, y1), cell(x2, y2)].sort((a, b) => a - b).join(',')
     const edge = Object.keys(pu.point).find((k) => pu.point[k].neighbor.length === 2 && [...pu.point[k].neighbor].sort((a, b) => a - b).join(',') === pair)
+    if (edge === undefined) throw new Error(`no edge between cells (${x1}, ${y1}) and (${x2}, ${y2})`)
     pu.pu_q.symbol[edge] = symbol
   }
   pu.conflicts.reset()

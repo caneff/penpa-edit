@@ -141,7 +141,7 @@ class Conflicts {
     check_sudoku(alphabet = false) {
         const data = this.get_data('number_grid');
         const n = data.length;
-        // caneff: boxes of every sudoku size Penpa+ draws (4x4, 6x6, 8x8, 9x9), not only 3x3.
+        // caneff: box shape by grid size, one entry per sudoku size Penpa+ draws.
         const box = SUDOKU_BOX_SIZE[n];
         if (!box || data[0].length !== n) {
             // Not a sudoku size
@@ -505,7 +505,7 @@ class Conflicts {
         const symbol_indices = Object.keys(this.pu.pu_q.symbol);
         for (let index of symbol_indices) {
             const symbol = this.pu.pu_q.symbol[index];
-            // caneff: was `&&` / `||` inverted, so every symbol counted as a bar.
+            // caneff: only grey bars and white circles are bars; any other symbol is not.
             if (!Array.isArray(symbol) || (symbol[1] !== "bars_G" && symbol[1] !== "circle_SS")) {
                 // Not a grey bar.
                 continue;
