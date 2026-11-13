@@ -1,4 +1,4 @@
-// Picking a constraint and then All leaves every mode on its own defaults, so Sudoku mode still enters a digit.
+// Picking a constraint and then All gives Line, Multicolor, Number and Sudoku their own defaults, so Sudoku mode enters a digit.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { openPenpa, useBrowser } from './page.mjs'
@@ -11,7 +11,7 @@ describe('the All constraint', () => {
   before(async () => { opened = await openPenpa(browser()) })
   after(async () => { await opened?.context.close() })
 
-  it('keeps Sudoku mode entering a digit', async () => {
+  it('gives each mode its own defaults and keeps Sudoku mode entering a digit', async () => {
     const { page } = opened
     // Fires the same `onchange` a pick in the constraint list does.
     const pick = (value) => page.evaluate((v) => {
@@ -21,6 +21,12 @@ describe('the All constraint', () => {
     }, value)
     await pick('classic')
     await pick('all')
+    const defaults = () => page.evaluate(() => {
+      const modes = pu.mode[pu.mode.qa]
+      return { line: modes.line, multicolor: modes.multicolor, number: modes.number, sudoku: modes.sudoku }
+    })
+    const expected = { line: ['1', 2], multicolor: ['', 1], number: ['1', 1], sudoku: ['1', 1] }
+    assert.deepEqual(await defaults(), expected)
     await page.evaluate(() => {
       pu.mode_set('sudoku')
       pu.selection = [pu.centerlist[0]]
