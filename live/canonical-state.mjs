@@ -8,22 +8,10 @@ const DEPTH_STACKS = ['command_undo', 'command_redo']
 // Where `record_replay` puts the timer reading, in milliseconds, in each `pu_a.command_replay` entry.
 export const REPLAY_TIMESTAMP = 5
 
-// Runs in the page: the engine fields canonical state is written from, as plain data. The timer and the progress kept
-// in storage under `md5(pu.url)` are never read, so neither reaches the output. `page.evaluate` sends only this
-// function's source, so it names the boards and fields itself rather than sharing the constants above.
+// Runs in the page: the engine fields canonical state is written from, as plain data. The reader is `readEngineState`
+// in `docs/js/recorder.js`, which the page loads, so a recording's final board is read the same way.
 export function readEngineState () {
-  const plain = (board) => Object.fromEntries(Object.entries(pu[board]).map(([k, v]) => [k, v instanceof Stack ? v.__a : v]))
-  const editMode = pu.mode[pu.mode.qa].edit_mode
-  // The third element, the input orientation `set_orientation` stores, exists only once a mode has set one.
-  const [submode, style, orientation = null] = pu.mode[pu.mode.qa][editMode]
-  return {
-    pu_a: plain('pu_a'),
-    pu_a_col: plain('pu_a_col'),
-    mode: { qa: pu.mode.qa, edit_mode: editMode, submode, style, orientation },
-    selection: pu.selection,
-    conflict_cells: pu.conflict_cells,
-    sol_flag: pu.sol_flag
-  }
+  return window.readEngineState()
 }
 
 // JSON with every object's keys sorted, so a value reads the same whatever order its keys were added in.

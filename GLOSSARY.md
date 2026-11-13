@@ -18,8 +18,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
   generated from them. Not "trace" (Playwright's word) or "script".
 - **Step**: one input in a recording, in board terms: a pointer gesture on a board point, a content key, a mode change
-  named by its mode, sub-mode and style, an undo or redo, or an answer check.
-- **Checkpoint**: a point in a recording where the replay compares state: after each undo group, and at the end.
+  named by its mode, sub-mode and style, or an undo or redo. Solve mode checks the answer after every input, so the
+  verdict is in every checkpoint and no step runs it.
+- **Checkpoint**: a point in a recording where the replay compares state: after each finished gesture, content key, mode
+  change, undo or redo, and at the end.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.

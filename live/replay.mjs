@@ -1,14 +1,17 @@
 // Recordings (GLOSSARY.md) and the engine driver that replays them. Not a check itself, so `live/**/*.live.mjs` skips
 // it.
 //
-// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family. It
-// holds a header (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the
-// recorder's version) and its steps, one per line, as `docs/js/recorder.js` writes them:
+// A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family. As
+// `docs/js/recorder.js` writes it, it holds a header (`source`: the link's query and `#` part; `gridtype`; `genre`: the
+// page's genre tags; `recorder`: the recorder's version), `final` (the recording page's engine state once the steps
+// were made, as `readEngineState` reads it) and its steps, one per line:
 //   { kind: 'pointer', action: 'down' | 'move' | 'up' | 'out' | 'double', button: 'left' | 'right' | null, ctrl, x, y, num }
 //     with `x, y` in board units and `num` an index of `pu.point`;
-//   { kind: 'key', call: one of KEY_CALLS, args };
+//   { kind: 'key', call, args }, `call` one of `pu`'s `key_*` methods;
 //   { kind: 'mode', mode, submode, style }, the engine's own names and values for a mode change;
-//   { kind: 'undo' } and { kind: 'redo' }.
+//   { kind: 'undo' } and { kind: 'redo' };
+//   { kind: 'unsupported', what }, an input the format cannot replay (an Alt-drag rectangle selection), refused here.
+// Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written by `live/write-expected.mjs`
 // and never by hand.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
@@ -24,11 +27,12 @@ const EXPECTED_SUFFIX = '.expected.json'
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
 
-// Runs in the page. Builds a 4x4 grid whose author's answer shades two cells, checked as shading, and returns its solve
-// link's `#` part.
-export function surfaceSolveLinkInPage () {
-  // Indices in `pu.centerlist` of the cells the author's answer shades.
-  const answerCells = [5, 9]
+// Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
+export const ANSWER_CELLS = [5, 9]
+
+// Runs in the page. Builds a 4x4 grid whose author's answer shades `answerCells`, checked as shading, and returns its
+// solve link's `#` part.
+function surfaceSolveLinkInPage (answerCells) {
   document.getElementById('nb_size1').value = 4
   document.getElementById('nb_size2').value = 4
   create_newboard()
@@ -45,6 +49,29 @@ export function cellPixelInPage (index) {
   const canvas = document.getElementById('canvas')
   const point = pu.point[pu.centerlist[index]]
   return { x: canvas.offsetLeft + point.x - window.scrollX, y: canvas.offsetTop + point.y - window.scrollY }
+}
+
+// The `#` part of a solve link to a 4x4 puzzle whose answer shades ANSWER_CELLS.
+export async function makeSurfaceSolveLink (browser) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    return await page.evaluate(surfaceSolveLinkInPage, ANSWER_CELLS)
+  } finally {
+    await context.close()
+  }
+}
+
+// Opens `query`, a solve link's `#` part, with the recorder on, once its answer has loaded.
+export async function openRecordingPage (browser, query) {
+  const opened = await openPenpa(browser, '?record=1' + query)
+  await settle(() => opened.page.evaluate(() => Boolean(pu.solution)), true)
+  return opened
+}
+
+// A real click at the centre of the cell at `index` of the center list.
+export async function clickCell (page, index, options) {
+  const { x, y } = await page.evaluate(cellPixelInPage, index)
+  await page.mouse.click(x, y, options)
 }
 
 // Clicks the recorder's download button on a `?record=1` page and returns the file's name and its recording.
@@ -76,8 +103,7 @@ export async function writeExpected (id, checkpoints) {
 }
 
 // Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
-export function applyStepInPage (step) {
-  const KEY_CALLS = ['key_number', 'key_space', 'key_shiftspace', 'key_backspace', 'key_arrow']
+function applyStepInPage (step) {
   switch (step.kind) {
     case 'pointer': {
       const { action, button, ctrl, x, y, num } = step
@@ -96,7 +122,7 @@ export function applyStepInPage (step) {
       return
     }
     case 'key':
-      if (!KEY_CALLS.includes(step.call)) throw new Error(`no key call ${step.call}`)
+      if (!/^key_/.test(step.call) || typeof pu[step.call] !== 'function') throw new Error(`no key call ${step.call}`)
       pu[step.call](...step.args)
       return
     case 'mode': {
@@ -123,7 +149,7 @@ export function applyStepInPage (step) {
 }
 
 // A step in words, for a failure report.
-export function stepWords (step) {
+function stepWords (step) {
   switch (step.kind) {
     case 'pointer':
       return `${step.button ? step.button + ' ' : ''}${step.action}${step.ctrl ? ' with Ctrl' : ''} at point ${step.num}`
@@ -136,7 +162,8 @@ export function stepWords (step) {
   }
 }
 
-// A checkpoint follows each step that ends an undo group: every step but the down and the moves of a gesture.
+// A checkpoint follows every step but the down and the moves of a gesture, so a gesture is compared once it has ended,
+// and every key, mode change, undo and redo on its own.
 function endsGroup (step) {
   return !(step.kind === 'pointer' && (step.action === 'down' || step.action === 'move'))
 }
@@ -156,28 +183,49 @@ function changedKeys (want, got) {
   return [...new Set([...want.keys(), ...got.keys()])].filter((k) => want.get(k) !== got.get(k))
 }
 
-function failureReport ({ id, step, steps, since, want, got, errors }) {
+// The lines of a report that say how two states differ and how the page went.
+function stateDiff ({ want, got, wantName, errors }) {
   const w = entries(want)
   const g = entries(got)
   const changed = changedKeys(w, g)
   const firstWrite = changed.find(isReplayWrite)
   const value = (map, key) => map.get(key) ?? 'absent'
   return [
-    `${id}: step ${step} (${stepWords(steps[step - 1])}) differs from the recording`,
-    `  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`,
-    'State, expected → replayed:',
+    `State, ${wantName} → replayed:`,
     ...changed.filter((k) => !isReplayWrite(k)).map((k) => `  ${k}: ${value(w, k)} → ${value(g, k)}`),
     firstWrite
       ? `First differing command_replay write: ${firstWrite.replace(/\.command_replay\.(\d+)$/, ' #$1')}: expected ${value(w, firstWrite)} got ${value(g, firstWrite)}`
       : 'First differing command_replay write: none',
     `Page errors: ${errors.length ? '\n  ' + errors.join('\n  ') : 'none'}`
+  ]
+}
+
+function failureReport ({ id, step, steps, since, want, got, errors }) {
+  return [
+    `${id}: step ${step} (${stepWords(steps[step - 1])}) differs from the recording`,
+    `  since the last checkpoint: ${since.map((n) => `step ${n} ${stepWords(steps[n - 1])}`).join('; ')}`,
+    ...stateDiff({ want, got, wantName: 'expected', errors })
+  ].join('\n')
+}
+
+// Null when `state`, the replay's last, is the board the recording page reached, else the report of how they differ.
+function finalReport ({ id, recording, state, errors }) {
+  if (!recording.final) return `${id}: the recording has no final board to check the replay against`
+  const want = canonicalState(recording.final)
+  if (want === state) return null
+  return [
+    `${id}: the replay ends on a board the recording page did not reach: an input the recorder did not see, or a board`,
+    '  that did not start from the recording\'s link',
+    ...stateDiff({ want, got: state, wantName: 'recording page', errors })
   ].join('\n')
 }
 
 // Replays `recording` through the engine in a fresh page and returns its checkpoints. With `expected` (as
-// `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of it, else `report`
-// is null. `served` and `setup` go to `openPenpa`.
+// `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of it. A replay that
+// does not end on the recording's final board is reported too; otherwise `report` is null. `served` and `setup` go to
+// `openPenpa`.
 export async function replay (browser, recording, { id = 'recording', expected, served = false, setup } = {}) {
+  // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
   const { context, page, errors } = await openPenpa(browser, recording.header.source, {
     served,
     contextOptions: CONTEXT_OPTIONS,
@@ -200,7 +248,9 @@ export async function replay (browser, recording, { id = 'recording', expected, 
       try {
         await page.evaluate(applyStepInPage, step)
       } catch (e) {
-        throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${e.message}`)
+        // Playwright's message is the page's error's, behind its own prefix and before the page's stack.
+        const message = e.message.split('\n')[0].replace(/^page\.evaluate: (Error: )?/, '')
+        throw new Error(`${id}: step ${n} (${stepWords(step)}) could not be replayed: ${message}`)
       }
       if (!endsGroup(step) && n < steps.length) continue
       const want = expected?.[checkpoints.length]
@@ -219,7 +269,7 @@ export async function replay (browser, recording, { id = 'recording', expected, 
     if (expected && expected.length > checkpoints.length) {
       return { checkpoints, report: `${id}: the replay ended after ${checkpoints.length} checkpoints, where the expected file has ${expected.length}` }
     }
-    return { checkpoints, report: null }
+    return { checkpoints, report: finalReport({ id, recording, state: checkpoints.at(-1).state, errors }) }
   } finally {
     await context.close()
   }

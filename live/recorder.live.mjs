@@ -3,8 +3,7 @@
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 import { openPenpa, useBrowser } from './page.mjs'
-import { settle } from './settle.mjs'
-import { cellPixelInPage, downloadRecording, surfaceSolveLinkInPage } from './replay.mjs'
+import { clickCell, downloadRecording, makeSurfaceSolveLink, openRecordingPage } from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -13,30 +12,12 @@ const LEFT_CELL = 5
 const RIGHT_CELL = 6
 const NUMBER_CELL = 10
 
-async function openRecording (query) {
-  const opened = await openPenpa(browser(), '?record=1' + query)
-  await settle(() => opened.page.evaluate(() => Boolean(pu.solution)), true)
-  return opened
-}
-
-async function clickCell (page, index, options) {
-  const { x, y } = await page.evaluate(cellPixelInPage, index)
-  await page.mouse.click(x, y, options)
-}
-
 describe('the recorder', () => {
   let query
-  before(async () => {
-    const { context, page } = await openPenpa(browser())
-    try {
-      query = await page.evaluate(surfaceSolveLinkInPage)
-    } finally {
-      await context.close()
-    }
-  })
+  before(async () => { query = await makeSurfaceSolveLink(browser()) })
 
   it('writes the solver\'s clicks, keys, mode changes, undo and redo as steps and downloads them', async () => {
-    const { context, page } = await openRecording(query)
+    const { context, page } = await openRecordingPage(browser(), query)
     try {
       const cells = await page.evaluate((list) => list.map((i) => pu.centerlist[i]), [LEFT_CELL, RIGHT_CELL, NUMBER_CELL])
       await page.click('#mo_surface_lb')
@@ -51,6 +32,7 @@ describe('the recorder', () => {
 
       assert.equal(name, 'recording.steps.json')
       assert.deepEqual(recording.header, { source: query, gridtype: 'square', genre: [], recorder: 1 })
+      assert.deepEqual(recording.final, await page.evaluate(() => readEngineState()), 'the final board is the page\'s state')
       const steps = recording.steps
       const moves = steps.filter((s) => s.kind === 'pointer' && s.action === 'move')
       assert.ok(moves.length > 0, 'hover moves are recorded')
@@ -79,8 +61,29 @@ describe('the recorder', () => {
     }
   })
 
+  // `handle_rect_mousedown` starts a rectangle selection on Alt only in Sudoku, Number, Surface and Multicolor.
+  it('refuses an Alt-click where it starts a rectangle selection and records it as a click elsewhere', async () => {
+    const { context, page } = await openRecordingPage(browser(), query)
+    try {
+      await page.click('#mo_surface_lb')
+      await page.keyboard.down('Alt')
+      await clickCell(page, LEFT_CELL)
+      await page.keyboard.up('Alt')
+      await page.click('#mo_line_lb')
+      await page.keyboard.down('Alt')
+      await clickCell(page, RIGHT_CELL)
+      await page.keyboard.up('Alt')
+      const steps = (await downloadRecording(page)).recording.steps
+      const downs = steps.filter((s) => s.kind === 'unsupported' || (s.kind === 'pointer' && s.action === 'down'))
+      assert.deepEqual(downs.map((s) => s.kind === 'unsupported' ? s.kind : `${s.kind} ${s.action}`),
+        ['unsupported', 'pointer down'])
+    } finally {
+      await context.close()
+    }
+  })
+
   it('records nothing while Penpa+ plays back its own replay', async () => {
-    const { context, page } = await openRecording(query)
+    const { context, page } = await openRecordingPage(browser(), query)
     try {
       await page.evaluate(() => { pu.replay = true })
       await clickCell(page, LEFT_CELL)
