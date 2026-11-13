@@ -7265,7 +7265,7 @@ class Puzzle {
             } else if (arr === "deletelineE") {
                 if (this.pu_q[arr][num]) { // caneff: deletelineE lives in pu_q
                     this.pu_a.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q", groupcounter, timestamp]); // Array is also recorded in JSON
-                    this.pu_a_col.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON
+                    this.pu_a_col.command_undo.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON // caneff: the group id is part of the entry
                 } else {
                     this.pu_a.command_undo.push([arr, num, null, "pu_q", groupcounter, timestamp]);
                     this.pu_a_col.command_undo.push([arr, num, null, "pu_q_col", groupcounter]);
@@ -7304,7 +7304,7 @@ class Puzzle {
             } else if (arr === "deletelineE") {
                 if (this.pu_q[arr][num]) { // caneff: deletelineE lives in pu_q
                     this.pu_a.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q", groupcounter, timestamp]); // Array is also recorded in JSON
-                    this.pu_a_col.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON
+                    this.pu_a_col.command_replay.push([arr, num, JSON.stringify(this.pu_q[arr][num]), "pu_q_col", groupcounter]); // Array is also recorded in JSON // caneff: the group id is part of the entry
                 } else {
                     this.pu_a.command_replay.push([arr, num, null, "pu_q", groupcounter, timestamp]);
                     this.pu_a_col.command_replay.push([arr, num, null, "pu_q_col", groupcounter]);

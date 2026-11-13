@@ -2681,8 +2681,8 @@ async function load(urlParam, type = 'url', origurl = null) {
     }
 
     // Make sure we start a new group
-    // caneff: the counter restarts at 0 on every load, so it must pass the group ids the loaded stacks already hold
-    pu.undoredo_counter = Math.max(pu.undoredo_counter, largest_undo_group()) + 1;
+    // caneff: make_class restarts the counter at 0, so it must pass the group ids the loaded stacks already hold
+    pu.undoredo_counter = largest_undo_group() + 1;
 
     // Make any backwards compatibility updates to the data we need for format changes
     pu.load_compat_fixes();
