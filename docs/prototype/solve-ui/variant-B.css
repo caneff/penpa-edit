@@ -10,7 +10,7 @@ html.proto-variant-B body {
     inset: 0 0 56px 0; /* the switcher pill sits in the bottom 56px */
     z-index: 10;
     display: grid;
-    grid-template-columns: 300px 1fr 240px;
+    grid-template-columns: 300px 1fr 290px;
     gap: 0;
     color: #d9dce3;
     font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -160,12 +160,141 @@ html.proto-variant-B body {
     color: #fff;
 }
 
-.proto-b-k-line { background: #2f6fe0; }
+.proto-b-k-line,
+.proto-b-k-segment { background: #2f6fe0; }
 .proto-b-k-edge { background: #c8761c; }
-.proto-b-k-shade { background: #555b66; }
-.proto-b-k-select { background: #1f9a72; }
-.proto-b-k-mark,
-.proto-b-k-cross { background: #7a55c9; }
+.proto-b-k-select,
+.proto-b-k-value,
+.proto-b-k-corner,
+.proto-b-k-centre { background: #1f9a72; }
+.proto-b-k-cross,
+.proto-b-k-xcell,
+.proto-b-k-dot,
+.proto-b-k-water { background: #7a55c9; }
+
+/* Swatches: a small picture of what a gesture places. */
+.proto-b-sw {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-right: 6px;
+    vertical-align: -1px;
+    border-radius: 2px;
+    box-sizing: border-box;
+}
+.proto-b-sw-shade { background: #7d8391; border: 1px solid #c3c7d0; }
+.proto-b-sw-tint { background: #c9ccd2; }
+.proto-b-sw-dot { width: 6px; height: 6px; margin: 0 9px 0 3px; border-radius: 50%; background: #fff; vertical-align: 1px; }
+.proto-b-sw-white { border-radius: 50%; background: #fff; border: 1px solid #222; }
+.proto-b-sw-black { border-radius: 50%; background: #111; border: 1px solid #ccc; }
+.proto-b-sw-star { background: #ffd04a; clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); border-radius: 0; }
+.proto-b-sw-xcell,
+.proto-b-sw-cross { background: linear-gradient(45deg, transparent 42%, #ff9a9a 42%, #ff9a9a 58%, transparent 58%), linear-gradient(-45deg, transparent 42%, #ff9a9a 42%, #ff9a9a 58%, transparent 58%); }
+.proto-b-sw-bulb { border-radius: 50%; background: radial-gradient(circle, #fff7b0 0 30%, #f2c230 31% 100%); }
+.proto-b-sw-ship { border-radius: 6px 2px 2px 6px; background: #e8eaef; }
+.proto-b-sw-water { background: repeating-linear-gradient(0deg, #5aa9e6 0 2px, transparent 2px 4px); }
+.proto-b-sw-line,
+.proto-b-sw-segment { height: 4px; vertical-align: 3px; background: #57d68d; }
+.proto-b-sw-edge { height: 4px; vertical-align: 3px; background: #57d68d; border-left: 2px solid #fff; border-right: 2px solid #fff; }
+.proto-b-sw-select { background: transparent; border: 2px solid #57d68d; }
+.proto-b-sw-erase { background: transparent; border: 1px dashed #aab0bd; }
+
+/* The gesture card. */
+.proto-b-right h2 {
+    margin: 14px 0 0;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8a90a0;
+}
+
+.proto-b-card {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.proto-b-slot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 7px;
+    border: 1px solid #2f3440;
+    background: #222630;
+    color: #d9dce3;
+    font: 13px system-ui, sans-serif;
+    text-align: left;
+    cursor: pointer;
+}
+
+button.proto-b-slot:hover {
+    border-color: #6b7486;
+    background: #2a2f3a;
+}
+
+.proto-b-slot.proto-b-fixed {
+    cursor: default;
+    background: transparent;
+    border-color: transparent;
+    padding: 2px 8px;
+}
+
+.proto-b-slotname {
+    color: #f2f3f6;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.proto-b-slot .proto-b-kind {
+    font-weight: 500;
+    font-size: 12px;
+}
+
+.proto-b-genrepick {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #8a90a0;
+}
+
+.proto-b-genre {
+    max-width: 170px;
+    background: #222630;
+    color: #d9dce3;
+    border: 1px solid #3a404c;
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.proto-b-pop {
+    position: fixed;
+    z-index: 900;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 170px;
+    padding: 8px;
+    border-radius: 10px;
+    background: #1b1e24;
+    border: 1px solid #454c5b;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    font: 13px system-ui, sans-serif;
+}
+
+.proto-b-popitem {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: #d9dce3;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.proto-b-popitem:hover { background: #2d323d; }
+.proto-b-popitem.proto-b-on { border-color: #57d68d; }
 
 .proto-b-alts {
     display: inline-flex;
@@ -245,3 +374,11 @@ html.proto-variant-B body {
 .proto-b-right .proto-b-wide {
     flex: none;
 }
+
+/* Penpa+'s floating number panel: nothing here types through it. */
+html.proto-variant-B #float-key {
+    display: none !important;
+}
+.proto-b-k-letter { background: #8a5a1c; }
+.proto-b-sw-letter { background: conic-gradient(#e85a5a 0 33%, #57d68d 0 66%, #5a8ee8 0); border-radius: 50%; }
+.proto-b-kind { white-space: nowrap; }
