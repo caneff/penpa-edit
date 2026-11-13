@@ -15,7 +15,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   or dropped (git has no built-in `ours` driver: each clone and CI set `git config merge.ours.driver true`); every other upstream file follows `CODING_STANDARDS.md` § Upstream merges. Nothing ever goes back to upstream: no commit,
   push or PR (Chris, 2026-11-13). `gh repo set-default` names `caneff/penpa-edit`, so `gh pr create` targets the fork.
 - **Share links point at the fork** (Chris, 2026-11-09). `maketext_baseurl()` in `docs/js/class_p.js` already builds links from
-  `location.href`; only its localhost / `file://` branch names upstream's address.
+  `location.href`; its localhost / `file://` branch names the fork's address too.
 - **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
   source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/userscript.test.mjs`, `test/redirect-urls.mjs` and `.github/workflows/`.
