@@ -18,6 +18,8 @@ const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
 // The colour argument of the `set_surface` call in `re_surface_twobutton` that a left click on an empty cell runs.
+// The branch of `maketext_duplicate` that keeps the answer's undo stack in a solve-mode duplicate link.
+const KEEP_UNDO = /(maketext_duplicate\(\) \{[\s\S]*?)\/\/ Retain undo in solve mode/
 const SHADE_COLOR = /(re_surface_twobutton\(num\) \{[^}]*\} else \{\s*let cc = this\.get_surface_color\(color\);\s*this\.set_surface\(num, )color(, cc\);)/
 // Indices in `pu.centerlist` of the cells the recorded solve right-clicks, Ctrl-clicks and drags across.
 const RIGHT_CELL = 6
@@ -174,6 +176,30 @@ describe('the engine driver', () => {
         })
       })
     }
+  })
+
+  describe('with a duplicate link that drops the undo stack', () => {
+    let planted
+    before(async () => {
+      const source = await readFile(CLASS_P, 'utf8')
+      planted = source.replace(KEEP_UNDO, '$1this.pu_a.command_undo.__a = [];')
+      assert.notEqual(planted, source, 'the line to plant in is in class_p.js')
+    })
+
+    it('reports the first checkpoint whose duplicate link loads a different board', async () => {
+      const { report } = await replay(browser(), await readRecording(SURFACE_ID), {
+        id: SURFACE_ID,
+        expected: await readExpected(SURFACE_ID),
+        served: true,
+        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+          contentType: 'text/javascript', body: planted
+        }))
+      })
+      assert.notEqual(report, null, 'the planted loss fails the replay')
+      const lines = report.split('\n')
+      assert.match(lines[0], new RegExp(`^${SURFACE_ID}: step \\d+ \\(up at point \\d+\\): its duplicate link loads a different board$`))
+      assert.ok(lines.includes('  pu_a.command_undo.length: 1 → 0'), report)
+    })
   })
 
   describe('with a planted change in the Surface handler', () => {

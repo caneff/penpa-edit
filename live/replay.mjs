@@ -201,14 +201,14 @@ function changedKeys (want, got) {
 }
 
 // The lines of a report that say how two states differ and how the page went.
-function stateDiff ({ want, got, wantName, errors }) {
+function stateDiff ({ want, got, wantName, gotName = 'replayed', errors }) {
   const w = entries(want)
   const g = entries(got)
   const changed = changedKeys(w, g)
   const firstWrite = changed.find(isReplayWrite)
   const value = (map, key) => map.get(key) ?? 'absent'
   return [
-    `State, ${wantName} → replayed:`,
+    `State, ${wantName} → ${gotName}:`,
     ...changed.filter((k) => !isReplayWrite(k)).map((k) => `  ${k}: ${value(w, k)} → ${value(g, k)}`),
     firstWrite
       ? `First differing command_replay write: ${firstWrite.replace(/\.command_replay\.(\d+)$/, ' #$1')}: expected ${value(w, firstWrite)} got ${value(g, firstWrite)}`
@@ -242,13 +242,29 @@ function finalReport ({ id, recording, state, errors }) {
   ].join('\n')
 }
 
-// Replays `recording` through the engine in a fresh page and returns its checkpoints, the first being step 0. With `expected` (as
-// `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of it. A replay that
-// does not end on the recording's final board is reported too; otherwise `report` is null. `served` and `setup` go to
-// `openPenpa`.
+// Runs in the page: the `#` part of the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in
+// general.js).
+function duplicateLinkInPage () {
+  const link = pu.maketext_duplicate() + '&l=solvedup'
+  return link.slice(link.indexOf('#'))
+}
+
+// Lines a duplicate link drops by design, left out of the round trip's comparison: `maketext_duplicate` empties the
+// redo stacks (class_p.js), and no link holds the selection.
+const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection) = .*$/
+
+function withoutDuplicateDrops (state) {
+  return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
+}
+
+// Replays `recording` through the engine in a fresh page and returns its checkpoints, the first being step 0. With
+// `expected` (as `readExpected` returns it) it stops at the first checkpoint that differs and returns the report of
+// it. At every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board,
+// less what the link drops by design. A replay that does not end on the recording's final board is reported too;
+// otherwise `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well.
 export async function replay (browser, recording, { id = 'recording', expected, served = false, setup } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
-  const { context, page, errors } = await openPenpa(browser, recording.header.source, {
+  const open = (query) => openPenpa(browser, query, {
     served,
     contextOptions: CONTEXT_OPTIONS,
     setup: async (c) => {
@@ -257,7 +273,29 @@ export async function replay (browser, recording, { id = 'recording', expected, 
       await setup?.(c)
     }
   })
-  const read = () => page.evaluate(readEngineState).then(canonicalState)
+  const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
+  const { context, page, errors } = await open(recording.header.source)
+  const read = () => readPage(page)
+  // Each duplicate link checked so far: a step that changed nothing gives the same link, and loads the same board.
+  const duplicates = new Set()
+  // The report of how the board a fresh page loads from the duplicate link of `state` differs from it, else null.
+  const roundTrip = async (n, state) => {
+    const link = await page.evaluate(duplicateLinkInPage)
+    if (duplicates.has(link)) return null
+    duplicates.add(link)
+    const want = withoutDuplicateDrops(state)
+    const fresh = await open(link)
+    try {
+      const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
+      if (got === want) return null
+      return [
+        `${id}: step ${n} (${checkpointWords(steps, n)}): its duplicate link loads a different board`,
+        ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
+      ].join('\n')
+    } finally {
+      await fresh.context.close()
+    }
+  }
   const { steps } = recording
   const checkpoints = []
   // The report of the first way checkpoint `n` differs from the expected file, else null.
@@ -271,7 +309,7 @@ export async function replay (browser, recording, { id = 'recording', expected, 
     const state = want ? await settle(read, want.state) : n === 0 ? await settle(read) : await read()
     checkpoints.push({ step: n, state })
     if (want && state !== want.state) return failureReport({ id, step: n, steps, since, want: want.state, got: state, errors })
-    return null
+    return roundTrip(n, state)
   }
   try {
     let report = await checkpoint(0, [])
