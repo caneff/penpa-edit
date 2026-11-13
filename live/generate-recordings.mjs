@@ -269,9 +269,10 @@ async function tierB (browser) {
         let full = false
         const query = await solveLink(browser, async (p) => {
           await p.evaluate((u) => import_url(u), url)
-          full = await p.evaluate(() => pu.centerlist.every((c) => pu.pu_q.number[c]))
+          full = await p.evaluate(() => !pu.centerlist.some((c) => !pu.pu_q.number[c]))
         })
-        // A board whose every cell is given has nothing to enter.
+        // A board with no cell free of a given (a full grid, or one with no cells, as a 10x1 Firefly) has nowhere for
+        // the gesture set to enter anything.
         return full ? null : { query, name }
       }),
       act: (p) => gestures(p)
