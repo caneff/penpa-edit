@@ -116,15 +116,29 @@ html.proto-variant-C body {
 .proto-c-label {
     position: absolute;
     left: 40px;
-    top: 14px;
+    top: 26px;
     white-space: nowrap;
-    padding: 3px 8px;
+    padding: 2px 7px 3px;
     border-radius: 4px;
-    background: rgba(20, 22, 27, 0.92);
+    background: rgba(20, 22, 27, 0.85);
     color: #fff;
-    border-left: 4px solid var(--c);
+    border-left: 3px solid var(--c);
     opacity: 0;
-    transition: opacity 0.25s;
+    transition: opacity 0.2s;
+}
+
+.proto-c-label-name {
+    font-size: 12px;
+}
+
+.proto-c-label-hint {
+    font-size: 11px;
+    font-weight: 400;
+    color: #b8bec8;
+}
+
+.proto-c-label-hint:empty {
+    display: none;
 }
 
 .proto-c-show-label .proto-c-label {
@@ -132,41 +146,26 @@ html.proto-variant-C body {
     transition: none;
 }
 
-.proto-c-carousel {
+/* What the right button does: a small badge at the ring's lower left. */
+.proto-c-rbadge {
     position: absolute;
-    right: 28px;
-    top: -30px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 2px;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.proto-c-show-carousel .proto-c-carousel {
-    opacity: 1;
-    transition: none;
-}
-
-.proto-c-car-item {
-    --c: #fff;
-    white-space: nowrap;
-    padding: 2px 7px;
-    border-radius: 4px;
-    background: rgba(20, 22, 27, 0.8);
-    color: #9aa0aa;
-    font-weight: 500;
-    font-size: 12px;
+    left: -30px;
+    top: 12px;
+    width: 17px;
+    height: 17px;
+    border-radius: 50%;
+    background: #2b2f38;
+    color: var(--c);
+    border: 2px solid var(--c);
     display: flex;
     align-items: center;
-    gap: 5px;
+    justify-content: center;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
 
-.proto-c-car-cur {
-    color: #fff;
+.proto-c-rbadge .proto-c-icon {
+    font-size: 11px;
     font-weight: 700;
-    box-shadow: inset 0 0 0 1px var(--c);
 }
 
 .proto-c-car-icon {
@@ -184,8 +183,8 @@ html.proto-variant-C body {
 
 .proto-c-toast {
     position: absolute;
-    left: 40px;
-    top: 40px;
+    left: 24px;
+    top: -34px;
     white-space: nowrap;
     padding: 3px 9px;
     border-radius: 4px;
@@ -456,4 +455,161 @@ html.proto-variant-C body {
  * rule cannot beat; this variant has no panel. */
 html.proto-variant-C #float-key {
     display: none !important;
+}
+
+/* ---- The pie (hold Space or middle-click) ---- */
+.proto-c-pie {
+    position: fixed;
+    width: 0;
+    height: 0;
+    z-index: 920;
+    font: 600 13px/1.2 system-ui, 'Segoe UI', sans-serif;
+}
+
+.proto-c-pie::before {
+    content: '';
+    position: absolute;
+    left: -26px;
+    top: -26px;
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    border: 2px dashed rgba(255, 255, 255, 0.35);
+    background: rgba(20, 22, 27, 0.55);
+}
+
+.proto-c-pie-centre {
+    position: absolute;
+    left: 0;
+    top: 32px;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: rgba(20, 22, 27, 0.85);
+    font-size: 10px;
+    font-weight: 600;
+    color: #c4c8d0;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.proto-c-chip {
+    --c: #fff;
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+    padding: 5px 10px 5px 6px;
+    border-radius: 16px;
+    background: rgba(35, 38, 46, 0.96);
+    color: #e8eaed;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    cursor: pointer;
+}
+
+.proto-c-chip-r {
+    --tx: -14px;
+}
+
+.proto-c-chip-l {
+    --tx: calc(-100% + 14px);
+}
+
+.proto-c-pie > .proto-c-chip {
+    transform: translate(var(--tx, -50%), -50%);
+}
+
+.proto-c-pie > .proto-c-chip.proto-c-chip-hot {
+    transform: translate(var(--tx, -50%), -50%) scale(1.12);
+}
+
+.proto-c-chip-cur {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), inset 0 0 0 2px var(--c);
+}
+
+.proto-c-chip-hot {
+    background: var(--c);
+    color: #111;
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+.proto-c-chip-hot .proto-c-car-icon {
+    background: #111;
+    color: var(--c);
+}
+
+.proto-c-chip-num {
+    font: 600 11px/1 ui-monospace, monospace;
+    color: #9aa0aa;
+}
+
+.proto-c-chip-hot .proto-c-chip-num {
+    color: #111;
+}
+
+.proto-c-pie-centre:empty,
+.proto-c-pie-full::before {
+    display: none;
+}
+
+.proto-c-allgrid {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    display: flex;
+    gap: 14px;
+    padding: 10px 12px 12px;
+    border-radius: 10px;
+    background: rgba(28, 31, 38, 0.97);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+
+.proto-c-allcol {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.proto-c-allhead {
+    color: #9aa0aa;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 2px;
+}
+
+.proto-c-pie-full .proto-c-chip {
+    position: static;
+    transform: none;
+    padding: 2px 8px 2px 4px;
+    font-size: 12px;
+    font-weight: 500;
+    box-shadow: none;
+    background: transparent;
+}
+
+.proto-c-pie-full .proto-c-chip:hover {
+    background: var(--c);
+    color: #111;
+}
+
+.proto-c-pie-full .proto-c-chip-cur {
+    box-shadow: inset 0 0 0 2px var(--c);
+}
+
+.proto-c-tool-num {
+    font: 600 11px/1 ui-monospace, monospace;
+    color: #9aa0aa;
+    width: 10px;
+}
+
+.proto-c-tool small {
+    display: block;
+    font-size: 11px;
+    font-weight: 400;
+    color: #9aa0aa;
 }
