@@ -15,3 +15,11 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Owned file**: an upstream file the fork has taken over, marked `merge=ours`; a merge keeps our side.
 - **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
+- **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
+  generated from them. Not "trace" (Playwright's word) or "script".
+- **Step**: one input in a recording, in board terms: a pointer gesture on a board point, a content key, a mode change
+  named by its mode, sub-mode and style, an undo or redo, or an answer check.
+- **Checkpoint**: a point in a recording where the replay compares state: after each undo group, and at the end.
+- **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
+  line; timestamps and timers are left out.
+- **Safety net**: the recordings, the tests and the CI checks the migration runs under.
