@@ -93,3 +93,5 @@ mode" above:
   The same mode can be pinned more than once with different sub-modes.
 - The pin's style is the last one used on it; Tab lands on the pin with that style.
 - Picking another tool or sub-mode in the Tool card never changes a pin: the pick becomes current and the pin stays as it was.
+
+Chris, 2026-11-13, on round 3: "Recent tools should be its own window i think." Recent becomes its own desk card.
