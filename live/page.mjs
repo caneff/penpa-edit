@@ -24,6 +24,7 @@ export function useBrowser () {
 }
 
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
+// `dialogs` holds the message of every native dialog the page opened, each dismissed.
 export async function openPenpa (browser, query = '') {
   const context = await browser.newContext()
   // Penpa+'s only network loads are Google Tag Manager's: answered empty, so a run needs no network and counts as no visit.
@@ -34,7 +35,9 @@ export async function openPenpa (browser, query = '') {
   // A page error as its stack, so a failure says where it came from.
   page.on('pageerror', (e) => errors.push(e?.stack || String(e)))
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
+  const dialogs = []
+  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await page.goto(PENPA_URL + query)
   await page.waitForFunction(() => typeof pu !== 'undefined')
-  return { context, page }
+  return { context, page, dialogs }
 }
