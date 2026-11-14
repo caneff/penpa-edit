@@ -54,10 +54,22 @@
  *      included, is a picker entry; no sub-mode control.
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups (presets, round 4, are titled by genre). Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
- *   7. Round 5, mode cues and dark mode (see the comment above FAMILY): the Board frame in the mode family's
+ *   7. Round 5, mode cues and dark mode (see the comment above renderCues): the Board frame in the mode family's
  *      colour with a style-colour inner edge, the tool in the Board title, a flash of the tool name on every mode or
  *      sub-mode change, a cursor per family; each its own toggle in the top bar's "Mode cues" pulldown. A Light / Dark
  *      toggle restyles the desk and puts the board in Penpa's own dark theme (which keeps the cells white).
+ *   8. Round 6 (Chris, 2026-11-14, on round 5):
+ *      - Cursors: removed (code, CSS and the "Cursor per mode" toggle); Penpa's own cursor stays.
+ *      - Window colour by pin, not by mode: each pin owns one of 8 colour slots (PIN_COLOR, light and dark sets), kept
+ *        through reorders and reloads, so every pin differs, two pins on one mode included. A tool that is not a pin
+ *        (picked in the Mode card or from Recent) takes the lowest slot no pin holds, so it never wears a pin's colour;
+ *        with all 8 held it is neutral grey. Each chip shows its colour as a 6px left edge, and the lit chip is filled
+ *        with it, so chip and Board frame match.
+ *      - Flash: a small (14px) translucent tag near the top of the board with a dot in the window colour, the tool's
+ *        mode and sub-mode only (no style), on screen about 350ms and fading in 0.2s (was 32px, centred, 500ms).
+ *      - Chips: one line each, number + label + ×; no bold mode name, no style or setting. The label is the sub-mode
+ *        alone where it names its tool (Composite, Special, Shape), else "Mode > Sub-mode" ("Line > Normal"), else the
+ *        mode ("Surface"). The full tool name is the chip's tooltip.
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -94,6 +106,16 @@
         surface: 'Surface', multicolor: 'Multicolor', line: 'Line', lineE: 'Edge', wall: 'Wall', number: 'Number',
         symbol: 'Shape', special: 'Special', cage: 'Cage', combi: 'Composite', sudoku: 'Sudoku', move: 'Move'
     };
+
+    /**
+     * Round 6: window colours, one slot per pin (see the comment above renderCues). Light-theme colours carry white
+     * title text, dark-theme ones dark text, each at 4.5:1 or better; none is a pure puzzle blue, green, red or grey.
+     */
+    const PIN_COLOR = {
+        light: ['#2f5fc4', '#b0560a', '#66750f', '#7a3fc0', '#0f7f84', '#9c2a62', '#8a5a2b', '#4f5d75'],
+        dark: ['#6f9cf5', '#f29a4a', '#b3c94a', '#b386f0', '#3cc4c9', '#f07ab0', '#d2a06a', '#9fb0cc']
+    };
+    const NEUTRAL_COLOR = {light: '#5f6673', dark: '#a0a8b6'};
 
     // ---- Names --------------------------------------------------------------------------------------------------
 
@@ -1039,17 +1061,61 @@
 
             function clonePins(list) {
                 return list.map(function(p) {
-                    return {mode: p.mode, sub: String(p.sub), style: p.style};
+                    return {mode: p.mode, sub: String(p.sub), style: p.style, hue: p.hue};
                 });
+            }
+
+            /**
+             * Round 6: every pin owns a colour slot (PIN_COLOR index), kept through reorders and reloads. A pin without
+             * one, or sharing one with an earlier pin, takes the lowest slot no other pin holds; past 8 pins slots repeat.
+             */
+            function fixHues() {
+                const n = PIN_COLOR.light.length;
+                const used = [];
+                pins.forEach(function(p) {
+                    if (typeof p.hue === 'number' && p.hue >= 0 && p.hue < n && used.indexOf(p.hue) === -1) {
+                        used.push(p.hue);
+                    } else {
+                        p.hue = -1;
+                    }
+                });
+                pins.forEach(function(p) {
+                    if (p.hue === -1) {
+                        let h = 0;
+                        while (h < n && used.indexOf(h) !== -1) {
+                            h++;
+                        }
+                        p.hue = h < n ? h : used.length % n;
+                        used.push(p.hue);
+                    }
+                });
+            }
+
+            /** The slot a tool that is not a pin shows: the lowest one no pin holds, or -1 (neutral) when all are held. */
+            function freeHue() {
+                for (let h = 0; h < PIN_COLOR.light.length; h++) {
+                    if (!pins.some(function(p) {
+                        return p.hue === h;
+                    })) {
+                        return h;
+                    }
+                }
+                return -1;
+            }
+
+            function hueColor(h, theme) {
+                return h >= 0 ? PIN_COLOR[theme][h] : NEUTRAL_COLOR[theme];
             }
 
             const seed = seedPins();
             let pins = clonePins(readJSON(pinKey, null) || seed.pins);
+            fixHues();
             let onPin = pinIndexOf(curPair());
             let lastPinIdx = onPin;
             let seenStyle = B.getMode().style;
 
             function savePins() {
+                fixHues();
                 writeJSON(pinKey, pins);
             }
 
@@ -1162,6 +1228,23 @@
                 return [subName(p.mode, p.sub), styleName(p.mode, p.style, p.sub)].filter(Boolean).join(' · ');
             }
 
+            /**
+             * Round 6 (Chris): a chip is one line, no bold mode name, no style or setting. A sub-mode that names its tool
+             * on its own (a Composite tool, a Special object, a shape) stands alone; a generic one ("normal", "corner")
+             * gets its mode first, "Line > Normal"; a mode with no sub-mode is its mode name.
+             */
+            function chipLabel(p) {
+                const sub = subName(p.mode, p.sub);
+                const cap = sub ? sub.charAt(0).toUpperCase() + sub.slice(1) : '';
+                if (!sub) {
+                    return MODE_NAME[p.mode] || p.mode;
+                }
+                if (p.mode === 'combi' || p.mode === 'special' || p.mode === 'symbol') {
+                    return cap;
+                }
+                return (MODE_NAME[p.mode] || p.mode) + ' > ' + cap;
+            }
+
             let dragPin = -1;
             function renderPins() {
                 const b = pinsCard.body;
@@ -1169,10 +1252,11 @@
                 const strip = el('div', {class: 'proto-l-pins'});
                 pins.forEach(function(pin, i) {
                     const chip = el('div', {class: 'proto-l-pin' + (i === onPin ? ' is-on' : ''), draggable: 'true',
-                        'data-mode': pin.mode, 'data-sub': pin.sub, title: 'Click: switch. Drag: reorder.'}, [
+                        'data-mode': pin.mode, 'data-sub': pin.sub, 'data-hue': String(pin.hue),
+                        style: '--proto-l-pc:' + hueColor(pin.hue, 'light') + ';--proto-l-pcd:' + hueColor(pin.hue, 'dark'),
+                        title: toolName(pin.mode, pin.sub, pin.style) + '. Click: switch. Drag: reorder.'}, [
                         el('span', {class: 'proto-l-pinnum'}, [String(i + 1)]),
-                        el('span', {class: 'proto-l-pinname'}, [MODE_NAME[pin.mode] || pin.mode]),
-                        el('span', {class: 'proto-l-pindetail'}, [pairDetail(pin)])
+                        el('span', {class: 'proto-l-pinlabel'}, [chipLabel(pin)])
                     ]);
                     chip.appendChild(btn('proto-l-unpin', '×', function() {
                         unpinAt(i);
@@ -1885,27 +1969,25 @@
             /*
              * Chris asked to see the current mode made clearer four ways, each its own toggle in the top bar's "Mode
              * cues" pulldown (localStorage `proto-L-cues-v1`, all on by default):
-             *   frame:  the Board card's border and title strip in the mode family's colour, with a 2px inner edge in
-             *           the style's colour when the style is a colour;
+             *   frame:  the Board card's border and title strip in the window colour (round 6, below), with a 2px
+             *           inner edge in the style's colour when the style is a colour;
              *   title:  the tool's name in the Board title bar, as the Mouse card's headline (held tag included);
-             *   flash:  the tool's name large over the board for about 500ms on every mode or sub-mode change, from
-             *           any source; not on a style-only change, not for a held Shift / Ctrl; pointer-events none;
-             *   cursor: a small SVG cursor per family over the board, tinted with the style's colour where there is one.
+             *   flash:  the tool's name over the board on every mode or sub-mode change, from any source; not on a
+             *           style-only change, not for a held Shift / Ctrl; pointer-events none.
              * And a Light / Dark toggle (localStorage `proto-L-theme-v1`, light by default). Dark restyles the desk
              * (variant-L.css, html.proto-l-dark) and puts the board in Penpa's own dark theme through
              * UserSettings.color_theme (2 dark, 1 light), whose setter redraws and also writes Penpa's color_theme
              * cookie (accepted in the prototype).
+             * Round 6 (Chris): no custom cursor (Penpa's own stays). The window colour is no longer a fixed colour per
+             * mode family: each pin owns a colour slot (fixHues), so two pins on one mode still differ, and a tool that
+             * is not a pin shows freeHue(), the lowest slot no pin holds (neutral grey once all 8 are held). During a
+             * held Shift / Ctrl the colour stays the lit pin's. The flash is a small translucent tag near the top of the
+             * board, shown about 350ms.
              */
-            const FAMILY = {sudoku: 'value', number: 'value', surface: 'paint', multicolor: 'paint', line: 'path',
-                lineE: 'path', wall: 'path', symbol: 'stamp', special: 'stamp', cage: 'stamp', combi: 'genre', move: 'move'};
-            // Clear in each theme and unlike the puzzle colours (no pure blue / green / red / grey).
-            const FAMILY_COLOR = {
-                light: {value: '#2f5fc4', paint: '#c8640f', path: '#66750f', stamp: '#7a3fc0', genre: '#0f7f84', move: '#5f6673'},
-                dark: {value: '#6f9cf5', paint: '#f29a4a', path: '#b3c94a', stamp: '#b386f0', genre: '#3cc4c9', move: '#a0a8b6'}
-            };
-            const CUE_NAMES = [['frame', 'Board frame by family'], ['title', 'Tool in the Board title'],
-                ['flash', 'Flash on mode change'], ['cursor', 'Cursor per mode']];
-            let cues = Object.assign({frame: true, title: true, flash: true, cursor: true}, readJSON(LS_CUES, {}));
+            const CUE_NAMES = [['frame', 'Board frame in the pin colour'], ['title', 'Tool in the Board title'],
+                ['flash', 'Flash on mode change']];
+            const savedCues = readJSON(LS_CUES, {});
+            let cues = {frame: savedCues.frame !== false, title: savedCues.title !== false, flash: savedCues.flash !== false};
             let dark = readJSON(LS_THEME, 'light') === 'dark';
 
             const boardTool = el('span', {class: 'proto-l-boardtool'});
@@ -1915,31 +1997,24 @@
             let flashKey = null;
             let flashTimer = null;
             let flashes = 0;
+            let cueHue = -1;
 
-            /** Cursor SVGs, 24x24, white-outlined so they read on a light or a dark board. */
-            const CURSOR_SHAPE = {
-                value: ['<path d="M3 21l1.6-5.2L15.7 4.7l3.6 3.6L8.2 19.4z"/>', 3, 21],                 // pencil
-                paint: ['<path d="M12 2.5C9 7.4 5.5 11 5.5 15a6.5 6.5 0 0 0 13 0c0-4-3.5-7.6-6.5-12.5z"/>', 12, 21], // drop
-                path: ['<path d="M12 22L6 11 9 3h6l3 8z"/><path d="M12 22v-8" stroke-width="1.4"/>', 12, 22],   // pen nib
-                stamp: ['<path d="M9 3h6v5l3 3v4H6v-4l3-3z"/><path d="M5 17h14v3.5H5z"/>', 12, 21],           // stamp
-                genre: ['<circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke-width="2"/>', 12, 12],
-                move: ['<path d="M12 2l3 3.5h-2v5h5v-2l3.5 3.5-3.5 3.5v-2h-5v5h2L12 22l-3-3.5h2v-5H6v2L2.5 12 6 8.5v2h5v-5H9z"/>', 12, 12]
-            };
-            function cursorFor(fam, color) {
-                const sh = CURSOR_SHAPE[fam];
-                const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" data-cue="' + fam +
-                    '"><g fill="' + color + '" stroke="#fff" stroke-width="1.8" stroke-linejoin="round">' + sh[0] + '</g></svg>';
-                return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + sh[1] + ' ' + sh[2] + ', crosshair';
+            /** The window colour slot for the current tool: the lit pin's, else the first slot no pin holds. */
+            function currentHue() {
+                if (hold) {
+                    return cueHue; // a held sub-mode keeps the lit pin's colour, as it keeps the pin lit
+                }
+                return onPin >= 0 && pins[onPin] ? pins[onPin].hue : freeHue();
             }
 
             function renderCues(m) {
-                const fam = FAMILY[m.mode] || 'move';
-                const famColor = FAMILY_COLOR[dark ? 'dark' : 'light'][fam];
+                cueHue = currentHue();
+                const winColor = hueColor(cueHue, dark ? 'dark' : 'light');
                 const styleColor = swatchColor(m.mode, m.style, m.submode);
                 document.documentElement.classList.toggle('proto-l-cue-frame', cues.frame);
-                boardCard.card.setAttribute('data-family', fam);
+                boardCard.card.setAttribute('data-hue', String(cueHue));
                 if (cues.frame) {
-                    boardCard.card.style.setProperty('--proto-l-fam', famColor);
+                    boardCard.card.style.setProperty('--proto-l-fam', winColor);
                     // A 3px gap in the card's own colour, then the 2px style edge, so it reads even when the hues are close.
                     boardCard.body.style.boxShadow = styleColor ? 'inset 0 0 0 3px var(--proto-l-cardbg), inset 0 0 0 5px ' + styleColor : '';
                 } else {
@@ -1953,28 +2028,29 @@
                         boardTool.appendChild(el('span', {class: 'proto-l-heldtag'}, ['held']));
                     }
                 }
-                ctx.canvas.style.cursor = cues.cursor ? cursorFor(fam, styleColor || famColor) : '';
                 // Flash: only when the mode or sub-mode changed, never while a Shift / Ctrl hold is on (the held
                 // sub-mode and the return from it are both ignored, as pins and Recent ignore them).
                 const key = m.mode + '|' + m.submode;
                 if (!hold) {
                     if (flashKey !== null && key !== flashKey && cues.flash) {
-                        flash(toolName(m.mode, m.submode, m.style));
+                        flash(toolName(m.mode, m.submode, ''), winColor);
                     }
                     flashKey = key;
                 }
             }
 
-            function flash(text) {
+            function flash(text, color) {
                 flashes++;
-                flashEl.textContent = text;
+                flashEl.textContent = '';
+                flashEl.appendChild(el('i', {class: 'proto-l-flashdot', style: 'background:' + color}));
+                flashEl.appendChild(document.createTextNode(text));
                 flashEl.classList.remove('is-fading');
                 flashEl.classList.add('is-on');
                 clearTimeout(flashTimer);
                 flashTimer = setTimeout(function() {
                     flashEl.classList.add('is-fading');
                     flashEl.classList.remove('is-on');
-                }, 500);
+                }, 350);
             }
 
             // Top bar: the "Mode cues" pulldown and the Light / Dark toggle, before Reset layout.

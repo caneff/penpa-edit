@@ -125,26 +125,24 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 /* ---- Pins ---- */
 .proto-l-pins { display: flex; flex-wrap: wrap; gap: 6px; }
 .proto-l-pin {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    grid-template-rows: auto auto;
-    column-gap: 6px;
+    display: flex;
     align-items: center;
-    padding: 4px 4px 4px 8px;
+    gap: 6px;
+    padding: 3px 3px 3px 7px;
     border: 1px solid #cfcabd;
+    border-left: 6px solid var(--proto-l-pc, #cfcabd); /* round 6: the pin's window colour */
     border-radius: 7px;
     background: #fff;
     cursor: pointer;
-    min-width: 120px;
+    white-space: nowrap;
 }
-.proto-l-pin:hover { border-color: #8aa6e0; }
-.proto-l-pin.is-on { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
-.proto-l-pinnum { grid-row: span 2; font: 700 11px ui-monospace, monospace; color: #8b8676; }
-.proto-l-pin.is-on .proto-l-pinnum { color: #cdd9f5; }
+.proto-l-pinlabel { font-size: 13px; }
+.proto-l-pin:hover { border-top-color: #8aa6e0; border-right-color: #8aa6e0; border-bottom-color: #8aa6e0; }
+.proto-l-pinnum { font: 700 11px ui-monospace, monospace; color: #8b8676; }
 .proto-l-pinname { font-weight: 700; }
 .proto-l-pindetail { grid-column: 2; font-size: 11px; color: #7b7766; white-space: nowrap; }
 .proto-l-pin.is-on .proto-l-pindetail { color: #dbe5fb; }
-.proto-l-card .proto-l-body .proto-l-unpin { grid-row: 1 / span 2; grid-column: 3; padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
+.proto-l-card .proto-l-body .proto-l-unpin { padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
 .proto-l-card .proto-l-body .proto-l-unpin:hover { opacity: 1; background: rgba(0, 0, 0, .08); }
 .proto-l-note { font-size: 11.5px; color: #77735f; margin: 6px 0; }
 .proto-l-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
@@ -283,10 +281,13 @@ html.proto-l-cue-frame .proto-l-card-board .proto-l-head .proto-l-btn { backgrou
 .proto-l-boardtool .proto-l-heldtag { font-size: 10px; vertical-align: 1px; margin-left: 8px; }
 /* Flash: the tool's name centred over the board for about 500ms; it never takes a click. */
 .proto-l-flash {
-    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
-    padding: 10px 26px; border-radius: 999px; background: rgba(18, 20, 26, .78); color: #fff;
-    font-size: 32px; font-weight: 700; white-space: nowrap; opacity: 0; transition: opacity .25s ease-out;
+    position: absolute; left: 50%; top: 46px; transform: translateX(-50%); z-index: 5; pointer-events: none;
+    display: flex; align-items: center; gap: 7px;
+    padding: 4px 12px; border-radius: 999px; background: rgba(18, 20, 26, .62); color: #fff;
+    font-size: 14px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity .2s ease-out;
 }
+/* Round 6: a dot in the window colour, white-ringed so it reads on the dark tag. */
+.proto-l-flashdot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
 .proto-l-flash.is-on { opacity: 1; transition: none; }
 /* Top bar: the Mode cues pulldown and the Light / Dark toggle. */
 .proto-l-cues { position: relative; }
@@ -312,8 +313,7 @@ html.proto-variant-L.proto-l-dark body { background: #16181d; }
 .proto-l-dark .proto-l-pickmode { color: #8fb2ff; }
 .proto-l-dark .proto-l-input { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
 .proto-l-dark .proto-l-input::placeholder { color: #8d94a1; }
-.proto-l-dark .proto-l-pin { background: #2a2e37; border-color: #4a5060; }
-.proto-l-dark .proto-l-pin.is-on { background: #2b55a8; border-color: #2b55a8; color: #fff; }
+.proto-l-dark .proto-l-pin { background: #2a2e37; border-color: #4a5060; border-left-color: var(--proto-l-pcd, #4a5060); }
 .proto-l-dark .proto-l-list, .proto-l-dark .proto-l-pdlist, .proto-l-dark .proto-l-cuespanel { background: #262a32; border-color: #4a5060; color: #e3e6eb; }
 .proto-l-dark .proto-l-entry:hover, .proto-l-dark .proto-l-pditem:hover { background: #30343e; }
 .proto-l-dark .proto-l-entry.is-on, .proto-l-dark .proto-l-pditem.is-on { background: #2c3d5e; }
@@ -346,6 +346,11 @@ html.proto-variant-L.proto-l-dark body { background: #16181d; }
 .proto-l-dark .proto-l-card-board { --proto-l-cardbg: #22252c; }
 /* Dark: the family colours are light, so the title strip text is dark. */
 html.proto-l-dark.proto-l-cue-frame .proto-l-card-board .proto-l-head { color: #14161b; }
-/* Active pin chip: a darker blue, so its number and detail text pass AA in both themes. */
-.proto-l-pin.is-on { background: #2b55a8; border-color: #2b55a8; }
-.proto-l-pin.is-on .proto-l-pinnum, .proto-l-pin.is-on .proto-l-pindetail { color: #e8eefc; }
+/* Round 6: the lit pin chip is filled with its own window colour (white text in light, dark text in dark). */
+.proto-l-pin.is-on { background: var(--proto-l-pc); border-color: var(--proto-l-pc); color: #fff; }
+.proto-l-pin.is-on .proto-l-pinnum { color: #fff; }
+.proto-l-dark .proto-l-pin.is-on { background: var(--proto-l-pcd); border-color: var(--proto-l-pcd); color: #14161b; }
+.proto-l-dark .proto-l-pin.is-on .proto-l-pinnum { color: #14161b; }
+/* Round 6: the chip's × stays bare in dark too (the dark body-button rule would give it a box on the lit chip). */
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-unpin { background: transparent; border: 0; color: inherit; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-unpin:hover { background: rgba(0, 0, 0, .15); }
