@@ -111,3 +111,11 @@ Chris, 2026-11-13: "want to see it in dark mode too." A Light/Dark toggle in rou
 Chris, 2026-11-13, replacing "presets named by their contents, never by genre": "Presets should not be named as types but grouped as puzzle genres and titled as such. I only didnt want the modes themselves titled by genre." Built-in presets are titled and grouped by puzzle genre; modes, pins, the picker and Recent stay named by what they do.
 
 Chris, 2026-11-13, on zoom: "zooming is weird ... only some cards stayed in, others scrolled out" (browser zoom). Ruled: every card stays inside the window after a zoom or resize, and the board always fits its card (on load, window resize, card resize); − and + zoom inside the card, which scrolls.
+
+Chris, 2026-11-14, on round 5: "I dont like the cursors." The per-mode cursor cue is dropped; Penpa's own cursor stays.
+
+Chris, 2026-11-14: "I like the window changing color with mode, but in pinned modes at the very least, every mode should be a different color, it shouldnt be a static mapping of colors to mode." Replaces round 5's frame colour by mode family: colour is assigned per pin, so every pin differs, two pins on one mode included.
+
+Chris, 2026-11-14: "I like the mode switch popup but it could be a little less intrusive (maybe smaller, a bit more transparent, something else?)." The flash stays, toned down.
+
+Chris, 2026-11-14: "The mode chips in pinned mode shouldn't have the main type in bold font. It should just list the sub-type (or a combined main > sub title) and not show the settings. Keep it compact." A pin chip is one line: the sub-mode, or "Mode > Sub-mode"; no style or settings on it. Built in round 6.
