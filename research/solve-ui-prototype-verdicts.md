@@ -121,3 +121,5 @@ Chris, 2026-11-14: "I like the mode switch popup but it could be a little less i
 Chris, 2026-11-14: "The mode chips in pinned mode shouldn't have the main type in bold font. It should just list the sub-type (or a combined main > sub title) and not show the settings. Keep it compact." A pin chip is one line: the sub-mode, or "Mode > Sub-mode"; no style or settings on it. Built in round 6.
 
 Chris, 2026-11-14, on round 5: "the auto generated descriptions in mouse card will need some attention but thats fine." The Mouse card's per-tool left / right / drag text is known rough and is not reworked in the prototype. The wording is owed by the Interaction contract (#7), which already requires the Mouse card to say what Penpa does.
+
+Chris, 2026-11-14, on round 6 (`13d3cb9`): "i think we are pretty much there. doesn't need to be capped at 8 though." Variant L is close to final. Pin colours are not limited to a fixed palette: every pin gets its own colour, however many pins there are. Built in round 7.
