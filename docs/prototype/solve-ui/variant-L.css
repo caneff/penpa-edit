@@ -272,3 +272,80 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-pditem.has-note .proto-l-pdextra { margin-left: auto; }
 .proto-l-pditem.is-disabled { opacity: .5; cursor: default; }
 .proto-l-pditem.is-disabled:hover { background: transparent; }
+
+/* ---- Round 5: mode cues ---- */
+/* Frame: the Board card's border and title strip take the mode family's colour (set as --proto-l-fam by JS). */
+html.proto-l-cue-frame .proto-l-card-board { border: 3px solid var(--proto-l-fam, #cfcabd); }
+html.proto-l-cue-frame .proto-l-card-board .proto-l-head { background: var(--proto-l-fam, #ece8de); color: #fff; border-bottom-color: transparent; border-radius: 6px 6px 0 0; }
+html.proto-l-cue-frame .proto-l-card-board .proto-l-head .proto-l-btn { background: rgba(255, 255, 255, .92); color: #23262c; border-color: transparent; }
+/* Title: the tool's name after "Board", in normal case. */
+.proto-l-boardtool { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proto-l-boardtool .proto-l-heldtag { font-size: 10px; vertical-align: 1px; margin-left: 8px; }
+/* Flash: the tool's name centred over the board for about 500ms; it never takes a click. */
+.proto-l-flash {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none;
+    padding: 10px 26px; border-radius: 999px; background: rgba(18, 20, 26, .78); color: #fff;
+    font-size: 32px; font-weight: 700; white-space: nowrap; opacity: 0; transition: opacity .25s ease-out;
+}
+.proto-l-flash.is-on { opacity: 1; transition: none; }
+/* Top bar: the Mode cues pulldown and the Light / Dark toggle. */
+.proto-l-cues { position: relative; }
+.proto-l-cuespanel {
+    display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 960; min-width: 230px; padding: 8px 10px;
+    background: #fbfaf7; color: #23262c; border: 1px solid #cfcabd; border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.proto-l-cues.is-open .proto-l-cuespanel { display: grid; gap: 6px; }
+.proto-l-cuerow { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; }
+
+/* ---- Round 5: dark mode (html.proto-l-dark) ---- */
+html.proto-variant-L.proto-l-dark body { background: #16181d; }
+.proto-l-dark .proto-l-app { color: #e3e6eb; }
+.proto-l-dark .proto-l-desk { background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 0) 0 0 / 22px 22px, #16181d; }
+.proto-l-dark .proto-l-card { background: #22252c; border-color: #3a3f4b; box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.proto-l-dark .proto-l-head { background: #2b2f38; border-bottom-color: #3a3f4b; color: #b9bfcb; }
+.proto-l-dark .proto-l-head .proto-l-btn { background: #353a45; color: #e3e6eb; border-color: #4a5060; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-btn { color: #e3e6eb; background: #2f333d; border-color: #4a5060; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-btn:hover { background: #3a3f4b; }
+.proto-l-dark .proto-l-note, .proto-l-dark .proto-l-sub, .proto-l-dark .proto-l-group, .proto-l-dark .proto-l-edesc,
+.proto-l-dark .proto-l-emode, .proto-l-dark .proto-l-pindetail, .proto-l-dark .proto-l-pinnum, .proto-l-dark .proto-l-pdhead,
+.proto-l-dark .proto-l-pdnote, .proto-l-dark .proto-l-pddetail, .proto-l-dark .proto-l-caret { color: #a9b0bd; }
+.proto-l-dark .proto-l-pickmode { color: #8fb2ff; }
+.proto-l-dark .proto-l-input { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
+.proto-l-dark .proto-l-input::placeholder { color: #8d94a1; }
+.proto-l-dark .proto-l-pin { background: #2a2e37; border-color: #4a5060; }
+.proto-l-dark .proto-l-pin.is-on { background: #2b55a8; border-color: #2b55a8; color: #fff; }
+.proto-l-dark .proto-l-list, .proto-l-dark .proto-l-pdlist, .proto-l-dark .proto-l-cuespanel { background: #262a32; border-color: #4a5060; color: #e3e6eb; }
+.proto-l-dark .proto-l-entry:hover, .proto-l-dark .proto-l-pditem:hover { background: #30343e; }
+.proto-l-dark .proto-l-entry.is-on, .proto-l-dark .proto-l-pditem.is-on { background: #2c3d5e; }
+.proto-l-dark .proto-l-tag { background: #4a4230; color: #f0dca8; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-pinbtn.is-pinned { background: #3b6fd4; border-color: #3b6fd4; color: #fff; }
+.proto-l-dark .proto-l-pdfoot { border-top-color: #3a3f4b; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-pdbtn { background: #2f333d; color: #e3e6eb; border-color: #4a5060; }
+/* Style buttons: drawn samples use currentColor, so they draw light on the dark tile. */
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-stylebtn { background: #2f333d; color: #eef0f4; border-color: #4a5060; }
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-stylebtn.is-on { background: #2c3d5e; }
+/* Mouse card */
+.proto-l-dark .proto-l-headline { color: #e3eaff; }
+.proto-l-dark .proto-l-hsub { color: #8fb2ff; }
+.proto-l-dark .proto-l-hstyle { color: #d5d9e0; }
+.proto-l-dark .proto-l-hsep { color: #949fb8; }
+.proto-l-dark .proto-l-mrow { background: #26324a; }
+.proto-l-dark .proto-l-mg { color: #9fbdff; }
+.proto-l-dark .proto-l-mrow.is-none { background: #272a31; color: #8d94a1; }
+.proto-l-dark .proto-l-mrow.is-none .proto-l-mg { color: #8d94a1; }
+.proto-l-dark .proto-l-mrow.is-more { background: transparent; color: #c3c8d2; }
+.proto-l-dark .proto-l-mrow.is-more .proto-l-mg { color: #a5b2cc; }
+/* Recent and Rules */
+.proto-l-dark .proto-l-card .proto-l-body .proto-l-recentbtn { background: #262a32; border-color: #5a6170; }
+.proto-l-dark .proto-l-recentpin { color: #a9b0bd; }
+.proto-l-dark .proto-l-card-rules .proto-l-body { color: #d3d7de; }
+.proto-l-dark .proto-l-rs-c::after { border-color: #5a6170; }
+
+/* The board card's background, used for the gap before the style edge. */
+.proto-l-card-board { --proto-l-cardbg: #fbfaf7; }
+.proto-l-dark .proto-l-card-board { --proto-l-cardbg: #22252c; }
+/* Dark: the family colours are light, so the title strip text is dark. */
+html.proto-l-dark.proto-l-cue-frame .proto-l-card-board .proto-l-head { color: #14161b; }
+/* Active pin chip: a darker blue, so its number and detail text pass AA in both themes. */
+.proto-l-pin.is-on { background: #2b55a8; border-color: #2b55a8; }
+.proto-l-pin.is-on .proto-l-pinnum, .proto-l-pin.is-on .proto-l-pindetail { color: #e8eefc; }

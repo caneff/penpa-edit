@@ -12,6 +12,7 @@
  *      window resize (browser zoom fires one) the default cards re-run the layout for the new viewport and the moved
  *      or resized ones keep their gap to the nearer edges, clamped and shrunk to stay inside (see place()).
  *      The board always fits its card (setCellSize, 12-90 px); − / + step from the fitted size and scroll inside.
+ *      Round 5: a resize keeps a card in its column stack (the cards below move down); only a drag frees it.
  *   2. Mouse card: fixed on the desk, large, with one fixed height (round 4: the tallest any tool needs). Its headline names the whole tool, mode · sub-mode · style
  *      ("Line · helper × · green"); rows below say what Left, Right and Drag do with it. Re-rendered on every
  *      bridge onChange, so legacy keys (Z/X/C/V, Shift/Ctrl in Sudoku, Surface digits) update it too.
@@ -53,6 +54,10 @@
  *      included, is a picker entry; no sub-mode control.
  *   6. Genre names: Chris ruled them fine as searchable tags, not groups (presets, round 4, are titled by genre). Each Composite entry carries Penpa+'s own label
  *      as a tag chip ("Bulbs + dots" tagged "Akari"). Not here: genre grouping, loupes, per-genre kits, a pointer badge.
+ *   7. Round 5, mode cues and dark mode (see the comment above FAMILY): the Board frame in the mode family's
+ *      colour with a style-colour inner edge, the tool in the Board title, a flash of the tool name on every mode or
+ *      sub-mode change, a cursor per family; each its own toggle in the top bar's "Mode cues" pulldown. A Light / Dark
+ *      toggle restyles the desk and puts the board in Penpa's own dark theme (which keeps the cells white).
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -81,6 +86,8 @@
     const LS_PRESETS = 'proto-L-presets-v1';
     const LS_PINS = 'proto-L-pins-v2:'; // v2: a pin is {mode, sub, style}; v1 held bare modes
     const LS_RECENT = 'proto-L-recent-v2:';
+    const LS_CUES = 'proto-L-cues-v1'; // round 5
+    const LS_THEME = 'proto-L-theme-v1';
     const TOP = 44;
 
     const MODE_NAME = {
@@ -555,16 +562,18 @@
                 const c = resize.c;
                 c.card.classList.remove('is-resizing');
                 resize = null;
+                // Round 5 ruling (team lead): a resized card keeps pushing the cards below it in its column, so a
+                // resize saves the size only. A card keeps a saved position only once it has been dragged (x set).
                 const p = layout[c.id] || {};
-                p.x = c.card.offsetLeft;
-                p.y = c.card.offsetTop;
                 p.w = c.card.offsetWidth;
-                p.vw = desk.clientWidth;
-                p.cw = c.card.offsetWidth;
-                p.ch = c.card.offsetHeight;
-                p.vh = desk.clientHeight;
                 if (c.card.style.height) {
                     p.h = c.card.offsetHeight;
+                }
+                if (p.x != null) {
+                    p.vw = desk.clientWidth;
+                    p.vh = desk.clientHeight;
+                    p.cw = c.card.offsetWidth;
+                    p.ch = c.card.offsetHeight;
                 }
                 layout[c.id] = p;
                 writeJSON(LS_LAYOUT, layout);
@@ -741,11 +750,12 @@
                 const min = MIN_SIZE[c.id] || [160, 80];
                 const d = defaults()[c.id] || {x: 20, y: 20};
                 let x, y, w, h;
+                const moved = !!saved && saved.x != null;
                 if (saved) {
                     w = saved.w || d.w || null;
                     h = saved.h || (c.id === 'mouse' ? mouseDefaultH : d.h) || null;
-                    x = saved.x;
-                    y = saved.y;
+                    x = moved ? saved.x : d.x;
+                    y = moved ? saved.y : d.y;
                 } else {
                     x = d.x;
                     y = d.y;
@@ -755,7 +765,7 @@
                 c.card.style.width = w ? w + 'px' : '';
                 c.card.style.height = h ? h + 'px' : '';
                 c.card.classList.toggle('is-sized', !!h);
-                if (saved && saved.vw) {
+                if (moved && saved.vw) {
                     // Anchor to the nearer edge of the viewport it was saved in, keeping that edge's gap (the right gap
                     // for a right-column card, so it does not slide into the board when the column narrows).
                     const sw = saved.cw || c.card.offsetWidth;
@@ -774,7 +784,7 @@
                 if (c.card.offsetWidth > dw - 8) {
                     c.card.style.width = Math.max(min[0], dw - 8) + 'px';
                 }
-                if (!saved && y + c.card.offsetHeight > dh - 8) {
+                if (!moved && y + c.card.offsetHeight > dh - 8) {
                     shrinkH(dh - 8 - y);
                 }
                 if (c.card.offsetHeight > dh - 8) {
@@ -1871,6 +1881,141 @@
                 status.textContent = kind ? {solved: 'Solved', wrong: 'Not solved yet', none: 'No answer check'}[kind] : '';
             }
 
+            // ---- Round 5: mode cues and dark mode -----------------------------------------------------------------
+            /*
+             * Chris asked to see the current mode made clearer four ways, each its own toggle in the top bar's "Mode
+             * cues" pulldown (localStorage `proto-L-cues-v1`, all on by default):
+             *   frame:  the Board card's border and title strip in the mode family's colour, with a 2px inner edge in
+             *           the style's colour when the style is a colour;
+             *   title:  the tool's name in the Board title bar, as the Mouse card's headline (held tag included);
+             *   flash:  the tool's name large over the board for about 500ms on every mode or sub-mode change, from
+             *           any source; not on a style-only change, not for a held Shift / Ctrl; pointer-events none;
+             *   cursor: a small SVG cursor per family over the board, tinted with the style's colour where there is one.
+             * And a Light / Dark toggle (localStorage `proto-L-theme-v1`, light by default). Dark restyles the desk
+             * (variant-L.css, html.proto-l-dark) and puts the board in Penpa's own dark theme through
+             * UserSettings.color_theme (2 dark, 1 light), whose setter redraws and also writes Penpa's color_theme
+             * cookie (accepted in the prototype).
+             */
+            const FAMILY = {sudoku: 'value', number: 'value', surface: 'paint', multicolor: 'paint', line: 'path',
+                lineE: 'path', wall: 'path', symbol: 'stamp', special: 'stamp', cage: 'stamp', combi: 'genre', move: 'move'};
+            // Clear in each theme and unlike the puzzle colours (no pure blue / green / red / grey).
+            const FAMILY_COLOR = {
+                light: {value: '#2f5fc4', paint: '#c8640f', path: '#66750f', stamp: '#7a3fc0', genre: '#0f7f84', move: '#5f6673'},
+                dark: {value: '#6f9cf5', paint: '#f29a4a', path: '#b3c94a', stamp: '#b386f0', genre: '#3cc4c9', move: '#a0a8b6'}
+            };
+            const CUE_NAMES = [['frame', 'Board frame by family'], ['title', 'Tool in the Board title'],
+                ['flash', 'Flash on mode change'], ['cursor', 'Cursor per mode']];
+            let cues = Object.assign({frame: true, title: true, flash: true, cursor: true}, readJSON(LS_CUES, {}));
+            let dark = readJSON(LS_THEME, 'light') === 'dark';
+
+            const boardTool = el('span', {class: 'proto-l-boardtool'});
+            boardCard.head.insertBefore(boardTool, boardCard.head.querySelector('.proto-l-spacer'));
+            const flashEl = el('div', {class: 'proto-l-flash', 'aria-hidden': 'true'});
+            boardCard.card.appendChild(flashEl);
+            let flashKey = null;
+            let flashTimer = null;
+            let flashes = 0;
+
+            /** Cursor SVGs, 24x24, white-outlined so they read on a light or a dark board. */
+            const CURSOR_SHAPE = {
+                value: ['<path d="M3 21l1.6-5.2L15.7 4.7l3.6 3.6L8.2 19.4z"/>', 3, 21],                 // pencil
+                paint: ['<path d="M12 2.5C9 7.4 5.5 11 5.5 15a6.5 6.5 0 0 0 13 0c0-4-3.5-7.6-6.5-12.5z"/>', 12, 21], // drop
+                path: ['<path d="M12 22L6 11 9 3h6l3 8z"/><path d="M12 22v-8" stroke-width="1.4"/>', 12, 22],   // pen nib
+                stamp: ['<path d="M9 3h6v5l3 3v4H6v-4l3-3z"/><path d="M5 17h14v3.5H5z"/>', 12, 21],           // stamp
+                genre: ['<circle cx="12" cy="12" r="8.5"/><path d="M8.5 8.5l7 7M15.5 8.5l-7 7" stroke-width="2"/>', 12, 12],
+                move: ['<path d="M12 2l3 3.5h-2v5h5v-2l3.5 3.5-3.5 3.5v-2h-5v5h2L12 22l-3-3.5h2v-5H6v2L2.5 12 6 8.5v2h5v-5H9z"/>', 12, 12]
+            };
+            function cursorFor(fam, color) {
+                const sh = CURSOR_SHAPE[fam];
+                const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" data-cue="' + fam +
+                    '"><g fill="' + color + '" stroke="#fff" stroke-width="1.8" stroke-linejoin="round">' + sh[0] + '</g></svg>';
+                return 'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") ' + sh[1] + ' ' + sh[2] + ', crosshair';
+            }
+
+            function renderCues(m) {
+                const fam = FAMILY[m.mode] || 'move';
+                const famColor = FAMILY_COLOR[dark ? 'dark' : 'light'][fam];
+                const styleColor = swatchColor(m.mode, m.style, m.submode);
+                document.documentElement.classList.toggle('proto-l-cue-frame', cues.frame);
+                boardCard.card.setAttribute('data-family', fam);
+                if (cues.frame) {
+                    boardCard.card.style.setProperty('--proto-l-fam', famColor);
+                    // A 3px gap in the card's own colour, then the 2px style edge, so it reads even when the hues are close.
+                    boardCard.body.style.boxShadow = styleColor ? 'inset 0 0 0 3px var(--proto-l-cardbg), inset 0 0 0 5px ' + styleColor : '';
+                } else {
+                    boardCard.card.style.removeProperty('--proto-l-fam');
+                    boardCard.body.style.boxShadow = '';
+                }
+                boardTool.textContent = '';
+                if (cues.title) {
+                    boardTool.appendChild(document.createTextNode(' · ' + toolName(m.mode, m.submode, m.style)));
+                    if (hold) {
+                        boardTool.appendChild(el('span', {class: 'proto-l-heldtag'}, ['held']));
+                    }
+                }
+                ctx.canvas.style.cursor = cues.cursor ? cursorFor(fam, styleColor || famColor) : '';
+                // Flash: only when the mode or sub-mode changed, never while a Shift / Ctrl hold is on (the held
+                // sub-mode and the return from it are both ignored, as pins and Recent ignore them).
+                const key = m.mode + '|' + m.submode;
+                if (!hold) {
+                    if (flashKey !== null && key !== flashKey && cues.flash) {
+                        flash(toolName(m.mode, m.submode, m.style));
+                    }
+                    flashKey = key;
+                }
+            }
+
+            function flash(text) {
+                flashes++;
+                flashEl.textContent = text;
+                flashEl.classList.remove('is-fading');
+                flashEl.classList.add('is-on');
+                clearTimeout(flashTimer);
+                flashTimer = setTimeout(function() {
+                    flashEl.classList.add('is-fading');
+                    flashEl.classList.remove('is-on');
+                }, 500);
+            }
+
+            // Top bar: the "Mode cues" pulldown and the Light / Dark toggle, before Reset layout.
+            const resetBtn = bar.querySelector('.proto-l-reset');
+            const cuesPanel = el('div', {class: 'proto-l-cuespanel'});
+            CUE_NAMES.forEach(function(c) {
+                const box = el('input', {type: 'checkbox', 'data-cue': c[0]});
+                box.checked = cues[c[0]];
+                box.addEventListener('change', function() {
+                    cues[c[0]] = box.checked;
+                    writeJSON(LS_CUES, cues);
+                    renderAll(true);
+                });
+                cuesPanel.appendChild(el('label', {class: 'proto-l-cuerow'}, [box, ' ' + c[1]]));
+            });
+            const cuesWrap = el('div', {class: 'proto-l-cues'}, [
+                btn('proto-l-cuesbtn', 'Mode cues ▾', function() {
+                    cuesWrap.classList.toggle('is-open');
+                }, 'Choose how the current mode is shown'),
+                cuesPanel
+            ]);
+            document.addEventListener('mousedown', function(e) {
+                if (!cuesWrap.contains(e.target)) {
+                    cuesWrap.classList.remove('is-open');
+                }
+            }, true);
+            const themeBtn = btn('proto-l-themebtn', '', function() {
+                applyTheme(!dark);
+            }, 'Light or dark desk and board');
+            bar.insertBefore(cuesWrap, resetBtn);
+            bar.insertBefore(themeBtn, resetBtn);
+
+            function applyTheme(on) {
+                dark = on;
+                writeJSON(LS_THEME, dark ? 'dark' : 'light');
+                document.documentElement.classList.toggle('proto-l-dark', dark);
+                themeBtn.textContent = dark ? 'Light' : 'Dark';
+                UserSettings.color_theme = dark ? THEME_DARK : THEME_LIGHT; // setter redraws the board
+                renderAll(true);
+            }
+
             // ---- Render -----------------------------------------------------------------------------------------
             let lastKey = '';
             function renderAll(force) {
@@ -1886,6 +2031,7 @@
                 renderPins();
                 renderTool(m);
                 renderRecent(m);
+                renderCues(m);
                 reflow();
             }
 
@@ -1894,16 +2040,13 @@
              * one follows the upper (Tool under Mouse; Recent under Pins; Rules under Recent).
              */
             function reflow() {
-                // Round 4 columns: Mouse > Rules on the left; Pinned modes > Mode > Recent on the right.
-                if (!layout.mouse && !layout.rules) {
-                    place(cards.rules);
-                }
-                if (!layout.pins && !layout.mode) {
-                    place(cards.mode);
-                }
-                if (!layout.mode && !layout.recent) {
-                    place(cards.recent);
-                }
+                // Columns: Mouse > Rules on the left; Pinned modes > Mode > Recent on the right. Every card not
+                // dragged by the solver sits under the one above it, whatever their sizes (round 5 ruling).
+                ['rules', 'mode', 'recent'].forEach(function(id) {
+                    if (!(layout[id] && layout[id].x != null)) {
+                        place(cards[id]);
+                    }
+                });
             }
 
             function render(state) {
@@ -1954,7 +2097,13 @@
                 return pins.map(function(p) {
                     return p.style;
                 });
+            }, flashes: function() { // round 5: how many tool-name flashes have fired
+                return flashes;
             }, cards: cards, resetLayout: resetLayout};
+            // Round 5: the saved theme, applied before the first render (and Penpa's board put to match it).
+            document.documentElement.classList.toggle('proto-l-dark', dark);
+            themeBtn.textContent = dark ? 'Light' : 'Dark';
+            UserSettings.color_theme = dark ? THEME_DARK : THEME_LIGHT;
             renderAll(true);
             measureMouse();
             placeAll(); // again, now that cards have content: default columns stack by measured height
