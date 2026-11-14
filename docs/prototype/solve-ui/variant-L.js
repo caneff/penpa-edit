@@ -60,16 +60,23 @@
  *      toggle restyles the desk and puts the board in Penpa's own dark theme (which keeps the cells white).
  *   8. Round 6 (Chris, 2026-11-14, on round 5):
  *      - Cursors: removed (code, CSS and the "Cursor per mode" toggle); Penpa's own cursor stays.
- *      - Window colour by pin, not by mode: each pin owns one of 8 colour slots (PIN_COLOR, light and dark sets), kept
+ *      - Window colour by pin, not by mode: each pin owns one of 8 colour slots (round 7: uncapped), kept
  *        through reorders and reloads, so every pin differs, two pins on one mode included. A tool that is not a pin
  *        (picked in the Mode card or from Recent) takes the lowest slot no pin holds, so it never wears a pin's colour;
- *        with all 8 held it is neutral grey. Each chip shows its colour as a 6px left edge, and the lit chip is filled
+ *        with all 8 held it was neutral grey (round 7: no longer). Each chip shows its colour as a 6px left edge, and the lit chip is filled
  *        with it, so chip and Board frame match.
  *      - Flash: a small (14px) translucent tag near the top of the board with a dot in the window colour, the tool's
  *        mode and sub-mode only (no style), on screen about 350ms and fading in 0.2s (was 32px, centred, 500ms).
  *      - Chips: one line each, number + label + ×; no bold mode name, no style or setting. The label is the sub-mode
  *        alone where it names its tool (Composite, Special, Shape), else "Mode > Sub-mode" ("Line > Normal"), else the
  *        mode ("Surface"). The full tool name is the chip's tooltip.
+ *   9. Round 7 (Chris, 2026-11-14, on round 6: "doesn't need to be capped at 8"): pin colours are generated for any
+ *      number of pins (pinColor: golden-angle hues, lightness tuned per theme for the title text), still one slot per
+ *      pin, kept through reorders and reloads; a tool that is not a pin takes the lowest slot no pin holds, never grey.
+ *      Recent (Chris: "recent should use the same chips"): its entries are pin chips (shared class proto-l-chip) with
+ *      no number and no ×, wrapping like the pin strip; the pin icon stays. The colour edge is the matching pin's;
+ *      an entry matching no pin shows a plain 1px edge. (Recent still leaves out tools that match a pin, round 3, so
+ *      today every Recent chip is plain.)
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -108,14 +115,52 @@
     };
 
     /**
-     * Round 6: window colours, one slot per pin (see the comment above renderCues). Light-theme colours carry white
-     * title text, dark-theme ones dark text, each at 4.5:1 or better; none is a pure puzzle blue, green, red or grey.
+     * Round 7 (Chris: "doesn't need to be capped at 8"): the window colour of colour slot h, for any h >= 0 (see the
+     * comment above renderCues). Hue 220 + h x 137.508 degrees (the golden angle, so each new slot lands in the widest
+     * gap left); a starting lightness that cycles over three steps by slot, to separate near hues further; then the
+     * lightness is stepped until the title text reads at 4.6:1 or better: white on the light-theme colour, #14161b
+     * (6:1) on the dark-theme one. The first 12 slots are at least 33 RGB units apart in each theme.
      */
-    const PIN_COLOR = {
-        light: ['#2f5fc4', '#b0560a', '#66750f', '#7a3fc0', '#0f7f84', '#9c2a62', '#8a5a2b', '#4f5d75'],
-        dark: ['#6f9cf5', '#f29a4a', '#b3c94a', '#b386f0', '#3cc4c9', '#f07ab0', '#d2a06a', '#9fb0cc']
-    };
-    const NEUTRAL_COLOR = {light: '#5f6673', dark: '#a0a8b6'};
+    const pinColorCache = {};
+    function pinColor(h, theme) {
+        const key = theme + h;
+        if (!pinColorCache[key]) {
+            const hue = (220 + h * 137.508) % 360;
+            const light = theme === 'light';
+            let l = light ? [46, 34, 40][h % 3] : [62, 76, 69][h % 3];
+            let c = hslRgb(hue, light ? 62 : 72, l);
+            while (light ? contrast(c, [255, 255, 255]) < 4.6 && l > 5 : contrast(c, [20, 22, 27]) < 6 && l < 95) {
+                l += light ? -1 : 1;
+                c = hslRgb(hue, light ? 62 : 72, l);
+            }
+            pinColorCache[key] = '#' + c.map(function(v) {
+                return v.toString(16).padStart(2, '0');
+            }).join('');
+        }
+        return pinColorCache[key];
+    }
+
+    function hslRgb(h, s, l) {
+        s /= 100;
+        l /= 100;
+        const a = s * Math.min(l, 1 - l);
+        return [0, 8, 4].map(function(n) {
+            const k = (n + h / 30) % 12;
+            return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+        });
+    }
+
+    function contrast(a, b) {
+        const lum = function(c) {
+            const v = c.map(function(x) {
+                x /= 255;
+                return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+            });
+            return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+        };
+        const x = lum(a), y = lum(b);
+        return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+    }
 
     // ---- Names --------------------------------------------------------------------------------------------------
 
@@ -1066,14 +1111,13 @@
             }
 
             /**
-             * Round 6: every pin owns a colour slot (PIN_COLOR index), kept through reorders and reloads. A pin without
-             * one, or sharing one with an earlier pin, takes the lowest slot no other pin holds; past 8 pins slots repeat.
+             * Round 6: every pin owns a colour slot (pinColor's h), kept through reorders and reloads. A pin without one,
+             * or sharing one with an earlier pin, takes the lowest slot no other pin holds. Round 7: no cap on slots.
              */
             function fixHues() {
-                const n = PIN_COLOR.light.length;
                 const used = [];
                 pins.forEach(function(p) {
-                    if (typeof p.hue === 'number' && p.hue >= 0 && p.hue < n && used.indexOf(p.hue) === -1) {
+                    if (typeof p.hue === 'number' && p.hue >= 0 && p.hue % 1 === 0 && used.indexOf(p.hue) === -1) {
                         used.push(p.hue);
                     } else {
                         p.hue = -1;
@@ -1082,29 +1126,28 @@
                 pins.forEach(function(p) {
                     if (p.hue === -1) {
                         let h = 0;
-                        while (h < n && used.indexOf(h) !== -1) {
+                        while (used.indexOf(h) !== -1) {
                             h++;
                         }
-                        p.hue = h < n ? h : used.length % n;
-                        used.push(p.hue);
+                        p.hue = h;
+                        used.push(h);
                     }
                 });
             }
 
-            /** The slot a tool that is not a pin shows: the lowest one no pin holds, or -1 (neutral) when all are held. */
+            /** The slot a tool that is not a pin shows: the lowest one no pin holds (there always is one). */
             function freeHue() {
-                for (let h = 0; h < PIN_COLOR.light.length; h++) {
-                    if (!pins.some(function(p) {
-                        return p.hue === h;
-                    })) {
-                        return h;
-                    }
+                let h = 0;
+                while (pins.some(function(p) {
+                    return p.hue === h;
+                })) {
+                    h++;
                 }
-                return -1;
+                return h;
             }
 
             function hueColor(h, theme) {
-                return h >= 0 ? PIN_COLOR[theme][h] : NEUTRAL_COLOR[theme];
+                return pinColor(h, theme);
             }
 
             const seed = seedPins();
@@ -1251,7 +1294,7 @@
                 b.textContent = '';
                 const strip = el('div', {class: 'proto-l-pins'});
                 pins.forEach(function(pin, i) {
-                    const chip = el('div', {class: 'proto-l-pin' + (i === onPin ? ' is-on' : ''), draggable: 'true',
+                    const chip = el('div', {class: 'proto-l-chip proto-l-pin' + (i === onPin ? ' is-on' : ''), draggable: 'true',
                         'data-mode': pin.mode, 'data-sub': pin.sub, 'data-hue': String(pin.hue),
                         style: '--proto-l-pc:' + hueColor(pin.hue, 'light') + ';--proto-l-pcd:' + hueColor(pin.hue, 'dark'),
                         title: toolName(pin.mode, pin.sub, pin.style) + '. Click: switch. Drag: reorder.'}, [
@@ -1575,19 +1618,23 @@
                     body.appendChild(el('div', {class: 'proto-l-note proto-l-recentempty'}, ['Modes you use appear here']));
                     return;
                 }
+                // Round 7 (Chris: "recent should use the same chips"): a Recent entry is a pin chip without number
+                // or ×: one line, chipLabel, the full tool name as tooltip, the pin icon to pin it. Its colour edge is
+                // the matching pin's; an entry matching no pin owns no colour and shows a plain edge.
                 const list = el('div', {class: 'proto-l-recentlist'});
                 shown.forEach(function(r) {
-                    const b = btn('proto-l-recentbtn', '', function(e) {
+                    const k = pinIndexOf(r);
+                    const b = el('div', {class: 'proto-l-chip proto-l-recentbtn' + (k >= 0 ? '' : ' is-plain'), role: 'button',
+                        'data-mode': r.mode, 'data-sub': r.sub, title: toolName(r.mode, r.sub, r.style),
+                        style: k >= 0 ? '--proto-l-pc:' + hueColor(pins[k].hue, 'light') + ';--proto-l-pcd:' + hueColor(pins[k].hue, 'dark') : ''},
+                        [el('span', {class: 'proto-l-pinlabel'}, [chipLabel(r)])]);
+                    b.addEventListener('click', function(e) {
                         if (e.target.closest('.proto-l-recentpin')) {
                             pinPair(r);
                         } else {
                             goTo(r);
                         }
-                    }, toolName(r.mode, r.sub, r.style));
-                    b.setAttribute('data-mode', r.mode);
-                    b.setAttribute('data-sub', r.sub);
-                    b.appendChild(el('span', {class: 'proto-l-pinname'}, [MODE_NAME[r.mode] || r.mode]));
-                    b.appendChild(el('span', {class: 'proto-l-pindetail'}, [pairDetail(r)]));
+                    });
                     const pin = el('span', {class: 'proto-l-recentpin', title: 'Pin ' + toolName(r.mode, r.sub, '')});
                     pin.innerHTML = PIN_ICON;
                     b.appendChild(pin);
@@ -1980,7 +2027,7 @@
              * cookie (accepted in the prototype).
              * Round 6 (Chris): no custom cursor (Penpa's own stays). The window colour is no longer a fixed colour per
              * mode family: each pin owns a colour slot (fixHues), so two pins on one mode still differ, and a tool that
-             * is not a pin shows freeHue(), the lowest slot no pin holds (neutral grey once all 8 are held). During a
+             * is not a pin shows freeHue(), the lowest slot no pin holds (round 7: slots are uncapped). During a
              * held Shift / Ctrl the colour stays the lit pin's. The flash is a small translucent tag near the top of the
              * board, shown about 350ms.
              */

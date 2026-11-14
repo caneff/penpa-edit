@@ -124,7 +124,7 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 
 /* ---- Pins ---- */
 .proto-l-pins { display: flex; flex-wrap: wrap; gap: 6px; }
-.proto-l-pin {
+.proto-l-chip {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -137,7 +137,7 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
     white-space: nowrap;
 }
 .proto-l-pinlabel { font-size: 13px; }
-.proto-l-pin:hover { border-top-color: #8aa6e0; border-right-color: #8aa6e0; border-bottom-color: #8aa6e0; }
+.proto-l-chip:hover { border-top-color: #8aa6e0; border-right-color: #8aa6e0; border-bottom-color: #8aa6e0; }
 .proto-l-pinnum { font: 700 11px ui-monospace, monospace; color: #8b8676; }
 .proto-l-pinname { font-weight: 700; }
 .proto-l-pindetail { grid-column: 2; font-size: 11px; color: #7b7766; white-space: nowrap; }
@@ -233,15 +233,10 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 /* ---- Round 4: the Recent card (left column, under Pinned modes) ---- */
 .proto-l-card-recent { width: 380px; }
 .proto-l-recentempty { margin: 2px 0; }
-.proto-l-recentlist { display: flex; flex-direction: column; gap: 5px; }
-.proto-l-card .proto-l-body .proto-l-recentbtn {
-    display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; column-gap: 6px; width: 100%;
-    text-align: left; padding: 4px 6px 4px 10px; line-height: 1.25; background: #fff; border: 1px dashed #b9b3a2; border-radius: 7px;
-}
-.proto-l-card .proto-l-body .proto-l-recentbtn:hover { border-color: #8aa6e0; border-style: solid; }
-.proto-l-recentbtn .proto-l-pinname { grid-column: 1; font-size: 12.5px; }
-.proto-l-recentbtn .proto-l-pindetail { grid-column: 1; }
-.proto-l-recentpin { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: inline-flex; padding: 3px; border-radius: 4px; color: #8b8676; line-height: 0; }
+/* Round 7: Recent entries are chips (.proto-l-chip, styled with the pins), wrapping like the pin strip. */
+.proto-l-recentlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-l-chip.is-plain { border-left-width: 1px; padding-left: 9px; }
+.proto-l-recentpin { display: inline-flex; padding: 3px; border-radius: 4px; color: #8b8676; line-height: 0; }
 .proto-l-recentpin:hover { background: #e3ebfb; color: #3b6fd4; }
 
 /* No sub-mode control and no style: the options area takes no space at all. */
@@ -313,7 +308,7 @@ html.proto-variant-L.proto-l-dark body { background: #16181d; }
 .proto-l-dark .proto-l-pickmode { color: #8fb2ff; }
 .proto-l-dark .proto-l-input { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
 .proto-l-dark .proto-l-input::placeholder { color: #8d94a1; }
-.proto-l-dark .proto-l-pin { background: #2a2e37; border-color: #4a5060; border-left-color: var(--proto-l-pcd, #4a5060); }
+.proto-l-dark .proto-l-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--proto-l-pcd, #4a5060); }
 .proto-l-dark .proto-l-list, .proto-l-dark .proto-l-pdlist, .proto-l-dark .proto-l-cuespanel { background: #262a32; border-color: #4a5060; color: #e3e6eb; }
 .proto-l-dark .proto-l-entry:hover, .proto-l-dark .proto-l-pditem:hover { background: #30343e; }
 .proto-l-dark .proto-l-entry.is-on, .proto-l-dark .proto-l-pditem.is-on { background: #2c3d5e; }
@@ -336,7 +331,6 @@ html.proto-variant-L.proto-l-dark body { background: #16181d; }
 .proto-l-dark .proto-l-mrow.is-more { background: transparent; color: #c3c8d2; }
 .proto-l-dark .proto-l-mrow.is-more .proto-l-mg { color: #a5b2cc; }
 /* Recent and Rules */
-.proto-l-dark .proto-l-card .proto-l-body .proto-l-recentbtn { background: #262a32; border-color: #5a6170; }
 .proto-l-dark .proto-l-recentpin { color: #a9b0bd; }
 .proto-l-dark .proto-l-card-rules .proto-l-body { color: #d3d7de; }
 .proto-l-dark .proto-l-rs-c::after { border-color: #5a6170; }
