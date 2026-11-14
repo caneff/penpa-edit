@@ -235,7 +235,7 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
 .proto-l-recentempty { margin: 2px 0; }
 /* Round 7: Recent entries are chips (.proto-l-chip, styled with the pins), wrapping like the pin strip. */
 .proto-l-recentlist { display: flex; flex-wrap: wrap; gap: 6px; }
-.proto-l-chip.is-plain { border-left-width: 1px; padding-left: 9px; }
+.proto-l-recentbtn.proto-l-chip { border-left-width: 1px; padding-left: 9px; } /* Recent tools own no colour */
 .proto-l-recentpin { display: inline-flex; padding: 3px; border-radius: 4px; color: #8b8676; line-height: 0; }
 .proto-l-recentpin:hover { background: #e3ebfb; color: #3b6fd4; }
 

@@ -74,9 +74,8 @@
  *      number of pins (pinColor: golden-angle hues, lightness tuned per theme for the title text), still one slot per
  *      pin, kept through reorders and reloads; a tool that is not a pin takes the lowest slot no pin holds, never grey.
  *      Recent (Chris: "recent should use the same chips"): its entries are pin chips (shared class proto-l-chip) with
- *      no number and no ×, wrapping like the pin strip; the pin icon stays. The colour edge is the matching pin's;
- *      an entry matching no pin shows a plain 1px edge. (Recent still leaves out tools that match a pin, round 3, so
- *      today every Recent chip is plain.)
+ *      no number and no ×, wrapping like the pin strip; the pin icon stays. Recent keeps the round 3 rule (team lead,
+ *      2026-11-14): it lists only tools that are not pins, so its chips own no colour and have a plain 1px edge.
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -1619,14 +1618,12 @@
                     return;
                 }
                 // Round 7 (Chris: "recent should use the same chips"): a Recent entry is a pin chip without number
-                // or ×: one line, chipLabel, the full tool name as tooltip, the pin icon to pin it. Its colour edge is
-                // the matching pin's; an entry matching no pin owns no colour and shows a plain edge.
+                // or ×: one line, chipLabel, the full tool name as tooltip, the pin icon to pin it. Recent lists only
+                // tools that are not pins, and those own no colour, so its chips have a plain edge.
                 const list = el('div', {class: 'proto-l-recentlist'});
                 shown.forEach(function(r) {
-                    const k = pinIndexOf(r);
-                    const b = el('div', {class: 'proto-l-chip proto-l-recentbtn' + (k >= 0 ? '' : ' is-plain'), role: 'button',
-                        'data-mode': r.mode, 'data-sub': r.sub, title: toolName(r.mode, r.sub, r.style),
-                        style: k >= 0 ? '--proto-l-pc:' + hueColor(pins[k].hue, 'light') + ';--proto-l-pcd:' + hueColor(pins[k].hue, 'dark') : ''},
+                    const b = el('div', {class: 'proto-l-chip proto-l-recentbtn', role: 'button',
+                        'data-mode': r.mode, 'data-sub': r.sub, title: toolName(r.mode, r.sub, r.style)},
                         [el('span', {class: 'proto-l-pinlabel'}, [chipLabel(r)])]);
                     b.addEventListener('click', function(e) {
                         if (e.target.closest('.proto-l-recentpin')) {
