@@ -127,3 +127,5 @@ Chris, 2026-11-14, on round 6 (`13d3cb9`): "i think we are pretty much there. do
 Chris, 2026-11-14: "and recent should use the same chips". Recent's entries are the same one-line chips as Pinned modes, without a number or a ×. Built in round 7.
 
 Chris, 2026-11-14, on round 7 (`054359b`, `aa0824e`): "basically good. cards should be spread out vertically on each side in order to give them room to grow down if need be." The default layout spreads each side column's cards down the window's height, each with free space below it to grow into. Built in round 8.
+
+Chris, 2026-11-14: "lets just finalize from there for now", then "also title could be more prominent". Round 8, with the spread-out side cards and a more prominent puzzle title, is variant L's final round for now.
