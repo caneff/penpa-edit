@@ -133,3 +133,5 @@ Chris, 2026-11-14: "lets just finalize from there for now", then "also title cou
 Chris, 2026-11-14: "undo redo pause settings can be symbols, same with light dark toggle", and on what Check does (it compares the board with the answer, which Penpa already does on every change and announces with its Congratulations popup): the Check button is removed. A mistake check that marks wrong cells is a possible later feature, not part of the MVP. Both are built in round 8.
 
 Chris, 2026-11-14: "should have a restart button too". A Restart symbol button in the top bar: after a confirmation it clears the solver's entries (never the givens), the undo history and the timer. Penpa hides its own "Delete all" in solve mode (`general.js:3222`). Built in round 8.
+
+**Final (Chris, 2026-11-14):** variant L is frozen at `a023d8a` on `prototype/solve-ui` (pushed), round 8 being `191ad9e`. It is the design baseline for **Interaction contract** (#7) and **Layout and look** (#8). Run it with `npm run prototype` in a checkout of that branch, then open `http://127.0.0.1:8765/?variant=L` followed by any Penpa+ solve link's `#...` part.
