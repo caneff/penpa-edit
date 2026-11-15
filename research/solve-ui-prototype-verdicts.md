@@ -131,3 +131,5 @@ Chris, 2026-11-14, on round 7 (`054359b`, `aa0824e`): "basically good. cards sho
 Chris, 2026-11-14: "lets just finalize from there for now", then "also title could be more prominent". Round 8, with the spread-out side cards and a more prominent puzzle title, is variant L's final round for now.
 
 Chris, 2026-11-14: "undo redo pause settings can be symbols, same with light dark toggle", and on what Check does (it compares the board with the answer, which Penpa already does on every change and announces with its Congratulations popup): the Check button is removed. A mistake check that marks wrong cells is a possible later feature, not part of the MVP. Both are built in round 8.
+
+Chris, 2026-11-14: "should have a restart button too". A Restart symbol button in the top bar: after a confirmation it clears the solver's entries (never the givens), the undo history and the timer. Penpa hides its own "Delete all" in solve mode (`general.js:3222`). Built in round 8.
