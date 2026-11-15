@@ -1,0 +1,298 @@
+/*
+ * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant O styles: variant-M.css without M's
+ * hand-restored Web Awesome spacing. Penpa's stylesheets sit in `@layer penpa` (variant-O.js layerPenpaCss()), so they
+ * reach neither these rules nor Web Awesome's components.
+ * From M: L's layout and sizes (variant-L.css), with every colour, radius, shadow and font taken from Web Awesome's
+ * default theme tokens, so the hand-written chrome matches the Web Awesome controls. Dark: html.wa-dark flips the
+ * tokens; the few html.proto-o-dark rules left are the pin colours and Penpa's board, which are ours.
+ */
+@import url('vendor/webawesome/webawesome-default-theme.css');
+
+/* Shape mode re-shows the legacy floating panel with an inline style (class_p.js:1616-1619). */
+html.proto-variant-O #float-key { display: none !important; }
+/* Penpa's legacy dialogs ("All Penpa+ settings...") sit outside the bridge's legacy root, at z-index 2
+   (base-structure.css), under the desk (z-index 10); lift them over it. L has the same bug (its Settings button opens
+   the panel out of sight); L is frozen, so it is fixed only here. */
+html.proto-variant-O .modal { z-index: 1000; }
+html.proto-variant-O body { overflow: hidden; background: var(--wa-color-surface-lowered); }
+
+.proto-o-app {
+    user-select: none; /* chrome text is not selectable, as on Penpa's page; editable fields still are */
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    color: var(--wa-color-text-normal);
+    font-family: var(--wa-font-family-body);
+    font-size: 13px;
+    line-height: var(--wa-line-height-condensed);
+    --proto-o-accent: var(--wa-color-brand-fill-loud);
+    --proto-o-accent-quiet: var(--wa-color-brand-fill-quiet);
+    --proto-o-accent-on: var(--wa-color-brand-on-quiet);
+    --proto-o-line: var(--wa-color-surface-border);
+    --proto-o-quiet: var(--wa-color-text-quiet);
+}
+.proto-o-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---- Top bar ---- */
+.proto-o-bar {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: var(--wa-space-2xs);
+    padding: 0 var(--wa-space-m);
+    background: var(--wa-color-surface-raised);
+    border-bottom: var(--wa-border-width-s) solid var(--proto-o-line);
+    box-shadow: var(--wa-shadow-s);
+    z-index: 950;
+    box-sizing: border-box;
+}
+/* Round 8: the title leads the bar; the Penpa+ mark is small and muted; the author sits on the title's baseline. */
+.proto-o-brand { font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .04em; color: var(--proto-o-quiet); }
+.proto-o-title { font-size: 20px; font-weight: 800; color: var(--wa-color-text-normal); margin-left: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-o-author { font-size: 13px; color: var(--proto-o-quiet); margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.proto-o-bar > *:not(.proto-o-title):not(.proto-o-author):not(.proto-o-spacer) { flex-shrink: 0; }
+.proto-o-spacer { flex: 1; }
+.proto-o-timer { font: 600 13px var(--wa-font-family-code); min-width: 52px; text-align: right; color: var(--wa-color-text-normal); margin: 0 2px; }
+/* Symbol buttons: square, the icon centred. */
+.proto-o-bar wa-button.proto-o-iconbtn::part(button) { width: 34px; padding: 0; justify-content: center; }
+.proto-o-bar wa-button.proto-o-iconbtn svg { display: block; }
+.proto-o-reset { margin-left: var(--wa-space-xs); }
+
+/* Hand-written buttons that stay (chip ×, picker Pin, style buttons). */
+.proto-o-btn {
+    font: inherit;
+    color: inherit;
+    background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-o-line);
+    border-radius: var(--wa-border-radius-m);
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-o-btn:hover { background: var(--wa-color-neutral-fill-quiet); }
+.proto-o-btn:disabled { opacity: .4; cursor: default; }
+.proto-o-btn[hidden] { display: none; }
+
+.proto-o-desk {
+    position: absolute;
+    left: 0; right: 0; top: 44px; bottom: 0;
+    background:
+        radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--wa-color-text-normal) 10%, transparent) 1px, transparent 0) 0 0 / 22px 22px,
+        var(--wa-color-surface-lowered);
+    overflow: hidden;
+}
+
+/* ---- Cards ---- */
+.proto-o-card {
+    position: absolute;
+    box-sizing: border-box; /* round 4: a saved size is offsetWidth / offsetHeight, border included */
+    background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-o-line);
+    border-radius: var(--wa-border-radius-l);
+    box-shadow: var(--wa-shadow-s);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+}
+.proto-o-card.is-dragging { box-shadow: var(--wa-shadow-l); opacity: .97; }
+.proto-o-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    min-height: 28px;
+    box-sizing: border-box;
+    background: var(--wa-color-surface-lowered);
+    border-bottom: var(--wa-border-width-s) solid var(--proto-o-line);
+    border-radius: var(--wa-border-radius-l) var(--wa-border-radius-l) 0 0;
+    cursor: grab;
+    user-select: none;
+    font-size: 11px;
+    font-weight: var(--wa-font-weight-bold);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--proto-o-quiet);
+}
+.proto-o-card.is-dragging .proto-o-head { cursor: grabbing; }
+.proto-o-head wa-button { text-transform: none; letter-spacing: 0; }
+.proto-o-body { padding: 10px 12px; overflow: auto; }
+
+.proto-o-card-board .proto-o-body { padding: 8px; overflow: visible; }
+.proto-o-card-pins { width: 380px; }
+.proto-o-card-pins .proto-o-body { min-height: 150px; overflow: visible; }
+.proto-o-card-rules { width: 380px; }
+.proto-o-card-rules .proto-o-body { max-height: 520px; box-sizing: border-box; font-size: 12.5px; color: var(--wa-color-text-normal); } /* max-height also set by place() */
+.proto-o-card-mode { width: 380px; }
+.proto-o-card-mode .proto-o-body { overflow: visible; }
+.proto-o-card-mouse { width: 380px; border: 2px solid var(--proto-o-accent); box-shadow: var(--wa-shadow-m); }
+.proto-o-card-mouse .proto-o-head { background: var(--proto-o-accent); color: var(--wa-color-brand-on-loud); border-bottom-color: transparent; border-radius: calc(var(--wa-border-radius-l) - 2px) calc(var(--wa-border-radius-l) - 2px) 0 0; }
+
+/* ---- Mouse card ---- */
+.proto-o-headline { font-size: 22px; font-weight: var(--wa-font-weight-bold); line-height: 1.2; color: var(--wa-color-brand-on-normal); margin-bottom: 10px; }
+.proto-o-hsep { color: var(--proto-o-quiet); font-weight: 400; }
+.proto-o-hsub { color: var(--proto-o-accent-on); }
+.proto-o-hstyle { color: var(--wa-color-text-normal); white-space: nowrap; }
+.proto-o-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+.proto-o-mrows { display: grid; gap: 4px; }
+.proto-o-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: var(--wa-border-radius-m); background: var(--proto-o-accent-quiet); font-size: 14px; }
+.proto-o-mrow.is-none { background: var(--wa-color-neutral-fill-quiet); color: var(--proto-o-quiet); }
+.proto-o-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 8px; color: var(--proto-o-quiet); }
+.proto-o-mg { font-weight: var(--wa-font-weight-bold); color: var(--proto-o-accent-on); }
+.proto-o-mrow.is-none .proto-o-mg { color: var(--proto-o-quiet); }
+.proto-o-mrow.is-more .proto-o-mg { font-weight: 600; color: var(--proto-o-quiet); }
+
+/* ---- Pins ---- */
+.proto-o-pins { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-o-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 3px 3px 7px;
+    border: var(--wa-border-width-s) solid var(--proto-o-line);
+    border-left: 6px solid var(--proto-o-pc, var(--proto-o-line)); /* round 6: the pin's window colour */
+    border-radius: var(--wa-border-radius-m);
+    background: var(--wa-color-surface-default);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-o-pinlabel { font-size: 13px; }
+.proto-o-chip:hover { border-top-color: var(--wa-color-brand-border-normal); border-right-color: var(--wa-color-brand-border-normal); border-bottom-color: var(--wa-color-brand-border-normal); }
+.proto-o-pinnum { font: 700 11px var(--wa-font-family-code); color: var(--proto-o-quiet); }
+.proto-o-card .proto-o-body .proto-o-unpin { padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
+.proto-o-card .proto-o-body .proto-o-unpin:hover { opacity: 1; background: rgba(0, 0, 0, .08); }
+.proto-o-note { font-size: 11.5px; color: var(--proto-o-quiet); margin: 6px 0; }
+.proto-o-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; align-items: center; }
+.proto-o-sub { font-size: 10.5px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-o-quiet); margin: 8px 0 4px; }
+.proto-o-input {
+    font: inherit; padding: 4px 8px; border: var(--wa-form-control-border-width) solid var(--wa-form-control-border-color);
+    border-radius: var(--wa-form-control-border-radius); background: var(--wa-form-control-background-color);
+    color: var(--wa-form-control-value-color); flex: 1; min-width: 0;
+}
+.proto-o-input::placeholder { color: var(--wa-form-control-placeholder-color); }
+.proto-o-input:focus { outline: var(--wa-focus-ring); outline-offset: var(--wa-focus-ring-offset); }
+
+/* ---- Mode browser ---- */
+.proto-o-group { font-size: 10.5px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-o-quiet); margin: 10px 0 3px; }
+.proto-o-group:first-child { margin-top: 0; }
+.proto-o-entry {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    padding: 5px 8px;
+    border-radius: var(--wa-border-radius-m);
+    cursor: pointer;
+}
+.proto-o-entry:hover { background: var(--wa-color-neutral-fill-quiet); }
+.proto-o-entry.is-on { background: var(--proto-o-accent-quiet); box-shadow: inset 3px 0 0 var(--proto-o-accent); }
+.proto-o-ename { font-weight: 600; }
+.proto-o-emode { font-weight: 400; font-size: 11px; color: var(--proto-o-quiet); margin-left: 6px; }
+.proto-o-edesc { grid-column: 1; font-size: 11.5px; color: var(--proto-o-quiet); }
+.proto-o-entry .proto-o-pinbtn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.proto-o-card .proto-o-body .proto-o-pinbtn { padding: 2px 9px; font-size: 12px; }
+.proto-o-card .proto-o-body .proto-o-pinbtn.is-pinned { background: var(--proto-o-accent); border-color: var(--proto-o-accent); color: var(--wa-color-brand-on-loud); }
+
+/* Tag chips (Penpa's own labels, often a genre name): searchable, never a group. */
+.proto-o-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--wa-border-radius-pill); background: var(--wa-color-warning-fill-quiet); color: var(--wa-color-warning-on-quiet); font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; }
+
+/* ---- Mode card ---- */
+.proto-o-pickmode { color: var(--proto-o-accent-on); letter-spacing: 0; text-transform: none; font-size: 12px; }
+.proto-o-picker { position: relative; }
+.proto-o-pickfield { position: relative; }
+.proto-o-caret { color: var(--proto-o-quiet); font-size: 11px; margin-left: 4px; }
+.proto-o-pickfield .proto-o-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.proto-o-search { display: block; width: 100%; box-sizing: border-box; padding: 7px 26px 7px 10px; font-size: 15px; font-weight: 600; }
+.proto-o-picker.is-open .proto-o-search { font-weight: 400; }
+.proto-o-list {
+    display: none; margin-top: 6px; /* round 3: in flow, so it pushes the style controls down */
+    max-height: 470px; overflow: auto; padding: 6px 8px; background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-o-line); border-radius: var(--wa-border-radius-l);
+    box-shadow: inset 0 1px 4px var(--wa-color-shadow);
+}
+.proto-o-picker.is-open .proto-o-list { display: block; }
+.proto-o-entry.is-active { outline: 2px solid var(--wa-color-brand-border-normal); outline-offset: -2px; }
+.proto-o-toolopts { margin-top: 10px; display: grid; gap: 8px; }
+.proto-o-card.has-open { z-index: 800 !important; }
+
+/* ---- Round 3: one button per style ---- */
+.proto-o-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.proto-o-card .proto-o-body .proto-o-stylebtn {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; line-height: 0;
+    color: var(--wa-color-text-normal); background: var(--wa-color-surface-default); border: var(--wa-border-width-s) solid var(--proto-o-line);
+    border-radius: var(--wa-border-radius-s); box-sizing: border-box;
+}
+.proto-o-card .proto-o-body .proto-o-stylebtn:hover { border-color: var(--wa-color-brand-border-normal); }
+.proto-o-card .proto-o-body .proto-o-stylebtn.is-on { border-color: var(--proto-o-accent); box-shadow: 0 0 0 2px var(--proto-o-accent); background: var(--proto-o-accent-quiet); }
+
+/* ---- Recent ---- */
+.proto-o-card-recent { width: 380px; }
+.proto-o-recentempty { margin: 2px 0; }
+.proto-o-recentlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-o-recentbtn.proto-o-chip { border-left-width: var(--wa-border-width-s); padding-left: 9px; } /* Recent tools own no colour */
+.proto-o-recentpin { display: inline-flex; padding: 3px; border-radius: var(--wa-border-radius-s); color: var(--proto-o-quiet); line-height: 0; }
+.proto-o-recentpin:hover { background: var(--proto-o-accent-quiet); color: var(--proto-o-accent); }
+
+.proto-o-toolopts[hidden] { display: none; }
+
+/* Held Shift / Ctrl in Sudoku: the Mouse card names the temporary tool with this tag. */
+.proto-o-heldtag { display: inline-block; margin-left: 10px; padding: 1px 8px; border-radius: var(--wa-border-radius-pill); background: var(--wa-color-warning-fill-normal); color: var(--wa-color-warning-on-normal); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
+
+/* ---- Resizable cards ---- */
+.proto-o-rs { position: absolute; z-index: 2; }
+.proto-o-rs-r { top: 8px; right: -4px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.proto-o-rs-b { left: 8px; right: 8px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.proto-o-rs-c { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: nwse-resize; }
+.proto-o-rs-c::after { content: ""; position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px;
+    border-right: 2px solid var(--wa-color-neutral-border-normal); border-bottom: 2px solid var(--wa-color-neutral-border-normal); }
+.proto-o-card.is-resizing { box-shadow: var(--wa-shadow-l); user-select: none; }
+.proto-o-card.is-sized .proto-o-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.proto-o-card.is-sized.has-open .proto-o-body { overflow: visible; }
+.proto-o-card-board.is-sized .proto-o-body { overflow: auto; display: flex; }
+.proto-o-card-board .proto-o-body > #dvique { margin: auto; flex: none; }
+
+/* ---- Menus (wa-dropdown) ---- */
+.proto-o-presets::part(menu) { max-height: min(70vh, 560px); overflow: auto; min-width: 340px; }
+.proto-o-menuhead { margin: var(--wa-space-xs) var(--wa-space-s) var(--wa-space-3xs); font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-o-quiet); }
+.proto-o-itemname { font-weight: 600; }
+.proto-o-itemnote { font-size: var(--wa-font-size-2xs); color: var(--proto-o-quiet); white-space: normal; line-height: 1.3; max-width: 300px; }
+.proto-o-cues wa-dropdown-item { white-space: nowrap; }
+
+/* ---- Dialogs (wa-dialog) ---- */
+.proto-o-dialog { --width: 420px; }
+.proto-o-dialog::part(body) { font-size: var(--wa-font-size-s); }
+.proto-o-dlgtext { margin: 0 0 var(--wa-space-m); line-height: 1.5; color: var(--wa-color-text-normal); }
+.proto-o-settingsdlg { --width: 460px; }
+.proto-o-setgroup { display: grid; gap: var(--wa-space-m); padding-bottom: var(--wa-space-l); }
+.proto-o-setgroup + .proto-o-setgroup { border-top: var(--wa-border-width-s) solid var(--proto-o-line); padding-top: var(--wa-space-m); }
+.proto-o-sethead { margin: 0; font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-o-quiet); }
+.proto-o-legacyset { margin-right: auto; }
+.proto-o-settingsdlg::part(footer) { justify-content: space-between; }
+
+/* ---- Round 5: mode cues ---- */
+html.proto-o-cue-frame .proto-o-card-board { border: 3px solid var(--proto-o-fam, var(--proto-o-line)); }
+html.proto-o-cue-frame .proto-o-card-board .proto-o-head { background: var(--proto-o-fam, var(--wa-color-surface-lowered)); color: #fff; border-bottom-color: transparent; border-radius: calc(var(--wa-border-radius-l) - 3px) calc(var(--wa-border-radius-l) - 3px) 0 0; }
+html.proto-o-cue-frame .proto-o-card-board .proto-o-head wa-button::part(button) { background: rgba(255, 255, 255, .92); color: #23262c; }
+.proto-o-boardtool { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proto-o-boardtool .proto-o-heldtag { font-size: 10px; vertical-align: 1px; margin-left: 8px; }
+.proto-o-flash {
+    position: absolute; left: 50%; top: 46px; transform: translateX(-50%); z-index: 5; pointer-events: none;
+    display: flex; align-items: center; gap: 7px;
+    padding: 4px 12px; border-radius: var(--wa-border-radius-pill); background: rgba(18, 20, 26, .62); color: #fff;
+    font-size: 14px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity .2s ease-out;
+}
+.proto-o-flashdot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
+.proto-o-flash.is-on { opacity: 1; transition: none; }
+
+/* ---- Dark: the tokens flip under html.wa-dark; what is left is ours ---- */
+html.proto-variant-O.proto-o-dark body { background: var(--wa-color-surface-lowered); }
+.proto-o-dark .proto-o-chip { border-left-color: var(--proto-o-pcd, var(--proto-o-line)); }
+.proto-o-dark .proto-o-recentbtn.proto-o-chip { border-left-color: var(--proto-o-line); }
+.proto-o-card-board { --proto-o-cardbg: var(--wa-color-surface-default); }
+html.proto-o-dark.proto-o-cue-frame .proto-o-card-board .proto-o-head { color: #14161b; }
+/* Round 6: the lit pin chip is filled with its own window colour (white text in light, dark text in dark). */
+.proto-o-pin.is-on { background: var(--proto-o-pc); border-color: var(--proto-o-pc); color: #fff; }
+.proto-o-pin.is-on .proto-o-pinnum { color: #fff; }
+.proto-o-dark .proto-o-pin.is-on { background: var(--proto-o-pcd); border-color: var(--proto-o-pcd); color: #14161b; }
+.proto-o-dark .proto-o-pin.is-on .proto-o-pinnum { color: #14161b; }
+.proto-o-dark .proto-o-card .proto-o-body .proto-o-unpin:hover { background: rgba(0, 0, 0, .15); }

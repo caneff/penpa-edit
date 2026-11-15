@@ -20,6 +20,20 @@ the Restart and Settings dialogs, the settings switches and selects), so L | M |
 - **N, L + platform**: the same controls with native `<dialog>`, `popover`, `light-dark()`, `@starting-style` and a
   hand-written token sheet; no dependency.
 
+**Variant O (2026-11-15): M with its two costs removed.** Chris ruled that the solve UI uses Web Awesome 3 for its stock
+controls (caneff/penpa-edit#8). O is M (same bundle, same chrome) without M's two workarounds:
+
+- **CSS**: Penpa's six stylesheets are re-imported into `@layer penpa`, declared before Web Awesome's layers, and their
+  `<link>`s disabled (`layerPenpaCss()` in `variant-O.js`; the imports follow Penpa's theme switch). Because a shadow
+  root's `:host` rules lose to any outer rule whatever its layer, one rule at the end of that layer,
+  `.proto-o-app, .proto-o-app * { all: revert-layer }`, takes Penpa's declarations off O's subtree; Penpa's id rules
+  for the adopted board (`#dvique`, `#canvas`) outrank it and still apply. M's hand-restored menu, option and divider
+  spacing is gone.
+- **Keys**: the bridge gates Penpa's own document `keydown` / `keyup` listeners (`bridge.routeKeys`, below); O's route
+  keeps from Penpa a key typed in one of its menus or dialogs and the keys O takes itself (Tab / Enter pin cycling, a
+  dropped Shift / Ctrl hold). Nothing stops propagation, so Web Awesome's own document listeners run unmodified, and O
+  calls no Web Awesome internal (M called `handleDocumentKeyDown`).
+
 ## Run
 
 ```sh
@@ -42,8 +56,8 @@ Penpa+ link works: paste its `#...` part after `?variant=K`.
 | `variant-B.js`, `variant-B.css` | variant B's builder |
 | `variant-C.js`, `variant-C.css` | variant C's builder |
 | `variant-D.js`, `variant-D.css` | variant D's builder |
-| ... one pair per key, through `variant-N.js`, `variant-N.css` | that key's builder |
-| `vendor/webawesome/` | variant M's builder (a vendored bundle, never edited by hand) |
+| ... one pair per key, through `variant-O.js`, `variant-O.css` | that key's builder |
+| `vendor/webawesome/` | variant M's builder (a vendored bundle, never edited by hand; O loads the same bundle) |
 | everything else (`loader.js`, `engine-bridge.js`, `switcher.js`, `samples.js`, `serve.mjs`, this README, the one-line hook in `docs/index.html`) | the scaffold; do not edit from a variant |
 
 **Variant K edits only `variant-K.js` and `variant-K.css`.** Nothing under `docs/js/`, `docs/css/` or `docs/index.html`.
@@ -74,7 +88,7 @@ window.PrototypeVariants.K = {
 
 | Field | What |
 |---|---|
-| `ctx.key` | `'A'`..`'N'` |
+| `ctx.key` | `'A'`..`'O'` |
 | `ctx.bridge` | the engine bridge below (also `window.PrototypeBridge`) |
 | `ctx.pu` | the live Penpa+ puzzle (a getter; prefer the bridge) |
 | `ctx.canvas` | `#canvas`, the one canvas Penpa+ draws the board on |
@@ -120,6 +134,7 @@ engine's: `surface`, `multicolor`, `line`, `lineE`, `wall`, `number`, `symbol` (
 | `listComposite() → [{name, label}]` | Composite tools for this grid type |
 | `tabSet() → string[]` | the link's Tab/Enter mode set, e.g. `["Surface", "Sudoku Normal"]` |
 | `sendKey(key, {shift, ctrl, alt, code}?)` | send a key through Penpa+'s own key handler (digits, letters, `Delete`, arrows, ...) |
+| `routeKeys(route(e) → boolean)` | decide which key events reach Penpa+'s own document `keydown` / `keyup` (main.js:84-85); default all. The bridge wraps those two listeners before main.js's `onload` adds them, so nothing has to stop a key's propagation |
 | `undo()` / `redo()` | as the Undo / Redo buttons |
 | `history() → {position, length}` | undo history in steps (a step is what one `undo()` removes; Penpa+ undoes a line drag one segment at a time, so a 3-cell drag is 2 steps); `position` = steps undoable |
 | `jumpTo(n)` | go to history step `n` (0 = empty board) by repeated undo/redo |

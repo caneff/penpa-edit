@@ -88,6 +88,33 @@
         };
     }
 
+    /*
+     * Key gate. Penpa+'s board keys are two closure-local listeners main.js's onload adds on document (main.js:84-85,
+     * onKeyDown / onKeyUp), so a variant cannot remove or call them. This file runs before that onload (the loader
+     * injects it before the window's load event), so it wraps document.addEventListener until both are added and
+     * gates them: Bridge.routeKeys(fn) decides which key events reach them. A variant that never calls routeKeys
+     * sees no change. Gating instead of stopPropagation leaves every other document listener (Web Awesome's) alone.
+     */
+    const PENPA_KEY_LISTENERS = {keydown: 'onKeyDown', keyup: 'onKeyUp'};
+    const gatedKeyListeners = {};
+    let keyRoute = null;
+    document.addEventListener = function(type, listener, options) {
+        if (PENPA_KEY_LISTENERS[type] && typeof listener === 'function' && listener.name === PENPA_KEY_LISTENERS[type] &&
+            !gatedKeyListeners[type]) {
+            const penpaListener = listener;
+            gatedKeyListeners[type] = true;
+            listener = function(e) {
+                if (!keyRoute || keyRoute(e)) {
+                    return penpaListener.call(this, e);
+                }
+            };
+            if (gatedKeyListeners.keydown && gatedKeyListeners.keyup) {
+                delete document.addEventListener; // back to EventTarget.prototype's
+            }
+        }
+        return EventTarget.prototype.addEventListener.call(this, type, listener, options);
+    };
+
     const Bridge = {
         /**
          * Hook the engine. Called once by loader.js before mount(). Puzzle methods are wrapped on the prototype
@@ -113,6 +140,17 @@
                 });
             });
             Bridge.fixPointerOffset();
+            if (!gatedKeyListeners.keydown || !gatedKeyListeners.keyup) {
+                console.error('[prototype] key gate missed main.js onKeyDown / onKeyUp; routeKeys will do nothing');
+            }
+        },
+
+        /**
+         * Decide which key events reach Penpa+'s own document keydown / keyup (main.js:84-85): `route(e)` returns
+         * true for Penpa's keys. Default: all of them. Nothing is stopped, so other listeners still see every key.
+         */
+        routeKeys(route) {
+            keyRoute = route;
         },
 
         /**
