@@ -7,6 +7,9 @@ import { chromium } from 'playwright'
 // Penpa+ served straight from this checkout, as Pages serves `docs/`.
 const PENPA_URL = new URL('../docs/index.html', import.meta.url).href
 
+// The ChinStrap solve page, served the same way.
+const SOLVE_URL = new URL('../docs/solve.html', import.meta.url).href
+
 // Where a test that needs cookies is served `docs/` from.
 const PENPA_ORIGIN = 'https://penpa.test'
 
@@ -48,10 +51,11 @@ export function serveDocs (context, base) {
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
-// `url` opens that address (plus `query`) instead of the checkout's page, and `setup(context)` runs before the page opens.
+// `url` opens that address (plus `query`) instead of the checkout's page, `solve: true` opens `solve.html` in place of the
+// default page, and `setup(context)` runs before the page opens.
 // `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
 // dismissed, and `errors` every page error and `console.error` so far.
-export async function openPenpa (browser, query = '', { cookies = [], served = false, url, setup, contextOptions } = {}) {
+export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, setup, contextOptions } = {}) {
   const context = await browser.newContext(contextOptions)
   if (cookies.length) await context.addCookies(cookies)
   // Penpa+'s only network loads are Google Tag Manager's: answered empty, so a run needs no network and counts as no visit.
@@ -69,7 +73,8 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
   const dialogs = []
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
-  await page.goto((url ?? (served ? PENPA_ORIGIN + '/' : PENPA_URL)) + query)
+  const defaultUrl = served ? PENPA_ORIGIN + (solve ? '/solve.html' : '/') : (solve ? SOLVE_URL : PENPA_URL)
+  await page.goto((url ?? defaultUrl) + query)
   await page.waitForFunction(() => typeof pu !== 'undefined')
   return { context, page, dialogs, errors }
 }
