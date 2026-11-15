@@ -76,6 +76,18 @@
  *      Recent (Chris: "recent should use the same chips"): its entries are pin chips (shared class proto-l-chip) with
  *      no number and no ×, wrapping like the pin strip; the pin icon stays. Recent keeps the round 3 rule (team lead,
  *      2026-11-14): it lists only tools that are not pins, so its chips own no colour and have a plain 1px edge.
+ *  10. Round 8 (Chris, 2026-11-14, on round 7: "cards should be spread out vertically on each side in order to give
+ *      them room to grow down"): in the default layout each side column is cut into equal shares of the desk height
+ *      (Mouse, Rules: halves; Pinned modes, Mode, Recent: thirds) and each card sits at the top of its share, with free
+ *      space below to grow into (a taller Mode card, more Recent chips, a resize) without moving the next card. A card
+ *      that outgrows its share still pushes the cards below it (round 5). See defaults().
+ *      Top bar (Chris): the puzzle title is the most prominent text (20px, weight 800; author 13px; the Penpa+ mark
+ *      small and muted); Undo, Redo, Pause / Start, Settings and the theme toggle are symbol buttons with the word as
+ *      tooltip and aria-label, the theme button showing the theme it switches to (moon: Dark, sun: Light).
+ *      No Check button (Chris): the button, its status text and the bridge check() call are gone; Penpa's own answer
+ *      check and Congratulations popup cover solving.
+ *      Restart (Chris): a symbol button that asks, then clears the Solution layer (never the givens) and undo / redo,
+ *      and restarts the timer from zero (see restartPuzzle()).
  *
  * Scaffold change (the only edit outside this file and variant-L.css): loader.js's VARIANTS string 'ABCDEFGHIJK' ->
  * 'ABCDEFGHIJKL', so the loader accepts ?variant=L and the switcher's arrows reach it.
@@ -526,34 +538,71 @@
             }
 
             // ---- Skeleton ---------------------------------------------------------------------------------------
+            /**
+             * Round 8 (Chris): Undo, Redo, Pause / Start, Settings and the theme toggle are symbol buttons; the word is
+             * the tooltip and the aria-label. 16x16 SVGs in currentColor. Restart (round 8) is one too. No Check button
+             * (Chris, round 8): Penpa's own answer check and its Congratulations popup cover solving.
+             */
+            const svg16 = function(body) {
+                return '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" ' +
+                    'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + body + '</svg>';
+            };
+            const ICON = {
+                undo: svg16('<path d="M3.5 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/><path d="M6.5 3.5l-3 3 3 3"/>'),
+                restart: svg16('<path d="M2.9 8.6a5.2 5.2 0 1 0 1.5-4.3"/><path d="M2.6 1.9v3.2h3.2"/>'),
+                redo: svg16('<path d="M12.5 6.5H6a3.5 3.5 0 0 0 0 7h3"/><path d="M9.5 3.5l3 3-3 3"/>'),
+                pause: svg16('<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>'),
+                start: svg16('<path d="M5 3.2l8 4.8-8 4.8z" fill="currentColor"/>'),
+                // A toothed gear, so it does not read as the theme toggle's sun.
+                settings: svg16('<path d="M6.9 1.5h2.2l.4 1.9 1.3.6 1.7-1 1.5 1.5-1 1.7.6 1.3 1.9.4v2.2l-1.9.4-.6 1.3 1 1.7' +
+                    '-1.5 1.5-1.7-1-1.3.6-.4 1.9H6.9l-.4-1.9-1.3-.6-1.7 1-1.5-1.5 1-1.7-.6-1.3-1.9-.4V6.9l1.9-.4.6-1.3-1-1.7' +
+                    ' 1.5-1.5 1.7 1 1.3-.6z" stroke-width="1.3"/><circle cx="8" cy="8" r="2.1" stroke-width="1.5"/>'),
+                dark: svg16('<path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="currentColor" stroke="none"/>'),
+                light: svg16('<circle cx="8" cy="8" r="2.8" fill="currentColor" stroke="none"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6' +
+                    'M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/>')
+            };
+            /** Make b a symbol button: icon, word as aria-label, tooltip (word, plus a hint when given). */
+            function setIcon(b, icon, word, hint) {
+                b.innerHTML = ICON[icon];
+                b.setAttribute('aria-label', word);
+                b.setAttribute('data-icon', icon);
+                b.title = hint ? word + ' (' + hint + ')' : word;
+                b.classList.add('proto-l-iconbtn');
+            }
             const app = el('div', {class: 'proto-l-app'});
             const desk = el('div', {class: 'proto-l-desk'});
             const timerText = el('span', {class: 'proto-l-timer'}, ['00:00']);
-            const status = el('span', {class: 'proto-l-status'});
-            const undoBtn = btn('', 'Undo', function() {
+            const undoBtn = btn('', '', function() {
                 B.undo();
-            }, 'Undo (Ctrl+Z)');
-            const redoBtn = btn('', 'Redo', function() {
+            });
+            setIcon(undoBtn, 'undo', 'Undo', 'Ctrl+Z');
+            const redoBtn = btn('', '', function() {
                 B.redo();
-            }, 'Redo (Ctrl+Y)');
-            const checkBtn = btn('', 'Check', runCheck, 'Compare the board with the answer');
-            const pauseBtn = btn('', 'Pause', function() {
+            });
+            setIcon(redoBtn, 'redo', 'Redo', 'Ctrl+Y');
+            const restartBtn = btn('', '', restartPuzzle);
+            setIcon(restartBtn, 'restart', 'Restart');
+            const pauseBtn = btn('', '', function() {
                 if (B.getTimer().paused) {
                     B.startTimer();
                 } else {
                     B.pauseTimer();
                 }
             });
+            setIcon(pauseBtn, 'pause', 'Pause');
+            const settingsBtn = btn('', '', function() {
+                B.openSettings();
+            });
+            setIcon(settingsBtn, 'settings', 'Settings');
             const info = B.getInfo();
             const bar = el('div', {class: 'proto-l-bar'}, [
+                // Round 8 (Chris: "title could be more prominent"): the title is the largest, heaviest text in the bar;
+                // the Penpa+ mark is small and muted before it.
                 el('span', {class: 'proto-l-brand'}, ['Penpa+']),
-                el('span', {class: 'proto-l-title'}, [info.title || 'Untitled']),
+                el('span', {class: 'proto-l-title', title: info.title || 'Untitled'}, [info.title || 'Untitled']),
                 el('span', {class: 'proto-l-author'}, [info.author ? 'by ' + info.author : '']),
                 el('span', {class: 'proto-l-spacer'}),
-                undoBtn, redoBtn, checkBtn, status, timerText, pauseBtn,
-                btn('', 'Settings', function() {
-                    B.openSettings();
-                }),
+                undoBtn, redoBtn, restartBtn, timerText, pauseBtn, settingsBtn,
                 btn('proto-l-reset', 'Reset layout', resetLayout, 'Put every card back where it started (all puzzles share one layout)')
             ]);
             app.appendChild(bar);
@@ -663,7 +712,10 @@
 
             // Default layout (round 4, Chris: "the pinned modes and mode and recent mode should all be on the right side,
             // mouse and rules on the left"): left column Mouse, Rules; board in the middle; right column Pinned modes,
-            // Mode, Recent. Each column stacks by measured height, 10px apart.
+            // Mode, Recent. Round 8 (Chris: "cards should be spread out vertically on each side in order to give them
+            // room to grow down"): each column is cut into equal shares of the desk height (halves on the left, thirds
+            // on the right) and each card sits at the top of its share, free space below it; a card that outgrows its
+            // share pushes the next one down to 10px below it (the round 5 rule), never up.
             // Column width: 380px, narrower on a small viewport (browser zoom) so the board keeps at least 300px.
             const COL_W = 380;
             function columns() {
@@ -677,14 +729,30 @@
                 const h = function(id) {
                     return cards[id] ? cards[id].card.offsetHeight : 200;
                 };
+                const deskH = desk.clientHeight || window.innerHeight - TOP;
+                // Tops for one column: share i starts at 12 + i x (column height + gap) / n; a card never starts less
+                // than 10px below the bottom of the card above it.
+                const spread = function(ids) {
+                    const H = deskH - 12 - 8;
+                    const out = {};
+                    let next = 12;
+                    ids.forEach(function(id, i) {
+                        const y = Math.max(12 + Math.round(i * (H + gap) / ids.length), next);
+                        out[id] = y;
+                        next = y + h(id) + gap;
+                    });
+                    return out;
+                };
+                const L = spread(['mouse', 'rules']);
+                const R = spread(['pins', 'mode', 'recent']);
                 // The Board card fills the space between the columns, above the prototype switcher pill (about 64px).
                 return {
-                    mouse: {x: c.left, y: 12, w: c.colW},
-                    rules: {x: c.left, y: 12 + h('mouse') + gap, w: c.colW},
-                    board: {x: c.board, y: 12, w: c.right - 14 - c.board, h: Math.max(200, desk.clientHeight - 12 - 64)},
-                    pins: {x: c.right, y: 12, w: c.colW},
-                    mode: {x: c.right, y: 12 + h('pins') + gap, w: c.colW},
-                    recent: {x: c.right, y: 12 + h('pins') + h('mode') + 2 * gap, w: c.colW}
+                    mouse: {x: c.left, y: L.mouse, w: c.colW},
+                    rules: {x: c.left, y: L.rules, w: c.colW},
+                    board: {x: c.board, y: 12, w: c.right - 14 - c.board, h: Math.max(200, deskH - 12 - 64)},
+                    pins: {x: c.right, y: R.pins, w: c.colW},
+                    mode: {x: c.right, y: R.mode, w: c.colW},
+                    recent: {x: c.right, y: R.recent, w: c.colW}
                 };
             }
 
@@ -1997,16 +2065,34 @@
                 }
             }, true);
 
-            // ---- Answer check -----------------------------------------------------------------------------------
-            let checkPos = -1;
-            function runCheck() {
-                const res = B.check();
-                checkPos = B.history().position;
-                setStatus(!res.hasAnswerCheck ? 'none' : res.solved ? 'solved' : 'wrong');
-            }
-            function setStatus(kind) {
-                status.className = 'proto-l-status' + (kind ? ' is-' + kind : '');
-                status.textContent = kind ? {solved: 'Solved', wrong: 'Not solved yet', none: 'No answer check'}[kind] : '';
+            // ---- Restart (round 8, Chris) ----------------------------------------------------------------------
+            /*
+             * Asks first (Penpa's own SweetAlert dialog, as its hidden "Delete all" does: general.js:1390-1405), then
+             * clears everything the solver entered and the undo / redo history through pu.reset_board()
+             * (class_p.js:270-273: reset_puzzle on pu[mode.qa] and its _col twin, pu_a / pu_a_col in solve mode, so
+             * the givens in pu_q are kept; checked on the 12 samples by verify-r6.cjs), redraws, and restarts the
+             * timer from zero, running (sw_timer.reset() stops it, timer.js:36-39; start as main.js:2294-2297 does,
+             * covering a paused board's pause layer too). Bridge gap: the bridge has no restart().
+             */
+            function restartPuzzle() {
+                Swal.fire({
+                    title: 'Restart the puzzle?',
+                    html: 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.',
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Restart',
+                    cancelButtonText: 'Cancel'
+                }).then(function(result) {
+                    if (!result.isConfirmed) {
+                        return;
+                    }
+                    pu.reset_board();
+                    pu.redraw();
+                    pu.hide_pause_layer();
+                    sw_timer.reset();
+                    sw_timer.start({precision: 'secondTenths'});
+                    render(B.getState());
+                });
             }
 
             // ---- Round 5: mode cues and dark mode -----------------------------------------------------------------
@@ -2123,7 +2209,11 @@
             }, true);
             const themeBtn = btn('proto-l-themebtn', '', function() {
                 applyTheme(!dark);
-            }, 'Light or dark desk and board');
+            });
+            /** The theme button shows the theme it switches to: a moon in light, a sun in dark. */
+            function showThemeBtn() {
+                setIcon(themeBtn, dark ? 'light' : 'dark', dark ? 'Light theme' : 'Dark theme');
+            }
             bar.insertBefore(cuesWrap, resetBtn);
             bar.insertBefore(themeBtn, resetBtn);
 
@@ -2131,7 +2221,7 @@
                 dark = on;
                 writeJSON(LS_THEME, dark ? 'dark' : 'light');
                 document.documentElement.classList.toggle('proto-l-dark', dark);
-                themeBtn.textContent = dark ? 'Light' : 'Dark';
+                showThemeBtn();
                 UserSettings.color_theme = dark ? THEME_DARK : THEME_LIGHT; // setter redraws the board
                 renderAll(true);
             }
@@ -2173,15 +2263,10 @@
                 renderAll(false);
                 undoBtn.disabled = !state.canUndo;
                 redoBtn.disabled = !state.canRedo;
-                checkBtn.hidden = !state.hasAnswerCheck;
-                pauseBtn.textContent = state.timer.paused ? 'Start' : 'Pause';
-                timerText.textContent = state.timer.text;
-                if (state.solved) {
-                    setStatus('solved');
-                } else if (checkPos !== -1 && B.history().position !== checkPos) {
-                    checkPos = -1;
-                    setStatus(null);
+                if (pauseBtn.getAttribute('data-icon') !== (state.timer.paused ? 'start' : 'pause')) {
+                    setIcon(pauseBtn, state.timer.paused ? 'start' : 'pause', state.timer.paused ? 'Start' : 'Pause');
                 }
+                timerText.textContent = state.timer.text;
             }
 
             B.onChange(render);
@@ -2222,7 +2307,7 @@
             }, cards: cards, resetLayout: resetLayout};
             // Round 5: the saved theme, applied before the first render (and Penpa's board put to match it).
             document.documentElement.classList.toggle('proto-l-dark', dark);
-            themeBtn.textContent = dark ? 'Light' : 'Dark';
+            showThemeBtn();
             UserSettings.color_theme = dark ? THEME_DARK : THEME_LIGHT;
             renderAll(true);
             measureMouse();

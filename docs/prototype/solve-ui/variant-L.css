@@ -25,14 +25,15 @@ html.proto-variant-L body { overflow: hidden; background: #e7e4dc; }
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
     z-index: 950;
 }
-.proto-l-brand { font-weight: 700; letter-spacing: .02em; }
-.proto-l-title { font-weight: 600; margin-left: 10px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.proto-l-author { color: #aab1be; white-space: nowrap; }
+/* Round 8: the title leads the bar; the Penpa+ mark is small and muted; the author sits on the title's baseline. */
+.proto-l-brand { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #9aa2b1; }
+.proto-l-title { font-size: 20px; font-weight: 800; color: #fff; margin-left: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-l-author { font-size: 13px; color: #b9c0cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+/* Round 8: symbol buttons, square, the icon centred. */
+.proto-l-bar .proto-l-iconbtn { width: 32px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.proto-l-bar > *:not(.proto-l-title):not(.proto-l-author):not(.proto-l-spacer) { flex-shrink: 0; }
 .proto-l-spacer { flex: 1; }
 .proto-l-timer { font: 600 13px ui-monospace, monospace; min-width: 52px; text-align: right; }
-.proto-l-status.is-solved { color: #7be0a0; font-weight: 600; }
-.proto-l-status.is-wrong { color: #ffb38a; }
-.proto-l-status.is-none { color: #aab1be; }
 
 .proto-l-btn {
     font: inherit;
