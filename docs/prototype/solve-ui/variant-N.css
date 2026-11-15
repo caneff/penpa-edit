@@ -1,0 +1,451 @@
+/*
+ * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant N "L + platform" styles.
+ * L's layout and sizes (variant-L.css) on one hand-written token sheet: colour through `light-dark()` (html.proto-n-dark
+ * sets `color-scheme: dark`), plus radius, shadow, space and type scales; menus, tooltips and dialogs animate in and out
+ * with `@starting-style` and `transition-behavior: allow-discrete`. No dependency.
+ */
+
+/* ---- Tokens ---- */
+html.proto-variant-N {
+    color-scheme: light;
+    --n-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --n-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --n-desk: light-dark(#eceef2, #0f1115);
+    --n-desk-dot: light-dark(rgba(30, 40, 60, .10), rgba(255, 255, 255, .06));
+    --n-surface: light-dark(#ffffff, #1a1d23);
+    --n-surface-2: light-dark(#f6f7f9, #21252c);
+    --n-surface-3: light-dark(#eef0f3, #2a2f37);
+    --n-line: light-dark(#dde1e7, #2f343d);
+    --n-line-strong: light-dark(#c4cbd5, #434a56);
+    --n-text: light-dark(#191d24, #e7e9ee);
+    --n-text-2: light-dark(#59616e, #a7afbc);
+    --n-text-3: light-dark(#868e9b, #7f8794);
+    --n-accent: light-dark(#3a5ccc, #8aa4ff);
+    --n-accent-fill: light-dark(#3a5ccc, #5c78e6);
+    --n-accent-hover: light-dark(#3150b8, #6c86ee);
+    --n-on-accent: #ffffff;
+    --n-accent-soft: light-dark(#ecf0fd, #222b45);
+    --n-accent-line: light-dark(#a9b9ef, #4459a0);
+    --n-danger-fill: light-dark(#d13b3b, #c84242);
+    --n-danger-hover: light-dark(#b93131, #d65050);
+    --n-warn-soft: light-dark(#fbf1d8, #3a3122);
+    --n-warn-text: light-dark(#7d5400, #f0cf88);
+    --n-hover: light-dark(rgba(25, 35, 55, .06), rgba(255, 255, 255, .07));
+    --n-press: light-dark(rgba(25, 35, 55, .11), rgba(255, 255, 255, .12));
+    --n-shadow-c: light-dark(rgba(16, 24, 40, .10), rgba(0, 0, 0, .45));
+    --n-shadow-1: 0 1px 2px var(--n-shadow-c);
+    --n-shadow-2: 0 1px 2px var(--n-shadow-c), 0 4px 12px var(--n-shadow-c);
+    --n-shadow-3: 0 2px 6px var(--n-shadow-c), 0 16px 40px var(--n-shadow-c);
+    --n-ring: 0 0 0 2px var(--n-surface), 0 0 0 4px color-mix(in oklab, var(--n-accent) 75%, transparent);
+
+    --n-r-s: 5px;
+    --n-r-m: 7px;
+    --n-r-l: 10px;
+    --n-r-xl: 14px;
+    --n-r-pill: 999px;
+    --n-ease: cubic-bezier(.2, .8, .2, 1);
+    --n-fast: .12s;
+    --n-normal: .18s;
+}
+html.proto-variant-N.proto-n-dark { color-scheme: dark; }
+
+/* Shape mode re-shows the legacy floating panel with an inline style (class_p.js:1616-1619). */
+html.proto-variant-N #float-key { display: none !important; }
+/* Penpa's legacy dialogs ("All Penpa+ settings...") sit outside the bridge's legacy root, at z-index 2
+   (base-structure.css), under the desk (z-index 10); lift them over it. L has the same bug (its Settings button opens
+   the panel out of sight); L is frozen, so it is fixed only here. */
+html.proto-variant-N .modal { z-index: 1000; }
+html.proto-variant-N body { overflow: hidden; background: var(--n-desk); }
+
+.proto-n-app {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    color: var(--n-text);
+    font: 13px/1.35 var(--n-font);
+}
+
+/* ---- Buttons ---- */
+.proto-n-b {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    height: 30px; padding: 0 12px; box-sizing: border-box;
+    font: 500 13px/1 var(--n-font); color: var(--n-text); white-space: nowrap;
+    background: transparent; border: 1px solid transparent; border-radius: var(--n-r-m);
+    cursor: pointer;
+    transition: background-color var(--n-fast) ease, border-color var(--n-fast) ease, color var(--n-fast) ease, transform var(--n-fast) ease;
+}
+.proto-n-b:hover { background: var(--n-hover); }
+.proto-n-b:active { background: var(--n-press); transform: translateY(.5px); }
+.proto-n-b:focus-visible { outline: none; box-shadow: var(--n-ring); }
+.proto-n-b:disabled { opacity: .4; cursor: default; background: transparent; transform: none; }
+.proto-n-b-outline { background: var(--n-surface); border-color: var(--n-line-strong); box-shadow: var(--n-shadow-1); }
+.proto-n-b-outline:hover { background: var(--n-surface-2); border-color: var(--n-text-3); }
+.proto-n-b-primary { background: var(--n-accent-fill); color: var(--n-on-accent); box-shadow: var(--n-shadow-1); }
+.proto-n-b-primary:hover { background: var(--n-accent-hover); }
+.proto-n-b-danger { background: var(--n-danger-fill); color: #fff; box-shadow: var(--n-shadow-1); }
+.proto-n-b-danger:hover { background: var(--n-danger-hover); }
+.proto-n-b-xs { height: 22px; padding: 0 8px; font-size: 12px; border-radius: var(--n-r-s); }
+.proto-n-b.is-open { background: var(--n-press); }
+.proto-n-b-outline.is-open { background: var(--n-surface-2); border-color: var(--n-accent); }
+/* The caret: a drawn chevron that turns when the menu is open. */
+.proto-n-chev { width: 7px; height: 7px; margin: -3px 0 0 2px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: rotate(45deg); opacity: .65; transition: transform var(--n-normal) var(--n-ease), margin var(--n-normal) var(--n-ease); }
+.proto-n-b.is-open .proto-n-chev { transform: rotate(-135deg); margin-top: 3px; }
+
+/* ---- Top bar ---- */
+.proto-n-bar {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 44px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0 14px;
+    background: var(--n-surface);
+    border-bottom: 1px solid var(--n-line);
+    box-shadow: var(--n-shadow-1);
+    z-index: 950;
+}
+/* Round 8: the title leads the bar; the Penpa+ mark is small and muted; the author sits on the title's baseline. */
+.proto-n-brand { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: var(--n-text-3); }
+.proto-n-title { font-size: 20px; font-weight: 800; letter-spacing: -.01em; color: var(--n-text); margin-left: 8px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-n-author { font-size: 13px; color: var(--n-text-2); margin-left: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.proto-n-bar > *:not(.proto-n-title):not(.proto-n-author):not(.proto-n-spacer) { flex-shrink: 0; }
+.proto-n-spacer { flex: 1; }
+.proto-n-timer { font: 600 13px var(--n-mono); min-width: 52px; text-align: right; margin: 0 4px; font-variant-numeric: tabular-nums; }
+.proto-n-bar .proto-n-iconbtn { width: 32px; padding: 0; color: var(--n-text-2); }
+.proto-n-bar .proto-n-iconbtn:hover { color: var(--n-text); }
+.proto-n-bar .proto-n-iconbtn svg { display: block; }
+.proto-n-cuesbtn { color: var(--n-text-2); }
+.proto-n-reset { margin-left: 6px; }
+
+/* Hand-written buttons that stay (chip ×, picker Pin, style buttons). */
+.proto-n-btn {
+    font: inherit;
+    color: inherit;
+    background: var(--n-surface);
+    border: 1px solid var(--n-line-strong);
+    border-radius: var(--n-r-m);
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--n-fast) ease, border-color var(--n-fast) ease;
+}
+.proto-n-btn:hover { background: var(--n-surface-2); }
+.proto-n-btn:disabled { opacity: .4; cursor: default; }
+.proto-n-btn[hidden] { display: none; }
+
+.proto-n-desk {
+    position: absolute;
+    left: 0; right: 0; top: 44px; bottom: 0;
+    background: radial-gradient(circle at 1px 1px, var(--n-desk-dot) 1px, transparent 0) 0 0 / 22px 22px, var(--n-desk);
+    overflow: hidden;
+}
+
+/* ---- Cards ---- */
+.proto-n-card {
+    position: absolute;
+    box-sizing: border-box; /* round 4: a saved size is offsetWidth / offsetHeight, border included */
+    background: var(--n-surface);
+    border: 1px solid var(--n-line);
+    border-radius: var(--n-r-l);
+    box-shadow: var(--n-shadow-2);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+}
+.proto-n-card.is-dragging { box-shadow: var(--n-shadow-3); opacity: .97; }
+.proto-n-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    min-height: 28px;
+    box-sizing: border-box;
+    background: var(--n-surface-2);
+    border-bottom: 1px solid var(--n-line);
+    border-radius: var(--n-r-l) var(--n-r-l) 0 0;
+    cursor: grab;
+    user-select: none;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--n-text-2);
+}
+.proto-n-card.is-dragging .proto-n-head { cursor: grabbing; }
+.proto-n-head .proto-n-b { text-transform: none; letter-spacing: 0; }
+.proto-n-body { padding: 10px 12px; overflow: auto; }
+
+.proto-n-card-board .proto-n-body { padding: 8px; overflow: visible; }
+.proto-n-card-pins { width: 380px; }
+.proto-n-card-pins .proto-n-body { min-height: 150px; overflow: visible; }
+.proto-n-card-rules { width: 380px; }
+.proto-n-card-rules .proto-n-body { max-height: 520px; box-sizing: border-box; font-size: 12.5px; color: var(--n-text); } /* max-height also set by place() */
+.proto-n-card-mode { width: 380px; }
+.proto-n-card-mode .proto-n-body { overflow: visible; }
+.proto-n-card-mouse { width: 380px; border: 2px solid var(--n-accent-fill); box-shadow: var(--n-shadow-2), 0 6px 18px color-mix(in oklab, var(--n-accent-fill) 18%, transparent); }
+.proto-n-card-mouse .proto-n-head { background: var(--n-accent-fill); color: var(--n-on-accent); border-bottom-color: transparent; border-radius: calc(var(--n-r-l) - 2px) calc(var(--n-r-l) - 2px) 0 0; }
+
+/* ---- Mouse card ---- */
+.proto-n-headline { font-size: 22px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2; color: var(--n-text); margin-bottom: 10px; }
+.proto-n-hsep { color: var(--n-text-3); font-weight: 400; }
+.proto-n-hsub { color: var(--n-accent); }
+.proto-n-hstyle { color: var(--n-text-2); white-space: nowrap; }
+.proto-n-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+.proto-n-mrows { display: grid; gap: 4px; }
+.proto-n-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 6px 9px; border-radius: var(--n-r-m); background: var(--n-accent-soft); font-size: 14px; }
+.proto-n-mrow.is-none { background: var(--n-surface-2); color: var(--n-text-3); }
+.proto-n-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 9px; color: var(--n-text-2); }
+.proto-n-mg { font-weight: 700; color: var(--n-accent); }
+.proto-n-mrow.is-none .proto-n-mg { color: var(--n-text-3); }
+.proto-n-mrow.is-more .proto-n-mg { font-weight: 600; color: var(--n-text-2); }
+
+/* ---- Pins ---- */
+.proto-n-pins { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-n-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 3px 3px 7px;
+    border: 1px solid var(--n-line-strong);
+    border-left: 6px solid var(--proto-n-pc, var(--n-line-strong)); /* round 6: the pin's window colour */
+    border-radius: var(--n-r-m);
+    background: var(--n-surface);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: border-color var(--n-fast) ease, background-color var(--n-fast) ease;
+}
+.proto-n-pinlabel { font-size: 13px; }
+.proto-n-chip:hover { border-top-color: var(--n-accent-line); border-right-color: var(--n-accent-line); border-bottom-color: var(--n-accent-line); }
+.proto-n-pinnum { font: 700 11px var(--n-mono); color: var(--n-text-3); }
+.proto-n-card .proto-n-body .proto-n-unpin { padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
+.proto-n-card .proto-n-body .proto-n-unpin:hover { opacity: 1; background: var(--n-press); }
+.proto-n-note { font-size: 11.5px; color: var(--n-text-2); margin: 6px 0; }
+.proto-n-row { display: flex; gap: 6px; margin: 8px 0 6px; flex-wrap: wrap; align-items: center; }
+.proto-n-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--n-text-3); margin: 8px 0 4px; }
+.proto-n-input, .proto-n-field {
+    font: inherit; padding: 5px 9px; border: 1px solid var(--n-line-strong); border-radius: var(--n-r-m);
+    background: var(--n-surface); color: var(--n-text); flex: 1; min-width: 0;
+    transition: border-color var(--n-fast) ease, box-shadow var(--n-fast) ease;
+}
+.proto-n-input::placeholder, .proto-n-field::placeholder { color: var(--n-text-3); }
+.proto-n-input:focus, .proto-n-field:focus { outline: none; border-color: var(--n-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--n-accent) 25%, transparent); }
+
+/* ---- Mode browser ---- */
+.proto-n-group { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--n-text-3); margin: 10px 0 3px; }
+.proto-n-group:first-child { margin-top: 0; }
+.proto-n-entry {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    padding: 5px 8px;
+    border-radius: var(--n-r-m);
+    cursor: pointer;
+}
+.proto-n-entry:hover { background: var(--n-hover); }
+.proto-n-entry.is-on { background: var(--n-accent-soft); box-shadow: inset 3px 0 0 var(--n-accent-fill); }
+.proto-n-ename { font-weight: 600; }
+.proto-n-emode { font-weight: 400; font-size: 11px; color: var(--n-text-3); margin-left: 6px; }
+.proto-n-edesc { grid-column: 1; font-size: 11.5px; color: var(--n-text-2); }
+.proto-n-entry .proto-n-pinbtn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.proto-n-card .proto-n-body .proto-n-pinbtn { padding: 2px 9px; font-size: 12px; }
+.proto-n-card .proto-n-body .proto-n-pinbtn.is-pinned { background: var(--n-accent-fill); border-color: var(--n-accent-fill); color: var(--n-on-accent); }
+
+/* Tag chips (Penpa's own labels, often a genre name): searchable, never a group. */
+.proto-n-tag { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: var(--n-r-pill); background: var(--n-warn-soft); color: var(--n-warn-text); font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; }
+
+/* ---- Mode card ---- */
+.proto-n-pickmode { color: var(--n-accent); letter-spacing: 0; text-transform: none; font-size: 12px; }
+.proto-n-picker { position: relative; }
+.proto-n-pickfield { position: relative; }
+.proto-n-caret { color: var(--n-text-3); font-size: 11px; margin-left: 4px; }
+.proto-n-pickfield .proto-n-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.proto-n-search { display: block; width: 100%; box-sizing: border-box; padding: 7px 26px 7px 10px; font-size: 15px; font-weight: 600; }
+.proto-n-picker.is-open .proto-n-search { font-weight: 400; }
+.proto-n-list {
+    display: none; margin-top: 6px; /* round 3: in flow, so it pushes the style controls down */
+    max-height: 470px; overflow: auto; padding: 6px 8px; background: var(--n-surface);
+    border: 1px solid var(--n-line); border-radius: var(--n-r-l);
+    box-shadow: inset 0 1px 3px var(--n-shadow-c);
+}
+.proto-n-picker.is-open .proto-n-list { display: block; }
+.proto-n-entry.is-active { outline: 2px solid var(--n-accent-line); outline-offset: -2px; }
+.proto-n-toolopts { margin-top: 10px; display: grid; gap: 8px; }
+.proto-n-card.has-open { z-index: 800 !important; }
+
+/* ---- Round 3: one button per style ---- */
+.proto-n-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.proto-n-card .proto-n-body .proto-n-stylebtn {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; line-height: 0;
+    color: var(--n-text); background: var(--n-surface); border: 1px solid var(--n-line-strong); border-radius: var(--n-r-s); box-sizing: border-box;
+}
+.proto-n-card .proto-n-body .proto-n-stylebtn:hover { border-color: var(--n-accent-line); }
+.proto-n-card .proto-n-body .proto-n-stylebtn.is-on { border-color: var(--n-accent-fill); box-shadow: 0 0 0 2px var(--n-accent-fill); background: var(--n-accent-soft); }
+
+/* ---- Recent ---- */
+.proto-n-card-recent { width: 380px; }
+.proto-n-recentempty { margin: 2px 0; }
+.proto-n-recentlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-n-recentbtn.proto-n-chip { border-left-width: 1px; padding-left: 9px; } /* Recent tools own no colour */
+.proto-n-recentpin { display: inline-flex; padding: 3px; border-radius: var(--n-r-s); color: var(--n-text-3); line-height: 0; }
+.proto-n-recentpin:hover { background: var(--n-accent-soft); color: var(--n-accent); }
+
+.proto-n-toolopts[hidden] { display: none; }
+
+/* Held Shift / Ctrl in Sudoku: the Mouse card names the temporary tool with this tag. */
+.proto-n-heldtag { display: inline-block; margin-left: 10px; padding: 1px 8px; border-radius: var(--n-r-pill); background: var(--n-warn-soft); color: var(--n-warn-text); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
+
+/* ---- Resizable cards ---- */
+.proto-n-rs { position: absolute; z-index: 2; }
+.proto-n-rs-r { top: 8px; right: -4px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.proto-n-rs-b { left: 8px; right: 8px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.proto-n-rs-c { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: nwse-resize; }
+.proto-n-rs-c::after { content: ""; position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px;
+    border-right: 2px solid var(--n-line-strong); border-bottom: 2px solid var(--n-line-strong); }
+.proto-n-card.is-resizing { box-shadow: var(--n-shadow-3); user-select: none; }
+.proto-n-card.is-sized .proto-n-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.proto-n-card.is-sized.has-open .proto-n-body { overflow: visible; }
+.proto-n-card-board.is-sized .proto-n-body { overflow: auto; display: flex; }
+.proto-n-card-board .proto-n-body > #dvique { margin: auto; flex: none; }
+
+/* ---- Menus (popover="auto") ---- */
+.proto-n-menu {
+    position: fixed; inset: auto; margin: 0;
+    min-width: 200px; max-width: 420px; overflow: auto; box-sizing: border-box;
+    padding: 5px; color: var(--n-text); font: 13px/1.35 var(--n-font);
+    background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-l);
+    box-shadow: var(--n-shadow-3);
+    opacity: 0; transform: translateY(-4px) scale(.98); transform-origin: top left;
+    transition: opacity var(--n-fast) ease, transform var(--n-normal) var(--n-ease),
+        overlay var(--n-normal) allow-discrete, display var(--n-normal) allow-discrete;
+}
+.proto-n-menu:popover-open { opacity: 1; transform: none; }
+@starting-style { .proto-n-menu:popover-open { opacity: 0; transform: translateY(-4px) scale(.98); } }
+.proto-n-menu:focus { outline: none; }
+.proto-n-presets { min-width: 320px; max-width: 360px; }
+.proto-n-cues { transform-origin: top right; }
+.proto-n-mi {
+    display: flex; align-items: flex-start; gap: 8px; width: 100%; box-sizing: border-box; text-align: left;
+    padding: 6px 10px 6px 8px; border: 0; border-radius: var(--n-r-m); background: transparent;
+    font: inherit; color: inherit; cursor: pointer;
+}
+.proto-n-mi:hover, .proto-n-mi:focus-visible { background: var(--n-hover); outline: none; }
+.proto-n-mi:focus-visible { box-shadow: inset 0 0 0 2px var(--n-accent-line); }
+.proto-n-mi:disabled { opacity: .45; cursor: default; background: transparent; }
+.proto-n-micheck { flex: none; width: 14px; height: 18px; position: relative; }
+.proto-n-mi[aria-checked="true"] .proto-n-micheck::after {
+    content: ""; position: absolute; left: 4px; top: 3px; width: 4px; height: 8px;
+    border-right: 2px solid var(--n-accent); border-bottom: 2px solid var(--n-accent); transform: rotate(45deg);
+}
+.proto-n-milabel { display: grid; gap: 1px; line-height: 18px; }
+.proto-n-mh { padding: 8px 10px 3px 30px; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--n-text-3); }
+.proto-n-msep { border: 0; border-top: 1px solid var(--n-line); margin: 5px 4px; }
+.proto-n-itemname { font-weight: 600; }
+.proto-n-itemnote { font-size: 11.5px; color: var(--n-text-2); line-height: 1.3; white-space: normal; }
+.proto-n-mirow { display: flex; align-items: flex-start; gap: 2px; }
+.proto-n-mirow .proto-n-mi { flex: 1; }
+.proto-n-mx { flex: none; width: 26px; height: 26px; margin-top: 3px; border: 0; border-radius: var(--n-r-s); background: transparent; color: var(--n-text-3); font-size: 16px; line-height: 1; cursor: pointer; }
+.proto-n-mx:hover { background: color-mix(in oklab, var(--n-danger-fill) 14%, transparent); color: var(--n-danger-fill); }
+
+/* ---- Tooltip (one shared popover="manual") ---- */
+.proto-n-tip {
+    position: fixed; inset: auto; margin: 0; max-width: 260px;
+    padding: 5px 9px; border: 0; border-radius: var(--n-r-m);
+    background: light-dark(#1d2129, #eef0f4); color: light-dark(#f4f5f7, #1a1d23);
+    font: 500 12px/1.35 var(--n-font); box-shadow: var(--n-shadow-2); pointer-events: none;
+    opacity: 0; transform: translateY(-3px);
+    transition: opacity var(--n-fast) ease, transform var(--n-fast) var(--n-ease),
+        overlay var(--n-fast) allow-discrete, display var(--n-fast) allow-discrete;
+}
+.proto-n-tip:popover-open { opacity: 1; transform: none; }
+@starting-style { .proto-n-tip:popover-open { opacity: 0; transform: translateY(-3px); } }
+
+/* ---- Dialogs (<dialog>.showModal()) ---- */
+.proto-n-dialog {
+    margin: auto; /* Penpa's base-structure.css zeroes every element's margin, the UA's centring included */
+    width: min(420px, calc(100vw - 32px)); padding: 0; box-sizing: border-box;
+    color: var(--n-text); font: 14px/1.45 var(--n-font);
+    background: var(--n-surface); border: 1px solid var(--n-line); border-radius: var(--n-r-xl);
+    box-shadow: var(--n-shadow-3);
+    opacity: 0; transform: translateY(8px) scale(.97);
+    transition: opacity var(--n-normal) ease, transform var(--n-normal) var(--n-ease),
+        overlay var(--n-normal) allow-discrete, display var(--n-normal) allow-discrete;
+}
+.proto-n-dialog[open] { opacity: 1; transform: none; }
+.proto-n-dialog:focus { outline: none; }
+@starting-style { .proto-n-dialog[open] { opacity: 0; transform: translateY(8px) scale(.97); } }
+.proto-n-dialog::backdrop {
+    background: rgba(10, 14, 22, 0);
+    transition: background-color var(--n-normal) ease,
+        overlay var(--n-normal) allow-discrete, display var(--n-normal) allow-discrete;
+}
+.proto-n-dialog[open]::backdrop { background: rgba(10, 14, 22, .42); }
+@starting-style { .proto-n-dialog[open]::backdrop { background: rgba(10, 14, 22, 0); } }
+.proto-n-dlghead { display: flex; align-items: center; gap: 8px; padding: 18px 16px 4px 22px; }
+.proto-n-dlgtitle { margin: 0; flex: 1; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+.proto-n-dlgclose { width: 30px; padding: 0; color: var(--n-text-2); }
+.proto-n-dlgbody { padding: 6px 22px 6px; }
+.proto-n-dlgfoot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 22px 20px; }
+.proto-n-dlgfoot .proto-n-b { height: 34px; padding: 0 16px; font-size: 14px; }
+.proto-n-dlgtext { margin: 0 0 10px; color: var(--n-text-2); }
+.proto-n-label { display: block; margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.proto-n-field { user-select: text; display: block; width: 100%; box-sizing: border-box; height: 36px; font-size: 14px; }
+.proto-n-settingsdlg { width: min(460px, calc(100vw - 32px)); }
+.proto-n-legacyset { margin-right: auto; color: var(--n-accent); }
+.proto-n-setgroup { display: grid; gap: 14px; padding: 4px 0 18px; }
+.proto-n-setgroup + .proto-n-setgroup { border-top: 1px solid var(--n-line); padding-top: 14px; }
+.proto-n-sethead { margin: 0; text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--n-text-3); }
+.proto-n-setrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.proto-n-setlabel { display: grid; gap: 2px; font-weight: 500; cursor: pointer; }
+.proto-n-hint { font-size: 12.5px; font-weight: 400; color: var(--n-text-2); }
+.proto-n-select {
+    appearance: none; display: block; width: 100%; height: 36px; box-sizing: border-box; padding: 0 34px 0 11px;
+    font: 14px var(--n-font); color: var(--n-text); background-color: var(--n-surface);
+    background-image: linear-gradient(45deg, transparent 50%, var(--n-text-2) 50%), linear-gradient(135deg, var(--n-text-2) 50%, transparent 50%);
+    background-position: right 16px top 16px, right 11px top 16px; background-size: 5px 5px; background-repeat: no-repeat;
+    border: 1px solid var(--n-line-strong); border-radius: var(--n-r-m); cursor: pointer;
+    transition: border-color var(--n-fast) ease, box-shadow var(--n-fast) ease;
+}
+.proto-n-select:hover { border-color: var(--n-text-3); }
+.proto-n-select:focus-visible { outline: none; border-color: var(--n-accent); box-shadow: 0 0 0 3px color-mix(in oklab, var(--n-accent) 25%, transparent); }
+/* Switch: a role="switch" checkbox drawn from scratch. */
+.proto-n-switch {
+    appearance: none; flex: none; position: relative; width: 38px; height: 22px; margin: 0; border-radius: var(--n-r-pill);
+    background: var(--n-surface-3); box-shadow: inset 0 0 0 1px var(--n-line-strong); cursor: pointer;
+    transition: background-color var(--n-normal) ease, box-shadow var(--n-normal) ease;
+}
+.proto-n-switch::before {
+    content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform var(--n-normal) var(--n-ease);
+}
+.proto-n-switch:checked { background: var(--n-accent-fill); box-shadow: inset 0 0 0 1px var(--n-accent-fill); }
+.proto-n-switch:checked::before { transform: translateX(16px); }
+.proto-n-switch:focus-visible { outline: none; box-shadow: inset 0 0 0 1px var(--n-line-strong), var(--n-ring); }
+
+/* ---- Round 5: mode cues ---- */
+html.proto-n-cue-frame .proto-n-card-board { border: 3px solid var(--proto-n-fam, var(--n-line)); }
+html.proto-n-cue-frame .proto-n-card-board .proto-n-head { background: var(--proto-n-fam, var(--n-surface-2)); color: #fff; border-bottom-color: transparent; border-radius: calc(var(--n-r-l) - 3px) calc(var(--n-r-l) - 3px) 0 0; }
+html.proto-n-cue-frame .proto-n-card-board .proto-n-head .proto-n-b { background: rgba(255, 255, 255, .92); color: #23262c; border-color: transparent; }
+.proto-n-boardtool { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proto-n-boardtool .proto-n-heldtag { font-size: 10px; vertical-align: 1px; margin-left: 8px; }
+.proto-n-flash {
+    position: absolute; left: 50%; top: 46px; transform: translateX(-50%); z-index: 5; pointer-events: none;
+    display: flex; align-items: center; gap: 7px;
+    padding: 4px 12px; border-radius: var(--n-r-pill); background: rgba(18, 20, 26, .62); color: #fff;
+    font-size: 14px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity .2s ease-out;
+}
+.proto-n-flashdot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
+.proto-n-flash.is-on { opacity: 1; transition: none; }
+
+/* ---- Dark: the tokens flip through light-dark(); what is left is ours ---- */
+.proto-n-dark .proto-n-chip { border-left-color: var(--proto-n-pcd, var(--n-line-strong)); }
+.proto-n-dark .proto-n-recentbtn.proto-n-chip { border-left-color: var(--n-line-strong); }
+.proto-n-card-board { --proto-n-cardbg: var(--n-surface); }
+html.proto-n-dark.proto-n-cue-frame .proto-n-card-board .proto-n-head { color: #14161b; }
+/* Round 6: the lit pin chip is filled with its own window colour (white text in light, dark text in dark). */
+.proto-n-pin.is-on { background: var(--proto-n-pc); border-color: var(--proto-n-pc); color: #fff; }
+.proto-n-pin.is-on .proto-n-pinnum { color: #fff; }
+.proto-n-dark .proto-n-pin.is-on { background: var(--proto-n-pcd); border-color: var(--proto-n-pcd); color: #14161b; }
+.proto-n-dark .proto-n-pin.is-on .proto-n-pinnum { color: #14161b; }

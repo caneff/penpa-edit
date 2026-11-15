@@ -74,7 +74,7 @@ function listen(port) {
         const first = samples[0];
         console.log(`PROTOTYPE solve UI: serving ${root}`);
         console.log(`Legacy page (no variant): ${base}${first ? first.hash : ''}`);
-        for (const k of 'ABCDEFGHIJK') {
+        for (const k of 'ABCDEFGHIJKLMN') {
             console.log(`Variant ${k}: ${base}?variant=${k}${first ? first.hash : ''}`);
         }
         console.log('Sample puzzles (pick them in the switcher, or swap the #... part):');

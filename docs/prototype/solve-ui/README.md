@@ -7,7 +7,18 @@
 
 Eleven variants, A to K, each a radically different answer, render on Penpa+'s own solve page `docs/index.html`, gated by
 a `?variant=` search param. With no param the page is unchanged. A floating switcher at the bottom cycles the variants
-and picks sample puzzles. Desktop only.
+and picks sample puzzles. Desktop only. L is the design Chris froze on 2026-11-14 (built on I and K).
+
+**Polish round (2026-11-15): M and N.** Chris ruled a new dependency fine "if it makes it much more polished". M and N
+are copies of L that differ only in the stock controls (top-bar buttons and tooltips, the Presets and Mode cues menus,
+the Restart and Settings dialogs, the settings switches and selects), so L | M | N can be judged side by side:
+
+- **M, L + Web Awesome 3**: those controls are Web Awesome components, from a vendored prebuilt classic-script bundle
+  in `vendor/webawesome/` (versions and build command in `vendor/webawesome/VENDOR.md`; esbuild and Web Awesome were
+  installed only outside the repo). The rest of L's chrome takes Web Awesome's colour, radius, spacing and font tokens.
+  M is the one variant that breaks the contract's "no dependency" rule, on purpose.
+- **N, L + platform**: the same controls with native `<dialog>`, `popover`, `light-dark()`, `@starting-style` and a
+  hand-written token sheet; no dependency.
 
 ## Run
 
@@ -31,7 +42,8 @@ Penpa+ link works: paste its `#...` part after `?variant=K`.
 | `variant-B.js`, `variant-B.css` | variant B's builder |
 | `variant-C.js`, `variant-C.css` | variant C's builder |
 | `variant-D.js`, `variant-D.css` | variant D's builder |
-| ... one pair per key, through `variant-K.js`, `variant-K.css` | that key's builder |
+| ... one pair per key, through `variant-N.js`, `variant-N.css` | that key's builder |
+| `vendor/webawesome/` | variant M's builder (a vendored bundle, never edited by hand) |
 | everything else (`loader.js`, `engine-bridge.js`, `switcher.js`, `samples.js`, `serve.mjs`, this README, the one-line hook in `docs/index.html`) | the scaffold; do not edit from a variant |
 
 **Variant K edits only `variant-K.js` and `variant-K.css`.** Nothing under `docs/js/`, `docs/css/` or `docs/index.html`.
@@ -62,7 +74,7 @@ window.PrototypeVariants.K = {
 
 | Field | What |
 |---|---|
-| `ctx.key` | `'A'`..`'K'` |
+| `ctx.key` | `'A'`..`'N'` |
 | `ctx.bridge` | the engine bridge below (also `window.PrototypeBridge`) |
 | `ctx.pu` | the live Penpa+ puzzle (a getter; prefer the bridge) |
 | `ctx.canvas` | `#canvas`, the one canvas Penpa+ draws the board on |

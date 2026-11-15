@@ -1,0 +1,305 @@
+/*
+ * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant M "L + Web Awesome" styles.
+ * L's layout and sizes (variant-L.css), with every colour, radius, shadow and font taken from Web Awesome's default
+ * theme tokens, so the hand-written chrome matches the Web Awesome controls. Dark: html.wa-dark flips the tokens; the
+ * few html.proto-m-dark rules left are the pin colours and Penpa's board, which are ours.
+ */
+@import url('vendor/webawesome/webawesome-default-theme.css');
+
+/* Shape mode re-shows the legacy floating panel with an inline style (class_p.js:1616-1619). */
+html.proto-variant-M #float-key { display: none !important; }
+/* Penpa's legacy dialogs ("All Penpa+ settings...") sit outside the bridge's legacy root, at z-index 2
+   (base-structure.css), under the desk (z-index 10); lift them over it. L has the same bug (its Settings button opens
+   the panel out of sight); L is frozen, so it is fixed only here. */
+html.proto-variant-M .modal { z-index: 1000; }
+html.proto-variant-M body { overflow: hidden; background: var(--wa-color-surface-lowered); }
+
+.proto-m-app {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    color: var(--wa-color-text-normal);
+    font-family: var(--wa-font-family-body);
+    font-size: 13px;
+    line-height: var(--wa-line-height-condensed);
+    --proto-m-accent: var(--wa-color-brand-fill-loud);
+    --proto-m-accent-quiet: var(--wa-color-brand-fill-quiet);
+    --proto-m-accent-on: var(--wa-color-brand-on-quiet);
+    --proto-m-line: var(--wa-color-surface-border);
+    --proto-m-quiet: var(--wa-color-text-quiet);
+}
+.proto-m-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---- Top bar ---- */
+.proto-m-bar {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    gap: var(--wa-space-2xs);
+    padding: 0 var(--wa-space-m);
+    background: var(--wa-color-surface-raised);
+    border-bottom: var(--wa-border-width-s) solid var(--proto-m-line);
+    box-shadow: var(--wa-shadow-s);
+    z-index: 950;
+    box-sizing: border-box;
+}
+/* Round 8: the title leads the bar; the Penpa+ mark is small and muted; the author sits on the title's baseline. */
+.proto-m-brand { font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .04em; color: var(--proto-m-quiet); }
+.proto-m-title { font-size: 20px; font-weight: 800; color: var(--wa-color-text-normal); margin-left: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proto-m-author { font-size: 13px; color: var(--proto-m-quiet); margin-left: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.proto-m-bar > *:not(.proto-m-title):not(.proto-m-author):not(.proto-m-spacer) { flex-shrink: 0; }
+.proto-m-spacer { flex: 1; }
+.proto-m-timer { font: 600 13px var(--wa-font-family-code); min-width: 52px; text-align: right; color: var(--wa-color-text-normal); margin: 0 2px; }
+/* Symbol buttons: square, the icon centred. */
+.proto-m-bar wa-button.proto-m-iconbtn::part(button) { width: 34px; padding: 0; justify-content: center; }
+.proto-m-bar wa-button.proto-m-iconbtn svg { display: block; }
+.proto-m-reset { margin-left: var(--wa-space-xs); }
+
+/* Hand-written buttons that stay (chip ×, picker Pin, style buttons). */
+.proto-m-btn {
+    font: inherit;
+    color: inherit;
+    background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-m-line);
+    border-radius: var(--wa-border-radius-m);
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-m-btn:hover { background: var(--wa-color-neutral-fill-quiet); }
+.proto-m-btn:disabled { opacity: .4; cursor: default; }
+.proto-m-btn[hidden] { display: none; }
+
+.proto-m-desk {
+    position: absolute;
+    left: 0; right: 0; top: 44px; bottom: 0;
+    background:
+        radial-gradient(circle at 1px 1px, color-mix(in oklab, var(--wa-color-text-normal) 10%, transparent) 1px, transparent 0) 0 0 / 22px 22px,
+        var(--wa-color-surface-lowered);
+    overflow: hidden;
+}
+
+/* ---- Cards ---- */
+.proto-m-card {
+    position: absolute;
+    box-sizing: border-box; /* round 4: a saved size is offsetWidth / offsetHeight, border included */
+    background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-m-line);
+    border-radius: var(--wa-border-radius-l);
+    box-shadow: var(--wa-shadow-s);
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+}
+.proto-m-card.is-dragging { box-shadow: var(--wa-shadow-l); opacity: .97; }
+.proto-m-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    min-height: 28px;
+    box-sizing: border-box;
+    background: var(--wa-color-surface-lowered);
+    border-bottom: var(--wa-border-width-s) solid var(--proto-m-line);
+    border-radius: var(--wa-border-radius-l) var(--wa-border-radius-l) 0 0;
+    cursor: grab;
+    user-select: none;
+    font-size: 11px;
+    font-weight: var(--wa-font-weight-bold);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--proto-m-quiet);
+}
+.proto-m-card.is-dragging .proto-m-head { cursor: grabbing; }
+.proto-m-head wa-button { text-transform: none; letter-spacing: 0; }
+.proto-m-body { padding: 10px 12px; overflow: auto; }
+
+.proto-m-card-board .proto-m-body { padding: 8px; overflow: visible; }
+.proto-m-card-pins { width: 380px; }
+.proto-m-card-pins .proto-m-body { min-height: 150px; overflow: visible; }
+.proto-m-card-rules { width: 380px; }
+.proto-m-card-rules .proto-m-body { max-height: 520px; box-sizing: border-box; font-size: 12.5px; color: var(--wa-color-text-normal); } /* max-height also set by place() */
+.proto-m-card-mode { width: 380px; }
+.proto-m-card-mode .proto-m-body { overflow: visible; }
+.proto-m-card-mouse { width: 380px; border: 2px solid var(--proto-m-accent); box-shadow: var(--wa-shadow-m); }
+.proto-m-card-mouse .proto-m-head { background: var(--proto-m-accent); color: var(--wa-color-brand-on-loud); border-bottom-color: transparent; border-radius: calc(var(--wa-border-radius-l) - 2px) calc(var(--wa-border-radius-l) - 2px) 0 0; }
+
+/* ---- Mouse card ---- */
+.proto-m-headline { font-size: 22px; font-weight: var(--wa-font-weight-bold); line-height: 1.2; color: var(--wa-color-brand-on-normal); margin-bottom: 10px; }
+.proto-m-hsep { color: var(--proto-m-quiet); font-weight: 400; }
+.proto-m-hsub { color: var(--proto-m-accent-on); }
+.proto-m-hstyle { color: var(--wa-color-text-normal); white-space: nowrap; }
+.proto-m-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+.proto-m-mrows { display: grid; gap: 4px; }
+.proto-m-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: var(--wa-border-radius-m); background: var(--proto-m-accent-quiet); font-size: 14px; }
+.proto-m-mrow.is-none { background: var(--wa-color-neutral-fill-quiet); color: var(--proto-m-quiet); }
+.proto-m-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 8px; color: var(--proto-m-quiet); }
+.proto-m-mg { font-weight: var(--wa-font-weight-bold); color: var(--proto-m-accent-on); }
+.proto-m-mrow.is-none .proto-m-mg { color: var(--proto-m-quiet); }
+.proto-m-mrow.is-more .proto-m-mg { font-weight: 600; color: var(--proto-m-quiet); }
+
+/* ---- Pins ---- */
+.proto-m-pins { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-m-chip {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 3px 3px 7px;
+    border: var(--wa-border-width-s) solid var(--proto-m-line);
+    border-left: 6px solid var(--proto-m-pc, var(--proto-m-line)); /* round 6: the pin's window colour */
+    border-radius: var(--wa-border-radius-m);
+    background: var(--wa-color-surface-default);
+    cursor: pointer;
+    white-space: nowrap;
+}
+.proto-m-pinlabel { font-size: 13px; }
+.proto-m-chip:hover { border-top-color: var(--wa-color-brand-border-normal); border-right-color: var(--wa-color-brand-border-normal); border-bottom-color: var(--wa-color-brand-border-normal); }
+.proto-m-pinnum { font: 700 11px var(--wa-font-family-code); color: var(--proto-m-quiet); }
+.proto-m-card .proto-m-body .proto-m-unpin { padding: 0 5px; border: 0; background: transparent; color: inherit; opacity: .55; }
+.proto-m-card .proto-m-body .proto-m-unpin:hover { opacity: 1; background: rgba(0, 0, 0, .08); }
+.proto-m-note { font-size: 11.5px; color: var(--proto-m-quiet); margin: 6px 0; }
+.proto-m-row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; align-items: center; }
+.proto-m-sub { font-size: 10.5px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-m-quiet); margin: 8px 0 4px; }
+.proto-m-input {
+    font: inherit; padding: 4px 8px; border: var(--wa-form-control-border-width) solid var(--wa-form-control-border-color);
+    border-radius: var(--wa-form-control-border-radius); background: var(--wa-form-control-background-color);
+    color: var(--wa-form-control-value-color); flex: 1; min-width: 0;
+}
+.proto-m-input::placeholder { color: var(--wa-form-control-placeholder-color); }
+.proto-m-input:focus { outline: var(--wa-focus-ring); outline-offset: var(--wa-focus-ring-offset); }
+
+/* ---- Mode browser ---- */
+.proto-m-group { font-size: 10.5px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-m-quiet); margin: 10px 0 3px; }
+.proto-m-group:first-child { margin-top: 0; }
+.proto-m-entry {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    column-gap: 8px;
+    padding: 5px 8px;
+    border-radius: var(--wa-border-radius-m);
+    cursor: pointer;
+}
+.proto-m-entry:hover { background: var(--wa-color-neutral-fill-quiet); }
+.proto-m-entry.is-on { background: var(--proto-m-accent-quiet); box-shadow: inset 3px 0 0 var(--proto-m-accent); }
+.proto-m-ename { font-weight: 600; }
+.proto-m-emode { font-weight: 400; font-size: 11px; color: var(--proto-m-quiet); margin-left: 6px; }
+.proto-m-edesc { grid-column: 1; font-size: 11.5px; color: var(--proto-m-quiet); }
+.proto-m-entry .proto-m-pinbtn { grid-row: 1 / span 2; grid-column: 2; align-self: center; }
+.proto-m-card .proto-m-body .proto-m-pinbtn { padding: 2px 9px; font-size: 12px; }
+.proto-m-card .proto-m-body .proto-m-pinbtn.is-pinned { background: var(--proto-m-accent); border-color: var(--proto-m-accent); color: var(--wa-color-brand-on-loud); }
+
+/* Tag chips (Penpa's own labels, often a genre name): searchable, never a group. */
+.proto-m-tag { display: inline-block; margin-left: 6px; padding: 0 6px; border-radius: var(--wa-border-radius-pill); background: var(--wa-color-warning-fill-quiet); color: var(--wa-color-warning-on-quiet); font-size: 10.5px; font-weight: 600; line-height: 16px; vertical-align: 1px; }
+
+/* ---- Mode card ---- */
+.proto-m-pickmode { color: var(--proto-m-accent-on); letter-spacing: 0; text-transform: none; font-size: 12px; }
+.proto-m-picker { position: relative; }
+.proto-m-pickfield { position: relative; }
+.proto-m-caret { color: var(--proto-m-quiet); font-size: 11px; margin-left: 4px; }
+.proto-m-pickfield .proto-m-caret { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.proto-m-search { display: block; width: 100%; box-sizing: border-box; padding: 7px 26px 7px 10px; font-size: 15px; font-weight: 600; }
+.proto-m-picker.is-open .proto-m-search { font-weight: 400; }
+.proto-m-list {
+    display: none; margin-top: 6px; /* round 3: in flow, so it pushes the style controls down */
+    max-height: 470px; overflow: auto; padding: 6px 8px; background: var(--wa-color-surface-default);
+    border: var(--wa-border-width-s) solid var(--proto-m-line); border-radius: var(--wa-border-radius-l);
+    box-shadow: inset 0 1px 4px var(--wa-color-shadow);
+}
+.proto-m-picker.is-open .proto-m-list { display: block; }
+.proto-m-entry.is-active { outline: 2px solid var(--wa-color-brand-border-normal); outline-offset: -2px; }
+.proto-m-toolopts { margin-top: 10px; display: grid; gap: 8px; }
+.proto-m-card.has-open { z-index: 800 !important; }
+
+/* ---- Round 3: one button per style ---- */
+.proto-m-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.proto-m-card .proto-m-body .proto-m-stylebtn {
+    display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; line-height: 0;
+    color: var(--wa-color-text-normal); background: var(--wa-color-surface-default); border: var(--wa-border-width-s) solid var(--proto-m-line);
+    border-radius: var(--wa-border-radius-s); box-sizing: border-box;
+}
+.proto-m-card .proto-m-body .proto-m-stylebtn:hover { border-color: var(--wa-color-brand-border-normal); }
+.proto-m-card .proto-m-body .proto-m-stylebtn.is-on { border-color: var(--proto-m-accent); box-shadow: 0 0 0 2px var(--proto-m-accent); background: var(--proto-m-accent-quiet); }
+
+/* ---- Recent ---- */
+.proto-m-card-recent { width: 380px; }
+.proto-m-recentempty { margin: 2px 0; }
+.proto-m-recentlist { display: flex; flex-wrap: wrap; gap: 6px; }
+.proto-m-recentbtn.proto-m-chip { border-left-width: var(--wa-border-width-s); padding-left: 9px; } /* Recent tools own no colour */
+.proto-m-recentpin { display: inline-flex; padding: 3px; border-radius: var(--wa-border-radius-s); color: var(--proto-m-quiet); line-height: 0; }
+.proto-m-recentpin:hover { background: var(--proto-m-accent-quiet); color: var(--proto-m-accent); }
+
+.proto-m-toolopts[hidden] { display: none; }
+
+/* Held Shift / Ctrl in Sudoku: the Mouse card names the temporary tool with this tag. */
+.proto-m-heldtag { display: inline-block; margin-left: 10px; padding: 1px 8px; border-radius: var(--wa-border-radius-pill); background: var(--wa-color-warning-fill-normal); color: var(--wa-color-warning-on-normal); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: 4px; }
+
+/* ---- Resizable cards ---- */
+.proto-m-rs { position: absolute; z-index: 2; }
+.proto-m-rs-r { top: 8px; right: -4px; bottom: 8px; width: 8px; cursor: ew-resize; }
+.proto-m-rs-b { left: 8px; right: 8px; bottom: -4px; height: 8px; cursor: ns-resize; }
+.proto-m-rs-c { right: -5px; bottom: -5px; width: 14px; height: 14px; cursor: nwse-resize; }
+.proto-m-rs-c::after { content: ""; position: absolute; right: 6px; bottom: 6px; width: 7px; height: 7px;
+    border-right: 2px solid var(--wa-color-neutral-border-normal); border-bottom: 2px solid var(--wa-color-neutral-border-normal); }
+.proto-m-card.is-resizing { box-shadow: var(--wa-shadow-l); user-select: none; }
+.proto-m-card.is-sized .proto-m-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.proto-m-card.is-sized.has-open .proto-m-body { overflow: visible; }
+.proto-m-card-board.is-sized .proto-m-body { overflow: auto; display: flex; }
+.proto-m-card-board .proto-m-body > #dvique { margin: auto; flex: none; }
+
+/*
+ * Penpa's base-structure.css `* { margin: 0; padding: 0; user-select: none }` reaches Web Awesome's host elements and
+ * beats their own :host rules (outer styles win over :host); put back the host spacing the components ship with.
+ */
+.proto-m-app wa-dropdown-item { padding: .5em 1em; }
+.proto-m-app wa-dropdown-item[checkbox-adjacent] { padding-inline-start: 2em; }
+.proto-m-app wa-option { padding: .5em 1em .5em .25em; }
+.proto-m-app wa-divider { margin: var(--spacing, var(--wa-space-xs)) 0; }
+.proto-m-app wa-input { user-select: text; }
+
+/* ---- Menus (wa-dropdown) ---- */
+.proto-m-presets::part(menu) { max-height: min(70vh, 560px); overflow: auto; min-width: 340px; }
+.proto-m-menuhead { text-align: left; margin: var(--wa-space-xs) var(--wa-space-s) var(--wa-space-3xs); font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-m-quiet); }
+.proto-m-itemname { font-weight: 600; }
+.proto-m-itemnote { font-size: var(--wa-font-size-2xs); color: var(--proto-m-quiet); white-space: normal; line-height: 1.3; max-width: 300px; }
+.proto-m-cues wa-dropdown-item { white-space: nowrap; }
+
+/* ---- Dialogs (wa-dialog) ---- */
+.proto-m-dialog { --width: 420px; }
+.proto-m-dialog::part(body) { font-size: var(--wa-font-size-s); }
+.proto-m-dlgtext { margin: 0 0 var(--wa-space-m); line-height: 1.5; color: var(--wa-color-text-normal); }
+.proto-m-settingsdlg { --width: 460px; }
+.proto-m-setgroup { display: grid; gap: var(--wa-space-m); padding-bottom: var(--wa-space-l); }
+.proto-m-setgroup + .proto-m-setgroup { border-top: var(--wa-border-width-s) solid var(--proto-m-line); padding-top: var(--wa-space-m); }
+.proto-m-sethead { margin: 0; text-align: left; font-size: 11px; font-weight: var(--wa-font-weight-bold); letter-spacing: .06em; text-transform: uppercase; color: var(--proto-m-quiet); }
+.proto-m-legacyset { margin-right: auto; }
+.proto-m-settingsdlg::part(footer) { justify-content: space-between; }
+
+/* ---- Round 5: mode cues ---- */
+html.proto-m-cue-frame .proto-m-card-board { border: 3px solid var(--proto-m-fam, var(--proto-m-line)); }
+html.proto-m-cue-frame .proto-m-card-board .proto-m-head { background: var(--proto-m-fam, var(--wa-color-surface-lowered)); color: #fff; border-bottom-color: transparent; border-radius: calc(var(--wa-border-radius-l) - 3px) calc(var(--wa-border-radius-l) - 3px) 0 0; }
+html.proto-m-cue-frame .proto-m-card-board .proto-m-head wa-button::part(button) { background: rgba(255, 255, 255, .92); color: #23262c; }
+.proto-m-boardtool { text-transform: none; letter-spacing: 0; font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.proto-m-boardtool .proto-m-heldtag { font-size: 10px; vertical-align: 1px; margin-left: 8px; }
+.proto-m-flash {
+    position: absolute; left: 50%; top: 46px; transform: translateX(-50%); z-index: 5; pointer-events: none;
+    display: flex; align-items: center; gap: 7px;
+    padding: 4px 12px; border-radius: var(--wa-border-radius-pill); background: rgba(18, 20, 26, .62); color: #fff;
+    font-size: 14px; font-weight: 600; white-space: nowrap; opacity: 0; transition: opacity .2s ease-out;
+}
+.proto-m-flashdot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
+.proto-m-flash.is-on { opacity: 1; transition: none; }
+
+/* ---- Dark: the tokens flip under html.wa-dark; what is left is ours ---- */
+html.proto-variant-M.proto-m-dark body { background: var(--wa-color-surface-lowered); }
+.proto-m-dark .proto-m-chip { border-left-color: var(--proto-m-pcd, var(--proto-m-line)); }
+.proto-m-dark .proto-m-recentbtn.proto-m-chip { border-left-color: var(--proto-m-line); }
+.proto-m-card-board { --proto-m-cardbg: var(--wa-color-surface-default); }
+html.proto-m-dark.proto-m-cue-frame .proto-m-card-board .proto-m-head { color: #14161b; }
+/* Round 6: the lit pin chip is filled with its own window colour (white text in light, dark text in dark). */
+.proto-m-pin.is-on { background: var(--proto-m-pc); border-color: var(--proto-m-pc); color: #fff; }
+.proto-m-pin.is-on .proto-m-pinnum { color: #fff; }
+.proto-m-dark .proto-m-pin.is-on { background: var(--proto-m-pcd); border-color: var(--proto-m-pcd); color: #14161b; }
+.proto-m-dark .proto-m-pin.is-on .proto-m-pinnum { color: #14161b; }
+.proto-m-dark .proto-m-card .proto-m-body .proto-m-unpin:hover { background: rgba(0, 0, 0, .15); }
