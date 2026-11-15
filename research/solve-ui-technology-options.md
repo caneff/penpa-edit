@@ -16,6 +16,8 @@ verified**.
 
 ## Recommendation
 
+Superseded for polish by § Polish (2026-11-15) below, which weighs libraries now that a new dependency is fine.
+
 **Plain JavaScript: one custom element per piece of chrome, rendering into light DOM (no shadow DOM), loaded as
 classic `<script>` files like the rest of `docs/js/`, native `<dialog>` for dialogs, and a small hand-written store
 (an `EventTarget` holding UI state, subscribed to the engine API's change events). No build step, no new dependency.**
@@ -57,6 +59,213 @@ Clause. It keeps the same unit, a custom element, so the plain-JS elements can m
 
 Preact 11 with htm is a close third (§ Preact). Svelte and Solid both need a build step to be used as intended, which
 the site does not have today.
+
+## Polish (2026-11-15)
+
+Asked for after Chris's ruling of 2026-11-15, "a new dependency is fine if it makes it much more polished": which
+libraries would make the new solve UI's chrome much more polished than plain JS on the web platform, and at what cost.
+The chrome is variant L's, frozen at `a023d8a` on `prototype/solve-ui` (`docs/prototype/solve-ui/variant-L.js` and
+`.css`; rulings in `research/solve-ui-prototype-verdicts.md`). Read on 2026-11-15, repo at `f587238`. The 2026-11-13
+facts above (sizes, `file://` spike, agent benchmarks) still hold and are not repeated. Claims are marked as above:
+**docs**, **registry**, **measured**, **not verified**.
+
+### Revised recommendation
+
+**Keep the plain-JS custom elements of the 2026-11-13 recommendation, and add Web Awesome 3 (free tier, MIT) for the
+stock controls, vendored as one prebuilt classic-script bundle.** Web Awesome supplies the top bar's buttons, the
+dropdown menus (Presets, Mode cues), the style pulldown's select, tooltips, the restart and settings dialogs, the
+settings switches, and the theme tokens with a dark theme. The desk, the cards' drag and resize, the pin and Recent
+chips, the Mouse card, the mode flash and the mode picker stay hand-written plain JS, styled with Web Awesome's tokens;
+the picker follows the WAI-ARIA combobox pattern (role `combobox`, `listbox`, `aria-activedescendant`), because Web
+Awesome's own combobox is a paid Pro component.
+
+Not through Web Awesome's ES-module loader: bundle the components we use once with esbuild into an IIFE and commit it
+under `docs/js/libs/` beside the other vendored libraries. In the spike, eight components bundled that way (button,
+dialog, dropdown, dropdown item, tooltip, select, option, input) came to 274,907 bytes, 69,996 gzip; the bundle loaded
+as a classic `<script>` over `file://`, defined every element, opened and closed the dialog, made no network request and
+logged no error or warning (measured, § Spike). So the test seam stays on `file://`, Pages stays a plain folder, and
+there is no build step in an agent's loop; esbuild runs only when the vendored version is upgraded.
+
+**Why this, and how much it buys.** The gain is mostly look and consistency, not behaviour. For behaviour, the platform
+already matches Web Awesome on dialogs (focus moves in, Esc closes, focus returns to the opener: both measured), and no
+library does much for L's desk (§ Per piece). Where Web Awesome wins is that every stock control comes styled, animated,
+focus-ringed and dark-themed from one token set, and its menus and tooltips are keyboard-reachable out of the box; with
+plain JS each of those is designed by an agent, piece by piece, which is where L's prototype is weakest today (pulldown
+buttons carry `tabindex="-1"`, tooltips are `title` attributes, the picker has no ARIA roles: read in `variant-L.js`).
+
+**Cost.**
+- Two new dependencies to approve: `@awesome.me/webawesome` (runtime, vendored) and esbuild (a dev tool, or `npx`
+  run at upgrade time). Plus a short vendor script that names the components bundled.
+- About 70 KB gzip of JS for eight components, plus 2.6 KB gzip of theme CSS (measured): more than the vendored jQuery
+  3.7.0 (87,462 bytes, 30,188 gzip) and SweetAlert2 (70,856, 19,016) the page already loads (measured).
+- Shadow DOM: page CSS styles Web Awesome's insides only through its custom properties and `::part`.
+- Agents' training data is Shoelace-era: Web Awesome is Shoelace's successor with renamed tags (`sl-` to `wa-`) and
+  attribute values. In the spike `size="small"` logged "deprecated. Use size="s" instead" (measured). The package ships
+  `llms.txt` and an agent skill (`skills/webawesome/SKILL.md`) that can be pointed at (measured, present in the package).
+- `wa-icon`'s default icon library is Font Awesome's CDN (`ka-f.fontawesome.com` in the package code, measured); the
+  dialog's close button uses the built-in `system` library and rendered offline (measured). L's own 16px SVG symbols
+  stay.
+- Penpa's document `keydown` handler (`main.js:294-297`) lets typing through only when `e.target.type` is `text` or
+  `number`. Shadow DOM retargets the event to the host element; `<wa-input>`'s host reports `type` `text`, so typing in
+  it passed through (measured). `<wa-select>` with arrow keys was not checked.
+
+**Runner-up: plain JS on the platform alone**, as recommended on 2026-11-13, with Popover API menus, `<dialog>`,
+`light-dark()` theming, `@starting-style` transitions and a hand-written token sheet, adding Floating UI's UMD build
+(8.9 KB gzip, classic script) only if menus need to be kept clear of the window edges. It costs nothing to approve and matches Web Awesome's
+behaviour on dialogs and popovers; it loses on look and consistency unless someone designs the tokens.
+
+### Per piece of L's chrome
+
+"Platform" means features usable without a polyfill; Baseline status is from web-features 3.46.0 ([WebFeatures],
+registry), the dataset MDN's Baseline banners show. Anchor positioning, `<dialog closedby>`, `popover="hint"`,
+`interestfor` and customizable `<select>` are **not** Baseline (Firefox or Safari lacks them), so none is relied on here.
+
+| Piece | L at `a023d8a` | Platform alone | Best library help | Gain from a library |
+|---|---|---|---|---|
+| Desk cards: drag by header, resize by edge or corner, stay inside the window after zoom or resize | `mousedown` / `mousemove` on `document`, no pointer capture, no keyboard move; `place()` holds L's own policy (column stacking, anchoring to the nearer edge after zoom) | Pointer Events with `setPointerCapture` (Baseline 2020) and a `resize` re-clamp: about 25 lines in the spike kept a card inside on drag and on window shrink (measured) | Zag `floating-panel`: clamps to a boundary element on drag and on boundary resize (measured), arrow keys move a focused panel, Esc closes the topmost, `role="dialog"` with `aria-labelledby` (measured), stacking order, min / max size, 8 resize axes, grid snap ([ZagFP], docs; code read). interact.js clamps drags but not a window shrink (measured) | Small. Keyboard moving is the one real accessibility gain. L's placement policy is the hard part and is ours in every option; Zag keeps its own position state and re-clamps it, so it would have to run controlled (`position` / `size` props) to coexist with `place()` (not verified) |
+| Mode picker: searchable list of every mode and sub-mode, grouped, with tag chips and a Pin toggle per entry | `<input>` plus a list, Up / Down / Enter / Esc handled by hand; no `combobox` / `listbox` / `option` roles, no `aria-activedescendant` (read) | No native filterable combobox; `<datalist>` cannot show groups, swatches or a Pin toggle | Zag `combobox`: roles, `aria-expanded`, `aria-activedescendant`, filtering, Enter selects (measured), 35 KB gzip with its positioning code (measured). Web Awesome's `<wa-combobox>` is Pro, paid ([WAComponents], docs). Base UI has a React Combobox (registry) | The largest accessibility gap in L, but it is a fixed, well-documented ARIA pattern that a hand-written element can follow; Zag only if that proves hard |
+| Pulldowns: style (with swatches), Presets, Mode cues | Custom `div` lists, opened on click, flipped left by hand near the window edge; buttons have `tabindex="-1"` (read) | Popover API (Baseline 2025-01): top layer, Esc, light dismiss and focus back to the button (measured); position set by hand, since anchor positioning is not Baseline | Web Awesome `<wa-dropdown>`: `menuitemcheckbox` items, arrow keys, Esc returns focus to the trigger when opened from the keyboard (measured); open / close animation; `<wa-select>`. Floating UI's UMD build keeps a menu clear of the viewport edges (docs) | Moderate: look plus menu keyboard behaviour come for free. Whether `<wa-option>` can show L's colour swatches and drawn samples is not verified |
+| Pin and Recent chips, drag to reorder | HTML5 drag and drop on `draggable` chips; no keyboard reorder (read) | Same drag and drop (Baseline since 2015) | SortableJS 1.15.7 (UMD, MIT; registry) animates the reorder. Keyboard reorder: not verified in any library | Small. Keyboard reorder is hand-written in every option |
+| Mode-change flash (14px tag, about 350ms, 0.2s fade) | CSS opacity transition (read) | `@starting-style` and `transition-behavior` (Baseline 2024-08), Web Animations | Motion 14 (95 releases a year; registry) | None |
+| Top bar symbol buttons (Undo, Redo, Restart, Pause, Settings, theme) with tooltips | `<button>`s with `aria-label` and a `title` tooltip (read): browser-drawn, delayed, never shown on keyboard focus | No Baseline styled tooltip (`popover="hint"` and `interestfor` are Chromium-only) | `<wa-tooltip>` (hover and focus), `<wa-button>`, `<wa-button-group>` ([WAComponents], docs) | Moderate, mostly visible |
+| Dialogs: restart confirm, settings | Restart asks through Penpa's SweetAlert2; Settings opens Penpa's legacy panel (read) | `<dialog>.showModal()` (Baseline 2022): `autofocus`, Esc, inert page, focus back to the opener (measured). Tab is not held inside: after the last button, focus went to `<body>` once before coming back (measured) | `<wa-dialog>`: styled header, close button and footer, show / hide animation, a pulse when a close is refused ([WADialog], docs). Its Tab behaviour was the same as the native dialog's (measured) | Look only |
+| Light / dark theme | `html.proto-l-dark` plus hand CSS, and Penpa's `color_theme` for the board (read) | `color-scheme` with `light-dark()` (Baseline 2024-05) switched a card's background (measured) | Web Awesome's `.wa-dark` class re-themes every component from one token set (measured on a button); tokens for colour, spacing, radius | Moderate: a coherent token set, which plain JS would have to write. The per-pin colour generator stays ours either way |
+| Focus visibility and keyboard reach overall | Outlines on inputs and the open pulldown only (read) | `:focus-visible` (Baseline 2022) | Every Web Awesome control is focusable and ringed by default | Moderate |
+
+### Evidence per candidate
+
+#### Web Awesome 3 (framework-agnostic web components)
+
+- **Version, cadence, licence**: 3.14.0 on 2026-09-24; 15 stable releases from 2025-11-15 to 2026-11-15; MIT
+  (registry). The repo `shoelace-style/webawesome` was last pushed 2026-11-13 (GitHub API). Docs already describe a 3.15
+  component, so the site runs ahead of npm (docs).
+- **Free and Pro**: the component list marks Combobox, Data Grid, Date Input / Picker, File Input, charts and Video as
+  "Pro. This requires access to Web Awesome Pro" ([WAComponents], docs). Dialog, Drawer, Dropdown, Popover, Select,
+  Tooltip, Button Group, Switch, Split Panel, Color Picker, Tag are free (docs). Pro's price was not read.
+- **Loading**: the documented routes are a CDN `<script type="module">` autoloader or npm imports for a bundler; `dist-cdn`
+  is "bundled together, so you can use them directly without a build tool", and self-hosting needs a base path, set by a
+  `data-webawesome` attribute or `setBasePath()` ([WAInstall], docs). Registry `type: module` (registry). A classic
+  build is not offered; our own esbuild IIFE worked (measured, § Spike).
+- **Trap (measured)**: self-hosted `dist-cdn` without `data-webawesome` resolved component paths against its own chunk
+  directory and every element failed to autoload ("Unable to autoload <wa-button>"), as console warnings, not errors.
+  The IIFE bundle has no autoloader and no base path for its system icons.
+- **Size**: 8 components as an IIFE 274,907 / 69,996 gzip; served as ES modules from `dist-cdn`, 7 components pulled 84
+  separate JS files, 441,407 bytes, 113,841 gzip summed per file (measured). Theme CSS `default.css` 16,773 / 2,610.
+- **Dark theme**: `.wa-dark` / `.wa-light` classes in `styles/themes/default.css` (measured, grepped).
+- **Behaviour** (measured, headless Chromium): dialog focus lands inside on open, Esc closes, focus returns to the opening
+  button; dropdown items are `menuitemcheckbox`, ArrowDown moves focus, Esc from a keyboard-opened menu returns focus to
+  the trigger, while Esc from a mouse-opened one left focus on `<body>`.
+- **Shoelace** is sunset: "There is no active development on this codebase"; repo archived, last release 2.20.1 on
+  2025-03-11 ([ShoelaceReadme], docs; registry). Pruned.
+
+#### Zag 1.48 (headless state machines, vanilla adapter)
+
+- **Version, cadence, licence**: 1.48.0 on 2026-11-13; 30 stable releases of `@zag-js/vanilla` in the year; MIT
+  (registry). Repo pushed 2026-11-15 (GitHub API).
+- **No look**: Zag supplies behaviour and ARIA attributes; every pixel of styling is ours ([ZagStart], docs). So it
+  improves accessibility, not looks.
+- **Vanilla use**: the getting-started page names React, Vue, Svelte and Solid only ([ZagStart], docs); a vanilla adapter
+  exists on npm and in the repo's `examples/vanilla-ts` (registry; GitHub API). Usage is `new VanillaMachine(machine,
+  props)`, then `spreadProps(node, api.getXProps())` on every part after each state change ([ZagVanillaEx], source read).
+  Verbose: an agent must re-spread every part on every change.
+- **Loading**: CommonJS and ESM only, with bare imports between `@zag-js/*` packages (registry). An esbuild IIFE worked as
+  a classic script over `file://` (measured).
+- **Size** (IIFE, min / gzip, measured): floating panel 49,317 / 16,904; combobox 107,940 / 35,107; both 134,542 /
+  43,575.
+- **Floating panel**: drag, resize on 8 axes, minimise / maximise, min / max size, grid snap, `getBoundaryEl`,
+  `allowOverflow`, stacking via `--z-index` ([ZagFP], docs). Its content element moves 1 grid step per arrow key and
+  closes on Esc when topmost (`floating-panel.connect.mjs:133-170`, source read); it re-clamps when the boundary element
+  resizes (`trackBoundaryRect`, ResizeObserver; source read). In the spike, with `allowOverflow: false`, a drag far past
+  the corner and a window shrink from 1200x800 to 700x500 both left the panel inside the desk (measured). With the
+  default, the first drag ended 2px outside, a border my CSS added outside Zag's `--width`; `box-sizing: border-box`
+  fixed it (measured).
+
+#### Floating UI 1.8 (positioning)
+
+- 1.8.0 on 2026-07-11, 3 stable releases in the year, MIT (registry). "Floating UI can be loaded via CDN using ESM or
+  UMD format ... All exports will be available on `window.FloatingUIDOM`" ([FloatingUIStart], docs). UMD core + dom:
+  22,594 bytes, 8,865 gzip (measured). Interactions (focus, dismiss, roles) are a React package only; the DOM package
+  only positions (docs). Useful for keeping menus clear of the viewport edges if the Popover API's hand positioning falls short.
+
+#### Desk and panel libraries
+
+- **interact.js 1.10.28**: 2026-08-01, 1 release in the year, MIT; `dist/interact.min.js` loads as a classic script
+  (registry; measured over `file://`). `restrictRect` keeps an element inside its parent while dragging ([InteractRestrict],
+  docs). In the spike it did, but a window shrink left the card outside (measured): re-clamping is still ours. 98,203 /
+  28,928 gzip (measured), more than the 25 hand-written lines it replaces. Pruned.
+- **dockview 8.9**: a docking layout manager "supporting tabs, groups, grids and splitviews" ([DockviewReadme], docs);
+  floating groups exist, bounded within the viewport, but each hosts tabs and a nested layout ([DockviewFloat], docs).
+  42 releases in the year, MIT (registry). An IDE model, not a desk of fixed cards. Pruned.
+- **gridstack 14.1**: "dashboard layout ... drag-and-drop, multi-column responsive dashboard" ([GridstackReadme], docs):
+  cards snap to grid cells and columns, which changes L's free placement. 15 releases, MIT (registry). Pruned.
+- **WinBox 0.2.82** (2023-07-13, repo last pushed 2024-08-15), **jsPanel4 4.16.1** (registry modified 2022-11-03),
+  **golden-layout 2.6.0** (2023-02-21), **@neodrag/vanilla 2.3.1** (drag only, 2025-06-18): stale or too narrow
+  (registry; GitHub API). Pruned.
+
+#### Framework plus component kit
+
+- **React 19 with Base UI or Radix**: React 19 ships no UMD build ("Starting with React 19, React will no longer produce
+  UMD builds"; [React19Upgrade], docs), and JSX needs a compiler, so this means a real build step. Base UI 1.9.0
+  (2026-10-09, 11 releases, MIT) and Radix are unstyled ([BaseUIStart], docs; registry): the look is still ours, so the
+  polish over Zag is nil while the cost is a framework and a build. Pruned.
+- **Svelte 5 with Bits UI 2.21** (2026-11-11, 37 releases, MIT; registry): headless ("Bring Your Own Styles";
+  [BitsUI], docs) and the Svelte compiler is required (§ Svelte above). Pruned for the same reason.
+- **Lit 3 with Web Awesome**: Web Awesome's components are built on Lit; its dependencies include `lit`, `@floating-ui/dom`
+  and `@shoelace-style/animations` (registry), all inside the vendored bundle. Our own elements need not use Lit. Not worth a second library unless the plain elements' hand-written updates
+  start breaking (§ Recommendation above).
+- **Other web-component kits** read only in the registry: Material Web 2.5.0 (1 release in the year), Fluent UI web
+  components 3.2.1 (11), Spectrum web components 1.12.6 (Apache-2.0). Not evaluated further.
+
+### `file://`, tests and the build question
+
+- **What moving tests to HTTP costs here (read, measured).** `live/page.mjs`'s `openPenpa` already has a `served: true`
+  mode that answers `https://penpa.test/` from this checkout's `docs/` through Playwright's `context.route`, with no
+  server process; 19 call sites use it (`grep -rn 'served: true' live`). `test/snapshots.test.mjs` uses the default `file://`
+  page. In the spike, the same `route.fulfill({ path })` served ES modules that Chromium ran (measured). So switching is a
+  default change in `openPenpa`, plus `live/share-base-url.live.mjs`, whose first test exists to open a `file://` page:
+  an ES-module UI would fail to load there and its page error would fail that test. Small either way, and unneeded by
+  the recommendation.
+- **Pages serves `.js` as `application/javascript`** (measured with `curl -I` on `js/main.js` and a vendored library).
+  `.mjs` remains not verified; use `.js` names.
+- **Do users open the site over `file://`?** No documented path found: `README.md` has no `file://`, offline or
+  download-the-site instructions (grepped), and `CONTRIBUTING.md` suggests local testing with browsersync, an HTTP
+  server. But upstream's `maketext_baseurl()` keeps a `file://` branch (`docs/js/class_p.js:2047-2049`), so someone
+  once opened it from disk. Whether anyone still does: not verified.
+- **If a real build step were chosen** (Svelte, React): Pages builds from `master:/docs` with `build_type: legacy`
+  (`gh api repos/caneff/penpa-edit/pages`, measured). Either the output is committed under `docs/` (generated diffs in
+  every UI change; the nightly upstream merge must not touch it, so mark it `merge=ours`), or Pages switches to an
+  Actions deploy, and both `ci.yml` and `upstream-merge.yml` must build before testing. No `.gitattributes` exists in
+  the checkout yet (`git ls-files`), though `AGENTS.md` describes marking owned files in one. A vendored prebuilt bundle
+  (the recommendation) needs neither: it is a new file under `docs/js/libs/`, which upstream does not have, so a merge
+  cannot conflict on it.
+
+### Spike
+
+Scratchpad only, nothing installed in the repo: `@awesome.me/webawesome` 3.14.0, `@zag-js/*` 1.48.0, `interactjs`
+1.10.28, `@floating-ui/dom` 1.8.0, esbuild 0.28; Playwright from `~/src/sudokupad-scripts/node_modules`, Chromium
+headless at 1200x800, every outside request answered empty. Each page had a classic global `engine` drawing on a
+`<canvas>` and a 44px top bar over a desk.
+
+| Page | Loaded over | Result (measured) |
+|---|---|---|
+| Platform only: pointer-capture drag and resize, Popover menu, `<dialog>`, `light-dark()` | `file://` | Card stayed inside after a 3000px drag and a shrink to 700x500 (after fixing a 2px `box-sizing` overflow in my own first version); dialog: focus on `autofocus` Cancel, Esc closed, focus back on Restart, Tab went to `<body>` once; popover: Esc closed with focus back, outside click closed; theme switched; no errors |
+| Zag floating panel and combobox, own IIFE | `file://` | Panel clamped on drag and on window shrink; typing "su" left Surface and Sudoku; ArrowDown set `aria-activedescendant`; Enter called `engine.setMode('sudoku')`; no errors |
+| Web Awesome `dist-cdn`, ES-module loader | `file://` | No element defined; "Access to script ... blocked by CORS policy" |
+| The same | HTTP via `context.route` | Worked once `data-webawesome="/wa"` was set; dialog, dropdown and theme as in § Web Awesome; 84 JS files |
+| Web Awesome, 8 components as own IIFE | `file://` | All elements defined; dialog open, Esc, focus back, Restart ran; close icon drawn from the built-in library; no network request; no console error or warning |
+| interact.js UMD | `file://` | Drag clamped; window shrink left the card outside |
+
+### Not determined
+
+- Whether the visual gain from Web Awesome is "much more polished" in Chris's eyes: only Chris can judge that; a
+  side-by-side of L's top bar and dialogs restyled both ways would settle it.
+- Whether `<wa-select>` / `<wa-option>` can show L's swatches and drawn style samples, and whether arrow keys on a focused
+  `<wa-select>` reach Penpa's `keydown` handler.
+- Web Awesome Pro's price, and whether its combobox could hold L's picker (groups, tag chips, per-entry Pin toggle).
+- Zag's floating panel run controlled beside L's `place()` policy; keyboard resizing in Zag.
+- Keyboard reorder of chips in any library.
+- How well agents write Web Awesome 3 or Zag: no benchmark searched or found beyond § Agents above.
+- Whether real users open the site over `file://`.
 
 ## Comparison
 
@@ -284,3 +493,39 @@ Each read once on 2026-11-13.
 - GitHub API, 2026-11-13: `repos/lit/lit`, `repos/developit/htm`, `repos/solidjs/solid/releases`.
 - Measurements and spike: scratchpad only, nothing installed in the repo. Packages installed into
   `$SCRATCHPAD/sizes`, esbuild 0.28.2, Playwright from `~/src/sudokupad-scripts/node_modules`, Chromium headless.
+
+Added for § Polish, each read once on 2026-11-15 (pages undated unless a date is given):
+
+- [WebFeatures] W3C WebDX, `web-features` 3.46.0 on npm, `data.json` (status of `dialog`, `popover`, `anchor-positioning`,
+  `focus-visible`, `view-transitions`, `container-queries`, `dialog-closedby`, `invoker-commands`, `customizable-select`,
+  `interest-invokers`, `popover-hint`, `light-dark`, `starting-style`, `transition-behavior`, `pointer-events-api`,
+  `draganddrop`, `inert`), https://www.npmjs.com/package/web-features
+- [WAInstall] Web Awesome, "Installation", https://webawesome.com/docs/
+- [WAComponents] Web Awesome, "Components" (list with Pro markers), https://webawesome.com/docs/components/
+- [WADialog] Web Awesome, "Dialog", https://webawesome.com/docs/components/dialog
+- [ShoelaceReadme] shoelace-style/shoelace, `README.md` on the default branch (sunset notice) and https://shoelace.style/
+- [ZagStart] Zag, "Getting Started", https://zagjs.com/overview/installation
+- [ZagFP] Zag, "Floating Panel" (React page; the API is shared), https://zagjs.com/components/react/floating-panel
+- [ZagVanillaEx] chakra-ui/zag, `examples/vanilla-ts/src/floating-panel.ts`, `component.ts` and `combobox.ts`, read through
+  `gh api repos/chakra-ui/zag/contents/...`; `@zag-js/floating-panel` 1.48.0 `dist/floating-panel.connect.mjs` and
+  `floating-panel.machine.mjs` from the npm package
+- [FloatingUIStart] Floating UI, "Getting Started", https://floating-ui.com/docs/getting-started
+- [InteractRestrict] interact.js, "Restriction", https://interactjs.io/docs/restriction/
+- [DockviewFloat] Dockview, "Floating groups", https://dockview.dev/docs/core/groups/floatingGroups
+- [DockviewReadme] dockview/dockview, `README.md`, through `gh api repos/mathuo/dockview/readme`
+- [GridstackReadme] gridstack/gridstack.js, `README.md`, through `gh api repos/gridstack/gridstack.js/readme`
+- [React19Upgrade] Ricky Hanlon, "React 19 Upgrade Guide", 2024-04-25, § UMD builds removed,
+  https://react.dev/blog/2024/04/25/react-19-upgrade-guide
+- [BaseUIStart] Base UI, "Quick start", https://base-ui.com/react/overview/quick-start
+- [BitsUI] Bits UI, "Introduction", https://bits-ui.com/docs/introduction
+- npm registry, 2026-11-15 (`npm view <pkg> version license time`; stable releases counted from 2025-11-15):
+  `@awesome.me/webawesome`, `@shoelace-style/shoelace`, `@floating-ui/dom`, `@zag-js/vanilla`, `@zag-js/dialog`,
+  `@zag-js/floating-panel`, `@zag-js/combobox`, `dockview-core`, `gridstack`, `interactjs`, `winbox`, `jspanel4`,
+  `golden-layout`, `@neodrag/vanilla`, `motion`, `sortablejs`, `focus-trap`, `react`, `@radix-ui/react-dialog`,
+  `@base-ui/react`, `bits-ui`, `@ark-ui/react`, `@material/web`, `@fluentui/web-components`,
+  `@spectrum-web-components/bundle`, `web-features`.
+- GitHub API, 2026-11-15: `repos/taye/interact.js`, `repos/shoelace-style/shoelace`, `repos/shoelace-style/webawesome`,
+  `repos/chakra-ui/zag`, `repos/mathuo/dockview`, `repos/gridstack/gridstack.js`, `repos/nextapps-de/winbox`,
+  `repos/floating-ui/floating-ui`, `repos/caneff/penpa-edit/pages`.
+- `curl -I` on https://caneff.github.io/penpa-edit/js/main.js and `.../js/libs/sweetalert2@11.js`, 2026-11-15.
+- Spike: scratchpad only (`$SCRATCHPAD/spike`, `$SCRATCHPAD/runner`), nothing installed in the repo; § Polish, Spike.
