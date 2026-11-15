@@ -41,3 +41,5 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
 - **Safety net**: the recordings, the tests and the CI checks the migration runs under.
+- **Plant**: a one-line bug served in place of a file of `docs/js/` while recordings replay, to measure whether the
+  safety net catches it (`live/plants.mjs`). Caught when a replay differs from its expected file.

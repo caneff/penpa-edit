@@ -466,14 +466,31 @@ function withoutDuplicateDrops (state) {
   return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
 }
 
+// The `mouse_*` and `key_*` methods of `class_p.js`: the handlers a click or key reaches through `mouseevent` and
+// `main.js`'s key calls.
+const HANDLER = /^ {4}((?:mouse|key)_\w+)\(/gm
+const CLASS_P_URL = /\/js\/class_p\.js(\?|$)/
+
+// Each handler of `class_p.js` with the times it was called, from the page's JS coverage (Playwright's `coverage`
+// entries); a handler V8 reports no entry for was never called.
+function handlerCallsOf (entries) {
+  const classP = entries.find((e) => CLASS_P_URL.test(e.url))
+  if (!classP) throw new Error('the JS coverage has no entry for class_p.js')
+  const calls = Object.fromEntries([...classP.source.matchAll(HANDLER)].map(([, name]) => [name, 0]))
+  // A function's first range spans the whole function and holds its call count.
+  for (const f of classP.functions) if (f.functionName in calls) calls[f.functionName] += f.ranges[0].count
+  return calls
+}
+
 // Replays `recording` through `driver` (the engine driver unless given) in a fresh page and returns its checkpoints, the
 // first being step 0. With `expected` (as `readExpected` returns it, or another replay's checkpoints, named by
 // `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
 // every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board, less what
 // the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
-// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well.
+// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well. With `coverage`, it also
+// returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js` with the times the steps called it.
 export async function replay (browser, recording, {
-  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED
+  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, coverage = false
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
   const open = (query) => openPenpa(browser, query, {
@@ -487,6 +504,8 @@ export async function replay (browser, recording, {
   })
   const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
   const { context, page, errors } = await open(recording.header.source)
+  // Started once the page has loaded, so it counts only what the steps call.
+  if (coverage) await page.coverage.startJSCoverage({ resetOnNavigation: false })
   const read = () => readPage(page)
   const apply = driver.start(page)
   // Each duplicate link checked so far, with the board it must load: a step that changed nothing gives the same pair.
@@ -571,8 +590,9 @@ export async function replay (browser, recording, {
   }
   try {
     const report = await run()
+    const handlerCalls = coverage ? handlerCallsOf(await page.coverage.stopJSCoverage()) : undefined
     // A round trip names an earlier checkpoint than any report the replay itself can make.
-    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report }
+    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report, handlerCalls }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
     await Promise.allSettled(roundTrips)

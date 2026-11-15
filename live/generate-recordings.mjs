@@ -3,7 +3,8 @@
 // recording whose id starts with a prefix given, or all of them. A recording whose replay is refused is written with
 // no expected file, any earlier one removed, and named at the end, so it fails the seam until it is ruled on. Not a check itself, so
 // `live/**/*.live.mjs` skips it. The design is `research/agentic-legacy-migration.md` § Corpus:
-// - tier A, every solve mode's sub-modes, Composite tools and Shape's two key paths on one small square puzzle;
+// - tier A, every solve mode's sub-modes, Composite tools and Shape's two key paths on one small square puzzle, and the
+//   clearing keys in Number and Shape;
 // - tier B, the smallest of upstream's puzz.link imports per genre in the mode the import opens in, and a Penpa+ board
 //   of each grid class no import builds. A genre whose smallest import does not record (its solve link does not boot)
 //   takes its next smallest, and the header's `import` names the one taken.
@@ -38,6 +39,13 @@ const FAMILY = {
 }
 // One Shape tool on each of `key_number`'s two paths: a plain variant number, and one from `onoff_symbolmode_list`.
 const SHAPE_TOOLS = ['circle_L', 'cross']
+// The modes the clearing keys are recorded in, which the gesture set does not press (#32): Number on a cell and on a
+// corner (1/4), whose Backspace deletes one character, and Shape, whose Ctrl+Space clears a shape.
+const CLEAR_KEY_PAIRS = [
+  { mode: 'number', sub: '1', name: 'Normal' },
+  { mode: 'number', sub: '3', name: 'sub 3' },
+  { mode: 'symbol', tool: SHAPE_TOOLS[0], name: SHAPE_TOOLS[0] }
+]
 // Grid classes no puzz.link import builds, each with the size `create_newboard` reads for it.
 const GRID_BOARDS = { hex: 2, tri: 3, pyramid: 3, uniform: 2 }
 // The uniform tilings share one class (`class_uniform.js`); this one stands for them.
@@ -198,12 +206,22 @@ async function tierA (browser) {
   const query = await makeSurfaceSolveLink(browser)
   const { context, page } = await openPenpa(browser, query)
   const pairs = await page.evaluate(tierAInPage, SHAPE_TOOLS).finally(() => context.close())
-  return pairs.map((pair) => ({
-    id: `${FAMILY[pair.mode]}/${slug([pair.mode, pair.name].filter(Boolean).join(' '))}`,
-    tier: 'A',
-    boards: [async () => ({ query })],
-    act: (page) => inMode(page, pair)
-  }))
+  const idOf = (pair, ...more) => `${FAMILY[pair.mode]}/${slug([pair.mode, pair.name, ...more].filter(Boolean).join(' '))}`
+  return [
+    ...pairs.map((pair) => ({ id: idOf(pair), tier: 'A', boards: [async () => ({ query })], act: (page) => inMode(page, pair) })),
+    ...CLEAR_KEY_PAIRS.map((pair) => ({
+      id: idOf(pair, 'clear keys'), tier: 'A', boards: [async () => ({ query })], act: (page) => clearKeys(page, pair)
+    }))
+  ]
+}
+
+// Chooses the mode and enters two digits at a cell, then takes them away with each clearing key: Backspace, Delete and
+// Ctrl+Space, re-entering a digit before each of the last two.
+async function clearKeys (page, pair) {
+  await chooseMode(page, pair)
+  const [click] = await pixelRun(page, CELLS.click, CENTRE)
+  await page.mouse.click(click.x, click.y)
+  for (const key of ['1', '2', 'Backspace', '3', 'Delete', '4', 'Control+Space']) await page.keyboard.press(key)
 }
 
 // Chooses the mode and makes the gesture set in it, after putting on the board what the mode acts on.
