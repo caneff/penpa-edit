@@ -4,11 +4,12 @@
 // recording replays through real mouse and keyboard to the engine driver's states, and a planted pixel offset in
 // `main.js` makes the two disagree.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { useBrowser } from './page.mjs'
+import { REPLAY_PARTS, replayPartIds } from './engine-replay-part.mjs'
 import {
   ANSWER_CELLS, cellPixel, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
   openRecordingPage, readExpected, readRecording, replay, uiDriver
@@ -17,6 +18,7 @@ import {
 const browser = useBrowser()
 
 const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
+const LIVE = fileURLToPath(new URL('./', import.meta.url))
 const MAIN = fileURLToPath(new URL('../docs/js/main.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
@@ -159,16 +161,14 @@ describe('the engine driver', () => {
     assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"/m)
   })
 
-  for (const id of ids) {
-    it(`replays ${id} to its expected states`, async () => {
-      const { report } = await replay(browser(), await readRecording(id), { id, expected: await readExpected(id) })
-      assert.equal(report, null)
-    })
-
-    it(`names the commit ${id} was recorded at`, async () => {
-      assert.match((await readRecording(id)).header.commit ?? '', /^[0-9a-f]{7,40}$/)
-    })
-  }
+  // The per-recording tests run in `engine-replay-<k>.live.mjs`, one file for each third of the ids (`live/engine-replay-part.mjs`),
+  // so node's test workers share them. A recording no file takes, or one two files take, is not replayed once.
+  it('has a replay file for every third of the recordings, and every recording is in exactly one third', async () => {
+    const files = (await readdir(LIVE)).filter((f) => /^engine-replay-\d+\.live\.mjs$/.test(f)).sort()
+    assert.deepEqual(files, Array.from({ length: REPLAY_PARTS }, (_, k) => `engine-replay-${k}.live.mjs`))
+    const taken = Array.from({ length: REPLAY_PARTS }, (_, k) => replayPartIds(ids, k)).flat().sort()
+    assert.deepEqual(taken, ids)
+  })
 
   describe('against a recording or expected file that does not fit', () => {
     let recording, expected
