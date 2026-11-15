@@ -7,13 +7,18 @@ import { listRecordings, readExpected, readRecording, replay } from './replay.mj
 
 export const REPLAY_PARTS = 3
 
-// The ids of `ids` (sorted) that part `part` replays.
+// `ids` must be sorted.
 export function replayPartIds (ids, part) {
   return ids.filter((id, i) => i % REPLAY_PARTS === part)
 }
 
-// Registers the replay tests of part `part` of the recordings under `live/recordings/`.
-export async function replayPart (part) {
+// The call every `engine-replay-<k>.live.mjs` makes: `fileUrl` is its `import.meta.url`, and `k` comes from its name, so a
+// file cannot replay another file's part.
+export const REPLAY_CALL = 'await replayPart(import.meta.url)'
+
+// Registers the replay tests of the part named by `fileUrl`.
+export async function replayPart (fileUrl) {
+  const part = Number(/engine-replay-(\d+)\.live\.mjs$/.exec(fileUrl)[1])
   const browser = useBrowser()
   const ids = replayPartIds(await listRecordings(), part)
   describe(`the engine driver, recordings part ${part + 1} of ${REPLAY_PARTS}`, () => {
