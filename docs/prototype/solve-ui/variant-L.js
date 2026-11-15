@@ -2,6 +2,8 @@
  * PROTOTYPE (throwaway, branch prototype/solve-ui): solve-UI variant L, "Desk + pins".
  * Owned by variant L's builder: this file and variant-L.css. See README.md for the contract.
  *
+ * Final (Chris, 2026-11-14): round 8 (item 10 below) is the frozen design; no further rounds.
+ *
  * Built to Chris's rulings of 2026-11-13 (research/solve-ui-prototype-verdicts.md, last section), on the kept ideas of
  * I (the desk) and K (the mouse card):
  *   1. Desk: the board and five cards lie on one desk; round 4 default: Mouse and Rules on the left, Pinned modes,
