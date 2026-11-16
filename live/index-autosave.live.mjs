@@ -12,6 +12,8 @@ describe('index.html progress', () => {
   it('writes each edit, undo and redo to the progress store without the page being left', async () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openPenpa(browser(), link, { served: true })
+    // The duplicate link holds the timer's reading, so a running clock would make the stored text differ from the board's text.
+    await page.evaluate(() => sw_timer.pause())
     const stored = () => page.evaluate(async () => (await localforage.getItem(PenpaProgress.getHash(pu.url))) ?? '')
     const expectStored = async (message) => {
       const want = await page.evaluate(duplicateLinkInPage)
