@@ -117,6 +117,18 @@ describe('a held Shift or Ctrl', () => {
     await page.getByRole('dialog').waitFor({ state: 'hidden' })
   })
 
+  it('ends the hold when one of Penpa\'s own popups opens', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    await waitForTool(page, CORNER)
+    await page.evaluate(() => { Swal.fire('A popup') })
+    await waitForTool(page, NORMAL)
+    await page.keyboard.up('Shift')
+    assert.deepEqual(await waitForTool(page, NORMAL), NORMAL, 'the key-up after it changes nothing')
+    await page.evaluate(() => Swal.close())
+  })
+
   it('drops the hold on Tab, steps from the tool before it, and the key-up changes nothing', async () => {
     const { page } = opened
     await setTool(page, NORMAL)
