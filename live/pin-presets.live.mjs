@@ -73,6 +73,45 @@ describe('loading a built-in preset', () => {
   })
 })
 
+// A pick hands the keyboard back to the puzzle (#157): Tab then cycles the newly pinned tools, not the Pinned card's fields.
+describe('after picking a preset', () => {
+  let opened
+  before(async () => { opened = await openSolve(await link(BROAD_TAB_SET)) })
+  after(async () => { await opened?.context.close() })
+
+  const focusInPinnedCard = (page) => page.evaluate(() => {
+    let focused = document.activeElement
+    while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement
+    return focused?.closest('.ui-card')?.getAttribute('aria-label') === 'Pinned' ||
+      Boolean(document.activeElement?.closest('[aria-label="Pinned"], .ui-card-pins'))
+  })
+
+  const assertTabCyclesPins = async (page) => {
+    assert.equal(await settle(() => focusInPinnedCard(page), false), false, 'focus left the Pinned card')
+    const before = toolKeyOf(await currentTool(page))
+    await page.keyboard.press('Tab')
+    await settle(async () => toolKeyOf(await currentTool(page)) !== before, true)
+    assert.equal(await focusInPinnedCard(page), false)
+  }
+
+  it('with the mouse, Tab switches to the next pinned tool', async () => {
+    const { page } = opened
+    await choosePreset(page, 'Sudoku')
+    await assertTabCyclesPins(page)
+  })
+
+  it('with the keyboard, Tab switches to the next pinned tool', async () => {
+    const { page } = opened
+    await closed(page)
+    await presetPulldown(page).focus()
+    await page.keyboard.press('Enter')
+    await page.getByRole('option', { name: 'Paths with walls', exact: true }).waitFor()
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    await assertTabCyclesPins(page)
+  })
+})
+
 describe('a preset naming a tool the link lacks', () => {
   let opened
   before(async () => {
