@@ -169,7 +169,7 @@ describe('the upstream merge script', () => {
 
 // AGENTS.md § "Our files": a directory ends in "/", and a file in it is probed by a made-up name.
 const OWNED_PATHS = [
-  'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
+  '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
   'docs/js/header_text.js', 'docs/js/recorder.js',
   'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
   'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/redirect-urls.mjs',
@@ -185,8 +185,17 @@ describe("the repo's .gitattributes", () => {
     })
   }
 
-  it('leaves an upstream file such as docs/js/class_p.js to the ordinary merge', () => {
-    assert.equal(git(REPO_ROOT, 'check-attr', 'merge', '--', 'docs/js/class_p.js'), 'docs/js/class_p.js: merge: unspecified')
+  it('marks no tracked file that is not an owned path, so upstream\'s files still merge', () => {
+    const tracked = git(REPO_ROOT, 'ls-files')
+    const marked = execFileSync('git', ['check-attr', '--stdin', 'merge'], { cwd: REPO_ROOT, input: tracked, encoding: 'utf8' })
+      .split('\n').filter((line) => line.endsWith(': merge: ours')).map((line) => line.slice(0, -': merge: ours'.length))
+    const stray = marked.filter((file) => !OWNED_PATHS.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path)))
+    assert.deepEqual(stray, [])
+  })
+
+  it('does not mark a same-named file in another directory, even on a case-insensitive clone', () => {
+    const attr = (file) => execFileSync('git', ['-c', 'core.ignorecase=true', 'check-attr', 'merge', '--', file], { cwd: REPO_ROOT, encoding: 'utf8' }).trim()
+    for (const file of ['docs/AGENTS.md', 'docs/agents.md', 'docs/GLOSSARY.md']) assert.equal(attr(file), `${file}: merge: unspecified`)
   })
 })
 

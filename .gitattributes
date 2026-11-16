@@ -1,9 +1,11 @@
 # Files we own (AGENTS.md § "Our files"): the nightly upstream merge keeps our side. A directory needs "/**", since a
-# trailing-slash pattern sets no attribute on the files inside it.
-AGENTS.md merge=ours
-CLAUDE.md merge=ours
-CODING_STANDARDS.md merge=ours
-GLOSSARY.md merge=ours
+# trailing-slash pattern sets no attribute on the files inside it. A root file takes a leading "/", or a file of that
+# name in any directory (and, with core.ignorecase, docs/agents.md for AGENTS.md) would match too.
+/.gitattributes merge=ours
+/AGENTS.md merge=ours
+/CLAUDE.md merge=ours
+/CODING_STANDARDS.md merge=ours
+/GLOSSARY.md merge=ours
 .agents/** merge=ours
 research/** merge=ours
 adr/** merge=ours
