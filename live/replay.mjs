@@ -3,8 +3,9 @@
 // it.
 //
 // A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family,
-// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`), or
-// `fuzz` for a failing run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
+// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`),
+// `solve` for tier C's full solves on links with an answer check (`live/generate-tier-c.mjs`), or `fuzz` for a failing
+// run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
 // (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the recorder's
 // version), `final` (the recording page's engine state once the steps were made, as `readEngineState` reads it) and its
 // steps, one per line:
@@ -19,9 +20,13 @@
 //     changed the selection to neither none nor all), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know;
 // the generator also adds `import`, the name of the puzz.link import a genre's recording was made on. The fuzz writes
-// `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
+// `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`. Tier C's script writes `commit` too, and in
+// place of `recorder` either `generated` (the puzzle and the seed of a generated solve) or `history` (the name of a
+// solver's converted solve history); a converted step may carry `at`, the solver's timer reading in milliseconds when
+// the change it starts was made, which no driver reads.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
 // `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+import { execFileSync } from 'node:child_process'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
@@ -94,6 +99,19 @@ export async function downloadRecording (page) {
   const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
   const text = await readFile(await file.path(), 'utf8')
   return { name: file.suggestedFilename(), text, recording: JSON.parse(text) }
+}
+
+// A recording's file text, laid out as `docs/js/recorder.js` writes one: the header and the final board on a line
+// each, then one step per line.
+export function recordingText ({ header, final, steps }) {
+  return '{"header": ' + JSON.stringify(header) + ',\n"final": ' + JSON.stringify(final) +
+    ',\n"steps": [\n' + steps.map((s) => JSON.stringify(s)).join(',\n') + '\n]}\n'
+}
+
+// The short sha of the engine a generated recording's goldens come from: master's, where this checkout branched from
+// it, which a branch that adds recordings has not changed.
+export function engineCommit () {
+  return execFileSync('git', ['merge-base', 'HEAD', 'origin/master'], { encoding: 'utf8', cwd: new URL('.', import.meta.url) }).trim().slice(0, 7)
 }
 
 // The id of every recording under `live/recordings/`, sorted.

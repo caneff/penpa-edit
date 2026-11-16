@@ -42,6 +42,10 @@ const ids = await listRecordings()
 // all of it yet, and the whole of it takes longer than the seam allows (controller, 2026-11-13, #31).
 const handMadeIds = []
 for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.push(id)
+// Tier C's sample for the UI driver on every PR (the map's rule, #6): the full solves whose board fits the replay's
+// viewport and that replay in seconds. The 10x10 star battle runs below the viewport, which the UI driver does not
+// scroll, and the 9x9 sudoku and the killer take tens of seconds each.
+const TIER_C_UI_SAMPLE = ['solve/or-shading', 'solve/slitherlink', 'solve/sudoku-6x6']
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
 async function record (query, act) {
@@ -276,7 +280,7 @@ describe('the UI driver', () => {
   let query
   before(async () => { query = await makeSurfaceSolveLink(browser()) })
 
-  for (const id of handMadeIds) {
+  for (const id of [...handMadeIds, ...TIER_C_UI_SAMPLE]) {
     it(`replays ${id} through mouse and keyboard to the engine driver's states`, async () => {
       assert.equal(await compareDrivers(browser(), await readRecording(id), { id }), null)
     })

@@ -353,6 +353,16 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     recordings come from Chris's Penpa+ solve histories (Share > Replay links, converted from `command_replay`) for the
     genres he solves, and from generated solves on links the agent builds for the rest; answer-aimed fuzz runs many
     seeds on every puzzle (#34).
+  - **What was built (#34, 2026-11-15).** `live/tier-c.mjs` builds six puzzles on fresh pages, each answer found in
+    Node and checked valid before it becomes the author's answer: the 9x9 and 6x6 sudoku, the 10x10 two-star battle and
+    the 5x5 slitherlink from upstream's puzz.link imports, a killer drawn in Cage mode on the 9x9's solution, and an OR
+    puzzle whose answer is the same cells shaded OR as black squares. The answer-aimed fuzz runs three seeds per puzzle
+    on the seam; one seed per puzzle is kept under `live/recordings/solve/`. A Replay link converts by trying, for each
+    change, the inputs of its natural mode (Composite star, Composite edgex, Surface) until one makes it; changes to
+    other layers or properties are refused until a link needs them. Found on the way: saved progress keeps
+    `command_replay`, and its reload reads solved; #83 does not show on these boards with a running or a paused clock,
+    so it is not marked on them. #64 is a `todo` test. The 10x10 star battle runs below the replay's 720-pixel
+    viewport, which the UI driver does not scroll, so it is not in the UI driver's sample.
 - **Tier D, the audit bugs**: one recording per LIVE finding in Correctness and Input (C1-C15, I1-I9 where the step
   vocabulary reaches them), marked `todo: #<ticket>` until fixed, as sudokupad-scripts does.
   - **What was recorded (#35, 2026-11-13).** #35 narrowed the scope to C1-C15 and I1; I2-I9 are UI-file bugs and belong

@@ -50,10 +50,12 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs` and `live/puzzlink-cases.mjs`), replays every
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs` and `live/tier-c.mjs`), replays every
   recording under `live/recordings/` on the engine driver against its expected file (one with none fails) and on the UI
   driver against the engine driver (`live/replay.mjs`), and fuzzes a few puzzles with fixed seeds against the solving
-  invariants, saving a failing run as a recording under `live/recordings/fuzz/`. It also checks that each plant undoing an
+  invariants, saving a failing run as a recording under `live/recordings/fuzz/`. Tier C (`live/tier-c.live.mjs`) runs the
+  answer-aimed fuzz on each of its puzzles and turns a Replay link into a recording; its kept recordings under
+  `live/recordings/solve/` are written by `node live/generate-tier-c.mjs`, a solver's history by its `--history`. It also checks that each plant undoing an
   audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.

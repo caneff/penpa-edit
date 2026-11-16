@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
-import { changedKeys, endsGroup, engineDriver, entries, stepWords } from './replay.mjs'
+import { changedKeys, endsGroup, engineDriver, entries, recordingText, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 // Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings. It has no expected file
@@ -196,15 +196,13 @@ async function headCommit () {
   return (await promisify(execFile)('git', ['rev-parse', '--short', 'HEAD'], { cwd: new URL('.', import.meta.url) })).stdout.trim()
 }
 
-// Writes the recording of a failing run, laid out as `docs/js/recorder.js` writes one, and returns its path.
+// Writes the recording of a failing run and returns its path.
 async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
   const { gridtype, genre } = await page.evaluate(() => ({ gridtype: pu.gridtype, genre: pu.user_tags }))
   const header = { source: puzzle.source, gridtype, genre, commit: await headCommit(), fuzz: { puzzle: puzzle.name, seed } }
-  const text = '{"header": ' + JSON.stringify(header) + ',\n"final": ' + JSON.stringify(final) +
-    ',\n"steps": [\n' + steps.map((s) => JSON.stringify(s)).join(',\n') + '\n]}\n'
   await mkdir(dir, { recursive: true })
   const file = join(dir, `${puzzle.name}-seed-${seed}.steps.json`)
-  await writeFile(file, text)
+  await writeFile(file, recordingText({ header, final, steps }))
   return file
 }
 
