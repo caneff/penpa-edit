@@ -126,7 +126,7 @@
         return tools.map((tool) => {
             const { group, name, description } = describeTool(tool);
             const haystack = [name, description, tool.modeName, toolGroups.get(group), ...tool.labels].join(' ').toLowerCase();
-            return { tool, group, name, description, haystack };
+            return { key: toolKey(tool), tool, group, name, description, haystack, attrs: { 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' } };
         });
     }
 
@@ -134,122 +134,21 @@
     // `orientations.apply(direction)` are Number mode's directions and the pick of one.
     function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
         const entries = pickerEntries(tools);
-        const listId = 'tool-listbox';
-        const input = el('input', {
-            type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
-            'aria-controls': listId, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
-        });
-        const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
         const toolOptions = el('div', { class: 'ui-toolopts' });
-        // pins.js adds the pin toggle to the row.
-        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [el('div', { class: 'ui-picker' }, [input, list])]), toolOptions);
-
-        let open = false;
-        let shown = [];
-        let active = -1;
-
         const entryFor = (tool) => entries.find((e) => toolKey(e.tool) === toolKey(tool));
 
-        function showCurrent() {
-            input.value = entryFor(engine.getTool())?.name ?? '';
-        }
-
-        function markActive() {
-            list.querySelectorAll('[role=option]').forEach((option, i) => {
-                option.setAttribute('aria-selected', String(i === active));
-                if (i === active) {
-                    option.scrollIntoView({ block: 'nearest' });
-                }
-            });
-            if (active >= 0) {
-                input.setAttribute('aria-activedescendant', `tool-option-${active}`);
-            } else {
-                input.removeAttribute('aria-activedescendant');
-            }
-        }
-
-        // The focus returns to the board by leaving the field: nothing else on the page takes keys.
-        function close() {
-            if (!open) {
-                return;
-            }
-            open = false;
-            list.hidden = true;
-            input.setAttribute('aria-expanded', 'false');
-            input.removeAttribute('aria-activedescendant');
-            showCurrent();
-        }
-
-        function pick(entry) {
-            applyTool({ mode: entry.tool.mode, submode: entry.tool.submode });
-            input.blur();
-        }
-
-        function renderList() {
-            const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            list.replaceChildren();
-            // The options are numbered in the order they show, which is the groups' order, not the filter's.
-            const matching = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
-            shown = [];
-            TOOL_GROUPS.forEach(([id, title]) => {
-                const inGroup = matching.filter((e) => e.group === id);
-                if (!inGroup.length) {
-                    return;
-                }
-                const group = el('div', { role: 'group', 'aria-label': title, class: 'ui-group' }, [el('div', { class: 'ui-group-title', 'aria-hidden': 'true' }, [title])]);
-                inGroup.forEach((entry) => {
-                    const option = el('div', { role: 'option', 'aria-selected': 'false', class: 'ui-entry', 'data-mode': entry.tool.mode, 'data-submode': entry.tool.submode ?? '' }, [
-                        el('div', { class: 'ui-ename' }, [entry.name, el('span', { class: 'ui-emode' }, [entry.tool.modeName])]),
-                        el('div', { class: 'ui-edesc' }, [entry.description])
-                    ]);
-                    // The mouse press keeps the focus in the field, so the click that follows is a pick.
-                    option.addEventListener('mousedown', (e) => e.preventDefault());
-                    option.addEventListener('click', () => pick(entry));
-                    shown.push(entry);
-                    group.append(option);
-                });
-                list.append(group);
-            });
-            list.querySelectorAll('[role=option]').forEach((option, i) => { option.id = `tool-option-${i}`; });
-            if (!shown.length) {
-                list.append(el('div', { class: 'ui-none' }, ['No tool matches.']));
-            }
-            markActive();
-        }
-
-        function openList() {
-            if (open) {
-                return;
-            }
-            open = true;
-            list.hidden = false;
-            input.setAttribute('aria-expanded', 'true');
-            input.value = '';
-            active = -1;
-            renderList();
-        }
-
-        input.addEventListener('focus', openList);
-        input.addEventListener('mousedown', () => { if (document.activeElement === input) { openList(); } });
-        input.addEventListener('blur', close);
-        input.addEventListener('input', () => { openList(); active = -1; renderList(); });
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-                e.preventDefault();
-                openList();
-                active = Math.max(0, Math.min(shown.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
-                markActive();
-            } else if (e.key === 'Enter') {
-                e.preventDefault();
-                const entry = shown[Math.max(active, 0)];
-                if (entry) {
-                    pick(entry);
-                }
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                input.blur();
-            }
+        const picker = window.combobox.create({
+            idPrefix: 'tool', label: 'Tool', listLabel: 'Tools', placeholder: 'Search tools…', noMatch: 'No tool matches.',
+            groups: () => TOOL_GROUPS.map(([id, title]) => ({ title, entries: entries.filter((e) => e.group === id) })),
+            renderEntry: (entry) => [
+                el('div', { class: 'ui-ename' }, [entry.name, el('span', { class: 'ui-emode' }, [entry.tool.modeName])]),
+                el('div', { class: 'ui-edesc' }, [entry.description])
+            ],
+            currentText: () => entryFor(engine.getTool())?.name ?? '',
+            onPick: (entry) => applyTool({ mode: entry.tool.mode, submode: entry.tool.submode })
         });
+        // pins.js adds the pin toggle to the row.
+        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker.node]), toolOptions);
 
         function styleGroup(tool, style) {
             const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
@@ -294,9 +193,7 @@
 
         return {
             render(tool, style, orientation) {
-                if (!open) {
-                    showCurrent();
-                }
+                picker.showCurrent();
                 renderToolOptions(tool, style, orientation);
             }
         };

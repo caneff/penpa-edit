@@ -142,7 +142,7 @@ describe('a link with a Tab set', () => {
   after(async () => { await withTabSet?.context.close(); await withoutTabSet?.context.close() })
 
   it('still seeds the pins from the Tab set', async () => {
-    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as preset)/ }).allInnerTexts())
+    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save these pins as a preset)/ }).allInnerTexts())
       .map((text) => text.replace(/^\d+\s*/, '').trim())
     assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
     assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])
