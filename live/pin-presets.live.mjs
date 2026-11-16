@@ -85,10 +85,15 @@ const assertTabCyclesPins = async (page, keys) => {
   assert.equal(await focusInPinnedCard(page), false, 'focus is still off the Pinned card after Tab')
 }
 
-// The genres of `penpa_constraints.setting` that have solve tools, and the other common ones the ticket names.
+// The genres with solving tools of their own; a Sudoku variant is Classic sudoku (#178).
+// The tools a setter draws Sudoku clues with (#178); other genres may pin some of them to solve.
+const CLUE_TOOLS = [
+  'special/thermo', 'special/arrows', 'cage/1', 'symbol/circle_SS', 'symbol/circle_L', 'symbol/square_L', 'symbol/circle_M',
+  'symbol/arrow_eight', 'symbol/sudokuetc', 'number/1', 'number/5'
+]
+
 const EXPECTED_GENRES = [
-  'Classic sudoku', 'Odd even', 'Arrow', 'Thermo', 'Little killer', 'Killer', 'Difference', 'Kropki', 'Palindrome', 'Sandwich',
-  'Quadruple', 'XV', 'Between line', 'Battenberg', 'Slitherlink', 'Tapa', 'Star battle', 'Tents', 'Heyawake', 'Nurikabe', 'LITS',
+  'Classic sudoku', 'Sudoku with lines and marks', 'Slitherlink', 'Tapa', 'Star battle', 'Tents', 'Heyawake', 'Nurikabe', 'LITS',
   'Battleships', 'Minesweeper', 'Akari', 'Sun and moon', 'Statue park', 'Kakuro', 'Kurotto', 'Pentominous', 'Yajilin', 'Pencils',
   'Darts', 'Anglers', 'Hotaru beam', 'Masyu', 'Fillomino', 'Nonogram', 'Hashi', 'Skyscrapers'
 ]
@@ -111,8 +116,22 @@ describe('the built-in presets', () => {
     for (const genre of EXPECTED_GENRES) {
       assert.equal(names.includes(genre), true, `${genre} is offered`)
     }
-    assert.deepEqual(titles, ['Number placement', 'Sudoku variants', 'Loops and paths', 'Shading', 'Regions', 'Objects and placement'])
+    assert.deepEqual(titles, ['Number placement', 'Loops and paths', 'Shading', 'Regions', 'Objects and placement'])
     assert.equal(names.length, new Set(names).size, 'no name is offered twice')
+  })
+
+  it('pin no Sudoku clue-drawing tool, and every Sudoku preset pins the three entry modes first', async () => {
+    const { page } = opened
+    await openList(page)
+    const presets = await presetList(page).getByRole('option').evaluateAll((options) =>
+      options.map((o) => ({ name: o.textContent, tools: o.dataset.tools.split(',') })))
+    await page.keyboard.press('Escape')
+    for (const { name, tools } of presets) {
+      if (tools.includes('sudoku/1')) {
+        assert.deepEqual(tools.slice(0, 3), ['sudoku/1', 'sudoku/2', 'sudoku/3'], `${name} starts with the entry modes`)
+        assert.deepEqual(tools.filter((key) => CLUE_TOOLS.includes(key)), [], `${name} pins a clue tool`)
+      }
+    }
   })
 
   it('each load every tool it names, in order, on a square grid with every tab', async () => {
@@ -154,8 +173,8 @@ describe('typing in the preset field', () => {
 
   it('filters the list by name, and by family', async () => {
     const { page } = opened
-    await presetField(page).fill('kropki')
-    assert.deepEqual(await offered(page), ['Kropki'])
+    await presetField(page).fill('masyu')
+    assert.deepEqual(await offered(page), ['Masyu'])
     await presetField(page).fill('loops')
     const loops = await optionsOfGroup(page, 'Loops and paths')
     assert.equal(loops.includes('Slitherlink'), true)
@@ -171,11 +190,11 @@ describe('typing in the preset field', () => {
     const { page } = opened
     await closed(page)
     await presetField(page).click()
-    await presetField(page).fill('odd even')
+    await presetField(page).fill('lines and marks')
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
     await closed(page)
-    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3', 'symbol/circle_L', 'symbol/square_L'])
+    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3', 'line/1', 'line/4'])
   })
 
   it('closes on Escape and loads nothing', async () => {
@@ -192,11 +211,11 @@ describe('typing in the preset field', () => {
     const { page } = opened
     const before = await chipCount(page)
     await presetField(page).click()
-    await presetField(page).fill('kropki')
+    await presetField(page).fill('masyu')
     await page.keyboard.press('Shift+Enter')
     await presetList(page).waitFor()
     assert.equal(await chipCount(page), before, 'no preset was loaded')
-    assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'false', 'and none was starred')
+    assert.equal(await star(page, 'Masyu').getAttribute('aria-pressed'), 'false', 'and none was starred')
     await page.keyboard.press('Escape')
     await closed(page)
   })
@@ -217,41 +236,54 @@ describe('favourites', () => {
     const { page } = opened
     await openList(page)
     assert.equal(await hasFavourites(page), false, 'no favourites yet')
-    assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'false')
-    await star(page, 'Kropki').click()
-    assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'true')
+    assert.equal(await star(page, 'Masyu').getAttribute('aria-pressed'), 'false')
+    await star(page, 'Masyu').click()
+    assert.equal(await star(page, 'Masyu').getAttribute('aria-pressed'), 'true')
     assert.equal((await groupTitles(page))[0], 'Favourites')
-    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Kropki'])
-    assert.equal((await optionsOfGroup(page, 'Sudoku variants')).includes('Kropki'), false, 'moved out of its family')
+    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'])
+    assert.equal((await optionsOfGroup(page, 'Loops and paths')).includes('Masyu'), false, 'moved out of its family')
     await page.keyboard.press('Escape')
 
     await page.reload()
     await waitForDesk(page)
     await openList(page)
-    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Kropki'])
-    await star(page, 'Kropki').click()
+    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'])
+    await star(page, 'Masyu').click()
     assert.equal(await hasFavourites(page), false, 'the group goes with its last star')
-    assert.equal((await optionsOfGroup(page, 'Sudoku variants')).includes('Kropki'), true, 'back in its family')
+    assert.equal((await optionsOfGroup(page, 'Loops and paths')).includes('Masyu'), true, 'back in its family')
     await page.keyboard.press('Escape')
+  })
+
+  it('a star on a built-in preset that no longer exists is ignored, with no page error', async () => {
+    const { page } = opened
+    await page.evaluate(() => localStorage.setItem('chinstrap.pinPresetStars', JSON.stringify(['built-in:Kropki', 'built-in:Masyu'])))
+    await page.reload()
+    await waitForDesk(page)
+    await openList(page)
+    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'])
+    assert.equal(await presetList(page).getByRole('option', { name: 'Kropki' }).count(), 0)
+    await star(page, 'Masyu').click()
+    await page.keyboard.press('Escape')
+    await closed(page)
   })
 
   it('Shift+Enter stars the highlighted preset from the keyboard, and loading one still works from Favourites', async () => {
     const { page } = opened
     await closed(page)
     await presetField(page).click()
-    await presetField(page).fill('sandwich')
+    await presetField(page).fill('lines and marks')
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Shift+Enter')
-    assert.equal(await star(page, 'Sandwich').getAttribute('aria-pressed'), 'true')
-    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Sandwich'])
+    assert.equal(await star(page, 'Sudoku with lines and marks').getAttribute('aria-pressed'), 'true')
+    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Sudoku with lines and marks'])
     await page.keyboard.press('Shift+Enter')
-    assert.equal(await star(page, 'Sandwich').getAttribute('aria-pressed'), 'false')
+    assert.equal(await star(page, 'Sudoku with lines and marks').getAttribute('aria-pressed'), 'false')
     await page.keyboard.press('Shift+Enter')
     await page.keyboard.press('Enter')
     await closed(page)
-    assert.equal(await settle(() => chipCount(page), 4), 4)
+    assert.equal(await settle(() => chipCount(page), 5), 5)
     await openList(page)
-    await star(page, 'Sandwich').click()
+    await star(page, 'Sudoku with lines and marks').click()
     await page.keyboard.press('Escape')
   })
 })
@@ -316,7 +348,7 @@ describe('deleting a saved preset', () => {
     const { page } = opened
     await openList(page)
     assert.equal(await presetList(page).getByRole('button', { name: /^Delete preset/ }).count(), 2, 'one per saved preset, none on a built-in')
-    assert.equal(await presetList(page).locator('[role=option][data-tools]').filter({ hasText: /^Kropki$/ }).count(), 1)
+    assert.equal(await presetList(page).locator('[role=option][data-tools]').filter({ hasText: /^Masyu$/ }).count(), 1)
     await deleteButton(page, 'First').click()
     assert.deepEqual(await optionsOfGroup(page, 'Your presets'), ['Second'])
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.name).join()), 'Second')

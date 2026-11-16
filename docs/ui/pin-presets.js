@@ -27,27 +27,14 @@
     const BLOCKS = ['combi/blpo'];
 
     // [family, genre, tools as 'mode/submode' ('mode/' for a mode with none)], the families in the order the list shows them. A
-    // tool is one a solver of the genre uses: the Composite tool where Penpa+ has one for the genre, else the tools
-    // `penpa_constraints.setting` in docs/js/constraints.js lists for it. A tool a puzzle's grid lacks is left out on load.
+    // preset holds the tools a solver uses while solving, never the ones a setter draws the clues with (thermometers, cages, dots,
+    // arrows): a Sudoku variant needs only the entry modes, so it is Classic sudoku. A tool a puzzle's grid lacks is left out on load.
     const BUILT_IN = [
         ['Number placement', 'Classic sudoku', SUDOKU],
         ['Number placement', 'Sudoku with lines and marks', [...SUDOKU, 'line/1', 'line/4']],
         ['Number placement', 'Kakuro', NUMBERS],
         ['Number placement', 'Skyscrapers', NUMBERS],
         ['Number placement', 'Nonogram', ['surface/', 'combi/blpo', 'number/5']],
-        ['Sudoku variants', 'Odd even', [...SUDOKU, 'symbol/circle_L', 'symbol/square_L']],
-        ['Sudoku variants', 'Arrow', [...SUDOKU, 'special/arrows']],
-        ['Sudoku variants', 'Thermo', [...SUDOKU, 'special/thermo']],
-        ['Sudoku variants', 'Little killer', [...SUDOKU, 'symbol/arrow_eight']],
-        ['Sudoku variants', 'Killer', [...SUDOKU, 'cage/1']],
-        ['Sudoku variants', 'Difference', [...SUDOKU, 'number/5']],
-        ['Sudoku variants', 'Kropki', [...SUDOKU, 'symbol/circle_SS']],
-        ['Sudoku variants', 'Palindrome', [...SUDOKU, 'line/2']],
-        ['Sudoku variants', 'Sandwich', [...SUDOKU, 'number/1']],
-        ['Sudoku variants', 'Quadruple', [...SUDOKU, 'number/5', 'symbol/circle_M']],
-        ['Sudoku variants', 'XV', [...SUDOKU, 'number/5']],
-        ['Sudoku variants', 'Between line', [...SUDOKU, 'symbol/circle_L', 'line/2']],
-        ['Sudoku variants', 'Battenberg', [...SUDOKU, 'symbol/sudokuetc']],
         ['Loops and paths', 'Slitherlink', ['combi/edgex', 'combi/edgexoi']],
         ['Loops and paths', 'Masyu', ['combi/linex', 'combi/lineox']],
         ['Loops and paths', 'Yajilin', ['combi/yajilin', 'line/4']],
