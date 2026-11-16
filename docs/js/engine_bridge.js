@@ -374,9 +374,10 @@
         getTool() {
             const mode = pu.mode[pu.mode.qa].edit_mode;
             const [submode, style] = pu.mode[pu.mode.qa][mode];
-            const tool = requireTool(mode, rememberedSubmode(submode));
-            const current = tool.styles.find((s) => s.style === Number(style));
-            return { mode, submode: tool.submode, style: current ? current.style : null };
+            const listed = toolCatalog().find((t) => t.mode === mode && t.submode === rememberedSubmode(submode));
+            // A key or a script can put Penpa in a mode the link's tab set leaves out; it is still the tool in use.
+            const current = listed?.styles.find((s) => s.style === Number(style));
+            return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
         },
 
         // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in

@@ -293,3 +293,17 @@ describe('the Mouse card and the title bar', () => {
     assert.equal(Object.keys(heights).length, 1, `one height, saw ${JSON.stringify(heights)}`)
   })
 })
+
+describe('a mode the link does not offer', () => {
+  it('is still the tool in use, and the cards draw it without an error', async () => {
+    const opened = await openSolve(AKARI_SOLVE)
+    try {
+      await opened.page.evaluate(() => pu.mode_set('sudoku'))
+      assert.deepEqual(await currentTool(opened.page), { mode: 'sudoku', submode: '1', style: null })
+      const headline = opened.page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
+      assert.equal(await settle(() => headline.textContent(), 'sudoku'), 'sudoku')
+    } finally {
+      await opened.context.close()
+    }
+  })
+})

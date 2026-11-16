@@ -272,7 +272,9 @@
 
     window.deskReady.then(({ cards, relayout }) => {
         const tools = engine.listTools();
-        const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current));
+        // A tool the link does not list (Penpa was put in a hidden mode) is drawn with its mode's name alone.
+        const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current)) ??
+            { mode: current.mode, modeName: current.mode, submode: current.submode, submodeName: null, name: current.mode, labels: [], styles: [] };
 
         const titleBarName = el('span', { class: 'ui-tool-name', 'data-testid': 'board-tool-name' });
         cards.board.head.append(titleBarName);
