@@ -1,8 +1,8 @@
 // The two drivers (`live/replay.mjs`). The engine driver: a recording replays through `pu`'s own calls to the states it
 // was recorded at (every checked-in recording does, in `live/engine-replay-<k>.live.mjs`), a planted change in the Surface handler fails at the step it
-// breaks, and a recording whose replay cannot reach the board it was recorded on is refused. The UI driver: every
-// recording replays through real mouse and keyboard to the engine driver's states, and a planted pixel offset in
-// `main.js` makes the two disagree.
+// breaks, and a recording whose replay cannot reach the board it was recorded on is refused. The UI driver: recordings
+// replay through real mouse and keyboard to the engine driver's states (in `live/ui-replay-<k>.live.mjs`), and a
+// planted pixel offset in `main.js` makes the two disagree.
 import assert from 'node:assert/strict'
 import { readdir, readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
@@ -14,7 +14,7 @@ import {
   ANSWER_CELLS, cellPixel, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
   openRecordingPage, readExpected, readRecording, replay, uiDriver
 } from './replay.mjs'
-import { TIER_C_FAMILY } from './tier-c.mjs'
+import { UI_REPLAY_CALL, UI_REPLAY_PARTS, uiReplayIds } from './ui-replay-part.mjs'
 
 const browser = useBrowser()
 
@@ -39,14 +39,6 @@ const PIXEL_OFFSET = 38
 // Longer than main.js's 300 ms window for a two-digit Surface colour.
 const KEY_PAUSE_MS = 1000
 const ids = await listRecordings()
-// The generated corpus (a header `tier`) is not replayed through the UI driver on every PR: the UI driver cannot replay
-// all of it yet, and the whole of it takes longer than the seam allows (controller, 2026-11-13, #31).
-const handMadeIds = []
-for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.push(id)
-// Tier C's sample for the UI driver on every PR (the map's rule, #6): the full solves whose board fits the replay's
-// viewport and that replay in seconds. The 10x10 star battle runs below the viewport, which the UI driver does not
-// scroll, and the 9x9 sudoku and the killer take tens of seconds each.
-const TIER_C_UI_SAMPLE = ['or-shading', 'slitherlink', 'sudoku-6x6'].map((name) => `${TIER_C_FAMILY}/${name}`)
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
 async function record (query, act) {
@@ -281,11 +273,14 @@ describe('the UI driver', () => {
   let query
   before(async () => { query = await makeSurfaceSolveLink(browser()) })
 
-  for (const id of [...handMadeIds, ...TIER_C_UI_SAMPLE]) {
-    it(`replays ${id} through mouse and keyboard to the engine driver's states`, async () => {
-      assert.equal(await compareDrivers(browser(), await readRecording(id), { id }), null)
-    })
-  }
+  it('has a comparison file for every part of the recordings, each making the comparison call, and every recording is in one part', async () => {
+    const files = (await readdir(LIVE)).filter((f) => /^ui-replay-\d+\.live\.mjs$/.test(f)).sort()
+    assert.deepEqual(files, Array.from({ length: UI_REPLAY_PARTS }, (_, k) => `ui-replay-${k}.live.mjs`))
+    for (const f of files) assert.ok((await readFile(new URL(f, import.meta.url), 'utf8')).includes(UI_REPLAY_CALL), `${f} makes the comparison call`)
+    const all = await uiReplayIds(ids, true)
+    const taken = Array.from({ length: UI_REPLAY_PARTS }, (_, k) => replayPartIds(all, k, UI_REPLAY_PARTS)).flat().sort()
+    assert.deepEqual(taken, ids)
+  })
 
   // Number mode's keys: digits, plain and Ctrl arrows, Backspace, Space, Shift+Space, Delete and Ctrl+Space.
   it('replays a recorded number entry through the keyboard to the engine driver\'s states', async () => {
@@ -399,11 +394,9 @@ describe('the UI driver', () => {
     for (const [what, steps, message] of [
       ['a double-click', [{ kind: 'pointer', action: 'double', button: 'left', ctrl: false, x: 76, y: 76, num: 27 }],
         'no mouse input for a pointer step of action double'],
-      ['a release with no button down', [{ kind: 'pointer', action: 'up', button: null, ctrl: false, x: 76, y: 76, num: 27 }],
-        'no mouse button is down to release'],
-      ['a key call no single key makes', [{ kind: 'key', call: 'key_number', args: ['12'] }], 'no key makes key_number("12")'],
+      ['a two-digit Surface colour with no 1 pressed before it', [{ kind: 'key', call: 'key_number', args: ['12'] }], 'no key makes key_number("12")'],
       ['Sudoku\'s Backspace', [{ kind: 'key', call: 'key_space', args: [8, false, false] }], 'no key makes key_space(8, false, false)'],
-      ['a Multicolor colour key', [{ kind: 'key', call: 'key_number', args: [3] }], 'no key makes key_number(3)'],
+      ['a Multicolor colour key outside Multicolor', [{ kind: 'key', call: 'key_number', args: [3] }], 'no key makes key_number(3)'],
       ['a Multicolor style', [{ kind: 'mode', mode: 'multicolor', submode: '', style: 3 }],
         'no input for a Multicolor style alone: its button makes a key call too'],
       ['a mode with no such style', [{ kind: 'mode', mode: 'surface', submode: '', style: 99 }],

@@ -1,0 +1,24 @@
+name: UI corpus
+
+# The UI driver's nightly run (#80): every recording replays through real mouse and keyboard on Penpa+'s page and on
+# `solve.html`, compared with the engine driver (`live/ui-replay-part.mjs`). Every PR replays only a sample, inside the
+# seam's budget; this is the rest (the Safety net map's standing ruling, #6). A recording that still differs is `todo`
+# against its ticket and fails nothing; a new difference fails the run, and GitHub mails the failed scheduled run.
+on:
+  schedule:
+    - cron: '47 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ui-corpus:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tests
+      # A full solve's comparison takes tens of seconds on a loaded runner, past the seam's 60 s per test.
+      - run: node --test --test-concurrency=4 --test-timeout=180000 "live/ui-replay-*.live.mjs"
+        env:
+          REPLAY_UI_CORPUS: all

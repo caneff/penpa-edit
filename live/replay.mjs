@@ -262,18 +262,57 @@ function boardPixelInPage ({ x, y }) {
   return { x: box.left + x, y: box.top + y }
 }
 
+// Runs in the page: the whole viewport pixel a pointer step aims at, for a recording made at `recordedSize` px a cell.
+// `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position, and a mouse event
+// carries whole pixels, so the step's board point `x, y`, scaled to the page's cell size, is taken from that origin and
+// rounded to the neighbouring pixel nearest point `num`, the one the recording page chose. A point recorded halfway
+// between two others (a corner on the edge between two edge points) otherwise tips to either.
+function pagePixelInPage ({ x, y, num, recordedSize }) {
+  const canvas = document.getElementById('canvas')
+  const scale = pu.size / recordedSize
+  const left = canvas.offsetLeft - window.scrollX
+  const top = canvas.offsetTop - window.scrollY
+  const want = { x: left + pu.point[num].x, y: top + pu.point[num].y }
+  // Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
+  const at = { x: left + (x - 0.5) * scale + 0.5, y: top + (y - 0.5) * scale + 0.5 }
+  const round = (v, to) => [Math.floor(v), Math.ceil(v)].sort((a, b) => Math.abs(a - to) - Math.abs(b - to))[0]
+  return { x: round(at.x, want.x), y: round(at.y, want.y) }
+}
+
+// Runs in the page: moves Shape mode's key panel off the board when it floats over `pixel`, as a solver drags it aside
+// (and as the generator does, `live/generate-recordings.mjs`); a click on it never reaches the board. It stays open, so
+// `UserSettings.panel_shown` stays as the engine set it.
+function clearPanelInPage (pixel) {
+  const panel = document.getElementById('float-key')
+  if (panel.contains(document.elementFromPoint(pixel.x, pixel.y))) panel.style.left = '-10000px'
+}
+
+// Runs in the page: the whole viewport pixel of a point not in use nearest board point `near` (a recording's), where a
+// press makes no engine call (`onDown` in main.js) and the move there makes none either (`onMove`). A left press in the
+// Composite tools main.js improves (`coord_point`'s `flex`) picks among cells alone, so only an unused cell serves there.
+function unusedPixelInPage ({ near, recordedSize }) {
+  const canvas = document.getElementById('canvas')
+  const scale = pu.size / recordedSize
+  const left = canvas.offsetLeft - window.scrollX
+  const top = canvas.offsetTop - window.scrollY
+  const mode = pu.mode[pu.mode.qa]
+  const cellsOnly = mode.edit_mode === 'combi' && ['star', 'yajilin', 'mines', 'doublemines', 'akari'].includes(mode.combi[0])
+  const types = cellsOnly ? [0] : pu.type
+  const at = { x: (near.x - 0.5) * scale + 0.5, y: (near.y - 0.5) * scale + 0.5 }
+  const onCanvas = (p) => p.x > 1 && p.y > 1 && p.x < canvas.clientWidth - 1 && p.y < canvas.clientHeight - 1
+  const candidates = pu.point.filter((p) => p && types.includes(p.type) && onCanvas(p))
+  // No point in use within 2 px, so rounding to a whole pixel cannot tip the press onto one.
+  const clear = (p) => !candidates.some((q) => q.use === 1 && Math.hypot(q.x - p.x, q.y - p.y) < 2)
+  const unused = candidates.filter((p) => p.use !== 1 && clear(p))
+  if (!unused.length) throw new Error('no point out of use to press on')
+  const best = unused.reduce((a, b) => (Math.hypot(a.x - at.x, a.y - at.y) <= Math.hypot(b.x - at.x, b.y - at.y) ? a : b))
+  return { x: Math.round(left + best.x), y: Math.round(top + best.y) }
+}
+
 // Runs in the page: a viewport pixel just outside the canvas, above its top-left corner.
 function outsideCanvasInPage () {
   const box = document.getElementById('canvas').getBoundingClientRect()
   return { x: box.left, y: box.top - 1 }
-}
-
-// Runs in the page: like `boardPixelInPage` for a board point of a recording made at `recordedSize` px a cell, on a page
-// that fits the board to its card at another size (`solve.html`).
-function scaledBoardPixelInPage ({ x, y, recordedSize }) {
-  const box = document.getElementById('canvas').getBoundingClientRect()
-  const scale = pu.size / recordedSize
-  return { x: box.left + x * scale, y: box.top + y * scale }
 }
 
 // The cell size Penpa+'s page draws a board at, so the one every recording was made at.
@@ -284,8 +323,9 @@ const RECORDED_CELL_PX = 38
 const STEP_GAP_MS = 1000
 
 // The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call. A call `main.js`
-// makes only from a remapped key has no entry and is refused: Multicolor's colour digits (a number argument) and
-// Sudoku's Backspace (`key_space` with code 8). Sudoku's Shift and Ctrl marks are recorded as a sub-mode step around
+// makes only from a remapped key has no entry and is refused: Sudoku's Backspace (`key_space` with code 8).
+// Multicolor's colour digits (a number argument) are `startUiDriver`'s, which reads the page's remap, and so are
+// Surface's two-digit colours (`1` then a digit). Sudoku's Shift and Ctrl marks are recorded as a sub-mode step around
 // a plain key, so they replay as a click in the mode panel and the plain key.
 function keyOf ({ call, args }) {
   switch (call) {
@@ -308,25 +348,59 @@ function keyOf ({ call, args }) {
     case 'key_backspace':
       return 'Backspace'
   }
-  throw new Error(`no key makes ${call}(${args.map((a) => JSON.stringify(a)).join(', ')})`)
+  throw noKey({ call, args })
+}
+
+function noKey ({ call, args }) {
+  return new Error(`no key makes ${call}(${args.map((a) => JSON.stringify(a)).join(', ')})`)
+}
+
+// Surface's two-digit colour, `1` and then a digit (`key_number("12")`), which `main.js` makes from the digit pressed
+// within 300 ms of letting go of a `1`.
+const isTwoDigitColour = (step) => step.kind === 'key' && step.call === 'key_number' && /^1\d$/.test(step.args[0])
+
+// Multicolor's colour digit (`key_number(3)`), which `main.js` makes, with its style, from a remapped digit key.
+const isMulticolorKey = (step) => step.kind === 'key' && step.call === 'key_number' && typeof step.args[0] === 'number'
+
+// A Multicolor style step the next step's colour key made: the key sets the style first (`main.js`), so the pair is
+// one key press.
+const isKeyStyle = (step, next) => step.kind === 'mode' && step.mode === 'multicolor' && next !== undefined &&
+  isMulticolorKey(next) && next.args[0] === step.style
+
+// A step a key press makes, whose release ends `main.js`'s window after a `1`.
+const isKeyPress = (step) => ['key', 'select', 'undo', 'redo'].includes(step.kind)
+
+// The indices of `steps` made within a two-digit colour's window: those after its `1` up to the colour itself. Each
+// two-digit colour's last key press before it must be that `1`, else no key makes it.
+function twoDigitWindows (steps) {
+  const quick = new Set()
+  for (const [j, step] of steps.entries()) {
+    if (!isTwoDigitColour(step)) continue
+    const k = steps.findLastIndex((s, i) => i < j && isKeyPress(s))
+    if (k === -1 || steps[k].call !== 'key_number' || steps[k].args[0] !== '1') continue
+    for (let i = k + 1; i <= j; i++) quick.add(i)
+  }
+  return quick
 }
 
 // The UI driver: each step as the mouse or keyboard input a solver makes, a pointer step at the page pixel its board
 // units map to through the current layout. A digit in Surface picks a colour as well as making its key call, and is
 // recorded as a key step and then a Surface mode step, both made by the one key press, so that pair is checked once,
 // after the mode step.
+// A Multicolor colour key is recorded the other way round, its style step first, and is checked after the key.
 const uiCheckpointAfter = (step, next) => endsGroup(step) &&
-  !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface')
+  !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface') &&
+  !isKeyStyle(step, next)
 
 // Penpa+'s own page: a mode change is a click in its mode panel.
 export const uiDriver = {
-  start: (page) => startUiDriver(page, panelChoices, (step) => page.evaluate(boardPixelInPage, step)),
+  start: (page, steps) => startUiDriver(page, steps, panelChoices),
   checkpointAfter: uiCheckpointAfter
 }
 
 // `solve.html`: a mode change is a pick in the Mode card.
-const solveUiDriver = {
-  start: (page) => startUiDriver(page, modeCardChoices, ({ x, y }) => page.evaluate(scaledBoardPixelInPage, { x, y, recordedSize: RECORDED_CELL_PX })),
+export const solveUiDriver = {
+  start: (page, steps) => startUiDriver(page, steps, modeCardChoices),
   checkpointAfter: uiCheckpointAfter
 }
 
@@ -382,11 +456,34 @@ function modeCardChoices (page, step, _clickInPanel, afterInput) {
   }
 }
 
-function startUiDriver (page, choices, pixelOf) {
+// The button to press at `steps[i]` when it starts a gesture whose press made no engine call, else null. `main.js`
+// makes no call for a press on a point outside the frame (`restrict_mouse`) or one not in use, nor for a move onto one
+// not in use, so such a gesture is recorded as its later moves and an `up` with no `down`, or as the `up` alone. Its
+// press was made where the `out` its first move made leaves the mouse, or on a point out of use before its first
+// recorded move or its `up`. The button is held for the moves and the release that follow.
+function silentPress (steps, i) {
+  const step = steps[i]
+  if (step.kind !== 'pointer' || !['out', 'move', 'up'].includes(step.action)) return null
+  const before = steps.slice(0, i).findLast((s) => s.kind === 'pointer')
+  if (step.action !== 'out' && before && !['up', 'out'].includes(before.action)) return null
+  const rest = steps.slice(i)
+  const end = rest.findIndex((s, k) => s.kind === 'pointer' && s.action !== 'move' && (k > 0 || s.action === 'up'))
+  if (end === -1 || rest[end].action !== 'up') return null
+  return rest.slice(0, end).some((s) => s.kind === 'pointer' && s.button === 'right') ? 'right' : 'left'
+}
+
+function startUiDriver (page, steps, choices) {
+  const pixelOf = async ({ x, y, num }) => {
+    const pixel = await page.evaluate(pagePixelInPage, { x, y, num, recordedSize: RECORDED_CELL_PX })
+    await page.evaluate(clearPanelInPage, pixel)
+    return pixel
+  }
   // Where the mouse is, or null once a click in the mode panel has moved it; and the button a down step holds.
   let mousePixel = null
   let pressed = null
   let stepsMade = 0
+  let clock = CLOCK_START.getTime()
+  const quick = twoDigitWindows(steps)
 
   async function clickInPanel (id) {
     // A missing button would hold the click for Playwright's whole timeout.
@@ -405,9 +502,21 @@ function startUiDriver (page, choices, pixelOf) {
     if (!mousePixel || mousePixel.x !== pixel.x || mousePixel.y !== pixel.y) await moveTo(pixel)
   }
 
+  // Presses for a gesture whose press made no call (`silentPress`): after its `out`, where the mouse is, off the canvas;
+  // else on a point out of use near the step, moved to first.
+  async function pressSilently (step) {
+    const button = silentPress(steps, stepsMade - 1)
+    if (!button || pressed) return false
+    if (step.action !== 'out') await moveTo(await page.evaluate(unusedPixelInPage, { near: step, recordedSize: RECORDED_CELL_PX }))
+    await page.mouse.down({ button })
+    pressed = { button, ctrl: false }
+    return true
+  }
+
   async function pointer (step) {
     switch (step.action) {
       case 'move':
+        await pressSilently(step)
         return moveTo(await pixelOf(step))
       case 'down':
         await moveIfAway(await pixelOf(step))
@@ -416,30 +525,52 @@ function startUiDriver (page, choices, pixelOf) {
         pressed = { button: step.button, ctrl: step.ctrl }
         return
       case 'up':
-        if (!pressed) throw new Error('no mouse button is down to release')
+        if (!pressed && !await pressSilently(step)) throw new Error('no mouse button is down to release')
         await moveIfAway(await pixelOf(step))
         await page.mouse.up({ button: pressed.button })
         if (pressed.ctrl) await page.keyboard.up('Control')
         pressed = null
         return
       case 'out':
-        return moveTo(await page.evaluate(outsideCanvasInPage))
+        await moveTo(await page.evaluate(outsideCanvasInPage))
+        return pressSilently(step)
     }
     throw new Error(`no mouse input for a pointer step of action ${step.action}`)
   }
 
-  function mode (step) {
-    return switchMode(page, step, choices(page, step, clickInPanel, () => { mousePixel = null }))
+  async function mode (step) {
+    // The style a colour key sets is left to the key, so the mode step switches only the mode.
+    const target = isKeyStyle(step, steps[stepsMade]) ? { ...step, style: (await page.evaluate(modeInPage, step.mode)).style } : step
+    return switchMode(page, target, choices(page, target, clickInPanel, () => { mousePixel = null }))
+  }
+
+  // The key that makes a key step's call: a Multicolor colour is the digit, or Alt and the digit, `main.js` remaps to
+  // it; a two-digit Surface colour is its second digit, pressed within the window after its `1`.
+  async function keyFor (step) {
+    if (isTwoDigitColour(step)) {
+      if (!quick.has(stepsMade - 1)) throw noKey(step)
+      return step.args[0][1]
+    }
+    if (!isMulticolorKey(step)) return keyOf(step)
+    const { edit, remap } = await page.evaluate(() => ({ edit: pu.mode[pu.mode.qa].edit_mode, remap: MULTICOLOR_REMAP }))
+    const digit = remap.indexOf(step.args[0])
+    if (edit !== 'multicolor' || digit === -1) throw noKey(step)
+    return digit < 10 ? String(digit) : 'Alt+' + (digit - 10)
   }
 
   return async (step) => {
+    // `main.js` reads a two-digit colour only from a digit let go of within 300 ms of a `1`.
+    clock += quick.has(stepsMade) ? 1 : STEP_GAP_MS
+    // A solver scrolls a board taller than the window into view before solving: Chromium sends no event to a pointer
+    // below the viewport, and the gesture leaves the canvas.
+    if (stepsMade === 0) await page.evaluate(() => document.getElementById('canvas').scrollIntoView({ block: 'nearest', inline: 'nearest' }))
     stepsMade++
-    await page.clock.setSystemTime(CLOCK_START.getTime() + stepsMade * STEP_GAP_MS)
+    await page.clock.setSystemTime(clock)
     switch (step.kind) {
       case 'pointer':
         return pointer(step)
       case 'key':
-        return page.keyboard.press(keyOf(step))
+        return page.keyboard.press(await keyFor(step))
       case 'mode':
         return mode(step)
       case 'select':
@@ -668,7 +799,7 @@ export async function replay (browser, recording, {
   // Started once the page has loaded, so it counts only what the steps call.
   if (coverage) await page.coverage.startJSCoverage({ resetOnNavigation: false })
   const read = () => readPage(page)
-  const apply = driver.start(page)
+  const apply = driver.start(page, recording.steps)
   const trips = roundTrips(browser, openOptions)
   // The round trips under way, in step order, each resolving to its report or null.
   const reports = []

@@ -7,9 +7,9 @@ import { listRecordings, readExpected, readRecording, replay } from './replay.mj
 
 export const REPLAY_PARTS = 3
 
-// `ids` must be sorted.
-export function replayPartIds (ids, part) {
-  return ids.filter((id, i) => i % REPLAY_PARTS === part)
+// `ids` must be sorted; `parts` is how many parts they are split into.
+export function replayPartIds (ids, part, parts = REPLAY_PARTS) {
+  return ids.filter((id, i) => i % parts === part)
 }
 
 // The call every `engine-replay-<k>.live.mjs` makes: `fileUrl` is its `import.meta.url`, and `k` comes from its name, so a
