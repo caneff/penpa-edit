@@ -57,7 +57,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   answer-aimed fuzz on each of its puzzles and turns a Replay link into a recording; its kept recordings under
   `live/recordings/solve/` are written by `node live/generate-tier-c.mjs`, a solver's history by its `--history`. It also opens the Penpa links the fork writes (the save dialog's, the progress store's; not the .pp and .gmp file texts) on `upstream/master`'s own files and checks the board matches the fork's (`live/upstream-links.live.mjs`; it needs the `upstream/master` ref, which CI fetches). It also checks that each plant undoing an
   audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
-  `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
+  `console.error` on a page `openPenpa` or `openReloader` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master` (job `test`), and the expected-file gate
   on every PR (job `expected-files`, below). `.github/workflows/upstream-merge.yml` merges upstream nightly and pushes
