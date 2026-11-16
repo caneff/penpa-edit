@@ -111,10 +111,10 @@
     // colours sit under it (Chris, 2026-11-16). A tool listed under no subgroup goes to the last one.
     const SIZE_NAMES = { LL: 'XL', L: 'L', M: 'M', S: 'S', SS: 'XS' };
     const sizes = (name, prefix, suffixes) => [name, suffixes.map((suffix) => [`symbol/${prefix}_${suffix}`, SIZE_NAMES[suffix]])];
-    const COLOURS = { B: 'Black', G: 'Grey', W: 'White', E: 'Green' };
-    const colours = (name, keys, ids) => [name, keys.map((key, i) => [key, COLOURS[ids[i]] ?? ids[i]])];
-    const symbols = (...ids) => ids.map((id) => [null, [[`symbol/${id}`, null]]]);
-    const combis = (...ids) => ids.map((id) => [null, [[`combi/${id}`, null]]]);
+    const blackGreyWhite = (name, prefix) => [name, [['B', 'Black'], ['G', 'Grey'], ['W', 'White']].map(([suffix, colour]) => [`symbol/${prefix}_${suffix}`, colour])];
+    const alone = (...keys) => keys.map((key) => [null, [[key, null]]]);
+    const symbols = (...ids) => alone(...ids.map((id) => `symbol/${id}`));
+    const combis = (...ids) => alone(...ids.map((id) => `combi/${id}`));
     const SYMBOL_SUBGROUPS = [
         ['Solving marks', combis('blwh', 'battleship', 'star', 'tents', 'magnets', 'mines', 'doublemines', 'akari')],
         ['Shapes', [
@@ -125,33 +125,31 @@
             sizes('Hexagon, flat', 'hexflat', ['LL', 'L', 'M', 'S', 'SS'])
         ]],
         ['Arrows', [
-            colours('Arrow', ['symbol/arrow_B_B', 'symbol/arrow_B_G', 'symbol/arrow_B_W'], ['B', 'G', 'W']),
-            colours('Arrow, notched', ['symbol/arrow_N_B', 'symbol/arrow_N_G', 'symbol/arrow_N_W'], ['B', 'G', 'W']),
-            colours('Arrow, triangle', ['symbol/arrow_tri_B', 'symbol/arrow_tri_G', 'symbol/arrow_tri_W'], ['B', 'G', 'W']),
-            colours('Edge arrows', ['symbol/arrow_fouredge_B', 'symbol/arrow_fouredge_G', 'symbol/arrow_fouredge_E'], ['B', 'G', 'E']),
+            blackGreyWhite('Arrow', 'arrow_B'), blackGreyWhite('Arrow, notched', 'arrow_N'), blackGreyWhite('Arrow, triangle', 'arrow_tri'),
+            ['Edge arrows', [['symbol/arrow_fouredge_B', 'Black'], ['symbol/arrow_fouredge_G', 'Grey'], ['symbol/arrow_fouredge_E', 'Green']]],
             ...symbols('arrow_GP', 'arrow_GP_C', 'arrow_Short', 'arrow_S', 'arrow_cross', 'arrow_eight', 'arrow_fourtip'), ...combis('arrowS')
         ]],
         ['Signs and small marks', [
-            colours('○ △ □ ×', ['symbol/ox_B', 'symbol/ox_E', 'symbol/ox_G'], ['B', 'E', 'G']),
+            ['○ △ □ ×', [['symbol/ox_B', 'Black'], ['symbol/ox_E', 'Green'], ['symbol/ox_G', 'Grey']]],
             ...symbols('cross', 'line', 'frameline'),
-            colours('Bars', ['symbol/bars_B', 'symbol/bars_G', 'symbol/bars_W'], ['B', 'G', 'W']),
+            blackGreyWhite('Bars', 'bars'),
             ...symbols('tri'),
-            colours('Maths signs', ['symbol/math', 'symbol/math_G'], ['B', 'E']),
+            ['Maths signs', [['symbol/math', 'Black'], ['symbol/math_G', 'Green']]],
             ...symbols('inequality'),
-            colours('Segment digit', ['symbol/degital_B', 'symbol/degital_E', 'symbol/degital_G', 'symbol/degital_f'], ['B', 'E', 'G', 'Outline'])
+            ['Segment digit', [['symbol/degital_B', 'Black'], ['symbol/degital_E', 'Green'], ['symbol/degital_G', 'Grey'], ['symbol/degital_f', 'Outline']]]
         ]],
         ['Genre symbols', [
-            colours('Ship', ['symbol/battleship_B', 'symbol/battleship_G', 'symbol/battleship_W', 'symbol/battleship_B+', 'symbol/battleship_G+',
-                'symbol/battleship_W+'], ['B', 'G', 'W', 'Curvy, black', 'Curvy, grey', 'Curvy, white']),
+            ['Ship', [['symbol/battleship_B', 'Black'], ['symbol/battleship_G', 'Grey'], ['symbol/battleship_W', 'White'],
+                ['symbol/battleship_B+', 'Curvy, black'], ['symbol/battleship_G+', 'Curvy, grey'], ['symbol/battleship_W+', 'Curvy, white']]],
             ...symbols('kakuro', 'tents', 'star', 'compass', 'sun_moon', 'dice', 'pills', 'polyomino', 'polyhex', 'firefly', 'pencils', 'slovak',
                 'arc', 'darts', 'spans', 'neighbors', 'angleloop', 'sudokuetc', 'sudokumore')
         ]]
     ];
 
-    // 'mode/sub-mode' -> where the tree puts a symbol: [subgroup, family (null: the tool stands alone), variant, rank].
+    // 'mode/sub-mode' -> where the tree puts a symbol: [subgroup, symbol entry (null: the tool stands alone), variant, rank].
     const SYMBOL_PLACES = new Map();
-    SYMBOL_SUBGROUPS.forEach(([subgroup, entries]) => entries.forEach(([family, variants]) => variants.forEach(([key, variant]) => {
-        SYMBOL_PLACES.set(key, [subgroup, family, variant, SYMBOL_PLACES.size]);
+    SYMBOL_SUBGROUPS.forEach(([subgroup, entries]) => entries.forEach(([entry, variants]) => variants.forEach(([key, variant]) => {
+        SYMBOL_PLACES.set(key, [subgroup, entry, variant, SYMBOL_PLACES.size]);
     })));
     const LAST_SUBGROUP = SYMBOL_SUBGROUPS[SYMBOL_SUBGROUPS.length - 1][0];
 
@@ -162,8 +160,8 @@
         const { group, name, description } = describeTool(tool);
         const place = SYMBOL_PLACES.get(toolKey(tool));
         if (place) {
-            const [subgroup, family, variant, rank] = place;
-            return { group, trail: [subgroup, family].filter(Boolean), label: variant ?? name, name, description, rank };
+            const [subgroup, entry, variant, rank] = place;
+            return { group, trail: [subgroup, entry].filter(Boolean), label: variant ?? name, name, description, rank };
         }
         if (group === 'symbols') {
             return { group, trail: [LAST_SUBGROUP], label: name, name, description, rank: SYMBOL_PLACES.size };

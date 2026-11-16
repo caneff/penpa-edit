@@ -13,6 +13,8 @@
     const TEXT_ENTRY = 'input, textarea, select, [contenteditable], wa-input, wa-select';
     const OPEN_MENU = 'wa-dropdown[open], wa-select[open]';
     const OPEN_DIALOG = 'wa-dialog[open]';
+    // The Mode card's tool tree takes its own arrows, Enter, Space and Home; none of them is a board key.
+    const TOOL_TREE = '[role=tree]';
     // A control the board still takes keys from while it has focus.
     const PLAIN_CONTROL = 'button, wa-button, .ui-card';
     const BOARD = '.ui-card-board canvas';
@@ -32,7 +34,7 @@
     // Walks the event's path, so it sees inside Web Awesome's shadow DOM.
     function boardHasFocus(path) {
         const nodes = elementsOf(path);
-        if (nodes.some((node) => node.matches(`${TEXT_ENTRY}, ${OPEN_MENU}, ${OPEN_DIALOG}`))) {
+        if (nodes.some((node) => node.matches(`${TEXT_ENTRY}, ${TOOL_TREE}, ${OPEN_MENU}, ${OPEN_DIALOG}`))) {
             return false;
         }
         const origin = nodes[0];

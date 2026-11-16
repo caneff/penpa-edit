@@ -125,7 +125,7 @@
     function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
         const input = el('input', {
             type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-haspopup': 'tree', 'aria-expanded': 'false',
-            'aria-controls': 'tool-tree', spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
+            'aria-controls': window.modeTree.TREE_ID, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
         const none = el('div', { class: 'ui-none', hidden: '' }, ['No tool matches.']);
         const toolTree = window.modeTree.createModeTree(tools, (tool) => pick(tool));

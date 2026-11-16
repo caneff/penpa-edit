@@ -1,40 +1,50 @@
 // The Mode card's tool tree: groups, modes and sub-modes (Symbols and marks one level deeper), each branch opening and closing on
 // its own, with the ARIA tree keys. The rows are built once and only shown, hidden and marked afterwards, so a rebuild never
-// lands between a mouse press and its release. Knows no `engine`: tool-cards.js hands it the tools and takes the picks.
+// lands between a mouse press and its release. Knows no `engine`.
 (function () {
     'use strict';
 
     const { TOOL_GROUPS, placeTool, searchWords, matchesSearch, toolKey } = window.toolGuide;
     const { el } = window.uiKit;
 
-    // The "Open to" buttons: a branch opens when its level is below the number.
-    const OPEN_TO = [['Groups', 1], ['Modes', 2], ['Everything', Infinity]];
+    const TREE_ID = 'tool-tree';
 
     const MODE_ATTRS = (tool) => ({ 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' });
 
-    // The tree's nodes: a branch has `children`, a leaf has its `tool`.
+    const depth = (node) => 1 + Math.max(0, ...node.children.map(depth));
+    const rootOf = (node) => (node.parent ? rootOf(node.parent) : node);
+
+    // The "Open to" buttons, each with the branches it opens. Modes opens down to the level of the modes: the second, or the third
+    // in Symbols and marks, whose subgroups sit above its symbols.
+    const OPEN_TO = [
+        ['Groups', () => false],
+        ['Modes', (node) => node.level < (depth(rootOf(node)) === 4 ? 3 : 2)],
+        ['Everything', () => true]
+    ];
+
+    // The tree's nodes: a branch has `children`, a leaf has its `tool` and the text it is searched by.
     function buildNodes(tools) {
-        const roots = TOOL_GROUPS.map(([id, title]) => ({ key: id, label: title, level: 1, parent: null, children: [], tool: null, text: title.toLowerCase() }));
-        const add = (parent, label, tool = null) => {
-            const node = { key: `${parent.key}/${label}`, label, level: parent.level + 1, parent, children: [], tool, text: '' };
-            parent.children.push(node);
-            return node;
-        };
-        tools.map((tool) => ({ tool, place: placeTool(tool) })).sort((a, b) => a.place.rank - b.place.rank).forEach(({ tool, place }) => {
-            const parent = place.trail.reduce((at, label) => at.children.find((c) => c.label === label && !c.tool) ?? add(at, label),
-                roots.find((root) => root.key === place.group));
-            const leaf = add(parent, place.label, tool);
-            leaf.description = place.description;
-            const ancestors = [];
-            for (let at = leaf.parent; at; at = at.parent) {
-                ancestors.push(at.label);
+        const node = (parent, label, level, tool = null, place = null) => {
+            const made = { key: parent ? `${parent.key}/${label}` : label, label, level, parent, children: [], tool, description: place?.description };
+            if (tool) {
+                const ancestors = [];
+                for (let at = parent; at; at = at.parent) {
+                    ancestors.push(at.label);
+                }
+                made.text = [...ancestors, label, place.name, place.description, tool.modeName, ...tool.labels].join(' ').toLowerCase();
             }
-            leaf.text = [...ancestors, place.label, place.name, place.description, tool.modeName, ...tool.labels].join(' ').toLowerCase();
+            parent?.children.push(made);
+            return made;
+        };
+        const roots = TOOL_GROUPS.map(([id, title]) => ({ ...node(null, id, 1), label: title }));
+        tools.map((tool) => ({ tool, place: placeTool(tool) })).sort((a, b) => a.place.rank - b.place.rank).forEach(({ tool, place }) => {
+            const parent = place.trail.reduce((at, label) => at.children.find((c) => c.label === label && !c.tool) ?? node(at, label, at.level + 1),
+                roots.find((root) => root.key === place.group));
+            node(parent, place.label, parent.level + 1, tool, place);
         });
         return roots.filter((root) => root.children.length);
     }
 
-    // `onPick(tool)` is called with the tool of a clicked or entered leaf.
     function createModeTree(tools, onPick) {
         const roots = buildNodes(tools);
         const all = [];
@@ -42,8 +52,9 @@
         let words = [];
         let selectedKey = null;
         let focusable = null;
+        const selectedRow = () => visibleRows().find((n) => n.tool && toolKey(n.tool) === selectedKey);
 
-        const tree = el('div', { role: 'tree', 'aria-label': 'Tools', id: 'tool-tree', class: 'ui-tree' });
+        const tree = el('div', { role: 'tree', 'aria-label': 'Tools', id: TREE_ID, class: 'ui-tree' });
 
         function render(node) {
             const isLeaf = Boolean(node.tool);
@@ -88,6 +99,7 @@
                 return matching;
             };
             roots.forEach((root) => { shown += count(root).length; });
+            levelButtons.forEach((button) => { button.disabled = searching; });
             if (focusable?.row.closest('[hidden]')) {
                 setFocusable(null);
             }
@@ -165,16 +177,17 @@
 
         const levels = el('div', { class: 'ui-levels' }, [
             el('span', { class: 'ui-levels-label', 'aria-hidden': 'true' }, ['Open to:']),
-            el('div', { role: 'group', 'aria-label': 'Open to', class: 'ui-levels-buttons' }, OPEN_TO.map(([name, depth]) => {
+            el('div', { role: 'group', 'aria-label': 'Open to', class: 'ui-levels-buttons' }, OPEN_TO.map(([name, opens]) => {
                 const button = el('button', { type: 'button', class: 'ui-levelbtn' }, [name]);
                 button.addEventListener('click', () => {
                     open.clear();
-                    all.filter((n) => !n.tool && n.level < depth).forEach((n) => open.add(n.key));
+                    all.filter((n) => !n.tool && opens(n)).forEach((n) => open.add(n.key));
                     refresh();
                 });
                 return button;
             }))
         ]);
+        const levelButtons = levels.querySelectorAll('button');
         levels.addEventListener('mousedown', (e) => e.preventDefault());
 
         refresh();
@@ -195,25 +208,21 @@
                 }
                 refresh();
             },
-            // Marks `tool` as the picked one.
             select(tool) {
                 selectedKey = toolKey(tool);
                 all.filter((n) => n.tool).forEach((n) => n.row.setAttribute('aria-selected', String(toolKey(n.tool) === selectedKey)));
             },
-            // The first tool the search shows, for Enter in the search box.
             firstMatch() {
                 return visibleRows().find((n) => n.tool)?.tool ?? null;
             },
-            // Puts the keyboard focus on the selected tool's row, or the first row shown.
             focusSelected() {
-                const rows = visibleRows();
-                focusNode(rows.find((n) => n.tool && toolKey(n.tool) === selectedKey) ?? rows[0]);
+                focusNode(selectedRow() ?? visibleRows()[0]);
             },
             scrollToSelected() {
-                visibleRows().find((n) => n.tool && toolKey(n.tool) === selectedKey)?.row.scrollIntoView({ block: 'nearest' });
+                selectedRow()?.row.scrollIntoView({ block: 'nearest' });
             }
         };
     }
 
-    window.modeTree = { createModeTree };
+    window.modeTree = { createModeTree, TREE_ID };
 })();
