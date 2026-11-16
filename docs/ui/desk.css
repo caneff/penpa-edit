@@ -121,10 +121,11 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-card-board { outline: 3px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
-.ui-pins { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ui-chip { display: flex; align-items: center; border: 1px solid #cfcabd; border-left: 6px solid var(--ui-pin-colour, #cfcabd); border-radius: 7px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
 .ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 .ui-chip-unpin { padding: 0 6px; opacity: .55; }
