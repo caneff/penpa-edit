@@ -2,7 +2,7 @@
 // The box is read by role and accessible name; the board it opens is read through `engine`.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { AKARI_SOLVE, openSolvePage, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, openPenpa, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -12,7 +12,7 @@ const FORK = 'https://caneff.github.io/penpa-edit/'
 
 // Opens bare solve.html: the paste box shows, no desk is built.
 async function openBare () {
-  const { context, page } = await openSolvePage(browser(), '', { skipDesk: true })
+  const { context, page } = await openPenpa(browser(), '', { solve: true })
   const box = page.getByRole('textbox', { name: 'Penpa+ link' })
   await box.waitFor()
   return { context, page, box, open: page.getByRole('button', { name: 'Open' }), error: page.getByRole('alert') }
@@ -29,6 +29,7 @@ describe('solve.html with no puzzle data', () => {
     try {
       assert.equal(await bare.error.isVisible(), false)
       assert.equal(await bare.page.getByRole('region', { name: 'Board' }).count(), 0, 'no desk is built')
+      assert.equal(await bare.page.getByText('New Grid / Update').isVisible(), false, 'Penpa+\'s own page is hidden')
     } finally { await bare.context.close() }
   })
 
@@ -45,13 +46,16 @@ describe('solve.html with no puzzle data', () => {
         await bare.page.evaluate(() => engine.ready)
         assert.equal(await bare.page.evaluate(() => location.hash), AKARI_SOLVE)
         assert.equal(await settle(() => bare.page.evaluate(() => engine.getInfo().title !== undefined), true), true)
-        assert.equal(await bare.page.getByRole('alert').count(), 0, 'the box is gone with no error')
+        assert.equal(await bare.page.getByRole('textbox', { name: 'Penpa+ link' }).count(), 0, 'the box is gone')
       } finally { await bare.context.close() }
     })
   }
 
   for (const [why, link] of [
     ['a Penpa+ link with no # part', `${UPSTREAM}?m=solve`],
+    ['a Penpa+ link whose # part holds no puzzle', `${UPSTREAM}#m=solve`],
+    ['a link on a Penpa+ host but another path', `https://swaroopg92.github.io/other/${AKARI_SOLVE}`],
+    ['a link on another host with Penpa+\'s path', `https://example.com/penpa-edit/${AKARI_SOLVE}`],
     ['a link that is not a Penpa+ link', `https://example.com/page${AKARI_SOLVE}`],
     ['text that is not a link', 'hello']
   ]) {
@@ -65,14 +69,13 @@ describe('solve.html with no puzzle data', () => {
       } finally { await bare.context.close() }
     })
   }
+})
 
-  it('clears the error when the next pasted link is good', async () => {
-    const bare = await openBare()
+describe('solve.html with a puzzle in its link', () => {
+  it('shows no paste box', async () => {
+    const { context, page } = await openSolvePage(browser(), AKARI_SOLVE)
     try {
-      await pasteAndOpen(bare, 'hello')
-      assert.equal(await bare.error.isVisible(), true)
-      await pasteAndOpen(bare, `${UPSTREAM}${AKARI_SOLVE}`)
-      await bare.page.getByRole('region', { name: 'Board' }).waitFor()
-    } finally { await bare.context.close() }
+      assert.equal(await page.getByRole('textbox', { name: 'Penpa+ link' }).count(), 0)
+    } finally { await context.close() }
   })
 })

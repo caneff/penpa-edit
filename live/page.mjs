@@ -71,8 +71,7 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   const dialogs = []
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await page.goto((url ?? penpaAddress(served, solve)) + query)
-  // A solve.html opened with no link has `pu` too, but no puzzle: it waits for a pasted link.
-  await page.waitForFunction(() => typeof pu !== 'undefined' || (typeof engine !== 'undefined' && !engine.hasPuzzle))
+  await page.waitForFunction(() => typeof pu !== 'undefined')
   return { context, page, dialogs, errors }
 }
 
@@ -268,10 +267,10 @@ export async function waitForDesk (page) {
   await page.evaluate(() => engine.ready)
 }
 
-// Opens solve.html on `query` in a DESK_SIZE window and returns once the desk is built (not with `skipDesk`); other `options` go to `openPenpa`.
-export async function openSolvePage (browser, query, { skipDesk = false, ...options } = {}) {
+// Opens solve.html on `query` in a DESK_SIZE window and returns once the desk is built; `options` go to `openPenpa`.
+export async function openSolvePage (browser, query, options = {}) {
   const opened = await openPenpa(browser, query, { solve: true, contextOptions: DESK_SIZE, ...options })
-  if (!skipDesk) await waitForDesk(opened.page)
+  await waitForDesk(opened.page)
   return opened
 }
 

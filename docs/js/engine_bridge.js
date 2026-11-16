@@ -162,10 +162,9 @@
     // SweetAlert2's popups (1060).
     const chromeStyle = document.createElement('style');
     chromeStyle.textContent =
-        'body.engine-mounted #header, body.engine-mounted #app-container { visibility: hidden; height: 0; overflow: hidden; }\n' +
+        'body.engine-mounted #header, body.engine-mounted #app-container, body.engine-no-puzzle #header, body.engine-no-puzzle #app-container { visibility: hidden; height: 0; overflow: hidden; }\n' +
         'body.engine-mounted #app-container .modal { visibility: visible; z-index: 1000; }\n' +
-        'body.engine-mounted #float-key { display: none !important; }\n' +
-        'body.engine-no-puzzle #header, body.engine-no-puzzle #app-container { visibility: hidden; height: 0; overflow: hidden; }\n';
+        'body.engine-mounted #float-key { display: none !important; }\n';
     document.head.appendChild(chromeStyle);
 
     // The theme is the UI's own choice, kept in localStorage: 'light' (the default) or 'dark'.
@@ -200,7 +199,8 @@
     window.advancecontrol_off = function () {};
 
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
-    // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads.
+    // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads. A page with no link
+    // never resolves either.
     let resolveBoot;
     let rejectBoot;
     const ready = new Promise((resolve, reject) => {
@@ -208,8 +208,8 @@
         rejectBoot = reject;
     });
     const penpaBoot = window.boot;
-    // boot()'s own test for a link (general.js): a query with `p=`, else any `#` data. With none, the page shows no board and
-    // the UI asks for a link (paste-link.js).
+    // A copy of boot()'s own test for a link (general.js): a query with `p=`, else any `#` data. general.js is upstream's, so
+    // it is copied rather than edited to export it.
     const hasPuzzleData = () => /(^|&)p=/.test(location.search.substring(1)) || location.hash.length > 1;
     window.boot = function () {
         if (!hasPuzzleData()) {

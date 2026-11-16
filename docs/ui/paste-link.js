@@ -10,8 +10,10 @@
     // Both hosts serve Penpa+ under /penpa-edit/; the userscript sends the first to the second.
     const PENPA_ORIGINS = ['https://swaroopg92.github.io', 'https://caneff.github.io'];
     const PENPA_PATH = '/penpa-edit/';
+    // A `#` part with a puzzle in it, as boot reads it: `p=` among its parameters.
+    const PUZZLE_IN_HASH = /^#(.*&)?p=/;
 
-    // The `#` data of `text`, a link to Penpa+ on either host; null when it is no such link or has no `#` data.
+    // Null when `text` is no URL, no Penpa+ link, or has no `p=` in its `#` data.
     function puzzleDataOf(text) {
         let url;
         try {
@@ -20,13 +22,13 @@
             return null; // not a URL at all: the caller shows the error
         }
         const isPenpa = PENPA_ORIGINS.includes(url.origin) && url.pathname.startsWith(PENPA_PATH);
-        return isPenpa && url.hash.length > 1 ? url.hash : null;
+        return isPenpa && PUZZLE_IN_HASH.test(url.hash) ? url.hash : null;
     }
 
     const { el } = window.uiKit;
     const input = el('input', { type: 'text', id: 'paste-link-input', class: 'ui-paste-input', autocomplete: 'off', spellcheck: 'false' });
     const error = el('p', { class: 'ui-paste-error', role: 'alert', hidden: '' }, [
-        'That is not a Penpa+ link with a puzzle in it. Paste a full link, such as one ending in #m=solve&p=…'
+        'That is not a Penpa+ link with its puzzle after the #. Paste the whole link, such as one ending in #m=solve&p=…'
     ]);
     const form = el('form', { class: 'ui-paste' }, [
         el('h1', {}, ['Paste a Penpa+ link']),
