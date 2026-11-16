@@ -248,8 +248,8 @@ describe('what a pin remembers', () => {
     const { page } = opened
     // From pin 2, blue: Penpa+ keeps one style for all of Line, so the pick alone would come back blue.
     assert.equal((await currentTool(page)).style, 9)
-    await page.getByRole('combobox', { name: 'Tool' }).click()
-    await page.getByRole('option', { name: /Drag through cell centres\./ }).click()
+    await page.getByRole('combobox', { name: 'Tool' }).fill('Drag through cell centres.')
+    await page.getByRole('treeitem', { name: 'Normal', exact: true }).click()
     await waitForTool(page, { mode: 'line', submode: '1' })
     assert.equal(await settle(async () => (await currentTool(page)).style, 8), 8, 'pin 1 is red again')
     const saved = await page.evaluate(() => window.pinBoard.snapshot())
@@ -261,8 +261,8 @@ describe('what a pin remembers', () => {
     const before = await storedEntries(page)
     const chipsBefore = await chipNames(page)
     const combobox = page.getByRole('combobox', { name: 'Tool' })
-    await combobox.click()
-    await page.getByRole('option', { name: /^Line helper/ }).click()
+    await combobox.fill('Line helper')
+    await page.locator('[role=treeitem][data-mode="line"][data-submode="4"]').click()
     await waitForTool(page, { mode: 'line', submode: '4' })
     assert.deepEqual(await chipNames(page), chipsBefore)
     assert.equal(await storedEntries(page), before, 'nothing of the pins was saved again')

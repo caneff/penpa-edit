@@ -460,7 +460,8 @@ function modeCardChoices (page, step, _clickInPanel, afterInput) {
   const pickTool = async () => {
     const tool = await toolOf()
     await card.getByRole('combobox', { name: 'Tool' }).click()
-    await card.locator(`[role=option][data-mode="${tool.mode}"][data-submode="${tool.submode ?? ''}"]`).click()
+    await card.getByRole('button', { name: 'Everything', exact: true }).click()
+    await card.locator(`[role=treeitem][data-mode="${tool.mode}"][data-submode="${tool.submode ?? ''}"]`).click()
     afterInput()
   }
   return {

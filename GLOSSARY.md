@@ -25,6 +25,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board
   (Shading and colour, Lines through cells, ...). It groups tools, not modes: the tools of Composite or Line sit in
   several. Not a Mode family, which groups whole modes by how their keys and clicks work.
+- **Subgroup**: a heading under the Symbols and marks tool group (Solving marks, Shapes, Arrows, Signs and small marks, Genre
+  symbols), so that group's tree is four levels deep and the others three.
+- **Symbol entry**: a symbol of the Mode card's tree that comes in several sizes or colours; its sizes or colours are its variants,
+  one level below it, each a tool.
 - **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle, fitted to the
   window and puzzle when the desk opens fresh or Reset layout is pressed.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent.
