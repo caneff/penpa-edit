@@ -255,6 +255,8 @@ describe('conflict detection off for this puzzle only', () => {
       const dialog = await openDialog(page)
       await dialog.getByRole('combobox', { name: 'Conflict detection' }).click()
       await page.getByRole('option', { name: 'Off for this puzzle' }).click()
+      // A click on the select while its list is still closing toggles it shut again.
+      await page.getByRole('option', { name: 'On', exact: true }).waitFor({ state: 'hidden' })
       await dialog.getByRole('combobox', { name: 'Conflict detection' }).click()
       await page.getByRole('option', { name: 'On', exact: true }).click()
       assert.equal(await settle(async () => (await settings(page)).conflict_detection, 1), 1)
