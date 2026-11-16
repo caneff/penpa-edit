@@ -102,6 +102,41 @@ describe('the desk', () => {
     assert.equal(warnings.some((w) => w.includes(key) && w.includes('unreadable')), true, `the console says the layout was unreadable: ${warnings}`)
   })
 
+  // The computed font size of a card's body, in pixels.
+  const bodyFontSize = (name) => page.evaluate((n) => parseFloat(getComputedStyle(document.querySelector(`section[aria-label="${n}"] .ui-body`)).fontSize), name)
+
+  it('steps the Rules text by its own buttons, stops at the ends, keeps the size over a reload and Reset layout restores it', async () => {
+    const smaller = page.getByRole('button', { name: 'Smaller rules text' })
+    const bigger = page.getByRole('button', { name: 'Bigger rules text' })
+    const start = await bodyFontSize('Rules')
+    const mouseStart = await bodyFontSize('Mouse')
+
+    await bigger.click()
+    const once = await bodyFontSize('Rules')
+    assert.ok(once > start, `one click on bigger grows the text: ${start} then ${once}`)
+    await bigger.click()
+    const twice = await bodyFontSize('Rules')
+    assert.equal(twice - once, once - start, 'each click is the same step')
+    assert.equal(await bodyFontSize('Mouse'), mouseStart, 'no other card changes')
+
+    for (let i = 0; i < 20 && await bigger.isEnabled(); i++) await bigger.click()
+    assert.equal(await bigger.isEnabled(), false, 'bigger is disabled at the top of the range')
+    const top = await bodyFontSize('Rules')
+    assert.equal(top, 28)
+
+    await page.reload()
+    await card(page, 'Rules').waitFor()
+    assert.equal(await settle(() => bodyFontSize('Rules'), 28), 28, 'the size survives a reload')
+
+    await page.getByRole('button', { name: 'Reset layout' }).click()
+    assert.equal(await settle(() => bodyFontSize('Rules'), start), start, 'Reset layout restores the default')
+    assert.equal(await bigger.isEnabled(), true)
+
+    for (let i = 0; i < 20 && await smaller.isEnabled(); i++) await smaller.click()
+    assert.equal(await smaller.isEnabled(), false, 'smaller is disabled at the bottom of the range')
+    assert.equal(await bodyFontSize('Rules'), 10)
+  })
+
   it('keeps every card inside the window after it shrinks', async () => {
     await drag(page, await headCentre(page, 'Rules'), 300, 400)
     for (const size of [{ width: 800, height: 520 }, { width: 640, height: 420 }]) {
