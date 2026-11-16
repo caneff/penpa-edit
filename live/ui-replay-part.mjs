@@ -14,7 +14,7 @@ import { TIER_C_FAMILY } from './tier-c.mjs'
 export const UI_REPLAY_PARTS = 4
 
 // The pages the UI driver replays on, as `compareDrivers`'s `solve` option names them.
-export const TARGETS = [{ name: "Penpa+'s page", solve: false }, { name: 'solve.html', solve: true }]
+const TARGETS = [{ name: "Penpa+'s page", solve: false }, { name: 'solve.html', solve: true }]
 
 // Tier C's full solves replayed on every PR: those whose replay takes seconds. The 9x9 sudoku and the killer take tens
 // of seconds each.
@@ -28,9 +28,20 @@ const TIER_C_SAMPLE = ['or-shading', 'slitherlink', 'sudoku-6x6', 'starbattle'].
 //   genre-tool/combi-linedir: a press outside the frame, which makes no engine call, then a drag onto the board.
 const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-clear-keys', 'genre-tool/combi-linedir']
 
-// The recordings whose UI-driver replay still differs from the engine driver's, by page, each with the ticket for its
-// gap; node runs them as `todo`, so a difference is reported and fails nothing until the ticket's fix removes the entry.
-export const UI_TODO = {}
+// The recordings whose UI-driver replay on solve.html still differs from the engine driver's, each with the ticket for
+// its gap (controller, 2026-11-16); node runs them as `todo`, so a difference is reported and fails nothing until the
+// ticket's fix removes the entry. None is marked on Penpa+'s page.
+const ORIENTATION = '#136: solve.html\'s Mode card has no Number orientation control'
+const CAGE_KEY = '#137: a killer cage\'s solve-history key on this grid depends on the cell size'
+const HALF_PIXEL = '#138: a generated drag half a pixel off a point has no whole-pixel twin on solve.html'
+const SOLVE_TODO = {
+  ...Object.fromEntries(['candidates', 'l', 'long', 'm', 'normal', 's', 'sub-3', 'sub-9']
+    .map((name) => [`value/number-${name}`, ORIENTATION])),
+  'grid/tri-cage': CAGE_KEY,
+  'grid/uniform-cage': CAGE_KEY,
+  ...Object.fromEntries(['genre-tool/combi-edgex', 'genre-tool/combi-edgexoi', 'genre/scrin', 'genre/slitherlink',
+    'genre/vertex-slitherlink'].map((id) => [id, HALF_PIXEL]))
+}
 
 // The ids each PR's run replays, or every id under `REPLAY_UI_CORPUS=all`; `ids` must be sorted.
 export async function uiReplayIds (ids, all = process.env.REPLAY_UI_CORPUS === 'all') {
@@ -53,7 +64,7 @@ export async function uiReplayPart (fileUrl) {
   for (const { name, solve } of TARGETS) {
     describe(`the UI driver on ${name}, recordings part ${part + 1} of ${UI_REPLAY_PARTS}`, () => {
       for (const id of ids) {
-        const todo = UI_TODO[id]?.[solve ? 'solve' : 'penpa']
+        const todo = solve ? SOLVE_TODO[id] : undefined
         it(`replays ${id} through mouse and keyboard to the engine driver's states`, { todo }, async () => {
           assert.equal(await compareDrivers(browser(), await readRecording(id), { id, solve }), null)
         })
