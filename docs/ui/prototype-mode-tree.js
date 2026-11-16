@@ -7,7 +7,7 @@
     const css = `
     .pt-wrap{font-size:13px} .pt-search{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #c9ccd3;border-radius:6px;margin-bottom:6px;font:inherit}
     .pt-levels{display:flex;gap:4px;margin-bottom:6px;align-items:center;color:#6b7180;font-size:11px} .pt-levels button{font:inherit;font-size:11px;padding:2px 8px;border:1px solid #c9ccd3;background:#f4f5f7;border-radius:999px;cursor:pointer}
-    .pt-tree{max-height:420px;overflow:auto;border:1px solid #e1e3e8;border-radius:6px;padding:4px;background:#fff}
+    .pt-tree{max-height:240px;overflow:auto;border:1px solid #e1e3e8;border-radius:6px;padding:4px;background:#fff}
     .pt-row{display:flex;align-items:center;gap:4px;padding:3px 6px;border-radius:5px;cursor:pointer;user-select:none;outline:none}
     .pt-row:hover{background:#eef2fb} .pt-row:focus-visible{box-shadow:inset 0 0 0 2px #3b6fd4} .pt-row.cur{background:#dbe6ff;font-weight:700}
     .pt-chev{width:14px;display:inline-block;color:#6b7180;transition:transform .12s} .pt-open>.pt-row .pt-chev{transform:rotate(90deg)}
@@ -16,7 +16,7 @@
     .pt-chips{display:flex;flex-wrap:wrap;gap:4px;margin:2px 0 6px 20px} .pt-chip{padding:2px 8px;border:1px solid #c9ccd3;border-radius:999px;background:#f7f8fa;cursor:pointer;font-size:12px}
     .pt-chip.cur{background:#3b6fd4;color:#fff;border-color:#3b6fd4}
     .pt-crumbs{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:6px} .pt-crumbs button{font:inherit;border:0;background:none;color:#3b6fd4;cursor:pointer;padding:0}
-    .pt-tiles{display:grid;grid-template-columns:1fr 1fr;gap:6px} .pt-tile{border:1px solid #d6d9df;border-radius:8px;padding:8px;cursor:pointer;background:#fafbfc}
+    .pt-tiles{max-height:240px;overflow:auto;display:grid;grid-template-columns:1fr 1fr;gap:6px} .pt-tile{border:1px solid #d6d9df;border-radius:8px;padding:8px;cursor:pointer;background:#fafbfc}
     .pt-tile:hover{border-color:#3b6fd4} .pt-tile.cur{border-color:#3b6fd4;background:#eef3ff} .pt-tile b{display:block} .pt-tile small{color:#7a8090}
     .pt-bar{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);z-index:3000;background:#1d1f25;color:#fff;border-radius:999px;padding:6px 10px;display:flex;gap:6px;align-items:center;font:13px system-ui;box-shadow:0 4px 18px rgba(0,0,0,.35)}
     .pt-bar a{color:#fff;text-decoration:none;padding:3px 10px;border-radius:999px} .pt-bar a.on{background:#3b6fd4}
@@ -38,6 +38,8 @@
         }
         return groups.filter((g) => g.modes.length);
     }
+    // Re-render only when the tool changes: engine 'change' fires every frame (the timer), and a rebuild per frame swallows clicks.
+    const onToolChange = (fn) => { let last = JSON.stringify(engine.getTool()); engine.on('change', () => { const now = JSON.stringify(engine.getTool()); if (now !== last) { last = now; fn(); } }); };
     const isCur = (t) => { const c = engine.getTool(); return c.mode === t.mode && (c.submode ?? null) === (t.submode ?? null); };
     const pick = (t) => { engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles?.[0]?.style ?? null }); };
     const h = (tag, attrs = {}, kids = []) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else n.setAttribute(k, v); } for (const c of [].concat(kids)) n.append(c); return n; };
@@ -78,7 +80,7 @@
                 return modes.length ? node(g.id, g.title, 1, modes, modes.length) : null;
             }).filter(Boolean));
         }
-        render(); engine.on('change', render);
+        render(); onToolChange(render);
     }
 
     function variantB(root) {
@@ -105,7 +107,7 @@
                 return h('div', {}, [head, ...body]);
             }));
         }
-        render(); engine.on('change', render);
+        render(); onToolChange(render);
     }
 
     function variantC(root) {
@@ -124,7 +126,7 @@
             tiles.replaceChildren(...path[1].m.tools.map((t) => tile(t.name, t.desc, isCur(t.tool), () => pick(t.tool))));
         }
         for (const g of data()) for (const m of g.modes) if (m.tools.some((t) => isCur(t.tool))) path = m.tools.length > 1 ? [{ label: g.title, g }, { label: m.name, m }] : [{ label: g.title, g }];
-        render(); engine.on('change', render);
+        render(); onToolChange(render);
     }
 
     window.uiKit.onDeskReady(() => setTimeout(() => {
