@@ -43,7 +43,10 @@ const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
 const waitForTool = (page, key) => settle(async () => toolKeyOf(await currentTool(page)), key)
 
 const presetPulldown = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('combobox', { name: 'Pin presets' })
+// The pulldown closes with an animation; a click while it still shows would close it again.
+const closed = (page) => page.getByRole('option').first().waitFor({ state: 'hidden' })
 const choosePreset = async (page, name) => {
+  await closed(page)
   await presetPulldown(page).click()
   await page.getByRole('option', { name, exact: true }).click()
 }
@@ -83,6 +86,7 @@ describe('loading a built-in preset', () => {
     await presetPulldown(page).click()
     const names = await page.getByRole('option').allInnerTexts()
     await page.keyboard.press('Escape')
+    await closed(page)
     assert.ok(names.length >= 3, `at least three presets, got ${names}`)
     for (const name of names) {
       await choosePreset(page, name)
