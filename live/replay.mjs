@@ -464,21 +464,22 @@ function finalReport ({ id, recording, state, errors }) {
 // Loads links in pages that boot afresh for each (`openReloader`, given `options`), in ROUND_TRIP_LANES lanes, each
 // lane one load after another, since each waits on a page load. `load(link, want, read)` resolves to `{ got, errors }`:
 // the board `read(page)` gives once it equals `want` or stops changing, and the errors of that load; or to null when
-// the same link, its timer reading aside, was loaded for the same `want` before, since that load checked the same.
-// `close()` waits for every load and closes the pages.
+// the same link, its timer reading aside, was loaded for the same `want` before, since that load checked the same. A
+// page that does not load rejects it with an error marked `notLoaded`. `close()` waits for every load and closes the
+// pages.
 export function roundTrips (browser, options) {
   const lanes = Array.from({ length: ROUND_TRIP_LANES }, () => ({ done: Promise.resolve(), reloader: null }))
   const loaded = new Set()
-  let started = 0
   return {
-    load (link, want, read) {
+    async load (link, want, read) {
       const key = withoutTimer(link) + '\n' + want
-      if (loaded.has(key)) return Promise.resolve(null)
+      if (loaded.has(key)) return null
       loaded.add(key)
-      const lane = lanes[started++ % ROUND_TRIP_LANES]
+      // The set's size counts the loads started, this one included.
+      const lane = lanes[(loaded.size - 1) % ROUND_TRIP_LANES]
       const result = lane.done.then(async () => {
         lane.reloader ??= await openReloader(browser, options)
-        const { page, errors } = await lane.reloader.load(link)
+        const { page, errors } = await lane.reloader.load(link).catch((e) => { throw Object.assign(e, { notLoaded: true }) })
         return { got: await settle(() => read(page), want), errors }
       })
       // The lane's next load waits for this one to end, whatever its result; the caller keeps the result.
@@ -504,7 +505,7 @@ function withoutTimer (link) {
 }
 
 // Runs in the page: the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in general.js).
-function duplicateLinkInPage () {
+export function duplicateLinkInPage () {
   return pu.maketext_duplicate() + '&l=solvedup'
 }
 
@@ -580,7 +581,10 @@ export async function replay (browser, recording, {
         `${words}: its duplicate link loads a different board`,
         ...stateDiff({ want, got: loaded.got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...loaded.errors] })
       ].join('\n')
-    }, (e) => `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`))
+    }, (e) => {
+      if (!e.notLoaded) throw e
+      return `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`
+    }))
   }
   const { steps } = recording
   const checkpoints = []

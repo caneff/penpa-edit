@@ -27,12 +27,19 @@ check that the board's Clone link loads back to the same canonical state.
 | Load each round trip in one reused page per lane (`openReloader`), not a new context's page | about 254 ms of CPU per load against 304 ms. Wall time per load is about 146 ms against 204 ms. |
 | Run the fuzz's round trips in `roundTrips`' 4 lanes beside its steps, as the replay already did | Wall time only, and only where a core is free. |
 
-Result for akari seed 3, 60 steps:
+Result for akari seed 3, 60 steps, each run a script of its own that launches its own Chromium:
 
 | | Alone | CPU per run | 4 at once, 2 pinned cores |
 |---|---|---|---|
 | Before | 9.6 s | 13.6 s | 26 to 27.7 s |
 | After | 5.2 s | 8.6 s | 16.8 to 18.7 s |
+
+Inside `live/fuzz.live.mjs`, whose tests share one Chromium launched before them, the same test took 3.1 s after the
+change. Before the change, the test's time there was not measured.
+
+What this predicts for CI is not settled here. Scaling the four-at-once time by the 2.2× above gives 37 to 41 s, still
+over #126's 30 s bar. The four copies are all fuzz runs and keep both cores busy for their whole length, so that is an
+upper estimate. The CI log of the PR is the measurement that counts.
 
 ## Why the reused page is a fresh boot
 

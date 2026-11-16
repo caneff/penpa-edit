@@ -1,10 +1,10 @@
 // The round trip's pages (`openReloader` in `live/page.mjs`, `roundTrips` in `live/replay.mjs`): a page reused for
 // load after load boots each link as a fresh page would, and a link already loaded for the same board is not loaded again.
 import assert from 'node:assert/strict'
-import { after, before, describe, it } from 'node:test'
+import { afterEach, before, beforeEach, describe, it } from 'node:test'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { AKARI_SOLVE, openPenpa, openReloader, useBrowser } from './page.mjs'
-import { linkHash, roundTrips } from './replay.mjs'
+import { duplicateLinkInPage, linkHash, roundTrips } from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -57,13 +57,15 @@ describe('roundTrips', () => {
   before(async () => {
     const { context, page } = await openPenpa(browser(), AKARI_SOLVE)
     try {
-      // The solve mode's Clone link, as `savetext_clone` makes it, carries the timer's reading on a line of its own.
-      const linkAt = (seconds) => page.evaluate((seconds) => {
-        sw_timer.stop()
-        sw_timer.start({ precision: 'secondTenths', startValues: { seconds } })
-        sw_timer.pause()
-        return pu.maketext_duplicate() + '&l=solvedup'
-      }, seconds)
+      // The solve mode's duplicate link carries the timer's reading on a line of its own.
+      const linkAt = async (seconds) => {
+        await page.evaluate((seconds) => {
+          sw_timer.stop()
+          sw_timer.start({ precision: 'secondTenths', startValues: { seconds } })
+          sw_timer.pause()
+        }, seconds)
+        return linkHash(await page.evaluate(duplicateLinkInPage))
+      }
       source = await readPage(page)
       links = { early: await linkAt(5), late: await linkAt(9) }
       await page.evaluate(() => {
@@ -80,11 +82,12 @@ describe('roundTrips', () => {
     }
   })
 
+  // Each test starts with no link loaded.
   let trips
-  before(() => { trips = roundTrips(browser()) })
-  after(async () => { await trips?.close() })
+  beforeEach(() => { trips = roundTrips(browser()) })
+  afterEach(async () => { await trips.close() })
 
-  const load = (link, board) => trips.load(linkHash(link), board, readPage)
+  const load = (link, board) => trips.load(link, board, readPage)
 
   it('loads a link, and not again when only its timer reading differs and the board is the same', async () => {
     assert.notEqual(links.early, links.late, 'the two links differ, in the timer line')
@@ -95,12 +98,14 @@ describe('roundTrips', () => {
   })
 
   it('loads a link whose timer-blind text was loaded before when the board it must give differs', async () => {
+    assert.notEqual(await load(links.early, want), null)
     const loaded = await load(links.late, otherWant)
     assert.notEqual(loaded, null)
     assert.equal(loaded.got, want)
   })
 
   it('loads a link that differs from an earlier one outside the timer line', async () => {
+    assert.notEqual(await load(links.early, want), null)
     const loaded = await load(links.shaded, want)
     assert.notEqual(loaded, null)
     assert.equal(loaded.got, otherWant)

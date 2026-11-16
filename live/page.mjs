@@ -72,7 +72,8 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
 
 // Opens one page that boots Penpa+ afresh for every link it loads, cheaper than a page of its own context for each:
 // each load is a navigation, so the page's globals start over, and its storage and cookies start empty, as a new
-// context's do. `served`, `setup` and `contextOptions` are `openPenpa`'s. `load(query)` returns the page once `pu`
+// context's do. `served`, `setup` and `contextOptions` are `openPenpa`'s, but `setup` runs once, on the context, and any
+// cookie or storage it leaves is cleared before each load like the rest. `load(query)` returns the page once `pu`
 // exists and the errors raised since that load began; `close()` closes the page's context.
 export async function openReloader (browser, { served = false, setup, contextOptions } = {}) {
   const context = await penpaContext(browser, { served, setup, contextOptions })

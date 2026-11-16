@@ -210,7 +210,7 @@ async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
 
 // Fuzzes `puzzle` ({ name, source }, `source` its link's query and `#` part) with `seed` for `count` steps. `failure` is
 // the first broken invariant in words and `saved` the path of its run's recording, both null when none broke. `served`
-// and `setup` go to `openPenpa` for every page the run opens.
+// and `setup` go to `openPenpa` for the run's page and to `roundTrips` for its save/load round trips' pages.
 export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup }) {
   const { context, page, errors } = await openPenpa(browser, puzzle.source, { served, setup })
   const trips = roundTrips(browser, { served, setup })
@@ -219,14 +219,16 @@ export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECOR
   // The save/load round trips under way, in step order, each with the steps made and the board read at its checkpoint.
   // They run beside the steps, so a later checkpoint can fail before an earlier round trip has.
   const pending = []
-  // The run's result for `failure`, made at the current step, or for the earliest round trip that failed before it.
-  const fail = async (failure, final) => {
+  // The result of the earliest round trip that failed, its recording cut at its checkpoint, or null.
+  const earliestTripFailure = async () => {
     for (const trip of pending) {
       const tripFailure = await trip.failure
       if (tripFailure) return save(tripFailure, trip.final, steps.slice(0, trip.made))
     }
-    return failure && save(failure, final ?? await readRaw(), steps)
+    return null
   }
+  // The run's result for `failure`, made at the current step, unless a round trip before it failed.
+  const fail = async (failure, final) => await earliestTripFailure() ?? save(failure, final ?? await readRaw(), steps)
   const save = async (failure, final, made) => ({
     steps: made, failure, saved: await saveRecording(saveDir, { puzzle, seed, page, final, steps: made })
   })
@@ -258,7 +260,7 @@ export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECOR
         pending.push(trip)
       }
     }
-    return await fail(null) ?? { steps, failure: null, saved: null }
+    return await earliestTripFailure() ?? { steps, failure: null, saved: null }
   } finally {
     await trips.close()
     await context.close()
