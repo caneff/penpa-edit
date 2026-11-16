@@ -189,5 +189,8 @@
         return rows;
     }
 
-    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows };
+    // One tool's identity, for a lookup: its mode and sub-mode.
+    const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
+
+    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey };
 })();
