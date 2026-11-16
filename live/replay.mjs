@@ -263,20 +263,35 @@ function boardPixelInPage ({ x, y }) {
 }
 
 // Runs in the page: the whole viewport pixel a pointer step aims at, for a recording made at `recordedSize` px a cell.
-// `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position, and a mouse event
-// carries whole pixels, so the step's board point `x, y`, scaled to the page's cell size, is taken from that origin and
-// rounded to the neighbouring pixel nearest point `num`, the one the recording page chose. A point recorded halfway
-// between two others (a corner on the edge between two edge points) otherwise tips to either.
+// `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position and takes the nearest
+// point of `pu.type`, and a mouse event carries whole pixels. So the step's board point `x, y`, scaled to the page's cell
+// size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
+// recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
+// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one.
 function pagePixelInPage ({ x, y, num, recordedSize }) {
   const canvas = document.getElementById('canvas')
   const scale = pu.size / recordedSize
   const left = canvas.offsetLeft - window.scrollX
   const top = canvas.offsetTop - window.scrollY
-  const want = { x: left + pu.point[num].x, y: top + pu.point[num].y }
   // Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
   const at = { x: left + (x - 0.5) * scale + 0.5, y: top + (y - 0.5) * scale + 0.5 }
-  const round = (v, to) => [Math.floor(v), Math.ceil(v)].sort((a, b) => Math.abs(a - to) - Math.abs(b - to))[0]
-  return { x: round(at.x, want.x), y: round(at.y, want.y) }
+  // As `coord_point` searches: the first point of the least distance wins.
+  const nearest = (px) => {
+    let best = -1
+    let min = Infinity
+    for (const [i, p] of pu.point.entries()) {
+      if (!p || !pu.type.includes(p.type)) continue
+      const d = (px.x - left - p.x) ** 2 + (px.y - top - p.y) ** 2
+      if (d < min) { min = d; best = i }
+    }
+    return best
+  }
+  const candidates = []
+  for (const cx of new Set([Math.floor(at.x), Math.ceil(at.x)])) {
+    for (const cy of new Set([Math.floor(at.y), Math.ceil(at.y)])) candidates.push({ x: cx, y: cy })
+  }
+  candidates.sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))
+  return candidates.find((c) => nearest(c) === num) ?? candidates[0]
 }
 
 // Runs in the page: moves Shape mode's key panel off the board when it floats over `pixel`, as a solver drags it aside
