@@ -3,7 +3,7 @@
 body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 
 .ui-root {
-    --ui-bar-height: 44px;
+    --ui-bar-height: 60px;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -25,9 +25,10 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
     z-index: 950;
 }
-.ui-brand { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #9aa2b1; }
-.ui-title { font-size: 20px; font-weight: 800; color: #fff; margin-left: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ui-author { font-size: 13px; color: #b9c0cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+/* Title and author sit at the bar's centre, whatever the controls on either side. */
+.ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; max-width: 46%; min-width: 0; pointer-events: none; }
+.ui-root .ui-title { font-size: 30px; font-weight: 800; line-height: 1.1; color: #fff; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-author { font-size: 19px; color: #c9cfda; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
 .ui-spacer { flex: 1; }
 /* Reset layout ends the bar, after the controls the other files add to it. */
 .ui-reset { order: 99; }
@@ -92,7 +93,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 
 /* The board's title bar: the current tool's name, after the card's title. */
-.ui-tool-name { margin-left: auto; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45); }
+.ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45); }
 
 /* The Mouse card. */
 .ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; }
