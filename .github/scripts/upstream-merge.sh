@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # A failed merge exits non-zero with no merge left in progress; the report says whether it conflicted.
-# Usage: upstream-merge.sh <upstream-ref> <report-file>
+# <owned-commits-file> gets one line per upstream commit that touched a merge=ours file: sha, subject and those files (comma-separated), split by the ASCII unit separator: `read` collapses tabs, so an empty subject would vanish.
+# Usage: upstream-merge.sh <upstream-ref> <report-file> <owned-commits-file>
 set -euo pipefail
 upstream=$1
 report=$2
+owned_commits=$3
 : >"$report"
+: >"$owned_commits"
 
 if git merge-base --is-ancestor "$upstream" HEAD; then
   echo "merged=false" >>"$GITHUB_OUTPUT"
   exit 0
 fi
-
-# Git has no built-in `ours` driver; without this a merge=ours file both sides changed is text-merged.
-git config merge.ours.driver true
 
 # Every file an upstream commit touched, not the net diff, so a change upstream later undid is still reported.
 # Attributes come from our working tree: a file is ours by our .gitattributes.
@@ -24,18 +24,26 @@ fi
 owned_section=
 if [[ -n $owned ]]; then
   mapfile -t owned_files <<<"$owned"
+  owned_lines=
+  while IFS=$'\x1f' read -r sha subject; do
+    files=$(git diff-tree --no-commit-id --name-only -r -z "$sha" -- "${owned_files[@]}" | tr '\0' ',' | sed 's/,$//')
+    printf '%s\x1f%s\x1f%s\n' "$sha" "$subject" "$files" >>"$owned_commits"
+    owned_lines+="- ${sha:0:12} $subject"$'\n'
+  done < <(git log --full-history --no-merges --format='%H%x1f%s' "HEAD..$upstream" -- "${owned_files[@]}")
   owned_section=$(cat <<EOF
 ## Upstream commits that touched a file we own (merge=ours)
 
 Our side of each file was kept: port each change by hand or drop it.
 
-$(git log --full-history --no-merges --format='- %h %s' "HEAD..$upstream" -- "${owned_files[@]}")
+${owned_lines%$'\n'}
 EOF
 )
   printf '%s\n\n' "$owned_section" >>"$report"
 fi
 
-if ! git merge --no-ff --no-commit "$upstream"; then
+# Git has no built-in `ours` driver; this merge alone names one, so a merge=ours file both sides changed keeps our side.
+# It is never written to a config: every other merge in a clone must text-merge or conflict (#117).
+if ! git -c merge.ours.driver=true merge --no-ff --no-commit "$upstream"; then
   conflicted=$(git diff --name-only --diff-filter=U)
   if [[ -n $conflicted ]]; then
     printf '## The merge conflicted\n\n%s\n' "$(sed 's/.*/- `&`/' <<<"$conflicted")" >>"$report"

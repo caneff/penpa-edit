@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { before, describe, it } from 'node:test'
 import { canonicalState, readEngineState, REPLAY_TIMESTAMP } from './canonical-state.mjs'
-import { ANSWER_CELL, GIVEN_CELL, makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
+import { ANSWER_CELL, GIVEN_CELL, makeNumberSolveLink, openPenpa, typeDigitInPage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -12,15 +12,6 @@ const browser = useBrowser()
 const OTHER_CELL = 2
 // A timer reading far from a fresh page's, in seconds.
 const LATE_SECONDS = 30
-
-// Runs in the page: types `digit` into the cell at `index` of the center list, as a key press in Number mode does.
-function typeDigitInPage ({ index, digit }) {
-  pu.mode_set('number')
-  pu.cursol = pu.centerlist[index]
-  pu.selection = [pu.cursol]
-  pu.key_number(digit)
-  pu.redraw()
-}
 
 async function openSolve (query) {
   const opened = await openPenpa(browser(), query)

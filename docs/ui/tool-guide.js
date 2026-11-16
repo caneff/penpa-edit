@@ -192,5 +192,18 @@
     // One tool's identity, for a lookup: its mode and sub-mode.
     const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
 
-    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey };
+    // A sub-mode that names its tool on its own stands alone in a chip; a generic one ("Normal") gets its mode first.
+    const SELF_NAMING_MODES = ['combi', 'special', 'symbol'];
+
+    const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
+    // The one-line name a pin chip and a Recent chip give a tool of `listTools()`.
+    function chipLabel(tool) {
+        if (!tool.submodeName) {
+            return tool.modeName;
+        }
+        return SELF_NAMING_MODES.includes(tool.mode) ? tool.submodeName : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
+    }
+
+    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel };
 })();

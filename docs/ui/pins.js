@@ -4,15 +4,13 @@
 (function () {
     'use strict';
 
-    const { toolKey } = window.toolGuide;
+    const { chipLabel, toolKey } = window.toolGuide;
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
     // Z, X, C and V jump to pins 1 to 4.
     const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
     const NUMBER_MODE = 'number';
-    // A sub-mode that names its tool on its own stands alone in a chip; a generic one ("Normal") gets its mode first.
-    const SELF_NAMING_MODES = ['combi', 'special', 'symbol'];
     // A pin's colour is the golden angle times its id around the hue wheel, so each new pin lands in the widest gap left and
     // no count of pins runs out; the lightness keeps white text readable on it.
     const GOLDEN_ANGLE_DEG = 137.508;
@@ -108,6 +106,8 @@
                     return 'browser';
                 }
                 e.preventDefault();
+                // A hold lends the tool it shows; the step starts from the tool before it.
+                engine.releaseHolds();
                 applyPin(pins[stepTarget(e.shiftKey ? -1 : 1)]);
                 return 'ui';
             }
@@ -123,22 +123,12 @@
 
         // ---- The Pinned card --------------------------------------------------------------------------------------------
 
-        const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
-
-        function chipLabel(pin) {
-            const tool = toolOf(pin);
-            if (!tool.submodeName) {
-                return tool.modeName;
-            }
-            return SELF_NAMING_MODES.includes(tool.mode) ? tool.submodeName : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
-        }
-
         const strip = el('div', { class: 'ui-pins' });
         const pinCurrent = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's', class: 'ui-pin-current' }, ['Pin current tool']);
         cards.pins.body.replaceChildren(strip, pinCurrent);
 
         function chip(pin, number, current) {
-            const label = chipLabel(pin);
+            const label = chipLabel(toolOf(pin));
             const main = el('button', {
                 type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), title: toolOf(pin).name
             }, [el('span', { class: 'ui-chip-num' }, [String(number)]), label]);
@@ -185,6 +175,10 @@
         // A tool that was just landed on, by a pin or by a pick that matches one, comes back with that pin's style; while it
         // stays current a style change is the pin's new one.
         function followTool() {
+            // A tool a hold lends is no landing: it flashes nothing and changes no pin.
+            if (engine.getState().held) {
+                return;
+            }
             const current = engine.getTool();
             const index = pinIndexOf(current);
             const landed = lastKey !== null && toolKey(current) !== lastKey;

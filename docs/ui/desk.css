@@ -84,6 +84,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-hsep { color: #9aa7c2; font-weight: 400; }
 .ui-hsub { color: #2f5bb2; }
 .ui-hstyle { color: #444; white-space: nowrap; }
+.ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
 .ui-mrows { display: grid; gap: 4px; }
 .ui-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: 14px; }
@@ -120,10 +121,11 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-card-board { outline: 3px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
-.ui-pins { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .ui-chip { display: flex; align-items: center; border: 1px solid #cfcabd; border-left: 6px solid var(--ui-pin-colour, #cfcabd); border-radius: 7px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
 .ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset pulldown and the save row under the chips. */
