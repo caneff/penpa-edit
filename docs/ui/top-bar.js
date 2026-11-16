@@ -21,7 +21,7 @@
 
     // The cover is a gate for keys as well: a paused board answers F4 and nothing else. Added now, before the Pinned card's
     // handler, because the first answer wins.
-    window.uiKeys.add((e) => (e.key !== RESUME_KEY && engine.getTimer().paused ? 'ui' : undefined));
+    window.uiKeys.add((e) => (e.key !== RESUME_KEY && engine.getTimer().covered ? 'ui' : undefined));
 
     function iconButton(icon, label, onClick) {
         const button = document.createElement('wa-button');
@@ -57,7 +57,7 @@
         const undo = iconButton('undo', 'Undo', () => engine.undo());
         const redo = iconButton('redo', 'Redo', () => engine.redo());
         const restartButton = iconButton('restart', 'Restart', () => { restartDialog.open = true; });
-        const pause = iconButton('pause', 'Pause', () => (engine.getTimer().paused ? engine.startTimer() : engine.pauseTimer()));
+        const pause = iconButton('pause', 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()));
         const themeButton = iconButton('darkTheme', 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
 
         const clock = document.createElement('span');
@@ -85,12 +85,13 @@
         bar.after(restartDialog);
 
         function renderTimer() {
-            const { seconds, paused } = engine.getTimer();
+            // Only the solver's own pause covers the board: a solve stops the clock and leaves the board usable (#119).
+            const { seconds, covered } = engine.getTimer();
             clock.textContent = clockText(seconds);
-            cover.hidden = !paused;
-            const label = paused ? 'Resume' : 'Pause';
+            cover.hidden = !covered;
+            const label = covered ? 'Resume' : 'Pause';
             if (pause.querySelector('.ui-sr-only').textContent !== label) {
-                pause.setIcon(paused ? 'resume' : 'pause', label);
+                pause.setIcon(covered ? 'resume' : 'pause', label);
             }
         }
 

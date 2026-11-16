@@ -16,13 +16,6 @@ const APPLY_PICK = /applyTool\(\{ mode: entry\.tool\.mode, submode: entry\.tool\
 // A recording that picks Sudoku's first sub-mode and then enters digits.
 const SUDOKU_ID = 'value/audit-c7-alphabet-digit'
 
-// Recordings whose replay on solve.html fails on a bug of the page, with its ticket: a solved board is covered by the
-// Paused cover and ignores input, so the click after the solve does nothing. Each stays red, marked `todo`, until its fix lands.
-const TODO = {
-  'paint/surface-shade-undo-redo': '#119',
-  'value/audit-c14-small-sudoku-conflict': '#119'
-}
-
 const ids = await listRecordings()
 // The generated corpus (a header `tier`) is left out here as it is for the UI driver on Penpa+'s page
 // (`replay.live.mjs`; controller, 2026-11-13, #31).
@@ -31,7 +24,7 @@ for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.pu
 
 describe('the UI driver on solve.html', () => {
   for (const id of handMadeIds) {
-    it(`replays ${id} through the Mode card, mouse and keyboard to the engine driver's states`, { todo: TODO[id] }, async () => {
+    it(`replays ${id} through the Mode card, mouse and keyboard to the engine driver's states`, async () => {
       assert.equal(await compareDrivers(browser(), await readRecording(id), { id, solve: true }), null)
     })
   }
