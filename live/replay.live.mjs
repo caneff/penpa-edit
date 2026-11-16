@@ -1,14 +1,15 @@
 // The two drivers (`live/replay.mjs`). The engine driver: a recording replays through `pu`'s own calls to the states it
-// was recorded at, every checked-in recording still does, a planted change in the Surface handler fails at the step it
+// was recorded at (every checked-in recording does, in `live/engine-replay-<k>.live.mjs`), a planted change in the Surface handler fails at the step it
 // breaks, and a recording whose replay cannot reach the board it was recorded on is refused. The UI driver: every
 // recording replays through real mouse and keyboard to the engine driver's states, and a planted pixel offset in
 // `main.js` makes the two disagree.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readdir, readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { useBrowser } from './page.mjs'
+import { jsRequest, useBrowser } from './page.mjs'
+import { REPLAY_CALL, REPLAY_PARTS, replayPartIds } from './engine-replay-part.mjs'
 import {
   ANSWER_CELLS, cellPixel, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
   openRecordingPage, readExpected, readRecording, replay, uiDriver
@@ -17,6 +18,7 @@ import {
 const browser = useBrowser()
 
 const CLASS_P = fileURLToPath(new URL('../docs/js/class_p.js', import.meta.url))
+const LIVE = fileURLToPath(new URL('./', import.meta.url))
 const MAIN = fileURLToPath(new URL('../docs/js/main.js', import.meta.url))
 // The tracer recording.
 const SURFACE_ID = 'paint/surface-shade-undo-redo'
@@ -159,16 +161,15 @@ describe('the engine driver', () => {
     assert.match(report, /^ {2}pu_a\.number\.\d+: absent → \["3",2,"1"/m)
   })
 
-  for (const id of ids) {
-    it(`replays ${id} to its expected states`, async () => {
-      const { report } = await replay(browser(), await readRecording(id), { id, expected: await readExpected(id) })
-      assert.equal(report, null)
-    })
-
-    it(`names the commit ${id} was recorded at`, async () => {
-      assert.match((await readRecording(id)).header.commit ?? '', /^[0-9a-f]{7,40}$/)
-    })
-  }
+  // The per-recording tests run in `engine-replay-<k>.live.mjs`, one file for each part of the ids (`live/engine-replay-part.mjs`),
+  // so node's test workers share them. Each file takes its part from its own name, so every part has a file that makes the call.
+  it('has a replay file for every part of the recordings, each making the replay call, and every recording is in one part', async () => {
+    const files = (await readdir(LIVE)).filter((f) => /^engine-replay-\d+\.live\.mjs$/.test(f)).sort()
+    assert.deepEqual(files, Array.from({ length: REPLAY_PARTS }, (_, k) => `engine-replay-${k}.live.mjs`))
+    for (const f of files) assert.ok((await readFile(new URL(f, import.meta.url), 'utf8')).includes(REPLAY_CALL), `${f} makes the replay call`)
+    const taken = Array.from({ length: REPLAY_PARTS }, (_, k) => replayPartIds(ids, k)).flat().sort()
+    assert.deepEqual(taken, ids)
+  })
 
   describe('against a recording or expected file that does not fit', () => {
     let recording, expected
@@ -231,7 +232,7 @@ describe('the engine driver', () => {
         id: SURFACE_ID,
         expected: await readExpected(SURFACE_ID),
         served: true,
-        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })
@@ -255,7 +256,7 @@ describe('the engine driver', () => {
         id: SURFACE_ID,
         expected: await readExpected(SURFACE_ID),
         served: true,
-        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })
@@ -428,7 +429,7 @@ describe('the UI driver', () => {
       const report = await compareDrivers(browser(), await readRecording(SURFACE_ID), {
         id: SURFACE_ID,
         served: true,
-        setup: (context) => context.route(/\/js\/main\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('main.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })

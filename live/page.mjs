@@ -48,6 +48,11 @@ export function serveDocs (context, base) {
   })
 }
 
+// The requests a page makes for `docs/js/<file>`, with or without a query, for a test that serves its own copy.
+export function jsRequest (file) {
+  return new RegExp(`/js/${file.replace(/\./g, '\\.')}(\\?|$)`)
+}
+
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
@@ -102,18 +107,46 @@ export async function linkFromNewBoard (browser, inPage, arg) {
 }
 
 // Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
-// answer is a 2 in the cell at `answer`, and returns its solve link's `#` part.
-function numberSolveLinkInPage ({ given, answer }) {
+// answer is a 2 in the cell at `answer`.
+export function buildNumberBoardInPage ({ given, answer }) {
   document.getElementById('nb_size1').value = 4
   document.getElementById('nb_size2').value = 4
   create_newboard()
   pu.pu_q.number[pu.centerlist[given]] = [1, 1, '1']
   pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
+}
+
+// Runs in the page, on a board with an author's answer: its solve link's `#` part.
+function solveLinkInPage () {
   const url = pu.maketext_solve_solution()
   return url.slice(url.indexOf('#'))
 }
 
+// Runs in the page: types `digit` into the cell at `index` of the center list, as a key press in Number mode does.
+export function typeDigitInPage ({ index, digit }) {
+  pu.mode_set('number')
+  pu.cursol = pu.centerlist[index]
+  pu.selection = [pu.cursol]
+  pu.key_number(digit)
+  pu.redraw()
+}
+
+// Runs in the page: presses a save-dialog button's handler (`savetext_solve`, `savetext_clone`, ...) with link
+// shortening off, which writes the link to the textarea at once, and returns the `#` part of what it wrote.
+export function linkOfButtonInPage (handler) {
+  UserSettings.shorten_links = false
+  window[handler]()
+  const url = document.getElementById('savetextarea').value
+  return url.slice(url.indexOf('#'))
+}
+
 // The `#` part of a 4x4 Number solve link with a given 1 in GIVEN_CELL and an author's answer of 2 in ANSWER_CELL.
-export function makeNumberSolveLink (browser) {
-  return linkFromNewBoard(browser, numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
+export async function makeNumberSolveLink (browser) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    await page.evaluate(buildNumberBoardInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
+    return await page.evaluate(solveLinkInPage)
+  } finally {
+    await context.close()
+  }
 }

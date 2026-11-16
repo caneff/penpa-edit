@@ -21,15 +21,15 @@
 // the generator also adds `import`, the name of the puzz.link import a genre's recording was made on. The fuzz writes
 // `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
-// `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+// `npm run recordings:approve` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { linkFromNewBoard, openPenpa } from './page.mjs'
+import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 export const RECORDINGS = new URL('./recordings/', import.meta.url)
-const STEPS_SUFFIX = '.steps.json'
-const EXPECTED_SUFFIX = '.expected.json'
+export const STEPS_SUFFIX = '.steps.json'
+export const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
@@ -106,23 +106,31 @@ export async function readRecording (id) {
   return JSON.parse(await readFile(new URL(id + STEPS_SUFFIX, RECORDINGS), 'utf8'))
 }
 
-// The expected checkpoints, each state back as the string `canonicalState` writes.
-export async function readExpected (id) {
-  let text
+// The expected file as JSON reads it, or null when the recording has none.
+export async function readExpectedFile (id) {
   try {
-    text = await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8')
+    return JSON.parse(await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8'))
   } catch (e) {
     if (e.code !== 'ENOENT') throw e
-    throw new Error(`${id} has no expected file: once the replay is right, run node live/write-expected.mjs ${id}`)
+    return null
   }
-  const { checkpoints } = JSON.parse(text)
-  return checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
 }
 
-// Each state written one line per array entry, so a changed line reads as one line of the file's diff.
+// The expected checkpoints, each state back as the string `canonicalState` writes.
+export async function readExpected (id) {
+  const file = await readExpectedFile(id)
+  if (!file) throw new Error(`${id} has no expected file: once the replay is right, run npm run recordings:approve -- ${id}`)
+  return file.checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
+}
+
+// A replay's checkpoints as the expected file holds them: each state one line per array entry, so a changed line reads
+// as one line of the file's diff.
+export function expectedFile (checkpoints) {
+  return { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
+}
+
 export async function writeExpected (id, checkpoints) {
-  const file = { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
-  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(file, null, 1) + '\n')
+  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(expectedFile(checkpoints), null, 1) + '\n')
 }
 
 // Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
@@ -383,7 +391,7 @@ export function stepWords (step) {
 }
 
 // Step 0 is no input: its checkpoint is the board the link loads.
-function checkpointWords (steps, n) {
+export function checkpointWords (steps, n) {
   return n === 0 ? 'the board the link loads' : stepWords(steps[n - 1])
 }
 
@@ -466,14 +474,38 @@ function withoutDuplicateDrops (state) {
   return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
 }
 
+// The first line of each method of a `Puzzle` class whose name matches `name` (a regular expression's text), the name
+// its first group: methods sit at a 4-space indent in `class_p.js`.
+export function methodStart (name) {
+  return new RegExp(`^ {4}(${name})\\(`, 'gm')
+}
+
+// The `mouse_*` and `key_*` methods of `class_p.js`: the handlers a click or key reaches through `mouseevent` and
+// `main.js`'s key calls.
+const HANDLER = methodStart('(?:mouse|key)_\\w+')
+const CLASS_P_URL = jsRequest('class_p.js')
+
+// Each handler of `class_p.js` with the times it was called, from the page's JS coverage (Playwright's `coverage`
+// entries); a handler V8 reports no entry for was never called.
+function handlerCallsOf (entries) {
+  const classP = entries.find((e) => CLASS_P_URL.test(e.url))
+  if (!classP) throw new Error('the JS coverage has no entry for class_p.js')
+  const calls = Object.fromEntries([...classP.source.matchAll(HANDLER)].map(([, name]) => [name, 0]))
+  // A function's first range spans the whole function and holds its call count.
+  for (const f of classP.functions) if (Object.hasOwn(calls, f.functionName)) calls[f.functionName] += f.ranges[0].count
+  return calls
+}
+
 // Replays `recording` through `driver` (the engine driver unless given) in a fresh page and returns its checkpoints, the
 // first being step 0. With `expected` (as `readExpected` returns it, or another replay's checkpoints, named by
 // `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
 // every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board, less what
 // the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
-// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well.
+// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well. With `coverage`, it also
+// returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js` with the times the steps called it.
+// `errors` holds every page error and `console.error` of the replay's page.
 export async function replay (browser, recording, {
-  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED
+  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, coverage = false
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
   const open = (query) => openPenpa(browser, query, {
@@ -487,6 +519,8 @@ export async function replay (browser, recording, {
   })
   const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
   const { context, page, errors } = await open(recording.header.source)
+  // Started once the page has loaded, so it counts only what the steps call.
+  if (coverage) await page.coverage.startJSCoverage({ resetOnNavigation: false })
   const read = () => readPage(page)
   const apply = driver.start(page)
   // Each duplicate link checked so far, with the board it must load: a step that changed nothing gives the same pair.
@@ -571,8 +605,9 @@ export async function replay (browser, recording, {
   }
   try {
     const report = await run()
+    const handlerCalls = coverage ? handlerCallsOf(await page.coverage.stopJSCoverage()) : undefined
     // A round trip names an earlier checkpoint than any report the replay itself can make.
-    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report }
+    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report, handlerCalls, errors: [...errors] }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
     await Promise.allSettled(roundTrips)
