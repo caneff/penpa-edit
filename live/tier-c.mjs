@@ -9,7 +9,7 @@
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { random } from './fuzz.mjs'
 import { openPenpa } from './page.mjs'
-import { endsGroup, engineDriver, stepWords } from './replay.mjs'
+import { endsGroup, engineDriver, linkHash, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 // The puzzles, by the names their recordings and tests carry.
@@ -651,18 +651,19 @@ export function generateSolve (puzzle, seed) {
 
 // ---- The answer run ----
 
-// Makes `steps` on `puzzle`'s solve link through the engine driver and checks, at every checkpoint, that no page error
-// was raised and that the answer check reads unsolved before step `lastEntry` and solved from it on. Returns the first
-// failure in words or null, and the page's engine state at the end.
-export async function answerRun (browser, puzzle, { steps, lastEntry }) {
-  const { context, page, errors } = await openPenpa(browser, puzzle.source)
+// Makes `steps` on the solve link `source` through the engine driver, calling `check(n, step, page)` at every
+// checkpoint and at the last step; `name` goes into a failure's words. Returns the first failure in words or null (a
+// step that threw, a page error, or what `check` returned), and from the end of the run its engine state, its Replay
+// link's `#` part, and the page's grid type and genre tags.
+async function runSteps (browser, { name, source, steps, check = async () => null }) {
+  const { context, page, errors } = await openPenpa(browser, source)
   try {
     await settle(() => page.evaluate(readEngineState).then(canonicalState))
     const apply = engineDriver.start(page)
     let failure = null
     for (const [index, step] of steps.entries()) {
       const n = index + 1
-      const at = `${puzzle.name}: step ${n} (${stepWords(step)})`
+      const at = `${name}: step ${n} (${stepWords(step)})`
       try {
         await apply(step)
       } catch (e) {
@@ -670,20 +671,129 @@ export async function answerRun (browser, puzzle, { steps, lastEntry }) {
         break
       }
       if (!endsGroup(step) && n !== steps.length) continue
-      if (errors.length) {
-        failure = `${at}: page error: ${errors[0]}`
-        break
-      }
-      const solved = await page.evaluate(() => pu.sol_flag)
-      const want = n >= lastEntry ? 1 : 0
-      if (solved !== want) {
-        failure = `${at}: the answer check reads ${solved ? 'solved' : 'unsolved'}, ${n >= lastEntry ? 'after the last correct entry' : `before the last correct entry (step ${lastEntry})`}`
+      const broken = errors.length ? `page error: ${errors[0]}` : await check(n, page)
+      if (broken) {
+        failure = `${at}: ${broken}`
         break
       }
     }
-    return { failure, final: await page.evaluate(readEngineState) }
+    const end = await page.evaluate(() => ({ replayLink: pu.maketext_replay(), gridtype: pu.gridtype, genre: pu.user_tags }))
+    return { failure, final: await page.evaluate(readEngineState), ...end, replayLink: linkHash(end.replayLink) }
   } finally {
     await context.close()
   }
 }
 
+// Makes a generated solve (`generateSolve`) on `puzzle`'s solve link through the engine driver and checks, at every
+// checkpoint, that no page error was raised and that the answer check reads unsolved before step `lastEntry` and
+// solved from it on. Returns what `runSteps` does.
+export function answerRun (browser, puzzle, { steps, lastEntry }) {
+  return runSteps(browser, {
+    name: puzzle.name,
+    source: puzzle.source,
+    steps,
+    check: async (n, page) => {
+      const solved = await page.evaluate(() => pu.sol_flag)
+      if (solved === (n >= lastEntry ? 1 : 0)) return null
+      return `the answer check reads ${solved ? 'solved' : 'unsolved'}, ${n >= lastEntry ? 'after the last correct entry' : `before the last correct entry (step ${lastEntry})`}`
+    }
+  })
+}
+
+// ---- The Replay-link converter ----
+
+// The mode each kind of change in a solve history is made in, the genre's natural one, and the answer-check box that
+// counts it: a change to `pu_a[prop]`.
+const NATURAL = {
+  symbol: { mode: { mode: 'combi', submode: 'star', style: 3 }, box: 'sol_star' },
+  lineE: { mode: { mode: 'combi', submode: 'edgex', style: 3 }, box: 'sol_loopedge' },
+  surface: { mode: SURFACE_MODE, box: 'sol_surface' }
+}
+
+// The inputs to try, in order, for a change to `pu_a[prop][key]`: a press of either button, or of one then the other,
+// on the point the key names; or, for a `lineE` key of two corners, a drag from one to the other.
+function changeInputs (prop, key, board) {
+  if (prop === 'lineE' && String(key).includes(',')) return [drag(board, String(key).split(',').map(Number))]
+  const num = Number(key)
+  const left = press(board, num)
+  const right = press(board, num, 'right')
+  return [left, right, [...left, ...left], [...right, ...left], [...left, ...right], [...right, ...right]]
+}
+
+// Runs in the page: the Replay link's changes, oldest first. `maketext_replay` writes them newest first.
+function replayChangesInPage (r) {
+  return JSON.parse(decrypt_data(r)).reverse()
+}
+
+// Runs in the page: `pu_a[prop][key]` as JSON, or null when it is absent.
+function answerValueInPage ([prop, key]) {
+  const value = pu.pu_a[prop]?.[key]
+  return value === undefined ? null : JSON.stringify(value)
+}
+
+// Runs in the page: undoes groups until the answer's undo stack is back to `depth`.
+function undoToInPage (depth) {
+  while (pu.pu_a.command_undo.__a.length > depth) pu.undo()
+}
+
+// Converts a Share > Replay link (its `#` part or the whole link: `maketext_replay` in `class_p.js`) into a recording:
+// each change of the solve history becomes the input that makes it, in the genre's natural mode (NATURAL), found by
+// trying the inputs `changeInputs` lists until one makes the change; a change already on the board is skipped. The
+// order and the mistakes are the solver's; an undo becomes the input that makes its change. The first step of each
+// change carries `at`, the solver's timer reading when it was made. The recording's link is the Replay link's puzzle
+// with an answer check added, the solve's last board as its answer. A change the converter has no input for is refused.
+export async function convertReplayLink (browser, link) {
+  const parts = linkHash(link).slice(1).split('&')
+  const r = parts.find((p) => p.startsWith('r='))?.slice(2)
+  if (!r || r.includes('penpaerror')) throw new Error('the link holds no replay')
+  const base = '#' + parts.filter((p) => !/^[qr]=/.test(p)).join('&')
+  const { steps, writes } = await withPage(browser, base, async (page) => {
+    await settle(() => page.evaluate(readEngineState).then(canonicalState))
+    const changes = await page.evaluate(replayChangesInPage, r)
+    const apply = engineDriver.start(page)
+    const steps = []
+    const last = new Map()
+    let mode = await page.evaluate(() => {
+      const edit = pu.mode[pu.mode.qa].edit_mode
+      const [submode, style] = pu.mode[pu.mode.qa][edit]
+      return { mode: edit, submode, style }
+    })
+    for (const [i, [prop, key, value, layer, , at]] of changes.entries()) {
+      const words = `change ${i + 1} of the replay (${prop} ${key} → ${JSON.stringify(value)})`
+      if (layer !== 'pu_a') throw new Error(`${words} is to the ${layer} layer, not the solver's`)
+      if (!NATURAL[prop]) throw new Error(`${words}: no natural mode is known for ${prop}`)
+      const want = value === null ? null : JSON.stringify(value)
+      last.set(`${prop} ${key}`, [prop, key, value])
+      if (await page.evaluate(answerValueInPage, [prop, key]) === want) continue
+      const switchTo = sameMode(mode, NATURAL[prop].mode) ? [] : [{ kind: 'mode', ...NATURAL[prop].mode }]
+      for (const step of switchTo) await apply(step)
+      const keys = String(key).split(',').map(Number)
+      const board = { points: await page.evaluate((nums) => Object.fromEntries(nums.map((n) => [n, { x: pu.point[n].x, y: pu.point[n].y }])), keys) }
+      let made = null
+      for (const input of changeInputs(prop, key, board)) {
+        const depth = await page.evaluate(() => pu.pu_a.command_undo.__a.length)
+        for (const step of input) await apply(step)
+        if (await page.evaluate(answerValueInPage, [prop, key]) === want) {
+          made = input
+          break
+        }
+        await page.evaluate(undoToInPage, depth)
+      }
+      if (!made) throw new Error(`${words}: no input in ${JSON.stringify(NATURAL[prop].mode)} makes it`)
+      mode = NATURAL[prop].mode
+      const [first, ...rest] = [...switchTo, ...made]
+      steps.push({ ...first, at }, ...rest)
+    }
+    const wrong = []
+    for (const [prop, key, value] of last.values()) {
+      if (await page.evaluate(answerValueInPage, [prop, key]) !== (value === null ? null : JSON.stringify(value))) wrong.push(`${prop} ${key}`)
+    }
+    if (wrong.length) throw new Error(`the converted steps end on a board the replay did not: ${wrong.join(', ')}`)
+    return { steps, writes: [...last.values()].filter(([, , value]) => value !== null) }
+  })
+  const boxes = [...new Set(writes.map(([prop]) => NATURAL[prop].box))]
+  const source = await withPage(browser, base, (page) => page.evaluate(answerLinkInPage, { writes, boxes }))
+  const { failure, final, gridtype, genre } = await runSteps(browser, { name: 'the converted recording', source, steps })
+  if (failure) throw new Error(failure)
+  return { header: { source, gridtype, genre, tier: 'C' }, final, steps }
+}
