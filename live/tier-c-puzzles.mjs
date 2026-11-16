@@ -11,7 +11,7 @@ import { settle } from './settle.mjs'
 export const TIER_C_PUZZLES = ['sudoku-9x9', 'sudoku-6x6', 'killer', 'starbattle', 'slitherlink', 'or-shading']
 
 // Upstream's puzz.link imports (`test/public/puzz_link_parser.js`) the puzzles start from.
-const IMPORTS = {
+export const IMPORTS = {
   'sudoku-9x9': 'https://puzz.link/p?sudoku/9/9/15i96l17i7g65i42k1g5368h2i7g2p3h5g48g2g9k3h7i6',
   'sudoku-6x6': 'https://puzz.link/p?sudoku/6/6/g3h2g5j6h1l4h6j3g5g6h',
   // Two stars in each row, column and region.
@@ -452,12 +452,7 @@ async function buildKiller (page, open) {
   })
   const apply = engineDriver.start(page)
   for (const step of steps) await apply(step)
-  // Number's 1/4 leaves a selection that is not a cell, which Sudoku mode's selection drawing throws on (#118), so it
-  // goes before the switch back to the answer layer.
-  await page.evaluate(() => {
-    pu.selection = []
-    pu.mode_qa('pu_a')
-  })
+  await page.evaluate(() => pu.mode_qa('pu_a'))
   const answer = await givenAllBut(page, cells.map((c, i) => ({ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n })), open)
   const writes = answer.map(({ num, digit }) => ['number', num, authorDigit(digit)])
   const source = await page.evaluate(answerLinkInPage, { writes, boxes: ['sol_number'] })
