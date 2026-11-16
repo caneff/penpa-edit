@@ -367,7 +367,7 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     converted history's puzzle is fuzzed like the generated ones (`live/tier-c-puzzles.mjs`). Found on the way: saved progress keeps
     `command_replay`, and its reload reads solved; #83 does not show on these boards with a running or a paused clock,
     so it is not marked on them. #64 was a `todo` test until its fix. The 10x10 star battle runs below the replay's 720-pixel
-    viewport, which the UI driver does not scroll, so it is not in the UI driver's sample.
+    viewport; the UI driver scrolls a board into view before its first step (#80), so it is in the UI driver's sample.
 - **Tier D, the audit bugs**: one recording per LIVE finding in Correctness and Input (C1-C15, I1-I9 where the step
   vocabulary reaches them), marked `todo: #<ticket>` until fixed, as sudokupad-scripts does.
   - **What was recorded (#35, 2026-11-13).** #35 narrowed the scope to C1-C15 and I1; I2-I9 are UI-file bugs and belong
@@ -488,4 +488,5 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     step vocabulary (test plan §§ 3-5).
 
 Open questions for Chris: which Penpa solve links tier C uses; whether the recorder ships as a query flag on the fork's
-page or as a userscript; whether the UI driver runs on every PR or nightly once the corpus is large.
+page or as a userscript. Answered: the UI driver replays a sample on every PR and the whole corpus nightly
+(`.github/workflows/ui-corpus.yml`, #80).

@@ -234,8 +234,8 @@ async function switchMode (page, step, choose) {
   }
 }
 
-// A driver's `start(page)` returns the function that makes a step's input on that page, and `checkpointAfter(step,
-// next)` says whether a checkpoint follows `step`, `next` being the step after it.
+// A driver's `start(page, steps)` returns the function that makes each of `steps`' inputs in turn on that page, and
+// `checkpointAfter(step, next)` says whether a checkpoint follows `step`, `next` being the step after it.
 // The engine driver: each step as the engine call its input made.
 export const engineDriver = { start: startEngineDriver, checkpointAfter: endsGroup }
 
@@ -256,7 +256,7 @@ function isCheckpoint (driver, steps, n) {
 }
 
 // Runs in the page: the viewport pixel of the board point at `x, y` through the canvas's place in the current layout,
-// read from the layout itself rather than from `coord_point`'s own arithmetic, which is what the UI driver checks.
+// for a generator or a test aiming at a point; the UI driver aims through `pagePixelInPage`.
 function boardPixelInPage ({ x, y }) {
   const box = document.getElementById('canvas').getBoundingClientRect()
   return { x: box.left + x, y: box.top + y }
@@ -267,7 +267,8 @@ function boardPixelInPage ({ x, y }) {
 // point of `pu.type`, and a mouse event carries whole pixels. So the step's board point `x, y`, scaled to the page's cell
 // size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
-// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one.
+// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no neighbouring
+// pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches.
 function pagePixelInPage ({ x, y, num, recordedSize }) {
   const canvas = document.getElementById('canvas')
   const scale = pu.size / recordedSize
@@ -302,18 +303,16 @@ function clearPanelInPage (pixel) {
   if (panel.contains(document.elementFromPoint(pixel.x, pixel.y))) panel.style.left = '-10000px'
 }
 
-// Runs in the page: the whole viewport pixel of a point not in use nearest board point `near` (a recording's), where a
+// Runs in the page: the whole viewport pixel of a point not in use nearest viewport pixel `near`, where a
 // press makes no engine call (`onDown` in main.js) and the move there makes none either (`onMove`). A left press in the
-// Composite tools main.js improves (`coord_point`'s `flex`) picks among cells alone, so only an unused cell serves there.
-function unusedPixelInPage ({ near, recordedSize }) {
+// Composite tools `cellOnlyTools` picks among cells alone, so only an unused cell serves there.
+function unusedPixelInPage ({ near, cellOnlyTools }) {
   const canvas = document.getElementById('canvas')
-  const scale = pu.size / recordedSize
   const left = canvas.offsetLeft - window.scrollX
   const top = canvas.offsetTop - window.scrollY
   const mode = pu.mode[pu.mode.qa]
-  const cellsOnly = mode.edit_mode === 'combi' && ['star', 'yajilin', 'mines', 'doublemines', 'akari'].includes(mode.combi[0])
-  const types = cellsOnly ? [0] : pu.type
-  const at = { x: (near.x - 0.5) * scale + 0.5, y: (near.y - 0.5) * scale + 0.5 }
+  const types = mode.edit_mode === 'combi' && cellOnlyTools.includes(mode.combi[0]) ? [0] : pu.type
+  const at = { x: near.x - left, y: near.y - top }
   const onCanvas = (p) => p.x > 1 && p.y > 1 && p.x < canvas.clientWidth - 1 && p.y < canvas.clientHeight - 1
   const candidates = pu.point.filter((p) => p && types.includes(p.type) && onCanvas(p))
   // No point in use within 2 px, so rounding to a whole pixel cannot tip the press onto one.
@@ -329,6 +328,10 @@ function outsideCanvasInPage () {
   const box = document.getElementById('canvas').getBoundingClientRect()
   return { x: box.left, y: box.top - 1 }
 }
+
+// The Composite tools whose left press `coord_point` resolves among cells alone (`improve_modes` in main.js, a local the
+// page cannot read; `replay.live.mjs` checks the two lists agree).
+export const CELL_ONLY_TOOLS = ['star', 'yajilin', 'mines', 'doublemines', 'akari']
 
 // The cell size Penpa+'s page draws a board at, so the one every recording was made at.
 const RECORDED_CELL_PX = 38
@@ -524,7 +527,7 @@ function startUiDriver (page, steps, choices) {
   async function pressSilently (step) {
     const button = silentPress(steps, stepsMade - 1)
     if (!button || pressed) return false
-    if (step.action !== 'out') await moveTo(await page.evaluate(unusedPixelInPage, { near: step, recordedSize: RECORDED_CELL_PX }))
+    if (step.action !== 'out') await moveTo(await page.evaluate(unusedPixelInPage, { near: await pixelOf(step), cellOnlyTools: CELL_ONLY_TOOLS }))
     await page.mouse.down({ button })
     pressed = { button, ctrl: false }
     return true

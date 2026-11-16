@@ -22,17 +22,19 @@ const TIER_C_SAMPLE = ['or-shading', 'slitherlink', 'sudoku-6x6', 'starbattle'].
 
 // The generated recordings (a header `tier`) replayed on every PR: one for each input the UI driver makes differently
 // from a plain press, so a change that breaks one fails the PR rather than the night.
-//   genre/compass: a drag along points halfway between two others, aimed from the page's own whole-pixel origin;
+//   genre/compass: a drag along points halfway between two others on Penpa+'s page, aimed from its whole-pixel origin;
 //   genre/shimaguni: Surface's two-digit colour, a `1` and then a digit within main.js's 300 ms window;
 //   paint/multicolor-clear-keys: Multicolor's colour digits, remapped;
 //   genre-tool/combi-linedir: a press outside the frame, which makes no engine call, then a drag onto the board;
-//   genre/alternation: a click under Shape mode's key panel, which floats over the board until moved aside.
+//   genre/alternation: a click under Shape mode's key panel, which floats over the board until moved aside;
+//   genre/masyu: a drag through points halfway between two others on solve.html, whose scaled cells leave no whole pixel
+//   on the recorded point.
 const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-clear-keys', 'genre-tool/combi-linedir',
-  'genre/alternation']
+  'genre/alternation', 'genre/masyu']
 
 // The recordings whose UI-driver replay on solve.html still differs from the engine driver's, each with the ticket for
-// its gap (controller, 2026-11-16); node runs them as `todo`, so a difference is reported and fails nothing until the
-// ticket's fix removes the entry. None is marked on Penpa+'s page.
+// its gap (controller, 2026-11-16); node reports each still-differing one as `todo`, failing nothing, and fails one that
+// agrees, so the entry goes when its ticket's fix lands. None is marked on Penpa+'s page.
 const ORIENTATION = '#136: solve.html\'s Mode card has no Number orientation control'
 const CAGE_KEY = '#137: a killer cage\'s solve-history key on this grid depends on the cell size'
 const HALF_PIXEL = '#138: a generated drag half a pixel off a point has no whole-pixel twin on solve.html'
@@ -58,17 +60,27 @@ export async function uiReplayIds (ids, all = process.env.REPLAY_UI_CORPUS === '
 // The call every `ui-replay-<k>.live.mjs` makes, `fileUrl` its `import.meta.url`, `k` read from its name.
 export const UI_REPLAY_CALL = 'await uiReplayPart(import.meta.url)'
 
+// The ids part `part` replays, of every recording under `all` (the nightly run's set) or of each PR's.
+export async function uiReplayPartIds (part, all) {
+  return replayPartIds(await uiReplayIds(await listRecordings(), all), part, UI_REPLAY_PARTS)
+}
+
 // Registers the UI driver's comparisons of the part named by `fileUrl`.
 export async function uiReplayPart (fileUrl) {
   const part = Number(/ui-replay-(\d+)\.live\.mjs$/.exec(fileUrl)[1])
   const browser = useBrowser()
-  const ids = replayPartIds(await uiReplayIds(await listRecordings()), part, UI_REPLAY_PARTS)
+  const ids = await uiReplayPartIds(part)
   for (const { name, solve } of TARGETS) {
     describe(`the UI driver on ${name}, recordings part ${part + 1} of ${UI_REPLAY_PARTS}`, () => {
       for (const id of ids) {
-        const todo = solve ? SOLVE_TODO[id] : undefined
-        it(`replays ${id} through mouse and keyboard to the engine driver's states`, { todo }, async () => {
-          assert.equal(await compareDrivers(browser(), await readRecording(id), { id, solve }), null)
+        const reason = solve ? SOLVE_TODO[id] : undefined
+        it(`replays ${id} through mouse and keyboard to the engine driver's states`, async (t) => {
+          const compared = compareDrivers(browser(), await readRecording(id), { id, solve })
+          if (!reason) return assert.equal(await compared, null)
+          // The known gap shows as a report, or as a step the driver cannot make, whose message is the difference.
+          const difference = await compared.catch((e) => e.message)
+          assert.notEqual(difference, null, `${id} now agrees on ${name}: remove its SOLVE_TODO entry (${reason})`)
+          t.todo(reason)
         })
       }
     })
