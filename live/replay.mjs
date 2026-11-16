@@ -556,9 +556,8 @@ export function duplicateLinkInPage () {
 }
 
 // Lines a duplicate link drops by design, left out of the round trip's comparison: `maketext_duplicate` empties the
-// redo stacks (class_p.js), no link holds the selection, and the answer check sets `sol_flag` after an input, never on
-// load, so a duplicate of a solved board reads unsolved until its next input.
-const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection|sol_flag) = .*$/
+// redo stacks (class_p.js) and no link holds the selection.
+const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection) = .*$/
 
 function withoutDuplicateDrops (state) {
   return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
