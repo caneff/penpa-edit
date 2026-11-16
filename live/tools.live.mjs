@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, afterChange, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -217,6 +217,79 @@ describe('the Mode card', () => {
     await setTool(opened.page, { mode: 'number', submode: '7' })
     const read = () => combobox().inputValue()
     assert.equal(await settle(read, 'Candidates'), 'Candidates')
+  })
+})
+
+describe('Number orientation', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const group = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Orientation' })
+  const orientation = () => opened.page.evaluate(() => engine.getOrientation())
+  const DIRECTIONS = ['R', 'UR', 'U', 'UL', 'L', 'DL', 'D', 'DR']
+
+  it('offers the eight directions of a square grid, to the mouse, in Number mode only', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1' })
+    assert.deepEqual(await opened.page.evaluate(() => engine.listOrientations()), DIRECTIONS)
+    assert.equal(await settle(() => group().getByRole('button').count(), DIRECTIONS.length), DIRECTIONS.length)
+    const names = ['right', 'up and right', 'up', 'up and left', 'left', 'down and left', 'down', 'down and right']
+    for (const [i, direction] of DIRECTIONS.entries()) {
+      await group().getByRole('button', { name: names[i], exact: true }).click()
+      assert.equal(await settle(orientation, direction), direction)
+      const pressed = group().getByRole('button', { name: names[i], exact: true })
+      assert.equal(await settle(() => pressed.getAttribute('aria-pressed'), 'true'), 'true')
+    }
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    assert.equal(await settle(() => group().count(), 0), 0)
+    assert.equal(await orientation(), null)
+  })
+
+  it('is set with the keyboard, on the Number sub-modes 1 and 7', async () => {
+    for (const submode of ['1', '7']) {
+      await setTool(opened.page, { mode: 'number', submode })
+      await settle(() => group().count(), 1)
+      // The card redraws in the frame after a change, and a redraw between focus and key press drops the focus.
+      await afterChange(opened.page)
+      await group().getByRole('button', { name: 'up', exact: true }).focus()
+      await opened.page.keyboard.press('Enter')
+      assert.equal(await settle(orientation, 'U'), 'U')
+      await afterChange(opened.page)
+      await group().getByRole('button', { name: 'right', exact: true }).focus()
+      await opened.page.keyboard.press('Enter')
+      assert.equal(await settle(orientation, 'R'), 'R')
+    }
+  })
+
+  it('offers nothing, and no empty group, on a grid with no directions', async () => {
+    const link = await linkFromNewBoard(browser(), () => {
+      document.getElementById('nb_size1').value = 3
+      document.getElementById('nb_size2').value = 3
+      UserSettings.gridtype = 'hex'
+      create_newboard()
+      const url = pu.maketext_solve()
+      return url.slice(url.indexOf('#'))
+    })
+    const hex = await openSolvePage(browser(), link)
+    try {
+      await setTool(hex.page, { mode: 'number', submode: '1' })
+      assert.deepEqual(await hex.page.evaluate(() => engine.listOrientations()), [])
+      assert.equal(await hex.page.evaluate(() => engine.getOrientation()), null)
+      await hex.page.getByRole('region', { name: 'Mode' }).getByRole('combobox', { name: 'Tool' }).waitFor()
+      assert.equal(await hex.page.getByRole('region', { name: 'Mode' }).getByText('Orientation', { exact: true }).count(), 0)
+    } finally {
+      await hex.context.close()
+    }
+  })
+
+  it('follows an orientation set from outside, and the engine refuses a bad one', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1' })
+    await opened.page.evaluate(() => engine.setOrientation('DL'))
+    assert.equal(await settle(() => group().getByRole('button', { name: 'down and left', exact: true }).getAttribute('aria-pressed'), 'true'), 'true')
+    const bad = (d) => opened.page.evaluate((d) => { try { engine.setOrientation(d); return 'no throw' } catch (e) { return e.message } }, d)
+    assert.match(await bad('X'), /no direction "X"/)
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    assert.match(await bad('U'), /not number/)
   })
 })
 

@@ -339,6 +339,8 @@ const RECORDED_CELL_PX = 38
 // How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
 // ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
 const STEP_GAP_MS = 1000
+// Longer than one animation frame, which draws the Mode card.
+const FRAME_MS = 20
 
 // The key, as Playwright's `keyboard.press` names it, that makes `main.js` make a key step's call. A call `main.js`
 // makes only from a remapped key has no entry and is refused: Sudoku's Backspace (`key_space` with code 8).
@@ -465,7 +467,15 @@ function modeCardChoices (page, step, _clickInPanel, afterInput) {
     mode: pickTool,
     submode: pickTool,
     tool: pickTool,
-    orientation: () => { throw new Error('the Mode card has no orientation to choose') },
+    orientation: async (direction) => {
+      const at = (await page.evaluate(() => engine.listOrientations())).indexOf(direction)
+      if (at === -1) throw new Error(`the Mode card has no orientation ${direction} for ${step.mode}`)
+      const buttons = card.getByRole('group', { name: 'Orientation' }).getByRole('button')
+      // The replay's clock is paused, so the frame that draws the card's buttons for the tool just picked runs only when it is let run.
+      await page.clock.runFor(FRAME_MS)
+      await buttons.nth(at).click()
+      afterInput()
+    },
     style: async () => {
       const tool = await toolOf()
       const at = tool.styles.findIndex((s) => s.style === step.style)
