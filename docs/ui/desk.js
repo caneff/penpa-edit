@@ -1,5 +1,5 @@
 // The solve page: the top bar and the desk of cards, built once `engine` has the puzzle loaded. Every card moves by its
-// title bar and resizes by its right edge, bottom edge or corner; one layout for every puzzle is kept in localStorage.
+// title bar and resizes by any edge or corner; one layout for every puzzle is kept in localStorage.
 // Also `window.uiKit`, the element builders the UI files share. Reaches Penpa+ only through `engine`
 // (test/ui-boundary.test.mjs fails otherwise).
 (function () {
@@ -20,7 +20,11 @@
     const ZOOM_STEP_PX = 4;
     // The smallest a card is dragged to, [width, height].
     const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80], rules: [200, 80] };
-    const RESIZE_EDGES = { right: 'resize-right', bottom: 'resize-bottom', corner: 'resize-corner' };
+    // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
+    const RESIZE_HANDLES = {
+        top: ['top'], right: ['right'], bottom: ['bottom'], left: ['left'],
+        'top-left': ['top', 'left'], 'top-right': ['top', 'right'], 'bottom-right': ['bottom', 'right'], 'bottom-left': ['bottom', 'left']
+    };
 
     // Variant L's default layout: Mouse and Rules on the left, the Board between, Pinned, Mode and Recent on the right.
     const LEFT_COLUMN = ['mouse', 'rules'];
@@ -78,8 +82,8 @@
         Object.entries(CARD_TITLES).forEach(([id, title]) => {
             const body = el('div', { class: 'ui-body' });
             const head = el('div', { class: 'ui-head' }, [el('h2', {}, [title])]);
-            const handles = Object.entries(RESIZE_EDGES).map(([edge, testId]) =>
-                el('div', { class: `ui-resize ui-resize-${edge}`, 'data-testid': testId }));
+            const handles = Object.keys(RESIZE_HANDLES).map((name) =>
+                el('div', { class: `ui-resize ui-resize-${name}`, 'data-testid': `resize-${name}` }));
             cards[id] = {
                 body,
                 head,
@@ -287,21 +291,36 @@
                 });
             });
             handles.forEach((handle, i) => {
-                const edge = Object.keys(RESIZE_EDGES)[i];
+                const edges = Object.values(RESIZE_HANDLES)[i];
                 handle.addEventListener('pointerdown', (e) => {
                     if (e.button !== 0) {
                         return;
                     }
-                    const from = { w: node.offsetWidth, h: node.offsetHeight };
+                    const from = { x: node.offsetLeft, y: node.offsetTop, w: node.offsetWidth, h: node.offsetHeight };
                     trackPointer(e, handle, (dx, dy) => {
-                        if (edge !== 'bottom') {
+                        if (edges.includes('right')) {
                             node.style.width = `${Math.max(minWidth, from.w + dx)}px`;
                         }
-                        if (edge !== 'right') {
+                        if (edges.includes('bottom')) {
                             setHeight(node, Math.max(minHeight, from.h + dy));
+                        }
+                        // The left and top edges move, and the opposite edge stays where it was; neither passes the desk's edge.
+                        if (edges.includes('left')) {
+                            const width = Math.min(from.x + from.w, Math.max(minWidth, from.w - dx));
+                            node.style.width = `${width}px`;
+                            node.style.left = `${from.x + from.w - width}px`;
+                        }
+                        if (edges.includes('top')) {
+                            const height = Math.min(from.y + from.h, Math.max(minHeight, from.h - dy));
+                            setHeight(node, height);
+                            node.style.top = `${from.y + from.h - height}px`;
                         }
                     }, (didMove) => {
                         if (didMove) {
+                            // A card resized from its left or top edge has a place of its own, kept like a moved card's.
+                            if (edges.includes('left') || edges.includes('top')) {
+                                saved[id] = { ...saved[id], x: node.offsetLeft, y: node.offsetTop };
+                            }
                             saveCard(desk, id, node);
                         }
                     });
