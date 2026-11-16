@@ -61,8 +61,60 @@ export function jsRequest (file) {
 // `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
 // dismissed, and `errors` every page error and `console.error` so far.
 export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, setup, contextOptions } = {}) {
-  const context = await browser.newContext(contextOptions)
+  const context = await penpaContext(browser, { served, setup, contextOptions })
   if (cookies.length) await context.addCookies(cookies)
+  const page = await context.newPage()
+  const errors = []
+  pageErrors.push(errors)
+  onErrors(page, (e) => errors.push(e))
+  const dialogs = []
+  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
+  await page.goto((url ?? penpaAddress(served, solve)) + query)
+  await page.waitForFunction(() => typeof pu !== 'undefined')
+  return { context, page, dialogs, errors }
+}
+
+// Opens one page that boots Penpa+ afresh for every link it loads, cheaper than a page of its own context for each:
+// each load is a navigation, so the page's globals start over, and its storage and cookies start empty, as a new
+// context's do. `served`, `setup` and `contextOptions` are `openPenpa`'s, but `setup` runs once, on the context, and any
+// cookie or storage it leaves is cleared before each load like the rest. `load(query)` returns the page once `pu`
+// exists and the errors raised since that load began; `close()` closes the page's context.
+export async function openReloader (browser, { served = false, setup, contextOptions } = {}) {
+  const context = await penpaContext(browser, { served, setup, contextOptions })
+  await context.addInitScript(wipeStorageInPage)
+  const page = await context.newPage()
+  let errors = []
+  onErrors(page, (e) => errors.push(e))
+  return {
+    async load (query) {
+      // Penpa+ saves progress as it unloads, so the cookies are cleared once it has.
+      await page.goto('about:blank')
+      await context.clearCookies()
+      errors = []
+      pageErrors.push(errors)
+      await page.goto(penpaAddress(served) + query)
+      await page.waitForFunction(() => typeof pu !== 'undefined')
+      return { page, errors }
+    },
+    close: () => context.close()
+  }
+}
+
+// Runs in the page, before any of its scripts: empties the storage Penpa+ keeps between visits. `PenpaProgress` keeps a
+// puzzle's progress in localforage's IndexedDB database (named `localforage` by default) and reads it back at boot, so
+// a progress saved by the page before would load in place of the link. The delete is queued ahead of the page's own
+// open of the database, which IndexedDB runs in order.
+function wipeStorageInPage () {
+  // The blank page between loads has no origin to keep storage for.
+  if (location.protocol === 'about:') return
+  localStorage.clear()
+  sessionStorage.clear()
+  indexedDB.deleteDatabase('localforage')
+}
+
+// A context for Penpa+'s pages, answering its network loads, with `served` and `setup` as `openPenpa` takes them.
+async function penpaContext (browser, { served, setup, contextOptions }) {
+  const context = await browser.newContext(contextOptions)
   // Penpa+'s only network loads are Google Tag Manager's: answered empty, so a run needs no network and counts as no visit.
   await context.route(/^https?:\/\//, (route) => route.fulfill({ status: 200, body: '' }))
   if (served) {
@@ -70,18 +122,20 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   }
   // Registered after the catch-all and `served`, so a test's own routes win.
   await setup?.(context)
-  const page = await context.newPage()
-  const errors = []
-  pageErrors.push(errors)
+  return context
+}
+
+// Where Penpa+'s page, or with `solve` the solve page, is opened from.
+function penpaAddress (served, solve = false) {
+  if (served) return PENPA_ORIGIN + (solve ? '/solve.html' : '/')
+  return solve ? SOLVE_URL : PENPA_URL
+}
+
+// Passes `add` every page error and `console.error` of `page` from now on.
+function onErrors (page, add) {
   // A page error as its stack, so a failure says where it came from.
-  page.on('pageerror', (e) => errors.push(e?.stack || String(e)))
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
-  const dialogs = []
-  page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
-  const defaultUrl = served ? PENPA_ORIGIN + (solve ? '/solve.html' : '/') : (solve ? SOLVE_URL : PENPA_URL)
-  await page.goto((url ?? defaultUrl) + query)
-  await page.waitForFunction(() => typeof pu !== 'undefined')
-  return { context, page, dialogs, errors }
+  page.on('pageerror', (e) => add(e?.stack || String(e)))
+  page.on('console', (m) => { if (m.type() === 'error') add(`console.error: ${m.text()}`) })
 }
 
 // Runs in the page: shades the cell at `index` of the center list as its own undo group, through the call a click makes.
@@ -92,9 +146,11 @@ export function shadeInPage (index) {
   pu.redraw()
 }
 
-// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle and of the cell its answer fills.
+// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle, of the cell its answer fills and of an
+// empty cell in the given's row.
 export const GIVEN_CELL = 0
 export const ANSWER_CELL = 1
+export const SAME_ROW_CELL = 2
 
 // Runs `inPage(arg)` on a fresh page of its own and returns what it returns: a puzzle link built on a new board.
 export async function linkFromNewBoard (browser, inPage, arg) {

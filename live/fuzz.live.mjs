@@ -88,8 +88,12 @@ const PLANTS = [
     from: /(\r?\n {4}maketext_duplicate\(\) \{\r?\n)/,
     to: '$1        if (this.pu_a.command_undo.__a.length > 2) { this.pu_a.command_undo.__a.pop(); }\n',
     failure: /^step \d+ \(.*\): the save\/load round trip changed the state:\n/,
-    // The engine driver's own round trip at each checkpoint catches the same loss.
-    replays: ({ report }) => assert.match(report ?? 'no report', /: its duplicate link loads a different board\n/)
+    // The engine driver's own round trip at each checkpoint catches the same loss, first at the recording's last step
+    // when the fuzz reported its earliest failing round trip.
+    replays: ({ report }, recording) => {
+      assert.match(report ?? 'no report', /: its duplicate link loads a different board\n/)
+      assert.equal(report.match(/^planted: step (\d+) /)?.[1], String(recording.steps.length))
+    }
   }
 ]
 
@@ -135,11 +139,13 @@ describe('the fuzz', () => {
         const recording = JSON.parse(await readFile(saved, 'utf8'))
         assert.deepEqual(recording.header.fuzz, { puzzle: PLANT_PUZZLE, seed: PLANT_SEED })
         assert.match(recording.header.commit, /^[0-9a-f]{7,40}$/)
+        // The recording ends at the step the failure names, so its replay ends on the board the fuzz failed on.
+        assert.equal(String(recording.steps.length), failure.match(/^step (\d+) /)[1])
         const replayed = await replay(browser(), recording, { id: 'planted', served: true, setup }).catch((e) => ({ thrown: e.message }))
         // The replay page may raise the planted error again; the fuzz's own pages' were taken above.
         if (plant.raises) takePageErrors()
         if (plant.replays) {
-          plant.replays(replayed)
+          plant.replays(replayed, recording)
         } else {
           assert.equal(replayed.report, null)
         }

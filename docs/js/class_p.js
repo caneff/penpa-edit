@@ -13390,6 +13390,9 @@ class Puzzle {
                         // document.getElementById("pu_a_label").innerHTML = "Check Solution";
                         // document.getElementById("pu_a_label").style.backgroundColor = Color.GREY_LIGHT;
                     }
+                } else if (this.sol_flag === 1) {
+                    // caneff: a conflict on a solved board leaves it unsolved (#64)
+                    this.sol_flag = 0;
                 }
                 // caneff: no redraw here, so the board is drawn once per redraw (#23)
             }
