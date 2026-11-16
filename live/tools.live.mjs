@@ -18,7 +18,7 @@ const SOLVE_MODES = ['surface', 'multicolor', 'line', 'lineE', 'wall', 'number',
 const CELL = 12
 const OTHER_CELL = 18
 
-// With no query, a new board's link, which has no Tab set and so offers every mode.
+// With no query, a new board's link.
 const openSolve = async (query) => openSolvePage(browser(), query ?? await newBoardSolveLink(browser()))
 
 // What the solver has shaded: cell index -> the style Penpa+ saved.
@@ -141,10 +141,13 @@ describe('a link with a Tab set', () => {
   })
   after(async () => { await withTabSet?.context.close(); await withoutTabSet?.context.close() })
 
-  it('keeps the Tab set for the pins and the Tab cycle', async () => {
-    assert.deepEqual(await withTabSet.page.evaluate(() => UserSettings.tab_settings), ['Surface', 'Sudoku Normal'])
+  it('still seeds the pins from the Tab set', async () => {
+    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as preset)/ }).allInnerTexts())
+      .map((text) => text.replace(/^\d+\s*/, '').trim())
     assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
+    assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])
     assert.deepEqual(await withoutTabSet.page.evaluate(() => engine.tabSet()), [])
+    assert.deepEqual(await chips(withoutTabSet), [])
   })
 
   it('lists the same tools as the same puzzle with no Tab set', async () => {

@@ -112,9 +112,9 @@
         location.reload();
     }
 
-    // solve.html never uses Penpa Lite, so every tool the grid supports is offered whatever the link's Tab set. Its three
-    // callers (a loaded link, a saved tab cookie, the puzz.link import) look the function up by name when they run, so
-    // replacing it here keeps the Tab set for the pins and the Tab cycle (`tabSet`) and leaves Penpa+'s files as they are.
+    // solve.html never uses Penpa Lite, so every tool the grid supports is offered whatever the link's Tab set. Penpa+ looks
+    // the function up by its global name when it runs, so replacing it here keeps the Tab set for the pins and the Tab cycle
+    // (`tabSet`) and leaves Penpa+'s files as they are.
     window.advancecontrol_off = function () {};
 
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
@@ -368,7 +368,7 @@
     const COMPOSITE_LINE_STYLE = ['linex', 'lineox', 'linedir', 'yajilin', 'rassisillai', 'tents'];
     const COMPOSITE_EDGE_STYLE = ['edgex', 'edgexoi'];
 
-    // MVP gap: Penpa+ hides what a grid type or a link's tab set leaves out by `display: none` on the element or an
+    // MVP gap: Penpa+ hides what a grid type or a mode of the solve page leaves out by `display: none` on the element or an
     // ancestor, or by the class `is_hidden`. `container` is the mode's own box, whose display follows the current mode.
     function hiddenInPenpa(node, container) {
         for (let n = node; n && n !== container; n = n.parentElement) {
@@ -670,7 +670,7 @@
             const mode = pu.mode[pu.mode.qa].edit_mode;
             const [submode, style] = pu.mode[pu.mode.qa][mode];
             const listed = toolCatalog().find((t) => t.mode === mode && t.submode === rememberedSubmode(submode));
-            // A key or a script can put Penpa+ in a mode the link's tab set leaves out; it is still the tool in use.
+            // A key or a script can put Penpa+ in a mode the catalogue leaves out; it is still the tool in use.
             const current = listed?.styles.find((s) => s.style === Number(style));
             return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
         },

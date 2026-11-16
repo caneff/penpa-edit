@@ -7,8 +7,8 @@ import { currentTool, newBoardSolveLink, openSolvePage, useBrowser, waitForDesk 
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
+
 // A Tab set that names the modes the built-in presets pin.
-// A set that names the modes the built-in presets use, so the pins the link seeds are not the presets' own.
 const BROAD_TAB_SET = ['Sudoku Normal', 'Line Normal', 'Wall', 'Number Normal', 'Surface']
 
 const link = (tabSet) => newBoardSolveLink(browser(), tabSet)
