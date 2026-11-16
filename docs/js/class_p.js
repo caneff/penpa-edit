@@ -8016,13 +8016,8 @@ class Puzzle {
                             var j_start = 0;
                             var length_limit = 8;
 
-                            // if any element present in numberS mode then skip top left corner
-                            // use case -> killer sudoku and more
-                            // can be made more efficient if this is detected when the puzzle is loaded, for now its ok
-                            if (this.mode.qa === "pu_a" && (Object.keys(this["pu_q"].numberS).length != 0)) {
-                                length_limit = 6;
-                                j_start = 1;
-                            }
+                            // caneff (#140): upstream skipped the top-left corner (j_start = 1, length_limit = 6) in Solution mode when the
+                            // puzzle had any small given number (killer cage totals); marks now always start top-left and a cell holds 8.
 
                             // First step: go through all cells in the selection that don't have a main single digit, and
                             // collect the digits that are in the corner of each
