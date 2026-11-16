@@ -1,4 +1,4 @@
-// A Penpa+ link, once the Redirect script has run, lands on the fork with the same puzzle loaded.
+// A Penpa+ solve link, once the Redirect script has run, lands on the fork's solve.html with the same puzzle loaded.
 // Tampermonkey cannot run headless, so the script is injected at document start; its `@match` and `@run-at` lines are checked in `test/userscript.test.mjs`.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -23,9 +23,9 @@ describe('an upstream solve link with the Redirect script', () => {
   })
   after(async () => { await opened?.context.close() })
 
-  it('lands on the fork with the same puzzle loaded', async () => {
+  it('lands on solve.html with the same puzzle loaded', async () => {
     const { page } = opened
-    const expected = { url: FORK_URL + AKARI_SOLVE, mode: 'solve', clues: 13 }
+    const expected = { url: FORK_URL + 'solve.html' + AKARI_SOLVE, mode: 'solve', clues: 13 }
     const read = () => page.evaluate(() => ({ url: location.href, mode: pu.mmode, clues: Object.keys(pu.pu_q.number).length }))
     assert.deepEqual(await settle(read, expected), expected)
   })
