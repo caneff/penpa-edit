@@ -12,10 +12,9 @@ top-left, top-right, bottom-left, bottom-right; the 5th to 8th fill top, right, 
 Why the order looks odd:
 
 1. **Typing order, not digit order.** Typing 7 then 2 puts 7 top-left and 2 top-right.
-2. **Top-left is skipped on puzzles with any small-number clue.** If the puzzle's given layer (`pu_q.numberS`) holds
-   anything anywhere, such as killer cage totals, every cell in Solution mode starts at slot 1: marks go top-right,
-   bottom-left, bottom-right, then right, left, bottom (top side skipped too), and a cell holds only 6.
-   The test is puzzle-wide (`Object.keys(this["pu_q"].numberS).length != 0`), not per cell.
+2. **Top-left is never skipped (changed in #140, Chris 2026-11-16).** Upstream skipped it in Solution mode on any puzzle whose
+   given layer (`pu_q.numberS`) held a small number, such as killer cage totals: marks started top-right and a cell held 6.
+   The fork removed that case, so every puzzle starts top-left and a cell holds 8; a mark may draw over a cage total.
 3. **Deleting a mark repacks the rest.** The remaining marks are written back in order from the first slot, so marks
    after the deleted one move.
 4. **One key, several cells, different corners.** With a multi-cell selection, each cell gets the digit in its own next
