@@ -17,7 +17,7 @@ send work back upstream unless it is a trivial port (Chris, 2026-11-09).
 ## Consequences
 
 - Upstream fixes to files we own are ported by hand or dropped; the nightly merge reports them.
-- Git has no built-in `ours` merge driver, so every clone and CI set `git config merge.ours.driver true`.
+- Git has no built-in `ours` merge driver, so the upstream merge script alone names one, with `git -c merge.ours.driver=true merge`; nothing writes it to a config, which would make every local merge keep our side (#117).
 - The link format stays upstream's, so puzzle links keep working on both sites.
 
 ## Sequencing (Chris, 2026-11-13)
