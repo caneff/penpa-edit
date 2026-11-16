@@ -10,7 +10,6 @@ import { settle } from './settle.mjs'
 const browser = useBrowser()
 
 const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
-const SOLVE_PAGE = 'https://penpa.test/solve.html'
 
 // Index in `pu.centerlist` of a cell clear of the board's edges.
 const CELL = 12
@@ -65,9 +64,10 @@ async function reload (page) {
 
 // Goes to `query` on the same page and context, which keep their cookies and storage.
 async function openLink (page, query) {
+  const solvePage = page.url().split('#')[0]
   acceptLeaving(page)
   await page.goto('about:blank')
-  await page.goto(SOLVE_PAGE + query)
+  await page.goto(solvePage + query)
   await waitForDesk(page)
 }
 
@@ -117,6 +117,21 @@ async function clickCell (page, index) {
 }
 
 const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
+
+// Types `digit` into the cell at `index` in Number mode, as a visitor does, and waits until it is on the board.
+async function typeDigit (page, index, digit) {
+  await setTool(page, { mode: 'number', submode: '1' })
+  await clickCell(page, index)
+  await page.keyboard.press(digit)
+  assert.deepEqual(await settle(() => typedDigits(page), [digit]), [digit], 'the digit is on the board')
+}
+
+// Runs Penpa's own save, as it does on leaving the page. Its storage write is issued, not awaited, but a later read of
+// the same store waits for it.
+const savePenpa = (page) => page.evaluate(() => PenpaProgress.save())
+
+// The progress Penpa holds for the open puzzle, or null for none.
+const storedProgress = (page) => page.evaluate(() => localforage.getItem(PenpaProgress.getHash(pu.url)))
 
 // What the solver has entered, the selection and the mode: what a key could change on the board.
 const board = (page) => page.evaluate(() => {
@@ -249,6 +264,27 @@ describe('conflict detection off for this puzzle only', () => {
     }
   })
 
+  // Penpa's history copy rewrites the link's `#` part on every save, so a key read off the link names another puzzle
+  // after the reload. The fix needs the bridge to name the puzzle by its data.
+  it('is off again after a reload of a link the history copy rewrote', { todo: '#90 P1: needs a puzzle id from engine' }, async () => {
+    const { context, page } = await openSolve(AKARI_SOLVE)
+    try {
+      const dialog = await openDialog(page)
+      await dialog.getByRole('combobox', { name: 'Conflict detection' }).click()
+      await page.getByRole('option', { name: 'Off for this puzzle' }).click()
+      assert.equal(await settle(async () => (await settings(page)).conflict_detection, 2), 2)
+      await closeDialog(page)
+      await page.evaluate(() => engine.setSetting('auto_save_history', true))
+      const before = await page.evaluate(() => location.hash)
+      await savePenpa(page)
+      assert.notEqual(await page.evaluate(() => location.hash), before, 'the save rewrote the link')
+      await reload(page)
+      assert.equal((await settings(page)).conflict_detection, 2, 'off again after the reload')
+    } finally {
+      await context.close()
+    }
+  })
+
   it('is on again once the visitor turns it back on', async () => {
     const { context, page } = await openSolve(AKARI_SOLVE)
     try {
@@ -291,6 +327,99 @@ describe('Clear saved progress', () => {
       await closeDialog(page)
       await reload(page)
       assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the saved progress is gone')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('engine.clearSavedProgress', () => {
+  it('resolves only once the progress is gone from storage', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openSolve(link)
+    try {
+      await typeDigit(page, CELL, '7')
+      await savePenpa(page)
+      assert.notEqual(await storedProgress(page), null, 'the progress is stored')
+      const left = await page.evaluate(async () => {
+        // Slow storage: every removal starts a task later, so one nobody waits for is still pending when the call returns.
+        const remove = localforage.removeItem.bind(localforage)
+        localforage.removeItem = (key) => new Promise((resolve) => setTimeout(resolve)).then(() => remove(key))
+        const hash = PenpaProgress.getHash(pu.url)
+        await engine.clearSavedProgress()
+        return localforage.getItem(hash)
+      })
+      assert.equal(left, null)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('the Progress settings', () => {
+  it('save progress in this browser: off, a save stores nothing and the digit is not back after a reload', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openSolve(link)
+    try {
+      await openDialog(page)
+      await flipSwitch(page, 'Save progress in this browser')
+      assert.equal(await settle(async () => (await settings(page)).local_storage, false), false)
+      await closeDialog(page)
+      await typeDigit(page, CELL, '7')
+      await savePenpa(page)
+      assert.equal(await storedProgress(page), null, 'nothing is stored')
+      await reload(page)
+      assert.deepEqual(await typedDigits(page), [], 'the digit is not back')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('save a copy to the browser history: a save adds a history entry only while it is on', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openSolve(link)
+    try {
+      const where = () => page.evaluate(() => ({ hash: location.hash, entries: history.length }))
+      await typeDigit(page, CELL, '7')
+      const start = await where()
+      await savePenpa(page)
+      assert.deepEqual(await where(), start, 'off: the address and the history are as they were')
+
+      await openDialog(page)
+      await flipSwitch(page, 'Save a copy to the browser history on every save')
+      assert.equal(await settle(async () => (await settings(page)).auto_save_history, true), true)
+      await closeDialog(page)
+      await savePenpa(page)
+      const after = await where()
+      assert.equal(after.entries, start.entries + 1, 'on: the save added a history entry')
+      assert.notEqual(after.hash, start.hash, 'on: the address carries the copy')
+      assert.match(after.hash, /[#&]l=solvedup(&|$)/, 'on: the copy is a solving copy')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('ask before leaving the page: a reload asks only while it is on', async () => {
+    const { context, page } = await openSolve(AKARI_SOLVE)
+    try {
+      const asked = []
+      const reloadCounting = async () => {
+        page.removeAllListeners('dialog')
+        page.on('dialog', (d) => { asked.push(d.type()); d.accept() })
+        // Chromium asks only on a page the visitor has used.
+        await clickCell(page, CELL)
+        await page.reload()
+        await waitForDesk(page)
+      }
+      await reloadCounting()
+      assert.deepEqual(asked, [], 'off: no question')
+
+      await openDialog(page)
+      await flipSwitch(page, 'Ask before leaving the page')
+      assert.equal(await settle(async () => (await settings(page)).reload_button, true), true)
+      await closeDialog(page)
+      await reloadCounting()
+      assert.deepEqual(asked, ['beforeunload'], 'on: the page asked once')
     } finally {
       await context.close()
     }

@@ -3,6 +3,7 @@
 body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 
 .ui-root {
+    --ui-bar-height: 44px;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -14,7 +15,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-bar {
     position: absolute;
     left: 0; right: 0; top: 0;
-    height: 44px;
+    height: var(--ui-bar-height);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -34,7 +35,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 
 .ui-desk {
     position: absolute;
-    left: 0; right: 0; top: 44px; bottom: 0;
+    left: 0; right: 0; top: var(--ui-bar-height); bottom: 0;
     background:
         radial-gradient(circle at 1px 1px, rgba(0, 0, 0, .09) 1px, transparent 0) 0 0 / 22px 22px,
         #e7e4dc;

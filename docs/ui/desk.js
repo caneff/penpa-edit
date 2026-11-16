@@ -4,15 +4,12 @@
 (function () {
     'use strict';
 
-    const BAR_HEIGHT_PX = 44;
     const CARD_GAP_PX = 10;
     const DESK_MARGIN_PX = 14;
     const COLUMN_WIDTH_PX = 380;
     const MIN_COLUMN_WIDTH_PX = 240;
     const MIN_BOARD_WIDTH_PX = 300;
     const TOP_MARGIN_PX = 12;
-    // The board card's body pads the board by this much on every side.
-    const BOARD_PADDING_PX = 8;
     // Below this a card body is a layout in progress, not a box to fit the board to.
     const MIN_FIT_BOX_PX = 40;
     // A card never reaches closer than this to the desk's edge once it has to shrink to stay inside.
@@ -22,9 +19,6 @@
     const MIN_CELL_PX = 12;
     const MAX_CELL_PX = 90;
     const ZOOM_STEP_PX = 4;
-    // Cards raised by a click stack above the others, below the top bar (z-index 950).
-    const FIRST_Z = 20;
-    const LAST_Z = 900;
     // The smallest a card is dragged to, [width, height].
     const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80], rules: [200, 80] };
     const RESIZE_EDGES = { right: 'resize-right', bottom: 'resize-bottom', corner: 'resize-corner' };
@@ -233,12 +227,15 @@
         target.addEventListener('pointercancel', end);
     }
 
-    function makeMovable(desk, cards) {
-        let topZ = FIRST_Z;
+    // Cards raised by a click stack above the others, from the cards' own z-index up to just below the top bar's (desk.css).
+    function makeMovable(bar, desk, cards) {
+        const firstZ = Number(getComputedStyle(cards.board.node).zIndex);
+        const lastZ = Number(getComputedStyle(bar).zIndex) - 1;
+        let topZ = firstZ;
         Object.entries(cards).forEach(([id, { node, head, handles }]) => {
             const [minWidth, minHeight] = MIN_SIZE[id];
             node.addEventListener('pointerdown', () => {
-                topZ = topZ >= LAST_Z ? FIRST_Z : topZ + 1;
+                topZ = topZ >= lastZ ? firstZ : topZ + 1;
                 node.style.zIndex = topZ;
             });
             head.addEventListener('pointerdown', (e) => {
@@ -286,9 +283,11 @@
     // The cell size the board is drawn at; the - and + buttons step it from here.
     let cellPx = null;
 
+    // The box inside the body's padding (desk.css), which is the room the board has.
     function fitBoard(boardBody) {
-        const w = boardBody.clientWidth - 2 * BOARD_PADDING_PX;
-        const h = boardBody.clientHeight - 2 * BOARD_PADDING_PX;
+        const style = getComputedStyle(boardBody);
+        const w = boardBody.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+        const h = boardBody.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
         if (w >= MIN_FIT_BOX_PX && h >= MIN_FIT_BOX_PX) {
             cellPx = engine.fitBoard(w, h);
         }
@@ -310,7 +309,7 @@
         layout(desk);
         const relayout = () => layout(desk);
         window.addEventListener('resize', relayout);
-        makeMovable(desk.desk, desk.cards);
+        makeMovable(desk.bar, desk.desk, desk.cards);
         desk.resetButton.addEventListener('click', () => {
             saved = {};
             localStorage.removeItem(LAYOUT_KEY);

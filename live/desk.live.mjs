@@ -74,6 +74,33 @@ describe('the desk', () => {
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start)
   })
 
+  // The key the desk keeps its layout under: the stored value with a card's entry in it.
+  const layoutKey = () => page.evaluate(() => Object.keys(localStorage).find((key) => {
+    try {
+      return typeof JSON.parse(localStorage.getItem(key))?.rules === 'object'
+    } catch (e) {
+      return false
+    }
+  }))
+
+  it('treats a kept layout it did not write as none', async () => {
+    const start = await boxOf(page, 'Rules')
+    await drag(page, await headCentre(page, 'Rules'), 120, 70)
+    const key = await layoutKey()
+    assert.equal(typeof key, 'string', 'the moved card is kept')
+
+    // A width that would show, beside a height that is no number: the entry is another version's, so none of it is read.
+    await page.evaluate(([k, w]) => localStorage.setItem(k, JSON.stringify({ rules: { w, h: null } })), [key, start.width + 200])
+    await page.reload()
+    await card(page, 'Rules').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start, 'an entry with a value that is no number')
+
+    await page.evaluate((k) => localStorage.setItem(k, '{"rules":'), key)
+    await page.reload()
+    await card(page, 'Rules').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start, 'a value that is no JSON')
+  })
+
   it('keeps every card inside the window after it shrinks', async () => {
     await drag(page, await headCentre(page, 'Rules'), 300, 400)
     for (const size of [{ width: 800, height: 520 }, { width: 640, height: 420 }]) {

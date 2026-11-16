@@ -17,6 +17,9 @@
     const GEAR_ICON = '<circle cx="8" cy="8" r="2.3"/><path d="M6.9 1.5h2.2l.4 1.9 1.3.6 1.7-1 1.5 1.5-1 1.7.6 1.3 1.9.4v2.2l-1.9.4-.6 1.3 1 1.7' +
         '-1.5 1.5-1.7-1-1.3.6-.4 1.9H6.9l-.4-1.9-1.3-.6-1.7 1-1.5-1.5 1-1.7-.6-1.3-1.9-.4V6.9l1.9-.4.6-1.3-1-1.7 1.5-1.5 1.7 1 1.3-.6z"/>';
 
+    // The row that holds the Clear saved progress button, in the group its rows are listed in.
+    const CLEAR_PROGRESS_ROW = ['clear saved progress'];
+
     // A select is `[name, label, [[value, option label], ...]]` and a switch `[name, label]`.
     const GROUPS = [
         ['Board look', [
@@ -37,7 +40,8 @@
         ['Progress', [
             ['local_storage', 'Save progress in this browser'],
             ['auto_save_history', 'Save a copy to the browser history on every save'],
-            ['reload_button', 'Ask before leaving the page']
+            ['reload_button', 'Ask before leaving the page'],
+            CLEAR_PROGRESS_ROW
         ]],
         ['Keys', [
             ['shortcuts_enabled', 'Z, X, C and V shortcuts']
@@ -95,13 +99,10 @@
             cleared.textContent = 'Cleared. This puzzle is not saved again until the page reloads.';
         });
 
-        const dialog = el('wa-dialog', { label: 'Settings' }, GROUPS.map(([title, rows]) => {
-            const children = [el('legend', {}, [title]), ...rows.map(control)];
-            if (title === 'Progress') {
-                children.push(el('div', { class: 'ui-setting' }, [clear, cleared]));
-            }
-            return el('fieldset', { class: 'ui-settings-group' }, children);
-        }));
+        const clearRow = el('div', { class: 'ui-setting' }, [clear, cleared]);
+
+        const dialog = el('wa-dialog', { label: 'Settings' }, GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
+            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])));
         // The controls show what the engine holds each time the dialog opens, so they never go stale. Done before the dialog
         // opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
