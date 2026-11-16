@@ -115,20 +115,53 @@ describe('the pins', () => {
   })
 })
 
-describe('Tab, Shift+Tab and Enter', () => {
+describe('a saved value the Pinned card did not write', () => {
   let opened
   before(async () => { opened = await openSolve(['Line Normal', 'Sudoku Corner']) })
+  after(async () => { await opened?.context.close() })
+
+  // Each is short of what the card writes: a `nextId`, a whole number id, a mode, a list of pins.
+  const BAD_VALUES = [
+    { pins: [{ id: 0, mode: 'line', submode: '1', style: null }] },
+    { nextId: 1, pins: [{ id: 'a', mode: 'line', submode: '1', style: null }] },
+    { nextId: 1, pins: [{ id: 0, submode: '1', style: null }] },
+    { nextId: 1, pins: 'line' }
+  ]
+  for (const value of BAD_VALUES) {
+    it(`is read as none, so the Tab set seeds again: ${JSON.stringify(value)}`, async () => {
+      const { page } = opened
+      const seeded = ['Line > Normal', 'Sudoku > Corner']
+      assert.deepEqual(await settle(() => chipNames(page), seeded), seeded)
+      await page.evaluate((saved) => {
+        const keys = Object.keys(localStorage).filter((key) => localStorage.getItem(key).includes('"pins"'))
+        if (keys.length !== 1) throw new Error(`expected one saved pin set, found ${keys.length}`)
+        localStorage.setItem(keys[0], JSON.stringify(saved))
+      }, value)
+      await page.reload()
+      await page.getByRole('region', { name: 'Board' }).waitFor()
+      await page.evaluate(() => engine.ready)
+      assert.deepEqual(await settle(() => chipNames(page), seeded), seeded)
+    })
+  }
+})
+
+// Pins outside Sudoku: a Shift held in Sudoku starts a hold, and Penpa reads any key-down within 15 ms of the hold's end
+// as Corner in whatever mode is current (main.js onKeyDown), which a Shift+Tab sent straight after another can hit.
+// holds.live.mjs covers Tab during a hold.
+describe('Tab, Shift+Tab and Enter', () => {
+  let opened
+  before(async () => { opened = await openSolve(['Line Normal', 'Surface']) })
   after(async () => { await opened?.context.close() })
 
   it('steps forward, back and around the pins', async () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
     await page.keyboard.press('Tab')
-    assert.deepEqual(await waitForTool(page, 'sudoku', '2'), { mode: 'sudoku', submode: '2' }, 'Tab lands on pin 2')
+    assert.deepEqual(await waitForTool(page, 'surface', null), { mode: 'surface', submode: null }, 'Tab lands on pin 2')
     await page.keyboard.press('Shift+Tab')
     assert.deepEqual(await waitForTool(page, 'line', '1'), { mode: 'line', submode: '1' }, 'Shift+Tab lands on pin 1')
     await page.keyboard.press('Shift+Tab')
-    assert.deepEqual(await waitForTool(page, 'sudoku', '2'), { mode: 'sudoku', submode: '2' }, 'Shift+Tab wraps back to the last pin')
+    assert.deepEqual(await waitForTool(page, 'surface', null), { mode: 'surface', submode: null }, 'Shift+Tab wraps back to the last pin')
     await page.keyboard.press('Tab')
     assert.deepEqual(await waitForTool(page, 'line', '1'), { mode: 'line', submode: '1' }, 'Tab wraps to pin 1')
   })
@@ -137,12 +170,12 @@ describe('Tab, Shift+Tab and Enter', () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
     await page.keyboard.press('Enter')
-    await waitForTool(page, 'sudoku', '2')
-    await page.getByRole('button', { name: 'Unpin Sudoku > Corner' }).focus()
+    await waitForTool(page, 'surface', null)
+    await page.getByRole('button', { name: 'Unpin Surface' }).focus()
     await page.keyboard.press('Enter')
     // The focused button took the Enter: it unpinned, and the tool did not step.
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal']), ['Line > Normal'])
-    assert.deepEqual(await currentTool(page).then(({ mode, submode }) => ({ mode, submode })), { mode: 'sudoku', submode: '2' })
+    assert.deepEqual(await currentTool(page).then(({ mode, submode }) => ({ mode, submode })), { mode: 'surface', submode: null })
   })
 })
 
@@ -185,6 +218,30 @@ describe('Z, X, C and V', () => {
     assert.deepEqual(await settle(() => typed(page), ['Z']), ['Z'])
   })
 
+  it('ends a held Shift on a jump, so the next Shift hold still lends Corner', async () => {
+    const { page } = opened
+    const held = () => page.evaluate(() => engine.getState().held)
+    await setTool(page, { mode: 'sudoku', submode: '1' })
+    await page.keyboard.down('Shift')
+    try {
+      await waitForTool(page, 'sudoku', '2')
+      await page.keyboard.press('KeyX')
+      assert.deepEqual(await waitForTool(page, 'line', '1'), { mode: 'line', submode: '1' }, 'Shift+X jumps to pin 2')
+      assert.equal(await settle(held, false), false, 'the hold ended')
+    } finally {
+      await page.keyboard.up('Shift')
+    }
+    await setTool(page, { mode: 'sudoku', submode: '1' })
+    await page.keyboard.down('Shift')
+    try {
+      assert.deepEqual(await waitForTool(page, 'sudoku', '2'), { mode: 'sudoku', submode: '2' }, 'the next hold lends Corner')
+      assert.equal(await settle(held, true), true)
+    } finally {
+      await page.keyboard.up('Shift')
+    }
+    assert.deepEqual(await waitForTool(page, 'sudoku', '1'), { mode: 'sudoku', submode: '1' }, 'and its key-up gives Normal back')
+  })
+
   it('does not jump when Penpa\'s shortcuts setting is off', async () => {
     const { page } = opened
     await page.evaluate(() => { UserSettings.shortcuts_enabled = false })
@@ -218,6 +275,18 @@ describe('what a pin remembers', () => {
     assert.equal((await currentTool(page)).style, 9, 'pin 2 is blue again')
   })
 
+  it('returns a pin with its style when the Mode card lands on it', async () => {
+    const { page } = opened
+    // From pin 2, blue: Penpa keeps one style for all of Line, so the pick alone would come back blue.
+    assert.equal((await currentTool(page)).style, 9)
+    await page.getByRole('combobox', { name: 'Tool' }).click()
+    await page.getByRole('option', { name: /Drag through cell centres\./ }).click()
+    await waitForTool(page, 'line', '1')
+    assert.equal(await settle(async () => (await currentTool(page)).style, 8), 8, 'pin 1 is red again')
+    const saved = await page.evaluate(() => window.pinBoard.snapshot())
+    assert.equal(saved.find((pin) => pin.mode === 'line' && pin.submode === '1').style, 8, 'and still remembers red')
+  })
+
   it('leaves every pin unchanged when a tool outside the pins is picked in the Mode card', async () => {
     const { page } = opened
     const before = await storage(page)
@@ -236,22 +305,23 @@ describe('the board frame', () => {
   before(async () => { opened = await openSolve(['Line Normal', 'Line Diagonal']) })
   after(async () => { await opened?.context.close() })
 
-  // Two animation frames: the bridge's `change` fires in the first, and the UI has drawn it by the second.
-  const afterChange = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+  // The Pinned card marks the current pin's chip in the same draw that colours the frame.
+  const pressedChip = (page) => page.getByRole('region', { name: 'Pinned' }).locator('[aria-pressed="true"]').allInnerTexts()
+    .then((texts) => texts.map((text) => text.replace(/^\d+\s*/, '').trim()))
+  const frameOnce = async (page, chips) => {
+    assert.deepEqual(await settle(() => pressedChip(page), chips), chips)
+    return frameColour(page)
+  }
 
   it('gives two pins on one mode different colours, and a tool outside the pins its own', async () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
-    await afterChange(page)
-    const first = await frameColour(page)
+    const first = await frameOnce(page, ['Line > Normal'])
     await page.keyboard.press('Tab')
-    await waitForTool(page, 'line', '2')
-    await afterChange(page)
-    const second = await frameColour(page)
+    const second = await frameOnce(page, ['Line > Diagonal'])
     assert.notEqual(second, first, 'two pins on Line differ')
     await setTool(page, { mode: 'line', submode: '4' })
-    await afterChange(page)
-    const neutral = await frameColour(page)
+    const neutral = await frameOnce(page, [])
     assert.notEqual(neutral, first)
     assert.notEqual(neutral, second)
   })

@@ -122,26 +122,51 @@ describe('the Recent card', () => {
   })
 })
 
-describe('a held Shift in Sudoku', () => {
+// The key, and the Sudoku sub-mode Penpa lends while it is held.
+const HOLDS = [
+  { key: 'Shift', lent: '2' },
+  { key: 'Control', lent: '3' },
+  { key: 'Meta', lent: '3' }
+]
+
+describe('a held key in Sudoku', () => {
   let opened
   before(async () => { opened = await openSolve(['Sudoku Normal', 'Line Normal']) })
   after(async () => { await opened?.context.close() })
 
-  it('never enters Recent', async () => {
+  for (const { key, lent } of HOLDS) {
+    it(`never enters Recent: ${key}`, async () => {
+      const { page } = opened
+      await setTool(page, { mode: 'line', submode: '1' })
+      await afterChange(page)
+      await setTool(page, { mode: 'sudoku', submode: '1' })
+      const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal'])
+      assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal'], 'before the hold')
+      await page.keyboard.down(key)
+      await waitForTool(page, 'sudoku', lent)
+      // A change shows on the next frame; two frames after the hold began, a recorded hold would be drawn.
+      await afterChange(page)
+      assert.deepEqual(await recentNames(page), before, 'during the hold')
+      await page.keyboard.up(key)
+      await waitForTool(page, 'sudoku', '1')
+      await afterChange(page)
+      assert.deepEqual(await recentNames(page), before, 'after the hold')
+    })
+  }
+
+  it('still records tools after Shift is let go while a dialog has the keys', async () => {
     const { page } = opened
-    await setTool(page, { mode: 'line', submode: '1' })
-    await afterChange(page)
     await setTool(page, { mode: 'sudoku', submode: '1' })
-    const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal'])
-    assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal'], 'before the hold')
     await page.keyboard.down('Shift')
     await waitForTool(page, 'sudoku', '2')
-    // A change shows on the next frame; two frames after the hold began, a recorded hold would be drawn.
-    await afterChange(page)
-    assert.deepEqual(await recentNames(page), before, 'during the hold')
+    await page.getByRole('button', { name: 'Restart', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Restart the puzzle?' })
+    await dialog.waitFor()
     await page.keyboard.up('Shift')
-    await waitForTool(page, 'sudoku', '1')
-    await afterChange(page)
-    assert.deepEqual(await recentNames(page), before, 'after the hold')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await setTool(page, { mode: 'line', submode: '1' })
+    const expected = ['Line > Normal', 'Sudoku > Normal']
+    assert.deepEqual(await settle(() => recentNames(page), expected), expected)
   })
 })

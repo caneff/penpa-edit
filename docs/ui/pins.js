@@ -78,10 +78,14 @@
         // The last pin the solver was on, for stepping from a tool that is not one.
         let cursor = -1;
 
+        function setPinTool(pin) {
+            engine.setTool({ mode: pin.mode, submode: pin.submode, ...(pin.style === null ? {} : { style: pin.style }) });
+        }
+
         // The engine's `change` comes a frame after the style button, so the style of the tool being left is taken now.
         function applyPin(pin) {
             followTool();
-            engine.setTool({ mode: pin.mode, submode: pin.submode, ...(pin.style === null ? {} : { style: pin.style }) });
+            setPinTool(pin);
         }
 
         function stepTarget(delta) {
@@ -115,6 +119,8 @@
             if (slot !== undefined && engine.getTool().mode !== NUMBER_MODE && !capsLockIsOn(e) && engine.getSettings().shortcuts_enabled) {
                 e.preventDefault();
                 if (pins[slot]) {
+                    // As for Tab: a held Shift lends its tool no longer once the solver jumps away from it.
+                    engine.releaseHolds();
                     applyPin(pins[slot]);
                 }
                 return 'ui';
@@ -192,8 +198,9 @@
             }
             cursor = index;
             const pin = pins[index];
+            // Straight to the engine: `applyPin` would first take the style just landed with as the pin's own.
             if (landed && pin.style !== null && pin.style !== current.style) {
-                applyPin(pin);
+                setPinTool(pin);
             } else if (pin.style !== current.style) {
                 pin.style = current.style;
                 save();

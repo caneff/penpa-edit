@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, it } from 'node:test'
-import { makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
+import { ANSWER_CELL, makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -60,11 +60,15 @@ async function assertDisabled (page, name, expected, message) {
   assert.equal(await settle(() => button(page, name).isDisabled(), expected), expected, message)
 }
 
-async function enterDigit (page, digit = '1') {
-  await clickCell(page, CELL)
+async function enterDigit (page, digit = '1', cell = CELL) {
+  const before = await typedDigits(page)
+  await clickCell(page, cell)
   await page.keyboard.press(digit)
-  assert.deepEqual(await settle(() => typedDigits(page), [digit]), [digit], 'the digit is on the board')
+  const expected = [...before, digit]
+  assert.deepEqual(await settle(() => typedDigits(page), expected), expected, 'the digit is on the board')
 }
+
+const paused = (page) => page.getByRole('region', { name: 'Paused' })
 
 describe('undo and redo', () => {
   it('Undo is disabled on a fresh puzzle, enabled after an entry, and Undo and Redo change the board', async () => {
@@ -118,13 +122,16 @@ describe('Restart', () => {
     const { context, page } = await openSolve()
     try {
       await enterDigit(page)
+      await page.waitForFunction(() => engine.getTimer().seconds >= 1)
       await button(page, 'Restart').click()
       const dialog = page.getByRole('dialog', { name: 'Restart the puzzle?' })
       await button(page, 'Cancel').click()
       await dialog.waitFor({ state: 'hidden' })
       assert.deepEqual(await typedDigits(page), ['1'])
       assert.equal(await canUndo(page), true)
-      assert.equal((await timer(page)).seconds >= 0, true)
+      const { seconds, paused } = await timer(page)
+      assert.equal(seconds >= 1, true, `the timer was not reset, got ${seconds}`)
+      assert.equal(paused, false, 'and runs')
     } finally {
       await context.close()
     }
@@ -153,6 +160,43 @@ describe('Pause', () => {
       assert.equal((await timer(page)).paused, false)
       await page.keyboard.press('1')
       assert.deepEqual(await settle(() => typedDigits(page), ['1']), ['1'], 'after F4 the board takes the digit')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('F4 resumes with the focus in a text field', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await button(page, 'Pause').click()
+      await paused(page).waitFor()
+      await page.getByRole('combobox', { name: 'Tool' }).focus()
+      await page.keyboard.press('F4')
+      assert.equal(await settle(async () => (await timer(page)).paused, false), false, 'F4 resumed the clock')
+      await paused(page).waitFor({ state: 'hidden' })
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('disables Undo and Redo, so neither changes the board, until it resumes', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await enterDigit(page, '1', CELL)
+      await enterDigit(page, '2', CELL + 1)
+      await button(page, 'Undo').click()
+      assert.deepEqual(await settle(() => typedDigits(page), ['1']), ['1'], 'one entry to undo and one to redo')
+      await assertDisabled(page, 'Redo', false, 'redo before the pause')
+      await button(page, 'Pause').click()
+      await paused(page).waitFor()
+      await assertDisabled(page, 'Undo', true, 'undo while paused')
+      await assertDisabled(page, 'Redo', true, 'redo while paused')
+      await button(page, 'Undo').click({ force: true })
+      await button(page, 'Redo').click({ force: true })
+      assert.deepEqual(await typedDigits(page), ['1'], 'the board did not change')
+      await button(page, 'Resume').click()
+      await assertDisabled(page, 'Undo', false, 'undo after resuming')
+      await assertDisabled(page, 'Redo', false, 'redo after resuming')
     } finally {
       await context.close()
     }
@@ -187,6 +231,24 @@ describe('the timer', () => {
       await sleep(HOLD_WATCH_MS)
       assert.deepEqual(await timer(page), held)
       assert.equal(await timerText(page), heldText)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('a solve', () => {
+  it('stops the timer and leaves the board uncovered', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await enterDigit(page, '2', ANSWER_CELL)
+      assert.equal(await settle(async () => (await timer(page)).paused, true), true, 'the solve stopped the timer')
+      const stopped = await timer(page)
+      // A "nothing happened in N ms" check.
+      await sleep(HOLD_WATCH_MS)
+      assert.deepEqual(await timer(page), stopped, 'the timer stays stopped')
+      assert.equal(stopped.covered, false, 'and the board is not covered')
+      assert.equal(await paused(page).isVisible(), false)
     } finally {
       await context.close()
     }

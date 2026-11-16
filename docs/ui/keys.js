@@ -7,6 +7,8 @@
     const BROWSER_KEYS = ['F1', 'F2', 'F3', 'F5', 'F11', 'F12', 'PageDown', 'Home', 'Alt'];
     const BROWSER_ALT_KEYS = ['ArrowLeft', 'ArrowRight'];
     const BROWSER_CTRL_DIGIT = /^Digit[1-9]$/;
+    // Penpa's pause toggle, the one key a paused board answers.
+    const RESUME_KEY = 'F4';
 
     const TEXT_ENTRY = 'input, textarea, select, [contenteditable], wa-input, wa-select';
     const OPEN_MENU = 'wa-dropdown[open], wa-select[open]';
@@ -67,7 +69,8 @@
     }
 
     // The files that own keys of their own add a handler: it answers 'ui', 'browser' or nothing for a key the board would
-    // otherwise get, and the first answer wins. It runs only for a key the board may have (focus, popups, browser keys first).
+    // otherwise get, and the first answer wins. It runs only for a key the board may have (pause, popups, focus and browser
+    // keys first).
     const keyHandlers = [];
     window.uiKeys = { add: (handler) => keyHandlers.push(handler) };
 
@@ -82,6 +85,14 @@
 
     engine.ready.then(() => {
         engine.onKey((e) => {
+            // A paused board answers F4 alone, wherever the focus is: Penpa ignores a key typed in a text field, so the UI
+            // resumes the clock itself.
+            if (engine.getTimer().covered) {
+                if (e.type === 'keydown' && e.key === RESUME_KEY && !e.repeat) {
+                    engine.startTimer();
+                }
+                return 'ui';
+            }
             if (engine.getState().penpaDialogOpen) {
                 return 'browser';
             }

@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js).
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, ANSWER_CELL, makeNumberSolveLink, openPenpa, typeDigitInPage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -194,13 +194,8 @@ describe('Penpa\'s Congratulations popup', () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openSolve(link)
     try {
-      await setMode(page, 'number')
       // The author's answer is a 2 in the cell at ANSWER_CELL of the center list.
-      await page.evaluate(() => {
-        pu.selection = [pu.centerlist[1]]
-        pu.cursol = pu.centerlist[1]
-        pu.key_number('2')
-      })
+      await page.evaluate(typeDigitInPage, { index: ANSWER_CELL, digit: '2' })
       assert.equal(await settle(() => page.evaluate(() => engine.getState().penpaDialogOpen), true), true, 'the popup is open')
       const before = await board(page)
       await page.keyboard.press('5')

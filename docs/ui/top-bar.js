@@ -5,8 +5,6 @@
 
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
-    // The one key a paused board still answers: Penpa's own pause toggle.
-    const RESUME_KEY = 'F4';
 
     // 16x16 line icons in currentColor, from variant L of the prototype.
     const ICONS = {
@@ -18,10 +16,6 @@
         darkTheme: '<path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="currentColor" stroke="none"/>',
         lightTheme: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'
     };
-
-    // The cover is a gate for keys as well: a paused board answers F4 and nothing else. Added now, before the Pinned card's
-    // handler, because the first answer wins.
-    window.uiKeys.add((e) => (e.key !== RESUME_KEY && engine.getTimer().covered ? 'ui' : undefined));
 
     function iconButton(icon, label, onClick) {
         const button = document.createElement('wa-button');
@@ -88,17 +82,26 @@
             // Only the solver's own pause covers the board: a solve stops the clock and leaves the board usable (#119).
             const { seconds, covered } = engine.getTimer();
             clock.textContent = clockText(seconds);
-            cover.hidden = !covered;
+            if (cover.hidden === covered) {
+                cover.hidden = !covered;
+                renderHistory();
+            }
             const label = covered ? 'Resume' : 'Pause';
             if (pause.querySelector('.ui-sr-only').textContent !== label) {
                 pause.setIcon(covered ? 'resume' : 'pause', label);
             }
         }
 
-        function renderState() {
+        // The board cannot change while paused, so neither can the history.
+        function renderHistory() {
             const { canUndo, canRedo } = engine.getState();
-            undo.toggleAttribute('disabled', !canUndo);
-            redo.toggleAttribute('disabled', !canRedo);
+            const { covered } = engine.getTimer();
+            undo.toggleAttribute('disabled', !canUndo || covered);
+            redo.toggleAttribute('disabled', !canRedo || covered);
+        }
+
+        function renderState() {
+            renderHistory();
             const dark = engine.getSettings().theme === 'dark';
             document.documentElement.classList.toggle('wa-dark', dark);
             bar.parentElement.classList.toggle('ui-dark', dark);

@@ -6,9 +6,6 @@
     const { chipLabel, toolKey } = window.toolGuide;
 
     const MAX_ENTRIES = 5;
-    // Penpa turns Shift into Corner and Ctrl into Centre in Sudoku for as long as the key is down.
-    const HOLD_KEYS = ['Shift', 'Control'];
-    const SUDOKU_MODE = 'sudoku';
     // A button the mouse reaches and Tab does not.
     const OUT_OF_TAB_ORDER = { tabindex: '-1' };
 
@@ -25,26 +22,12 @@
 
         // Each entry is a tool and the style it was last used with, the newest first.
         let entries = [];
-        // The key held down for a temporary sub-mode; the tool Penpa shows meanwhile is not one the solver chose.
-        let heldKey = null;
         let drawn = '';
 
-        window.uiKeys.add((e) => {
-            if (e.type === 'keyup' && e.key === heldKey) {
-                heldKey = null;
-            } else if (e.type === 'keydown' && !e.repeat && heldKey === null && HOLD_KEYS.includes(e.key) &&
-                engine.getTool().mode === SUDOKU_MODE && !e.altKey && !(e.key === 'Shift' ? e.ctrlKey : e.shiftKey)) {
-                heldKey = e.key;
-            }
-        });
-        // A key released while the window had no focus never reaches the page.
-        window.addEventListener('blur', () => {
-            heldKey = null;
-        });
-
+        // A tool a hold lends is not one the solver chose.
         function noteCurrentTool() {
             const current = engine.getTool();
-            if (heldKey !== null || !toolOf(current)) {
+            if (engine.getState().held || !toolOf(current)) {
                 return;
             }
             const { mode, submode, style } = current;
