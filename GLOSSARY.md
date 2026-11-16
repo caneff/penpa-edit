@@ -29,7 +29,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   symbols), so that group's tree is four levels deep and the others three.
 - **Symbol entry**: a symbol of the Mode card's tree that comes in several sizes or colours; its sizes or colours are its variants,
   one level below it, each a tool.
-- **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle.
+- **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle, fitted to the
+  window and puzzle when the desk opens fresh or Reset layout is pressed.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
