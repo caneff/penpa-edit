@@ -16,7 +16,7 @@ import { changedKeys, endsGroup, engineDriver, entries, stepWords } from './repl
 import { settle } from './settle.mjs'
 
 // Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings. It has no expected file
-// until the bug is fixed and `live/write-expected.mjs` writes one, so `live/replay.live.mjs` fails on it until then.
+// until the bug is fixed and `live/write-expected.mjs` writes one, so `live/engine-replay-<k>.live.mjs` fails on it until then.
 export const FUZZ_RECORDINGS = fileURLToPath(new URL('./recordings/fuzz/', import.meta.url))
 // The seeds and the steps per run the seam fuzzes every puzzle with: fixed, so a CI run is repeatable.
 export const FUZZ_SEEDS = [1, 2, 3]
