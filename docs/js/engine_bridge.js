@@ -109,19 +109,75 @@
         return booting;
     };
 
+    // ---- Holds: in Sudoku mode Penpa lends Corner to a held Shift and Centre to a held Ctrl, and gives the sub-mode back on
+    // the key's key-up. Penpa keeps no record the bridge can read, and a key-up that never comes (the window lost focus)
+    // leaves its counters stuck so the next hold does nothing. So the bridge keeps its own: each key it saw start a hold,
+    // with the tool before it.
+    const HOLD_KEYS = ['Shift', 'Control', 'Meta'];
+    const holds = new Map();
+    // Keys whose hold was ended early: their real key-up, and the auto-repeats of the key still down, never reach Penpa.
+    const releasedKeys = new Set();
+    let releasing = false;
+
+    // Penpa's own condition for starting a hold (main.js onKeyDown): the first press, in Sudoku mode, with no other modifier.
+    function startsHold(e) {
+        const otherModifier = e.key === 'Shift' ? e.ctrlKey || e.metaKey || e.altKey : e.shiftKey || e.altKey;
+        return HOLD_KEYS.includes(e.key) && !e.repeat && !otherModifier && pu.mode[pu.mode.qa].edit_mode === 'sudoku';
+    }
+
+    // MVP gap: main.js's onKeyUp is the only way to end a hold, so the end is a synthetic key-up straight to it.
+    function endHolds() {
+        for (const key of [...holds.keys()]) {
+            holds.delete(key);
+            releasedKeys.add(key);
+            releasing = true;
+            try {
+                document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
+            } finally {
+                releasing = false;
+            }
+        }
+    }
+    window.addEventListener('blur', endHolds);
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            endHolds();
+        }
+    });
+
     // MVP gap: main.js adds its key handlers on `document` from inside its onload, as closure-local functions that cannot be
     // removed afterwards. This file runs before that onload, so it wraps `document.addEventListener` until both are
     // added and puts the gate around them. Nothing stops propagation, so other listeners (Web Awesome's) see every key.
     const PENPA_KEY_HANDLERS = { keydown: 'onKeyDown', keyup: 'onKeyUp' };
     const gatedKeyTypes = new Set();
     let keyHandler = null;
+    // Runs Penpa's handler for a key the gate let through, keeping the holds' record.
+    function passToPenpa(penpaListener, self, e) {
+        if (e.type === 'keyup') {
+            holds.delete(e.key);
+        }
+        if (!HOLD_KEYS.includes(e.key) || releasing) {
+            return penpaListener.call(self, e);
+        }
+        if (releasedKeys.has(e.key)) {
+            if (e.type === 'keydown' && !e.repeat) {
+                releasedKeys.delete(e.key);
+            } else {
+                return;
+            }
+        }
+        if (e.type === 'keydown' && startsHold(e)) {
+            holds.set(e.key, engine.getTool());
+        }
+        return penpaListener.call(self, e);
+    }
     document.addEventListener = function (type, listener, options) {
         if (type in PENPA_KEY_HANDLERS && PENPA_KEY_HANDLERS[type] === listener?.name && !gatedKeyTypes.has(type)) {
             const penpaListener = listener;
             gatedKeyTypes.add(type);
             listener = function (e) {
-                if (!keyHandler || !keyHandler(e)) {
-                    return penpaListener.call(this, e);
+                if (releasing || !keyHandler || !keyHandler(e)) {
+                    return passToPenpa(penpaListener, this, e);
                 }
             };
             if (gatedKeyTypes.size === Object.keys(PENPA_KEY_HANDLERS).length) {
@@ -368,18 +424,25 @@
         document.getElementById(id).click();
     }
 
+    // True while a hold has lent a tool other than the one before it.
+    function isHeld() {
+        const now = engine.getTool();
+        return [...holds.values()].some((before) => before.mode !== now.mode || before.submode !== now.submode);
+    }
+
     const THEMES = { light: THEME_LIGHT, dark: THEME_DARK };
 
     const engine = {
         ready,
 
-        // The state the UI draws from. Read it when `change` fires.
+        // The state the UI draws from. Read it when `change` fires. `held` is true while a held Shift or Ctrl lends a tool.
         getState() {
             boardCanvas();
             // MVP gap: the solver's undo and redo stacks, where Penpa keeps them.
             const entries = pu[pu.mode.qa];
             return {
                 penpaDialogOpen: penpaDialogOpen(),
+                held: isHeld(),
                 canUndo: entries.command_undo.__a.length > 0,
                 canRedo: entries.command_redo.__a.length > 0
             };
@@ -403,6 +466,13 @@
             } else {
                 changeHandlers.add(handler);
             }
+        },
+
+        // Ends a held Shift or Ctrl: the tool before the hold comes back, and the key's real key-up changes nothing. Nothing
+        // happens when no hold is on.
+        releaseHolds() {
+            boardCanvas();
+            endHolds();
         },
 
         // Undoes the solver's last entry; false when there is none.
