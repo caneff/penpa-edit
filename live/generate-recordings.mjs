@@ -40,11 +40,13 @@ const FAMILY = {
 // One Shape tool on each of `key_number`'s two paths: a plain variant number, and one from `onoff_symbolmode_list`.
 const SHAPE_TOOLS = ['circle_L', 'cross']
 // The modes the clearing keys are recorded in, which the gesture set does not press (#32): Number on a cell and on a
-// corner (1/4), whose Backspace deletes one character, and Shape, whose Ctrl+Space clears a shape.
+// corner (1/4), whose Backspace deletes one character, Shape, whose Ctrl+Space clears a shape, and Multicolor, whose
+// Delete clears a colour.
 const CLEAR_KEY_PAIRS = [
   { mode: 'number', sub: '1', name: 'Normal' },
   { mode: 'number', sub: '3', name: 'sub 3' },
-  { mode: 'symbol', tool: SHAPE_TOOLS[0], name: SHAPE_TOOLS[0] }
+  { mode: 'symbol', tool: SHAPE_TOOLS[0], name: SHAPE_TOOLS[0] },
+  { mode: 'multicolor', name: '' }
 ]
 // Grid classes no puzz.link import builds, each with the size `create_newboard` reads for it.
 const GRID_BOARDS = { hex: 2, tri: 3, pyramid: 3, uniform: 2 }
@@ -215,13 +217,14 @@ async function tierA (browser) {
   ]
 }
 
-// Chooses the mode and enters two digits at a cell, then takes them away with each clearing key: Backspace, Delete and
-// Ctrl+Space, re-entering a digit before each of the last two.
+// Chooses the mode and enters two digits at a cell, the first a 9, after which Number makes a two-digit number, then
+// takes them away with each clearing key: Backspace, Delete and Ctrl+Space, re-entering a digit before each of the
+// last two.
 async function clearKeys (page, pair) {
   await chooseMode(page, pair)
   const [click] = await pixelRun(page, CELLS.click, CENTRE)
   await page.mouse.click(click.x, click.y)
-  for (const key of ['1', '2', 'Backspace', '3', 'Delete', '4', 'Control+Space']) await page.keyboard.press(key)
+  for (const key of ['9', '2', 'Backspace', '3', 'Delete', '4', 'Control+Space']) await page.keyboard.press(key)
 }
 
 // Chooses the mode and makes the gesture set in it, after putting on the board what the mode acts on.
