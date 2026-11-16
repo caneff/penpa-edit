@@ -224,8 +224,7 @@ describe('the desk', () => {
   })
 
   it('refits the board when its card resizes, and + then − zooms it with the card scrolling', async () => {
-    // 201 and not 200: the board is 484 px wide at 200, exactly the room the card leaves it, and its container's border then scrolls the card.
-    await drag(page, await handleCentre(page, 'Board'), -201, -150)
+    await drag(page, await handleCentre(page, 'Board'), -200, -150)
     const fitted = await settle(async () => { const r = await boardAgainstCard(page); return r.inside }, true)
     assert.equal(fitted, true, 'the smaller card still holds the whole board')
     const small = await boardAgainstCard(page)

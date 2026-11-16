@@ -11,9 +11,17 @@ const browser = useBrowser()
 const FULL_HD = { viewport: { width: 1920, height: 1080 } }
 const SHORT = { viewport: { width: 1920, height: 800 } }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-// The smallest width a column's card may have (desk.js MIN_COLUMN_WIDTH_PX) and the pixels a drawn height may miss by.
-const MIN_COLUMN_PX = 240
+// desk.js's margins, and each card's smallest width (its MIN_SIZE); Mouse's is the left column's, which caps the Board card.
+const TOP_MARGIN_PX = 12
+const DESK_MARGIN_PX = 14
+const MIN_WIDTH_PX = { Board: 240, Mouse: 260, Rules: 200, Pinned: 240, Mode: 280, Recent: 240 }
+const LEFT_COLUMN_MIN_PX = 260
+// The pixels a drawn height may miss its room by: the cell size is whole pixels, so a 9-row board comes up to 9 short.
 const FIT_SLACK_PX = 12
+// The same for the Board card's width on a 30-column board, which widens 30 px per cell-size step, with its frame and rounding.
+const WIDE_BOARD_SLACK_PX = 50
+// How far apart the equal gaps may be, for rounding.
+const GAP_SLACK_PX = 2
 const RULES = Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: put a digit from 1 to 9 in every cell so no row, column or box repeats one, and the clues around the grid hold.`).join('\n\n')
 
 // Runs in the page. A new board of `cols` x `rows` cells with the rules `rules`; returns its solve link's `#` part.
@@ -81,7 +89,7 @@ describe('Reset layout fits the desk to the puzzle', () => {
     const page = await open({ cols: 9, rows: 9 })
     const read = await reset(page)
     assert.equal(read.boardRoom.h - read.canvas.h <= FIT_SLACK_PX, true, `the board ${read.canvas.h}px high fills its room ${read.boardRoom.h}px`)
-    assert.equal(read.cards.Board.h >= read.desk.h - 2 * 12 - 1, true, `the Board card is ${read.cards.Board.h}px of a ${read.desk.h}px desk`)
+    assert.equal(read.cards.Board.h >= read.desk.h - 2 * TOP_MARGIN_PX - 1, true, `the Board card is ${read.cards.Board.h}px of a ${read.desk.h}px desk`)
     assert.equal(read.boardRoom.w - read.canvas.w <= FIT_SLACK_PX, true, `the card is no wider than the board needs (${read.boardRoom.w}px for ${read.canvas.w}px)`)
     assertCardsOnDesk(read)
   })
@@ -97,10 +105,10 @@ describe('Reset layout fits the desk to the puzzle', () => {
     const page = await open({ cols: 30, rows: 10 })
     const read = await reset(page)
     const right = read.cards.Pinned.w
-    const cap = read.desk.w - 4 * 14 - MIN_COLUMN_PX - right
-    assert.equal(cap - read.cards.Board.w <= 50 && read.cards.Board.w <= cap, true, `the Board card is ${read.cards.Board.w}px wide, the cap ${cap}px`)
+    const cap = read.desk.w - 4 * DESK_MARGIN_PX - LEFT_COLUMN_MIN_PX - right
+    assert.equal(cap - read.cards.Board.w <= WIDE_BOARD_SLACK_PX && read.cards.Board.w <= cap, true, `the Board card is ${read.cards.Board.w}px wide, the cap ${cap}px`)
     assert.equal(read.canvas.w <= read.boardRoom.w + FIT_SLACK_PX, true, `the board ${read.canvas.w}px fits its ${read.boardRoom.w}px room`)
-    for (const name of CARDS) assert.equal(read.cards[name].w >= MIN_COLUMN_PX - 1, true, `${name} is ${read.cards[name].w}px wide`)
+    for (const name of CARDS) assert.equal(read.cards[name].w >= MIN_WIDTH_PX[name] - 1, true, `${name} is ${read.cards[name].w}px wide`)
     assertCardsOnDesk(read)
   })
 
@@ -119,5 +127,53 @@ describe('Reset layout fits the desk to the puzzle', () => {
       assert.deepEqual(read.scroll[name], { overflowY: 0, overflowX: 0 }, `${name} scrolls`)
     }
     assertCardsOnDesk(read)
+  })
+
+  it('shares the width left over as equal gaps, not stretched into the left column', async () => {
+    const page = await open({ cols: 9, rows: 9 })
+    const { cards, desk } = await reset(page)
+    const gaps = [
+      cards.Mouse.x - desk.x,
+      cards.Board.x - (cards.Mouse.x + cards.Mouse.w),
+      cards.Pinned.x - (cards.Board.x + cards.Board.w),
+      desk.x + desk.w - (cards.Pinned.x + cards.Pinned.w)
+    ]
+    assert.equal(Math.max(...gaps) - Math.min(...gaps) <= GAP_SLACK_PX, true, `the gaps are ${gaps}`)
+    assert.equal(gaps[0] > DESK_MARGIN_PX, true, `the spare width is shared out, not stretched into the left column (gaps ${gaps})`)
+  })
+
+  it('keeps every card on the desk, none over another, when the window shrinks after Reset layout', async () => {
+    const page = await open({ cols: 9, rows: 9 })
+    await reset(page)
+    await page.setViewportSize({ width: 1280, height: 720 })
+    const clear = async () => {
+      const read = await page.evaluate(readDeskInPage, CARDS)
+      try {
+        assertCardsOnDesk(read)
+        return true
+      } catch (e) {
+        return e.message
+      }
+    }
+    assert.equal(await settle(clear, true), true)
+  })
+
+  it('shows every tool\'s Mouse rows without a scrollbar after Reset layout', async () => {
+    const page = await open({ cols: 9, rows: 9 })
+    await reset(page)
+    const scrolling = await page.evaluate(async () => {
+      const body = document.querySelector('section[aria-label="Mouse"] .ui-body')
+      const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      const found = []
+      for (const tool of engine.listTools()) {
+        for (const { style } of tool.styles.length ? tool.styles : [{ style: undefined }]) {
+          engine.setTool({ mode: tool.mode, submode: tool.submode, ...(style === undefined ? {} : { style }) })
+          await frames()
+          if (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth) found.push(`${tool.name} ${style ?? ''}`)
+        }
+      }
+      return found
+    })
+    assert.deepEqual(scrolling, [])
   })
 })

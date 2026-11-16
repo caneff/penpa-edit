@@ -25,7 +25,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board
   (Shading and colour, Lines through cells, ...). It groups tools, not modes: the tools of Composite or Line sit in
   several. Not a Mode family, which groups whole modes by how their keys and clicks work.
-- **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle.
+- **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle, fitted to the
+  window and puzzle when the desk opens fresh or Reset layout is pressed.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).

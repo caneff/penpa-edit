@@ -15,6 +15,8 @@
     // Below this a card body is a layout in progress, not a box to fit the board to.
     const MIN_FIT_BOX_PX = 40;
     const FIT_PASSES = 3;
+    // The board's container is 1 px wider than its canvas on every side, and it is the container that scrolls the card.
+    const BOARD_FRAME_PX = 2;
     // The finest width the fit pass tells apart when it looks for the narrowest left column that needs no scroll.
     const LEFT_WIDTH_STEP_PX = 8;
     // A card never reaches closer than this to the desk's edge once it has to shrink to stay inside.
@@ -121,16 +123,16 @@
     // ---- The kept layout --------------------------------------------------------------------------------------------
 
     // Per card id: `w`, `h` (set once the card was resized; `h` only when its height was set) and `x`, `y`, `vw`, `vh` (set
-    // once it was dragged: where it sat, in a desk of `vw` x `vh`). A moved card keeps its gap to the nearer edges when the
-    // desk changes size, so zooming the browser out and back in returns the same layout.
+    // once it was dragged, or by the fitted layout: where it sat, in a desk of `vw` x `vh`). A card with a place keeps its
+    // gap to the nearer edges when the desk changes size, so zooming the browser out and back in returns the same layout.
     function readLayout() {
         let saved;
         try {
             saved = JSON.parse(localStorage.getItem(LAYOUT_KEY));
         } catch (e) {
-            // An unreadable layout is only card places, cheap to redo: the desk opens on the default one, and the next card
+            // An unreadable layout is only card places, cheap to redo: the desk opens on the fitted one, and the next card
             // moved or resized replaces it. Said in the console, so the loss is never silent.
-            console.warn(`${LAYOUT_KEY} is unreadable (${e.message}); the default layout is used, and the next change replaces it.`);
+            console.warn(`${LAYOUT_KEY} is unreadable (${e.message}); the fitted layout is used, and the next change replaces it.`);
             return {};
         }
         // A card entry this code did not write (another version's, or edited by hand) is left out, as is any other key.
@@ -154,6 +156,7 @@
 
     // Records the card's size, and its place when it was moved, as it is now.
     function saveCard(desk, id, node) {
+        isFitted = false;
         const entry = { w: node.offsetWidth };
         if (node.classList.contains('is-sized')) {
             entry.h = node.offsetHeight;
@@ -177,11 +180,13 @@
 
     // ---- Placing the cards ------------------------------------------------------------------------------------------
 
-    // Where the Mouse card's measured height comes from, set by the file that knows its content (tool-cards.js): the
-    // card's whole height that fits every tool's rows at a card width. Until it is set the desk keeps variant L's fixed layout.
+    // The Mouse card's whole height that fits every tool's rows at a card width, set by whoever knows its content. Until it
+    // is set the desk keeps variant L's fixed layout.
     const fit = { mouseCardHeight: null };
     // True until the fit pass has run for the desk as it was opened or last reset.
     let fitPending = Object.keys(saved).length === 0;
+    // True while the layout is the fitted one and no card has been moved or resized since.
+    let isFitted = false;
 
     const columnWidthFor = (deskWidth) => Math.max(MIN_COLUMN_WIDTH_PX,
         Math.min(COLUMN_WIDTH_PX, Math.floor((deskWidth - 4 * DESK_MARGIN_PX - MIN_BOARD_WIDTH_PX) / 2)));
@@ -221,6 +226,7 @@
         });
         if (fitPending && fit.mouseCardHeight) {
             fitPending = false;
+            isFitted = true;
             fitCards(desk, cards);
             return;
         }
@@ -250,11 +256,8 @@
         return needed;
     }
 
-    // The layout that suits the puzzle on screen: the Board card as tall as the desk and only as wide as the board at
-    // that height needs (never past what the columns' minimum widths leave); the right column at its default width; the
-    // left column as wide as Mouse and Rules need to show everything in the desk's height, or all the board leaves; and
-    // the width still spare shared as equal gaps. The result is kept in memory like a layout the solver made, so a
-    // window resize keeps it, and it is written only when a card is moved or resized.
+    // The layout that suits the puzzle on screen (#156). The cap on the Board card leaves the left column its minimum and the
+    // right column its default width, which the ruling keeps. Kept in memory, and written only when a card is moved or resized.
     function fitCards(desk, cards) {
         const width = desk.clientWidth;
         const height = desk.clientHeight;
@@ -293,6 +296,7 @@
         const boardX = gap + leftWidth + gap;
         const rightX = boardX + boardWidth + gap;
         stack(cards, RIGHT_COLUMN, rightX, rightWidth, height);
+        // Unlike `position`, which gives a card its kept width, the fit sets every size itself.
         const place = (id, x, y, w, h) => {
             Object.assign(cards[id].node.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
             setHeight(cards[id].node, h);
@@ -449,13 +453,15 @@
     // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
         for (let pass = 0; pass < FIT_PASSES; pass++) {
-            const { w, h } = bodyRoom(boardBody);
+            const room = bodyRoom(boardBody);
+            const w = room.w - BOARD_FRAME_PX;
+            const h = room.h - BOARD_FRAME_PX;
             if (w < MIN_FIT_BOX_PX || h < MIN_FIT_BOX_PX) {
                 return;
             }
             cellPx = engine.fitBoard(w, h);
             const after = bodyRoom(boardBody);
-            if (after.w === w && after.h === h) {
+            if (after.w === room.w && after.h === room.h) {
                 return;
             }
         }
@@ -504,7 +510,15 @@
         engine.mount(desk.cards.board.body);
         layout(desk);
         const relayout = () => layout(desk);
-        window.addEventListener('resize', relayout);
+        // A window resize never re-runs the fit. A fitted layout nobody has changed goes back to variant L's fixed layout,
+        // which restacks for the new window; a layout the solver made keeps its cards, each by its nearer edges.
+        window.addEventListener('resize', () => {
+            if (isFitted) {
+                isFitted = false;
+                saved = {};
+            }
+            relayout();
+        });
         makeMovable(desk.bar, desk.desk, desk.cards);
         // Every card back to the layout fitted to the window and puzzle, and the Rules text to its default size.
         const resetLayout = () => {
