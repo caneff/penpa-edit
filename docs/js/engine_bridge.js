@@ -378,8 +378,6 @@
         1: 'black', 2: 'green', 8: 'blue', 3: 'grey', 9: 'dark blue', 10: 'red', 4: 'white', 5: 'white background',
         0: 'outline', 6: 'black on white circle', 7: 'white on black circle', 11: 'white on red circle'
     };
-    // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it with.
-    const TEXT_STYLE_DISC = { 6: 1, 7: 2, 11: 11 };
     const SURFACE_STYLE = Object.fromEntries(SURFACE_COLOURS);
     const STYLE_NAMES = {
         line: PATH_STYLE, lineE: PATH_STYLE, wall: PATH_STYLE, number: VALUE_STYLE, sudoku: VALUE_STYLE,
@@ -453,19 +451,25 @@
         return scratch.strokeStyle;
     }
 
-    // MVP gap: calls Penpa+'s `set_font_style` and `set_circle_style` on a scratch canvas to read how it draws a digit of text
-    // style `style` and the disc behind it (null for none), so the Mode card's sample is the board's own drawing.
+    // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it
+    // with, or null for a style that is only listed here to get a sample.
+    const TEXT_STYLE_DISC = { 0: null, 6: 1, 7: 2, 11: 11 };
+    const SAMPLE_FONT_PX = 10;
+
+    // MVP gap: calls Penpa+'s `set_font_style` and `set_circle_style` on a scratch canvas to read how it paints a digit of text
+    // style `style` and the disc behind it, so the Mode card's sample is the board's own drawing. `text()` strokes at
+    // `outlineWidth` when the outline is on, which `set_font_style` leaves in the module, not on the context.
     function textSampleOf(style) {
         const scratch = document.createElement('canvas').getContext('2d');
         const paint = () => ({ fill: scratch.fillStyle, stroke: scratch.strokeStyle, lineWidth: scratch.lineWidth });
-        set_font_style(scratch, 10, style);
-        const text = paint();
+        set_font_style(scratch, SAMPLE_FONT_PX, style);
+        const text = { ...paint(), lineWidth: outlineWidth ?? scratch.lineWidth };
         const discStyle = TEXT_STYLE_DISC[style];
-        if (discStyle === undefined) {
-            return { text, disc: null };
+        if (discStyle === null) {
+            return { fontSize: SAMPLE_FONT_PX, text, disc: null };
         }
         set_circle_style(scratch, discStyle);
-        return { text, disc: paint() };
+        return { fontSize: SAMPLE_FONT_PX, text, disc: paint() };
     }
 
     function stylesOf(mode, submode) {
@@ -486,7 +490,7 @@
             if (COLOUR_STYLE_NAMES.has(name)) {
                 swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
             }
-            const sample = (box === 'number' || box === 'sudoku') && (style === 0 || style in TEXT_STYLE_DISC) ? textSampleOf(style) : null;
+            const sample = box === 'number' && style in TEXT_STYLE_DISC ? textSampleOf(style) : null;
             return [{ style, name, swatch, sample }];
         });
     }
@@ -745,7 +749,9 @@
         // `styles` its colours and line looks with a display name, the swatch colour (null where the style is no colour) and, for Number's text styles drawn as outline or on a disc,
         // a `sample` of how Penpa+ paints the digit and its disc.
         listTools() {
-            return toolCatalog().map((tool) => ({ ...tool, labels: [...tool.labels], styles: tool.styles.map((style) => ({ ...style })) }));
+            return toolCatalog().map((tool) => ({
+                ...tool, labels: [...tool.labels], styles: tool.styles.map((style) => ({ ...style, sample: structuredClone(style.sample) }))
+            }));
         },
 
         // The tool in use: Penpa+'s current mode with that mode's sub-mode and style.

@@ -95,10 +95,12 @@
         const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
             `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);
         if (sample) {
-            const { text: ink, disc } = sample;
-            const paint = (p) => `fill="${p.fill}" stroke="${p.stroke}" stroke-width="${p.lineWidth}"`;
-            return svg(`${disc ? `<circle cx="10" cy="10" r="9" ${paint(disc)}/>` : ''}<text x="10" y="14.5" text-anchor="middle" font-size="14" ` +
-                `font-weight="700" font-family="Helvetica,Arial,sans-serif" ${paint(ink)}>1</text>`);
+            const { fontSize, text: digit, disc } = sample;
+            const drawnPx = 14;
+            // Penpa+ strokes the digit first and fills it on top, so the outline only shows outside the glyph.
+            return svg(`${disc ? `<circle cx="10" cy="10" r="9" fill="${disc.fill}" stroke="${disc.stroke}" stroke-width="${disc.lineWidth}"/>` : ''}` +
+                `<text x="10" y="14.5" text-anchor="middle" font-size="${drawnPx}" font-family="Helvetica,Arial,sans-serif" paint-order="stroke" ` +
+                `stroke-linejoin="round" fill="${digit.fill}" stroke="${digit.stroke}" stroke-width="${digit.lineWidth * drawnPx / fontSize}">1</text>`);
         }
         switch (name) {
         case 'thin': return svg(line(`${ink} stroke-width="1"`));
