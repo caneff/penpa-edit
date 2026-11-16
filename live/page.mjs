@@ -155,6 +155,11 @@ export const GIVEN_CELL = 0
 export const ANSWER_CELL = 1
 export const SAME_ROW_CELL = 2
 
+// Indices in the page's `pu.centerlist` of cells the tests fill, clear of the given and the author's answer.
+export const DIGIT_CELL = 12
+export const MARK_CELL = 13
+export const SHADED_CELL = 14
+
 // Runs `inPage(arg)` on a fresh page of its own and returns what it returns: a puzzle link built on a new board.
 export async function linkFromNewBoard (browser, inPage, arg) {
   const { context, page } = await openPenpa(browser)

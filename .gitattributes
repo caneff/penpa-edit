@@ -14,6 +14,7 @@ live/** merge=ours
 docs/js/header_text.js merge=ours
 docs/js/recorder.js merge=ours
 docs/js/engine_bridge.js merge=ours
+docs/js/progress_autosave.js merge=ours
 docs/js/penpa_layer.js merge=ours
 docs/solve.html merge=ours
 docs/ui/** merge=ours
