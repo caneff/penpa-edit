@@ -208,6 +208,38 @@ describe('the upstream merge script', () => {
   })
 })
 
+// AGENTS.md § "Our files": a directory ends in "/", and a file in it is probed by a made-up name.
+const OWNED_PATHS = [
+  '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
+  'docs/js/header_text.js', 'docs/js/recorder.js',
+  'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
+  'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/redirect-urls.mjs',
+  '.github/workflows/', '.github/actions/', '.github/scripts/'
+]
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+describe("the repo's .gitattributes", () => {
+  for (const path of OWNED_PATHS) {
+    it(`marks ${path} merge=ours`, () => {
+      const probe = path.endsWith('/') ? `${path}sub/probe.txt` : path
+      assert.equal(git(REPO_ROOT, 'check-attr', 'merge', '--', probe), `${probe}: merge: ours`)
+    })
+  }
+
+  it('marks no tracked file that is not an owned path, so upstream\'s files still merge', () => {
+    const tracked = git(REPO_ROOT, 'ls-files')
+    const marked = execFileSync('git', ['check-attr', '--stdin', 'merge'], { cwd: REPO_ROOT, input: tracked, encoding: 'utf8' })
+      .split('\n').filter((line) => line.endsWith(': merge: ours')).map((line) => line.slice(0, -': merge: ours'.length))
+    const stray = marked.filter((file) => !OWNED_PATHS.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path)))
+    assert.deepEqual(stray, [])
+  })
+
+  it('does not mark a same-named file in another directory, even on a case-insensitive clone', () => {
+    const attr = (file) => execFileSync('git', ['-c', 'core.ignorecase=true', 'check-attr', 'merge', '--', file], { cwd: REPO_ROOT, encoding: 'utf8' }).trim()
+    for (const file of ['docs/AGENTS.md', 'docs/agents.md', 'docs/GLOSSARY.md']) assert.equal(attr(file), `${file}: merge: unspecified`)
+  })
+})
+
 // A stub `gh` on PATH prints `listOutput` for `issue list`, whatever its flags, or fails it when `listFails`.
 function stubGh ({ listOutput = '', listFails = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'stub-gh-'))

@@ -16,7 +16,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   push or PR (Chris, 2026-11-13). `gh repo set-default` names `caneff/penpa-edit`, so `gh pr create` targets the fork.
 - **Share links point at the fork** (Chris, 2026-11-09). `maketext_baseurl()` in `docs/js/class_p.js` already builds links from
   `location.href`; its localhost / `file://` branch names the fork's address too.
-- **Our files**, outside upstream's: `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
+- **Our files**, outside upstream's: `.gitattributes`, `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
   source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `docs/js/header_text.js`, `docs/js/recorder.js`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/header-text.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/package-scripts.test.mjs`, `test/redirect-urls.mjs`,
   `.github/workflows/`, `.github/actions/` and `.github/scripts/`.
