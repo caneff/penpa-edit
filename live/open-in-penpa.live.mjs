@@ -3,7 +3,7 @@
 // by role and accessible name and the board is read as Penpa+ would save it (`board`).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { ANSWER_CELL, makeNumberSolveLink, openSolvePage, setTool, typeDigitInPage, typedDigits, useBrowser, waitForDesk } from './page.mjs'
+import { board, makeNumberSolveLink, openSolvePage, setTool, shadeInPage, typeDigitInPage, typedDigits, useBrowser, waitForDesk } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -12,6 +12,9 @@ const browser = useBrowser()
 // Cells of the center list the test types into, apart from the given and the author's answer cell.
 const SOLVER_CELL = 12
 const PENPA_CELL = 13
+const SHADED_CELL = 20
+
+const shadedCells = async (page) => Object.keys((await board(page)).entered.surface ?? {})
 
 const waitForPenpa = (page) => page.waitForFunction(() => typeof pu !== 'undefined' && !document.querySelector('section[aria-label="Board"]'))
 
@@ -23,17 +26,22 @@ describe('Open in Penpa+', () => {
     await clickCell(page, SOLVER_CELL)
     await page.keyboard.press('7')
     assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit is on the solve page')
+    await page.evaluate(shadeInPage, SHADED_CELL)
+    const shaded = await shadedCells(page)
+    assert.equal(shaded.length, 1, 'the cell is shaded on the solve page')
 
     await page.getByRole('button', { name: 'Open in Penpa+', exact: true }).click()
     await page.waitForURL(/\/(index\.html)?(\?|#)/)
     await waitForPenpa(page)
     assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'index.html shows the solve page\'s entry')
+    assert.deepEqual(await shadedCells(page), shaded, 'index.html shows the solve page\'s shading')
 
     await page.evaluate(typeDigitInPage, { index: PENPA_CELL, digit: '5' })
     await page.goBack()
     await waitForDesk(page)
     const expected = ['7', '5']
     assert.deepEqual(await settle(() => typedDigits(page), expected), expected, 'the solve page shows the entry made on index.html')
+    assert.deepEqual(await shadedCells(page), shaded, 'the solve page keeps the shading')
     await context.close()
   })
 })

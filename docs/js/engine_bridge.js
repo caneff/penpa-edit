@@ -795,6 +795,17 @@
             }
         },
 
+        // Saves the open puzzle's progress as Penpa+ does when the page unloads, and resolves once the store holds it.
+        // MVP gap: PenpaProgress.save does not wait for localforage's write, so this reads the key back: localforage runs its
+        // calls in order, and the read answers after the write.
+        async saveProgress() {
+            boardCanvas();
+            await PenpaProgress.save();
+            if (pu.url && await PenpaProgress.canSaveProgress()) {
+                await localforage.getItem(PenpaProgress.getHash(pu.url));
+            }
+        },
+
         // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this
         // puzzle" does. A puzzle with no link data was never saved, so there is nothing to clear.
         // MVP gap: PenpaProgress.clearPuzzle does not wait for localforage's removal, so this waits for it itself.
