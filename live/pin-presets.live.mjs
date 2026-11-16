@@ -8,7 +8,7 @@ import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-// A link offers only the modes its Tab set shows, so the built-in presets are tried on a set that shows their modes.
+// A Tab set that names the modes the built-in presets pin.
 const BROAD_TAB_SET = ['Sudoku Normal', 'Line Normal', 'Wall', 'Number Normal', 'Surface']
 
 const link = (tabSet) => newBoardSolveLink(browser(), tabSet)

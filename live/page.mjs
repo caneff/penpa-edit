@@ -236,7 +236,7 @@ export async function boardAgainstCard (page) {
 export const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
 
 // Runs in the page. A 6x6 board's solve link `#` part: its Tab set is `names` (Penpa+'s own names for them), or with no
-// names it has none, so the link offers every mode.
+// names it has none.
 export function newBoardSolveLinkInPage (names) {
   document.getElementById('nb_size1').value = 6
   document.getElementById('nb_size2').value = 6

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, afterChange, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { afterChange, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -18,7 +18,7 @@ const SOLVE_MODES = ['surface', 'multicolor', 'line', 'lineE', 'wall', 'number',
 const CELL = 12
 const OTHER_CELL = 18
 
-// With no query, a new board's link, which has no Tab set and so offers every mode.
+// With no query, a new board's link.
 const openSolve = async (query) => openSolvePage(browser(), query ?? await newBoardSolveLink(browser()))
 
 // What the solver has shaded: cell index -> the style Penpa+ saved.
@@ -60,17 +60,6 @@ describe('engine.listTools', () => {
     const blpo = list.find((t) => t.submode === 'blpo')
     assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa+\'s label')
     assert.deepEqual(list.find((t) => t.submode === 'akari').styles, [], 'Akari has no style')
-  })
-})
-
-describe('engine.listTools on a link whose tab set is small', () => {
-  it('lists only the modes the link offers', async () => {
-    const opened = await openSolve(AKARI_SOLVE)
-    try {
-      assert.deepEqual([...new Set((await tools(opened.page)).map((t) => t.mode))], ['surface', 'combi'])
-    } finally {
-      await opened.context.close()
-    }
   })
 })
 
@@ -127,6 +116,61 @@ describe('engine.setTool and engine.getTool', () => {
     await clickCell(opened.page, OTHER_CELL)
     const cells = Object.values(await shaded(opened.page))
     assert.deepEqual(cells.sort(), [2, 5])
+  })
+})
+
+// solve.html never turns Penpa Lite on (#145): importing a puzz.link sudoku sets the Tab set Surface and Sudoku, and the same
+// puzzle with no Tab set shows what Penpa Lite would have hidden.
+const SUDOKU_LINK = 'https://puzz.link/p?sudoku/4/4/g2j1h1j3g'
+
+async function sudokuSolveLink (withTabSet) {
+  return linkFromNewBoard(browser(), async ([url, keepTabSet]) => {
+    await import_url(url)
+    if (!keepTabSet) UserSettings.tab_settings = []
+    const link = pu.maketext_solve()
+    return link.slice(link.indexOf('#'))
+  }, [SUDOKU_LINK, withTabSet])
+}
+
+describe('a link with a Tab set', () => {
+  let withTabSet
+  let withoutTabSet
+  before(async () => {
+    withTabSet = await openSolve(await sudokuSolveLink(true))
+    withoutTabSet = await openSolve(await sudokuSolveLink(false))
+  })
+  after(async () => { await withTabSet?.context.close(); await withoutTabSet?.context.close() })
+
+  it('still seeds the pins from the Tab set', async () => {
+    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as preset)/ }).allInnerTexts())
+      .map((text) => text.replace(/^\d+\s*/, '').trim())
+    assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
+    assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])
+    assert.deepEqual(await withoutTabSet.page.evaluate(() => engine.tabSet()), [])
+    assert.deepEqual(await chips(withoutTabSet), [])
+  })
+
+  it('lists the same tools as the same puzzle with no Tab set', async () => {
+    const withList = await tools(withTabSet.page)
+    assert.ok(withList.length > 4, `${withList.length} tools, not the Tab set's 4`)
+    assert.deepEqual(withList, await tools(withoutTabSet.page))
+  })
+
+  it('offers the same tools in the Mode card', async () => {
+    const optionNames = async ({ page }) => {
+      const mode = page.getByRole('region', { name: 'Mode' })
+      await mode.getByRole('combobox', { name: 'Tool' }).click()
+      const found = await mode.getByRole('option').allInnerTexts()
+      await page.keyboard.press('Escape')
+      return found
+    }
+    const cardNames = await optionNames(withTabSet)
+    assert.equal(cardNames.length, (await tools(withTabSet.page)).length)
+    assert.deepEqual(cardNames, await optionNames(withoutTabSet))
+  })
+
+  it('still leaves out a mode Penpa+ hides for another reason', async () => {
+    assert.equal((await tools(withTabSet.page)).some((t) => t.mode === 'board'), false, 'solve mode hides Box')
   })
 })
 
@@ -403,14 +447,14 @@ describe('the Mouse card and the title bar', () => {
   })
 })
 
-describe('a mode the link does not offer', () => {
+describe('a mode solve mode hides', () => {
   it('is still the tool in use, and the cards draw it without an error', async () => {
-    const opened = await openSolve(AKARI_SOLVE)
+    const opened = await openSolve()
     try {
-      await opened.page.evaluate(() => pu.mode_set('sudoku'))
-      assert.deepEqual(await currentTool(opened.page), { mode: 'sudoku', submode: '1', style: null })
+      await opened.page.evaluate(() => pu.mode_set('board'))
+      assert.equal((await currentTool(opened.page)).mode, 'board')
       const headline = opened.page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
-      assert.equal(await settle(() => headline.textContent(), 'sudoku'), 'sudoku')
+      assert.equal(await settle(() => headline.textContent(), 'board'), 'board')
     } finally {
       await opened.context.close()
     }
