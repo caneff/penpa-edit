@@ -85,13 +85,13 @@ const assertTabCyclesPins = async (page, keys) => {
   assert.equal(await focusInPinnedCard(page), false, 'focus is still off the Pinned card after Tab')
 }
 
-// The genres with solving tools of their own; a Sudoku variant is Classic sudoku (#178).
-// The tools a setter draws Sudoku clues with (#178); other genres may pin some of them to solve.
+// The tools a setter draws Sudoku clues with; other genres may pin some of them to solve.
 const CLUE_TOOLS = [
   'special/thermo', 'special/arrows', 'cage/1', 'symbol/circle_SS', 'symbol/circle_L', 'symbol/square_L', 'symbol/circle_M',
   'symbol/arrow_eight', 'symbol/sudokuetc', 'number/1', 'number/5'
 ]
 
+// The genres with solving tools of their own; a Sudoku variant is Classic sudoku.
 const EXPECTED_GENRES = [
   'Classic sudoku', 'Sudoku with lines and marks', 'Slitherlink', 'Tapa', 'Star battle', 'Tents', 'Heyawake', 'Nurikabe', 'LITS',
   'Battleships', 'Minesweeper', 'Akari', 'Sun and moon', 'Statue park', 'Kakuro', 'Kurotto', 'Pentominous', 'Yajilin', 'Pencils',
@@ -263,6 +263,7 @@ describe('favourites', () => {
     assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'])
     assert.equal(await presetList(page).getByRole('option', { name: 'Kropki' }).count(), 0)
     await star(page, 'Masyu').click()
+    assert.equal(await page.evaluate(() => localStorage.getItem('chinstrap.pinPresetStars')), '[]', 'the stale star left storage with the next write')
     await page.keyboard.press('Escape')
     await closed(page)
   })
