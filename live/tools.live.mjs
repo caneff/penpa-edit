@@ -246,7 +246,7 @@ describe('the Mode card', () => {
   it('follows a tool set from outside', async () => {
     await setTool(opened.page, { mode: 'number', submode: '7' })
     const read = () => combobox().inputValue()
-    assert.match(await settle(read, await read()), /Candidates/)
+    assert.equal(await settle(read, 'Candidates'), 'Candidates')
   })
 })
 
