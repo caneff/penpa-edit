@@ -1,5 +1,5 @@
-// Recordings (GLOSSARY.md) and the two drivers that replay them: the engine driver, through `pu`'s own calls, and the
-// UI driver, through Playwright's mouse and keyboard. Not a check itself, so `live/**/*.live.mjs` skips
+// Recordings (GLOSSARY.md) and the drivers that replay them: the engine driver, through `pu`'s own calls, and the UI
+// driver, through Playwright's mouse and keyboard, on Penpa+'s page or (`solveUiDriver`) on `solve.html`. Not a check itself, so `live/**/*.live.mjs` skips
 // it.
 //
 // A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family,
@@ -235,6 +235,17 @@ function outsideCanvasInPage () {
   return { x: box.left, y: box.top - 1 }
 }
 
+// Runs in the page: like `boardPixelInPage` for a board point of a recording made at `recordedSize` px a cell, on a page
+// that fits the board to its card at another size (`solve.html`).
+function scaledBoardPixelInPage ({ x, y, recordedSize }) {
+  const box = document.getElementById('canvas').getBoundingClientRect()
+  const scale = pu.size / recordedSize
+  return { x: box.left + x * scale, y: box.top + y * scale }
+}
+
+// The cell size Penpa+'s page draws a board at, so the one every recording was made at.
+const RECORDED_CELL_PX = 38
+
 // How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
 // ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
 const STEP_GAP_MS = 1000
@@ -271,13 +282,74 @@ function keyOf ({ call, args }) {
 // units map to through the current layout. A digit in Surface picks a colour as well as making its key call, and is
 // recorded as a key step and then a Surface mode step, both made by the one key press, so that pair is checked once,
 // after the mode step.
+const uiCheckpointAfter = (step, next) => endsGroup(step) &&
+  !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface')
+
+// Penpa+'s own page: a mode change is a click in its mode panel.
 export const uiDriver = {
-  start: startUiDriver,
-  checkpointAfter: (step, next) => endsGroup(step) &&
-    !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface')
+  start: (page) => startUiDriver(page, panelChoices, (step) => page.evaluate(boardPixelInPage, step)),
+  checkpointAfter: uiCheckpointAfter
 }
 
-function startUiDriver (page) {
+// `solve.html`: a mode change is a pick in the Mode card.
+export const solveUiDriver = {
+  start: (page) => startUiDriver(page, modeCardChoices, ({ x, y }) => page.evaluate(scaledBoardPixelInPage, { x, y, recordedSize: RECORDED_CELL_PX })),
+  checkpointAfter: uiCheckpointAfter
+}
+
+// The `choose` of `switchMode` for Penpa's mode panel; `clickInPanel` clicks a button there by id.
+function panelChoices (page, step, clickInPanel, afterInput) {
+  return {
+    mode: (name) => clickInPanel('mo_' + name),
+    submode: clickInPanel,
+    // The tool lists are hidden until their dialog opens; `window_click` in `main.js` reads only the mousedown's
+    // target.
+    tool: async (mode, tool) => {
+      const id = `#${mode === 'symbol' ? 'ms_' : 'combisub_'}${tool}`
+      if (!await page.locator(id).count()) throw new Error(`no tool ${tool} in ${mode}`)
+      await page.dispatchEvent(id, 'mousedown')
+      afterInput()
+    },
+    orientation: (direction) => clickInPanel('rot_' + direction),
+    style: (id) => {
+      if (step.mode === 'multicolor') throw new Error('no input for a Multicolor style alone: its button makes a key call too')
+      return clickInPanel(id)
+    }
+  }
+}
+
+// The `choose` of `switchMode` for the Mode card, which picks a whole tool (mode and sub-mode) from its list and then a
+// style from its buttons. A mode is picked as the tool the step names, so the sub-mode that follows is already right.
+function modeCardChoices (page, step, _clickInPanel, afterInput) {
+  const card = page.getByRole('region', { name: 'Mode' })
+  const toolOf = async () => {
+    const tools = await page.evaluate(() => engine.listTools())
+    const tool = tools.find((t) => t.mode === step.mode && (t.submode === null || t.submode === step.submode))
+    if (!tool) throw new Error(`the Mode card lists no tool ${step.mode}/${step.submode}`)
+    return tool
+  }
+  const pickTool = async () => {
+    const tool = await toolOf()
+    await card.getByRole('combobox', { name: 'Tool' }).click()
+    await card.locator(`[role=option][data-mode="${tool.mode}"][data-submode="${tool.submode ?? ''}"]`).click()
+    afterInput()
+  }
+  return {
+    mode: pickTool,
+    submode: pickTool,
+    tool: pickTool,
+    orientation: () => { throw new Error('the Mode card has no orientation to choose') },
+    style: async () => {
+      const tool = await toolOf()
+      const at = tool.styles.findIndex((s) => s.style === step.style)
+      if (at === -1) throw new Error(`the Mode card has no style ${step.style} for ${step.mode}/${step.submode}`)
+      await card.getByRole('group', { name: 'Style' }).getByRole('button').nth(at).click()
+      afterInput()
+    }
+  }
+}
+
+function startUiDriver (page, choices, pixelOf) {
   // Where the mouse is, or null once a click in the mode panel has moved it; and the button a down step holds.
   let mousePixel = null
   let pressed = null
@@ -303,16 +375,16 @@ function startUiDriver (page) {
   async function pointer (step) {
     switch (step.action) {
       case 'move':
-        return moveTo(await page.evaluate(boardPixelInPage, step))
+        return moveTo(await pixelOf(step))
       case 'down':
-        await moveIfAway(await page.evaluate(boardPixelInPage, step))
+        await moveIfAway(await pixelOf(step))
         if (step.ctrl) await page.keyboard.down('Control')
         await page.mouse.down({ button: step.button })
         pressed = { button: step.button, ctrl: step.ctrl }
         return
       case 'up':
         if (!pressed) throw new Error('no mouse button is down to release')
-        await moveIfAway(await page.evaluate(boardPixelInPage, step))
+        await moveIfAway(await pixelOf(step))
         await page.mouse.up({ button: pressed.button })
         if (pressed.ctrl) await page.keyboard.up('Control')
         pressed = null
@@ -324,23 +396,7 @@ function startUiDriver (page) {
   }
 
   function mode (step) {
-    return switchMode(page, step, {
-      mode: (name) => clickInPanel('mo_' + name),
-      submode: clickInPanel,
-      // The tool lists are hidden until their dialog opens; `window_click` in `main.js` reads only the mousedown's
-      // target.
-      tool: async (mode, tool) => {
-        const id = `#${mode === 'symbol' ? 'ms_' : 'combisub_'}${tool}`
-        if (!await page.locator(id).count()) throw new Error(`no tool ${tool} in ${mode}`)
-        await page.dispatchEvent(id, 'mousedown')
-        mousePixel = null
-      },
-      orientation: (direction) => clickInPanel('rot_' + direction),
-      style: (id) => {
-        if (step.mode === 'multicolor') throw new Error('no input for a Multicolor style alone: its button makes a key call too')
-        return clickInPanel(id)
-      }
-    })
+    return switchMode(page, step, choices(page, step, clickInPanel, () => { mousePixel = null }))
   }
 
   return async (step) => {
@@ -471,13 +527,14 @@ function withoutDuplicateDrops (state) {
 // `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
 // every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board, less what
 // the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
-// `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well.
+// `report` is null. `served`, `solve` and `setup` go to `openPenpa`, for the duplicate's page as well.
 export async function replay (browser, recording, {
-  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED
+  id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, solve = false
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
   const open = (query) => openPenpa(browser, query, {
     served,
+    solve,
     contextOptions: CONTEXT_OPTIONS,
     setup: async (c) => {
       await c.clock.install({ time: CLOCK_START })
@@ -580,14 +637,15 @@ export async function replay (browser, recording, {
   }
 }
 
-// Replays `recording` through the engine driver, then through the UI driver compared with it at each checkpoint, and
-// returns null when they agree, else the report of the first difference: a UI bug, whatever the expected file says.
-// `served` and `setup` go to `openPenpa` for both, so both replay the same page.
-export async function compareDrivers (browser, recording, { id = 'recording', served = false, setup } = {}) {
+// Replays `recording` through the engine driver on Penpa+'s page, then through the UI driver compared with it at each
+// checkpoint, and returns null when they agree, else the report of the first difference: a UI bug, whatever the expected
+// file says. With `solve` the UI driver is `solveUiDriver` on `solve.html`. `served` and `setup` go to `openPenpa` for both.
+export async function compareDrivers (browser, recording, { id = 'recording', served = false, setup, solve = false } = {}) {
   const engine = await replay(browser, recording, { id, served, setup })
   if (engine.report) return engine.report
   const { steps } = recording
-  const expected = engine.checkpoints.filter(({ step }) => step === 0 || isCheckpoint(uiDriver, steps, step))
-  const ui = await replay(browser, recording, { id, served, setup, driver: uiDriver, expected, against: AGAINST_ENGINE })
+  const driver = solve ? solveUiDriver : uiDriver
+  const expected = engine.checkpoints.filter(({ step }) => step === 0 || isCheckpoint(driver, steps, step))
+  const ui = await replay(browser, recording, { id, served, setup, driver, solve, expected, against: AGAINST_ENGINE })
   return ui.report
 }
