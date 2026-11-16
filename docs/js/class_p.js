@@ -8066,7 +8066,18 @@ class Puzzle {
                                         con += this[this.mode.qa].numberS[side_cursor + j][0];
                                     }
                                 }
-                                cells.push([k, con]);
+                                // caneff (#142): a gap before a mark means an old save started at slot 1; such a cell is repacked below
+                                var gapped = false;
+                                var seen_empty = false;
+                                for (var j = 0; j < 8; j++) {
+                                    var slot_mark = this[this.mode.qa].numberS[(j < 4 ? corner_cursor : side_cursor) + (j % 4)];
+                                    if (!slot_mark) {
+                                        seen_empty = true;
+                                    } else if (seen_empty) {
+                                        gapped = true;
+                                    }
+                                }
+                                cells.push([k, con, gapped]);
                             }
 
                             // Second step: check if the new digit is present in all the cells. If so, we remove the digit, otherwise
@@ -8074,11 +8085,31 @@ class Puzzle {
                             let remove = cells.every(([k, con]) => con && con.indexOf(key) !== -1);
 
                             // Third step: actually add or remove the new digit
-                            for (var [k, con] of cells) {
+                            for (var [k, con, gapped] of cells) {
                                 number = "";
 
                                 var corner_cursor = 4 * (k + this.nx0 * this.ny0);
                                 var side_cursor = 4 * (k + 2 * this.nx0 * this.ny0);
+                                if (gapped) {
+                                    // caneff (#142): write the cell's marks back in order from top-left, touching only the slots that change
+                                    if (remove) {
+                                        con = con.replace(key, '');
+                                    } else if (con.indexOf(key) === -1 && con.length < length_limit) {
+                                        con += key;
+                                    }
+                                    for (var j = 0; j < 8; j++) {
+                                        var slot = (j < 4 ? corner_cursor : side_cursor) + (j % 4);
+                                        var have = this[this.mode.qa].numberS[slot];
+                                        if (j < con.length) {
+                                            if (!have || have[0] !== con[j]) {
+                                                this.set_value("numberS", slot, [con[j], submode[1]]);
+                                            }
+                                        } else if (have) {
+                                            this.remove_value("numberS", slot);
+                                        }
+                                    }
+                                    continue;
+                                }
                                 if (remove) { // if digit already exists
                                     con = con.replace(key, '');
 
