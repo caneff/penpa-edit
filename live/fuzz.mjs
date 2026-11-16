@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
-import { changedKeys, endsGroup, engineDriver, entries, stepWords } from './replay.mjs'
+import { changedKeys, endsGroup, engineDriver, entries, roundTrips, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 // Where a failing run's recording goes, as `fuzz/<puzzle>-seed-<seed>` among the recordings. It has no expected file
@@ -213,10 +213,22 @@ async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
 // and `setup` go to `openPenpa` for every page the run opens.
 export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup }) {
   const { context, page, errors } = await openPenpa(browser, puzzle.source, { served, setup })
+  const trips = roundTrips(browser, { served, setup })
   const readRaw = () => page.evaluate(readEngineState)
   const steps = []
-  const fail = async (failure, final) => ({
-    steps, failure, saved: await saveRecording(saveDir, { puzzle, seed, page, final: final ?? await readRaw(), steps })
+  // The save/load round trips under way, in step order, each with the steps made and the board read at its checkpoint.
+  // They run beside the steps, so a later checkpoint can fail before an earlier round trip has.
+  const pending = []
+  // The run's result for `failure`, made at the current step, or for the earliest round trip that failed before it.
+  const fail = async (failure, final) => {
+    for (const trip of pending) {
+      const tripFailure = await trip.failure
+      if (tripFailure) return save(tripFailure, trip.final, steps.slice(0, trip.made))
+    }
+    return failure && save(failure, final ?? await readRaw(), steps)
+  }
+  const save = async (failure, final, made) => ({
+    steps: made, failure, saved: await saveRecording(saveDir, { puzzle, seed, page, final, steps: made })
   })
   try {
     // The board loads after `pu` exists.
@@ -237,43 +249,51 @@ export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECOR
         }
         if (!endsGroup(step)) continue
         const final = await readRaw()
-        const failure = await checkpoint({ browser, page, errors, at, state: canonicalState(final), served, setup })
+        const state = canonicalState(final)
+        const { failure, link } = await checkpoint({ page, errors, at, state })
         if (failure) return await fail(failure, final)
+        const trip = { made: steps.length, final, failure: roundTrip(trips, at, link, state) }
+        // Awaited in `fail`; until then a load that throws must not count as an unhandled rejection.
+        trip.failure.catch(() => {})
+        pending.push(trip)
       }
     }
-    return { steps, failure: null, saved: null }
+    return await fail(null) ?? { steps, failure: null, saved: null }
   } finally {
+    await trips.close()
     await context.close()
   }
 }
 
-// The first invariant broken at a checkpoint whose canonical state is `state`, in words, or null.
-async function checkpoint ({ browser, page, errors, at, state, served, setup }) {
+// At a checkpoint whose canonical state is `state`, the first invariant the fuzz's own page breaks, in words, as
+// `failure`; else the Clone link of its board, as `link`.
+async function checkpoint ({ page, errors, at, state }) {
   const pageClean = async (when) => {
     if (errors.length) return `${at}${when}: page error: ${errors[0]}`
     const bad = (await page.evaluate(takeDrawsInPage)).find((draws) => draws !== 1)
     return bad === undefined ? null : `${at}${when} ran a redraw() with ${bad} draw() calls`
   }
   const dirty = await pageClean('')
-  if (dirty) return dirty
+  if (dirty) return { failure: dirty }
   const stopped = await page.evaluate(undoRedoAllInPage)
   const redone = canonicalState(await page.evaluate(readEngineState))
   if (stopped || redone !== state) {
-    return `${at}: undo-all then redo-all changed the state:\n${stopped ? `  ${stopped}\n` : ''}${diffLines(state, redone)}`
+    return { failure: `${at}: undo-all then redo-all changed the state:\n${stopped ? `  ${stopped}\n` : ''}${diffLines(state, redone)}` }
   }
   const dirtyAfter = await pageClean(', in undo-all then redo-all,')
-  if (dirtyAfter) return dirtyAfter
+  if (dirtyAfter) return { failure: dirtyAfter }
   const link = await page.evaluate(cloneLinkInPage)
   const dirtyClone = await pageClean(', in making the Clone link,')
-  if (dirtyClone) return dirtyClone
-  const loaded = await openPenpa(browser, link, { served, setup })
-  try {
-    const want = afterRoundTrip(state)
-    const got = await settle(() => loaded.page.evaluate(readEngineState).then(canonicalState), want)
-    if (loaded.errors.length) return `${at}: the save/load round trip's page raised: ${loaded.errors[0]}`
-    if (got !== want) return `${at}: the save/load round trip changed the state:\n${diffLines(want, got)}`
-    return null
-  } finally {
-    await loaded.context.close()
-  }
+  return dirtyClone ? { failure: dirtyClone } : { link }
+}
+
+// Resolves to how the save/load round trip of `link`, the Clone link of the board whose canonical state is `state`,
+// breaks an invariant, in words, or to null.
+async function roundTrip (trips, at, link, state) {
+  const want = afterRoundTrip(state)
+  const loaded = await trips.load(link, want, (page) => page.evaluate(readEngineState).then(canonicalState))
+  if (!loaded) return null
+  if (loaded.errors.length) return `${at}: the save/load round trip's page raised: ${loaded.errors[0]}`
+  if (loaded.got !== want) return `${at}: the save/load round trip changed the state:\n${diffLines(want, loaded.got)}`
+  return null
 }
