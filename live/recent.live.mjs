@@ -114,7 +114,11 @@ describe('the Recent card', () => {
     await afterChange(page)
     await recentChips(page).filter({ hasText: 'Sudoku > Normal' }).click()
     assert.deepEqual(await waitForTool(page, 'sudoku', '1'), { mode: 'sudoku', submode: '1' })
-    assert.equal(await page.evaluate(() => document.activeElement === document.body), true, 'focus is on the board, not the chip')
+    const boardHasFocus = () => page.evaluate(() => document.activeElement === document.body)
+    assert.equal(await boardHasFocus(), true, 'focus is on the board, not the chip')
+    // The current tool's chip is not redrawn by the click, so only an explicit blur takes focus off it.
+    await recentChips(page).filter({ hasText: 'Sudoku > Normal' }).click()
+    assert.equal(await boardHasFocus(), true, 'focus is on the board after a click on the current tool')
   })
 })
 
@@ -126,6 +130,7 @@ describe('a held Shift in Sudoku', () => {
   it('never enters Recent', async () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
+    await afterChange(page)
     await setTool(page, { mode: 'sudoku', submode: '1' })
     const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal'])
     assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal'], 'before the hold')
