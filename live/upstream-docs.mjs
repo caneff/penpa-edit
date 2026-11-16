@@ -11,16 +11,21 @@ const UPSTREAM_REF = 'upstream/master'
 const ARCHIVE_MAX_BYTES = 1 << 29
 
 // Unpacks `docs/` of the `upstream/master` ref of this clone and returns where its page is and how to delete it.
-// A clone without the ref fails here, never skips: CI fetches it (`ci.yml`) and a local clone has it as the `upstream` remote.
+// A clone without the ref fails here, never skips; `git fetch upstream master` makes it.
 export function unpackUpstreamDocs () {
-  let archive
   try {
-    archive = execFileSync('git', ['archive', '--format=tar', UPSTREAM_REF, 'docs'], { maxBuffer: ARCHIVE_MAX_BYTES })
-  } catch (e) {
-    throw new Error(`${UPSTREAM_REF} is missing: run \`git fetch upstream master\` (${e.message})`)
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${UPSTREAM_REF}^{commit}`])
+  } catch {
+    throw new Error(`${UPSTREAM_REF} is missing: run \`git fetch upstream master\``)
   }
+  const archive = execFileSync('git', ['archive', '--format=tar', UPSTREAM_REF, 'docs'], { maxBuffer: ARCHIVE_MAX_BYTES })
   const dir = mkdtempSync(join(tmpdir(), 'upstream-docs-'))
-  execFileSync('tar', ['-x', '-C', dir], { input: archive })
+  try {
+    execFileSync('tar', ['-x', '-C', dir], { input: archive })
+  } catch (e) {
+    rmSync(dir, { recursive: true, force: true })
+    throw e
+  }
   return {
     pageUrl: pathToFileURL(join(dir, 'docs', 'index.html')).href,
     remove: () => rmSync(dir, { recursive: true, force: true })
