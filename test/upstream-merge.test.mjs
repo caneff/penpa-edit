@@ -139,31 +139,45 @@ describe('the upstream merge script', () => {
     }
   })
 
-  it('writes no merge driver to the repo config, so a later plain merge text-merges an owned file both sides changed (#117)', () => {
-    const { dir } = scratchRepo({
-      base: { ...OWNED_BASE, 'ui.js': 'a\nb\nc\nd\ne\nf\ng\n' },
-      ours: { 'engine.js': 'our engine\n' },
-      theirs: { 'engine.js': 'their engine\n', 'calm.js': 'calm\n' }
-    })
-    // The upstream merge conflicts on engine.js and aborts; it still must leave no driver behind.
-    runMerge(dir)
+  // After the script ran (#117), a plain merge in the same repo must still text-merge or conflict an owned file both
+  // sides changed: the driver is passed to the script's own merge and never written to a config.
+  const UI_LINES = 'a\nb\nc\nd\ne\nf\ng\n'
+  function plainMergesAfter (dir, expectedStatus) {
+    const { status, stderr } = runMerge(dir)
+    assert.equal(status, expectedStatus, stderr)
     assert.equal(spawnSync('git', ['config', '--get', 'merge.ours.driver'], { cwd: dir, env: GIT_ENV }).status, 1)
-    git(dir, 'checkout', '-q', '-b', 'worker')
+    const base = git(dir, 'rev-parse', 'HEAD')
+    git(dir, 'checkout', '-q', '-b', 'worker', base)
     commit(dir, { 'ui.js': 'A\nb\nc\nd\ne\nf\ng\n' }, 'worker edits the top of ui.js')
     git(dir, 'checkout', '-q', 'master')
     commit(dir, { 'ui.js': 'a\nb\nc\nd\ne\nf\nG\n' }, 'master edits the bottom of ui.js')
     git(dir, 'merge', '-q', '--no-edit', 'worker')
     assert.equal(readFileSync(join(dir, 'ui.js'), 'utf8'), 'A\nb\nc\nd\ne\nf\nG\n')
+    // Overlapping edits conflict instead of keeping our side.
+    git(dir, 'checkout', '-q', '-b', 'worker2', base)
+    commit(dir, { 'ui.js': 'worker\n' }, 'worker rewrites ui.js')
+    git(dir, 'checkout', '-q', 'master')
+    commit(dir, { 'ui.js': 'master\n' }, 'master rewrites ui.js')
+    assert.throws(() => git(dir, 'merge', '--no-edit', 'worker2'), /Command failed/)
+    assert.match(readFileSync(join(dir, 'ui.js'), 'utf8'), /<<<<<<<[^]*master[^]*worker[^]*>>>>>>>/)
+  }
+
+  it('leaves no merge driver in the config after a merge that conflicts and aborts, so a plain merge still text-merges (#117)', () => {
+    const { dir } = scratchRepo({
+      base: { ...OWNED_BASE, 'ui.js': UI_LINES },
+      ours: { 'engine.js': 'our engine\n' },
+      theirs: { 'engine.js': 'their engine\n' }
+    })
+    plainMergesAfter(dir, 1)
   })
 
-  it('a plain merge of two branches that both changed an owned file conflicts when the edits overlap (#117)', () => {
-    const { dir } = scratchRepo({ base: OWNED_BASE })
-    git(dir, 'checkout', '-q', '-b', 'worker')
-    commit(dir, { 'ui.js': 'worker ui\n' }, 'worker')
-    git(dir, 'checkout', '-q', 'master')
-    commit(dir, { 'ui.js': 'master ui\n' }, 'master')
-    assert.throws(() => git(dir, 'merge', '--no-edit', 'worker'), /Command failed/)
-    assert.match(readFileSync(join(dir, 'ui.js'), 'utf8'), /<<<<<<<[^]*master ui[^]*worker ui[^]*>>>>>>>/)
+  it('leaves no merge driver in the config after a merge that succeeds, so a plain merge still text-merges (#117)', () => {
+    const { dir } = scratchRepo({
+      base: { ...OWNED_BASE, 'ui.js': UI_LINES },
+      ours: { 'ui.js': 'a\nb\nc\nD\ne\nf\ng\n' },
+      theirs: { 'engine.js': 'new engine\n', 'ui.js': 'a\nb\nc\nd\nE\nf\ng\n' }
+    })
+    plainMergesAfter(dir, 0)
   })
 
   it('keeps our side of a merge=ours file that only upstream changed', () => {
