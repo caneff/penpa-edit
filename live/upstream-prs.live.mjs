@@ -1,7 +1,7 @@
 // The behaviour taken from upstream PRs 216 (delete a circle), 231 (sudoku import) and 229 (long links, load URL).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { openPenpa, useBrowser } from './page.mjs'
+import { openPenpa, useBrowser, waitForSettingsLoaded } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -80,7 +80,12 @@ describe('long links and Load URL (PR 229)', () => {
 
   it('keeps the warning setting off after a restart', async () => {
     const first = await openPenpa(browser(), '', { served: true })
+    // #171: this test once read `true` after the restart on a busy machine. Most likely the cookie had not reached the
+    // browser's store when `context.cookies()` read it (not reproduced), so wait for the settings load and then the store.
+    await waitForSettingsLoaded(first.page)
     await first.page.evaluate(() => { UserSettings.warn_long_links = false })
+    const savedOff = async () => (await first.context.cookies()).some((c) => c.name === 'warn_long_links' && c.value === 'false')
+    assert.equal(await settle(savedOff, true, { patient: true }), true, 'warn_long_links=false reached the cookie store')
     const kept = await first.context.cookies()
     await first.context.close()
     const second = await openPenpa(browser(), '', { served: true, cookies: kept })

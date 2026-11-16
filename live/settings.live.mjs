@@ -1,7 +1,7 @@
 // Penpa+ settings are cookies; they must outlive the browser, so each needs an expiry in the future.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { AKARI_SOLVE, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, openPenpa, useBrowser, waitForSettingsLoaded } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -41,7 +41,7 @@ describe('conflict detection', () => {
   const OFF_ALL_PUZZLES = 3
   // Read once Penpa+ has loaded its cookies, so the default is not read before a saved value lands.
   const readConflictDetection = async (page) => {
-    await page.waitForFunction(() => typeof UserSettings !== 'undefined' && UserSettings._settingsLoaded)
+    await waitForSettingsLoaded(page)
     return page.evaluate(() => UserSettings.conflict_detection)
   }
 
