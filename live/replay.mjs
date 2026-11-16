@@ -21,15 +21,15 @@
 // the generator also adds `import`, the name of the puzz.link import a genre's recording was made on. The fuzz writes
 // `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
-// `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+// `npm run recordings:approve` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 export const RECORDINGS = new URL('./recordings/', import.meta.url)
-const STEPS_SUFFIX = '.steps.json'
-const EXPECTED_SUFFIX = '.expected.json'
+export const STEPS_SUFFIX = '.steps.json'
+export const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
@@ -106,23 +106,31 @@ export async function readRecording (id) {
   return JSON.parse(await readFile(new URL(id + STEPS_SUFFIX, RECORDINGS), 'utf8'))
 }
 
-// The expected checkpoints, each state back as the string `canonicalState` writes.
-export async function readExpected (id) {
-  let text
+// The expected file as JSON reads it, or null when the recording has none.
+export async function readExpectedFile (id) {
   try {
-    text = await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8')
+    return JSON.parse(await readFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), 'utf8'))
   } catch (e) {
     if (e.code !== 'ENOENT') throw e
-    throw new Error(`${id} has no expected file: once the replay is right, run node live/write-expected.mjs ${id}`)
+    return null
   }
-  const { checkpoints } = JSON.parse(text)
-  return checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
 }
 
-// Each state written one line per array entry, so a changed line reads as one line of the file's diff.
+// The expected checkpoints, each state back as the string `canonicalState` writes.
+export async function readExpected (id) {
+  const file = await readExpectedFile(id)
+  if (!file) throw new Error(`${id} has no expected file: once the replay is right, run npm run recordings:approve -- ${id}`)
+  return file.checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
+}
+
+// A replay's checkpoints as the expected file holds them: each state one line per array entry, so a changed line reads
+// as one line of the file's diff.
+export function expectedFile (checkpoints) {
+  return { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
+}
+
 export async function writeExpected (id, checkpoints) {
-  const file = { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
-  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(file, null, 1) + '\n')
+  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(expectedFile(checkpoints), null, 1) + '\n')
 }
 
 // Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
@@ -383,7 +391,7 @@ export function stepWords (step) {
 }
 
 // Step 0 is no input: its checkpoint is the board the link loads.
-function checkpointWords (steps, n) {
+export function checkpointWords (steps, n) {
   return n === 0 ? 'the board the link loads' : stepWords(steps[n - 1])
 }
 

@@ -18,7 +18,7 @@ ChinStrap, Chris's setter name (Chris, 2026-11-09). Penpa+'s MIT copyright lines
   `location.href`; its localhost / `file://` branch names the fork's address too.
 - **Our files**, outside upstream's: `.gitattributes`, `AGENTS.md`, `CLAUDE.md`, `CODING_STANDARDS.md`, `GLOSSARY.md`, `.agents/` (the skills' tracker,
   label and domain docs; upstream already has a `docs/agents.md`, so ours cannot be `docs/agents/`), `research/` (notes read from Penpa+'s
-  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `docs/js/header_text.js`, `docs/js/recorder.js`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/header-text.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/package-scripts.test.mjs`, `test/redirect-urls.mjs`,
+  source, outside `docs/` so Pages does not serve them), `adr/`, `userscript/`, `live/`, `.claude/settings.json`, `.claude/hooks/`, `docs/js/header_text.js`, `docs/js/recorder.js`, `test/snapshots.test.mjs`, `test/constraints.test.mjs`, `test/header-text.test.mjs`, `test/canonical-state.test.mjs`, `test/userscript.test.mjs`, `test/upstream-merge.test.mjs`, `test/package-scripts.test.mjs`, `test/recordings-approve.test.mjs`, `test/expected-gate.test.mjs`, `test/recordings-hook.test.mjs`, `test/required-checks.test.mjs`, `test/redirect-urls.mjs`,
   `.github/workflows/`, `.github/actions/` and `.github/scripts/`.
 - **`GLOSSARY.md`**: the vocabulary.
 - **Phones and tablets**: no change of ours is checked, styled or demonstrated at a phone or tablet size, and no ticket asks for it.
@@ -46,7 +46,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 
 ## End-to-end seam
 
-- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/header-text.test.mjs` (a Node check of `docs/js/header_text.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`), `test/userscript.test.mjs` (the Redirect script), `test/upstream-merge.test.mjs` (the upstream merge's scripts, on scratch git repos), `test/package-scripts.test.mjs` (the scripts' concurrency cap) and, once in headless Chromium
+- **Seam**: `npm test && npm run test:live`. `npm test` runs `test/constraints.test.mjs` (a Node check of `docs/js/constraints.js`), `test/header-text.test.mjs` (a Node check of `docs/js/header_text.js`), `test/canonical-state.test.mjs` (a Node check of `live/canonical-state.mjs`), `test/userscript.test.mjs` (the Redirect script), `test/upstream-merge.test.mjs` (the upstream merge's scripts, on scratch git repos), `test/package-scripts.test.mjs` (the scripts' concurrency cap), the expected-file gate's own tests (`test/recordings-approve.test.mjs`, `test/expected-gate.test.mjs`, `test/recordings-hook.test.mjs`, `test/required-checks.test.mjs`) and, once in headless Chromium
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
@@ -57,8 +57,20 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
-- **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
-  merges upstream nightly and pushes only when both pass on the merged tree.
+- **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master` (job `test`), and the expected-file gate
+  on every PR (job `expected-files`, below). `.github/workflows/upstream-merge.yml` merges upstream nightly and pushes
+  only when both pass on the merged tree and it changes no expected file. `.github/scripts/require-checks.sh` makes both
+  jobs required on `master`, with the admin role able to bypass; the nightly posts their statuses on the commit it
+  tested before it pushes.
+- **Expected-file changes** (#33): a ticket whose fix changes a recording's expected file lists each recording before the
+  fix, under a `## Expected changes` heading, one bullet per id: a backticked id, a colon, the change in words. The
+  controller approves only those ids, with the approve command (`npm run recordings:approve -- <id> ...`, no "update
+  all"), which prints each file's change in plain words before it writes; every other change, and every change an
+  upstream merge brings, goes to Chris. CI's `expected-files` job fails a PR that changes an expected file no ticket it
+  closes listed before the fix started (the earliest author date of the PR's commits), passes a new recording, and posts
+  each change in plain words as a PR comment. A ticket edit starts no run: re-run the job after one. Workers in
+  `.claude/worktrees/` are denied writes to `live/recordings/**` and the approve command
+  (`.claude/hooks/deny-recording-writes.mjs`).
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
   Mocha page stays as `npm run test:browser`; it is not part of the seam. Nor is `npm run measure` (`live/measure.mjs`,
   #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
