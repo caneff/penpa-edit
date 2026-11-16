@@ -59,7 +59,7 @@ describe('the Redirect script', () => {
 
   it('does not take m=solvex or a p= value containing m=solve for a solve link', () => {
     assert.equal(redirectOf(UPSTREAM + '#m=solvex&p=abc'), FORK + '#m=solvex&p=abc')
-    assert.equal(redirectOf(UPSTREAM + '#m=edit&p=xm%3Dsolve'), FORK + '#m=edit&p=xm%3Dsolve')
+    assert.equal(redirectOf(UPSTREAM + '#m=edit&p=xm=solve'), FORK + '#m=edit&p=xm=solve')
   })
 
   it('leaves the fork alone, solve.html and index.html both', () => {

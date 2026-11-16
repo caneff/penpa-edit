@@ -14,17 +14,12 @@
   const UPSTREAM_URL = 'https://swaroopg92.github.io/penpa-edit/'
   const FORK_URL = 'https://caneff.github.io/penpa-edit/'
 
-  // A solve link says `m=solve` in its query or its # data.
-  function isSolveLink (url) {
-    const data = url.slice(UPSTREAM_URL.length).replace(/^[^?#]*/, '')
-    return data.split(/[?#&]/).includes('m=solve')
-  }
-
   if (location.href.startsWith(UPSTREAM_URL)) {
     const tail = location.href.slice(UPSTREAM_URL.length)
-    // A solve link opens on solve.html, whatever page it named; every other link keeps its path.
-    const target = isSolveLink(location.href) ? FORK_URL + 'solve.html' + tail.replace(/^[^?#]*/, '') : FORK_URL + tail
+    const data = tail.replace(/^[^?#]*/, '')
+    // A solve link says `m=solve` in its query or its # data. It opens on solve.html whatever page it named.
+    const isSolve = data.split(/[?#&]/).includes('m=solve')
     // `replace`, so Back does not return to the upstream link and loop.
-    location.replace(target)
+    location.replace(FORK_URL + (isSolve ? 'solve.html' + data : tail))
   }
 })()
