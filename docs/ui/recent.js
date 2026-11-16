@@ -36,7 +36,9 @@
                 engine.setTool({ mode: entry.mode, submode: entry.submode, ...(entry.style === null ? {} : { style: entry.style }) });
                 main.blur();
             });
-            return el('div', { class: `ui-chip${current ? ' is-current' : ''}` }, [main]);
+            const pin = window.pinBoard.toggleButton(() => entry).node;
+            pin.setAttribute('tabindex', OUT_OF_TAB_ORDER.tabindex);
+            return el('div', { class: `ui-chip${current ? ' is-current' : ''}` }, [main, pin]);
         }
 
         const strip = el('div', { class: 'ui-recent' });
@@ -45,7 +47,7 @@
         function render() {
             noteCurrentTool();
             const currentKey = toolKey(engine.getTool());
-            const signature = JSON.stringify([entries, currentKey]);
+            const signature = JSON.stringify([entries, currentKey, entries.map((entry) => window.pinBoard.isPinned(entry))]);
             if (signature !== drawn) {
                 drawn = signature;
                 strip.replaceChildren(...entries.map((entry) => chip(entry, toolKey(entry) === currentKey)));
@@ -54,5 +56,6 @@
 
         render();
         engine.on('change', render);
+        window.pinBoard.onChange(render);
     });
 })();

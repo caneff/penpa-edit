@@ -133,8 +133,7 @@
         // ---- The Pinned card --------------------------------------------------------------------------------------------
 
         const strip = el('div', { class: 'ui-pins' });
-        const pinCurrent = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's', class: 'ui-pin-current' }, ['Pin current tool']);
-        cards.pins.body.replaceChildren(strip, pinCurrent);
+        cards.pins.body.replaceChildren(strip);
 
         function chip(pin, number, current) {
             const label = chipLabel(toolOf(pin));
@@ -155,13 +154,51 @@
             return el('div', { class: `ui-chip${current ? ' is-current' : ''}`, style: `--ui-pin-colour:${pinColour(pin)}` }, [main, unpin]);
         }
 
-        pinCurrent.addEventListener('click', () => {
-            const { mode, submode, style } = engine.getTool();
-            pins.push({ id: nextId++, mode, submode, style });
+        // ---- The pin toggles --------------------------------------------------------------------------------------------
+
+        // Pins or unpins a tool's mode and sub-mode; a new pin keeps the style the tool was used with.
+        function togglePin(tool) {
+            const index = pinIndexOf(tool);
+            if (index >= 0) {
+                pins.splice(index, 1);
+            } else {
+                pins.push({ id: nextId++, mode: tool.mode, submode: tool.submode, style: tool.style ?? null });
+            }
             save();
             render();
-            pinCurrent.blur();
-        });
+        }
+
+        const PIN_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" stroke="currentColor" stroke-width="1.5" ' +
+            'stroke-linejoin="round" stroke-linecap="round" fill="FILL"><path d="M5.5 1.5h5l-.8 4.2 2.3 2.8H4l2.3-2.8z"/><path d="M8 8.5v6" fill="none"/></svg>';
+
+        // A pin icon button for whatever tool `toolNow()` returns: pressed while that tool is pinned. `sync()` redraws it.
+        function pinToggle(toolNow) {
+            const button = el('button', { type: 'button', class: 'ui-pin-toggle' });
+            function sync() {
+                const tool = toolNow();
+                const known = toolOf(tool);
+                const pinned = pinIndexOf(tool) >= 0;
+                button.hidden = !known;
+                button.setAttribute('aria-pressed', String(pinned));
+                button.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${known ? chipLabel(known) : tool.mode}`);
+                button.innerHTML = PIN_ICON.replace('FILL', pinned ? 'currentColor' : 'none');
+            }
+            button.addEventListener('click', () => {
+                togglePin(toolNow());
+                button.blur();
+            });
+            sync();
+            return { node: button, sync };
+        }
+
+        // The Mode card's pin sits beside its tool picker.
+        const modePin = pinToggle(() => engine.getTool());
+        const picker = cards.mode.body.querySelector('.ui-picker');
+        const pickerRow = el('div', { class: 'ui-picker-row' });
+        picker.replaceWith(pickerRow);
+        pickerRow.append(picker, modePin.node);
+
+        const changeListeners = [];
 
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
@@ -212,20 +249,26 @@
 
         function render() {
             followTool();
+            // Between two unpinned tools the signature holds, yet the Mode card's pin names the new one.
+            modePin.sync();
             const index = pinIndexOf(engine.getTool());
             const signature = JSON.stringify([pins, index]);
             if (signature === drawn) {
                 return;
             }
             drawn = signature;
+            changeListeners.forEach((listener) => listener());
             strip.replaceChildren(...pins.map((pin, i) => chip(pin, i + 1, i === index)));
-            pinCurrent.toggleAttribute('disabled', index >= 0);
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 
         // What the presets and the Settings dialog read and replace. A pin for a tool the link lacks is left out, like a saved
         // pin the link no longer offers.
         window.pinBoard = {
+            // A pin toggle button for the tool `toolNow()` names, and `onChange(listener)` for when the pins or the current pin change.
+            toggleButton: pinToggle,
+            isPinned: (tool) => pinIndexOf(tool) >= 0,
+            onChange: (listener) => changeListeners.push(listener),
             snapshot: () => pins.map(({ mode, submode, style }) => ({ mode, submode, style })),
             replace(entries) {
                 pins = entries.filter(toolOf).map(({ mode, submode, style }) => ({ id: nextId++, mode, submode, style: style ?? null }));
