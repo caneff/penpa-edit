@@ -13,7 +13,7 @@ Depending on the browser you can update the page without using the cache with <k
 1. Install [Tampermonkey](https://www.tampermonkey.net/).
 2. Open [`penpa-redirect.user.js`](https://raw.githubusercontent.com/caneff/penpa-edit/master/userscript/penpa-redirect.user.js) and click Install.
 
-Every `https://swaroopg92.github.io/penpa-edit/` link then opens at `https://caneff.github.io/penpa-edit/` with its query and `#` data unchanged.
+Every `https://swaroopg92.github.io/penpa-edit/` link then opens at `https://caneff.github.io/penpa-edit/` with its query and `#` data unchanged. A solve link (`m=solve`) opens on `solve.html` there; edit links and bare pages keep their path.
 
 ## Referencing and citing content
 You can now cite this in your research and publications using:
