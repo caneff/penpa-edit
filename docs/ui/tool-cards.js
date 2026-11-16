@@ -141,7 +141,8 @@
         });
         const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
         const toolOptions = el('div', { class: 'ui-toolopts' });
-        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), toolOptions);
+        // pins.js adds the pin toggle to the row.
+        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [el('div', { class: 'ui-picker' }, [input, list])]), toolOptions);
 
         let open = false;
         let shown = [];

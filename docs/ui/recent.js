@@ -1,4 +1,4 @@
-// The Recent card: the last five tools the solver used, newest first, as pin chips without number or ×. Kept for this visit
+// The Recent card: the last five tools the solver used, newest first, as pin chips without number or ×, each with a pin toggle from `window.pinBoard` (pins.js). Kept for this visit
 // only, and outside the Tab cycle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -36,7 +36,9 @@
                 engine.setTool({ mode: entry.mode, submode: entry.submode, ...(entry.style === null ? {} : { style: entry.style }) });
                 main.blur();
             });
-            return el('div', { class: `ui-chip${current ? ' is-current' : ''}` }, [main]);
+            const pin = window.pinBoard.toggleButton(() => entry).node;
+            pin.setAttribute('tabindex', OUT_OF_TAB_ORDER.tabindex);
+            return el('div', { class: `ui-chip${current ? ' is-current' : ''}` }, [main, pin]);
         }
 
         const strip = el('div', { class: 'ui-recent' });
@@ -45,7 +47,7 @@
         function render() {
             noteCurrentTool();
             const currentKey = toolKey(engine.getTool());
-            const signature = JSON.stringify([entries, currentKey]);
+            const signature = JSON.stringify([entries, currentKey, entries.map((entry) => window.pinBoard.isPinned(entry))]);
             if (signature !== drawn) {
                 drawn = signature;
                 strip.replaceChildren(...entries.map((entry) => chip(entry, toolKey(entry) === currentKey)));
