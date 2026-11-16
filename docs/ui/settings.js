@@ -15,8 +15,8 @@
     const PER_PUZZLE_FLAG = '1';
     const PER_PUZZLE_TAG = 'This puzzle only';
 
-    const GEAR_ICON = '<circle cx="8" cy="8" r="2.3"/><path d="M6.9 1.5h2.2l.4 1.9 1.3.6 1.7-1 1.5 1.5-1 1.7.6 1.3 1.9.4v2.2l-1.9.4-.6 1.3 1 1.7' +
-        '-1.5 1.5-1.7-1-1.3.6-.4 1.9H6.9l-.4-1.9-1.3-.6-1.7 1-1.5-1.5 1-1.7-.6-1.3-1.9-.4V6.9l1.9-.4.6-1.3-1-1.7 1.5-1.5 1.7 1 1.3-.6z"/>';
+    // An evenly spaced 8-tooth gear around a hub, generated (8 teeth, radii 4.9 and 6.5) so no tooth sits off the circle.
+    const GEAR_ICON = '<circle cx="8" cy="8" r="2.1"/><path d="M6.27 3.41 L6.58 1.66 L9.42 1.66 L9.73 3.41 L10.02 3.54 L11.48 2.51 L13.49 4.52 L12.46 5.98 L12.59 6.27 L14.34 6.58 L14.34 9.42 L12.59 9.73 L12.46 10.02 L13.49 11.48 L11.48 13.49 L10.02 12.46 L9.73 12.59 L9.42 14.34 L6.58 14.34 L6.27 12.59 L5.98 12.46 L4.52 13.49 L2.51 11.48 L3.54 10.02 L3.41 9.73 L1.66 9.42 L1.66 6.58 L3.41 6.27 L3.54 5.98 L2.51 4.52 L4.52 2.51 L5.98 3.54Z"/>';
 
     // The row that holds the Clear saved progress button, in the group its rows are listed in.
     const CLEAR_PROGRESS_ROW = ['clear saved progress'];
