@@ -111,9 +111,8 @@ export function buildNumberBoardInPage ({ given, answer }) {
   pu.pu_a.number[pu.centerlist[answer]] = [2, 2, '1']
 }
 
-// Runs in the page. Builds that board and returns its solve link's `#` part.
-function numberSolveLinkInPage (cells) {
-  buildNumberBoardInPage(cells)
+// Runs in the page, on a board with an author's answer: its solve link's `#` part.
+function solveLinkInPage () {
   const url = pu.maketext_solve_solution()
   return url.slice(url.indexOf('#'))
 }
@@ -137,6 +136,12 @@ export function linkOfButtonInPage (handler) {
 }
 
 // The `#` part of a 4x4 Number solve link with a given 1 in GIVEN_CELL and an author's answer of 2 in ANSWER_CELL.
-export function makeNumberSolveLink (browser) {
-  return linkFromNewBoard(browser, numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
+export async function makeNumberSolveLink (browser) {
+  const { context, page } = await openPenpa(browser)
+  try {
+    await page.evaluate(buildNumberBoardInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
+    return await page.evaluate(solveLinkInPage)
+  } finally {
+    await context.close()
+  }
 }
