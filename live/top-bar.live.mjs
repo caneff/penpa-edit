@@ -51,8 +51,9 @@ const timer = (page) => page.evaluate(() => engine.getTimer())
 const button = (page, name) => page.getByRole('button', { name, exact: true })
 const timerText = (page) => page.getByRole('timer').textContent()
 const boardCard = (page) => page.getByRole('region', { name: 'Board' })
-// Without animations, so the tool-name flash that follows a tool change is not in the picture.
-const boardPicture = (page) => boardCard(page).screenshot({ animations: 'disabled' })
+// The drawn board alone, not the card's title bar, whose buttons show the pointer's hover. Without animations, so the
+// tool-name flash that follows a tool change is not in the picture.
+const boardPicture = (page) => boardCard(page).locator('canvas:visible').screenshot({ animations: 'disabled' })
 
 // Waits for the button to be (or not be) disabled: the bar follows the engine on the next frame.
 async function assertDisabled (page, name, expected, message) {
