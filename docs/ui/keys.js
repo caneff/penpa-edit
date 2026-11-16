@@ -66,6 +66,20 @@
         setTimeout(focusBoard);
     }
 
+    // The files that own keys of their own add a handler: it answers 'ui', 'browser' or nothing for a key the board would
+    // otherwise get, and the first answer wins. It runs only for a key the board may have (focus, popups, browser keys first).
+    const keyHandlers = [];
+    window.uiKeys = { add: (handler) => keyHandlers.push(handler) };
+
+    function answerOfHandlers(e) {
+        for (const handler of keyHandlers) {
+            const answer = handler(e);
+            if (answer) {
+                return answer;
+            }
+        }
+    }
+
     engine.ready.then(() => {
         engine.onKey((e) => {
             if (engine.getState().penpaDialogOpen) {
@@ -77,9 +91,7 @@
             if (!boardHasFocus(e.composedPath()) || isBrowserKey(e)) {
                 return 'browser';
             }
-            if (e.key === '?') {
-                return 'ui';
-            }
+            return answerOfHandlers(e) ?? (e.key === '?' ? 'ui' : undefined);
         });
 
         // Capture, because Penpa may stop a click's default before focus would move.

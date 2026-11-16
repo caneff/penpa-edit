@@ -5,7 +5,7 @@
     'use strict';
 
     const SEPARATOR = ' · ';
-    const { GROUPS, NOTHING, describeTool, mouseRows } = window.toolGuide;
+    const { GROUPS, NOTHING, describeTool, mouseRows, toolKey } = window.toolGuide;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
     const MOUSE_BODY_SLACK_PX = 2;
@@ -27,8 +27,6 @@
     function nameParts(tool, style) {
         return [tool.modeName, tool.submodeName, styleOf(tool, style)?.name].filter(Boolean);
     }
-
-    const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
 
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 

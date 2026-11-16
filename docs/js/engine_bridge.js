@@ -380,6 +380,32 @@
             return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
         },
 
+        // The link's Tab set, in the order the link gives it, as tools of `listTools()` without a style. Penpa names a mode
+        // with no sub-mode of its own in the set (Shape, Special, Composite); it is the sub-mode Penpa remembers for the
+        // mode, else the first listed. A name the link's grid does not offer is left out, and so is a repeat.
+        tabSet() {
+            const catalog = toolCatalog();
+            const seen = new Set();
+            return UserSettings.tab_settings.flatMap((name) => {
+                const target = PenpaText.modes.mapping[PenpaText.modes.EN.indexOf(name)];
+                const ofMode = catalog.filter((t) => t.mode === target);
+                const tool = catalog.find((t) => `sub_${t.mode}${t.submode}` === target) ??
+                    ofMode.find((t) => t.submode === rememberedSubmode(pu.mode[pu.mode.qa][target]?.[0])) ?? ofMode[0];
+                const key = tool && `${tool.mode}/${tool.submode}`;
+                if (!tool || seen.has(key)) {
+                    return [];
+                }
+                seen.add(key);
+                return [{ mode: tool.mode, submode: tool.submode }];
+            });
+        },
+
+        // The Penpa settings the UI reads, by name: only the ones a ticket has needed so far.
+        getSettings() {
+            boardCanvas();
+            return { shortcuts_enabled: Boolean(UserSettings.shortcuts_enabled) };
+        },
+
         // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in
         // `listTools()` (`submode: null` for a mode with none), or the call throws and changes nothing.
         setTool(tool) {
