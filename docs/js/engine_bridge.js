@@ -77,8 +77,106 @@
         return booting;
     };
 
+    // MVP gap: main.js adds its key handlers on `document` from inside its onload, as closure-local functions that cannot be
+    // removed afterwards. This file runs before that onload, so it wraps `document.addEventListener` until both are
+    // added and puts the gate around them. Nothing stops propagation, so other listeners (Web Awesome's) see every key.
+    const PENPA_KEY_HANDLERS = { keydown: 'onKeyDown', keyup: 'onKeyUp' };
+    const gatedKeyTypes = new Set();
+    let keyHandler = null;
+    document.addEventListener = function (type, listener, options) {
+        if (type in PENPA_KEY_HANDLERS && PENPA_KEY_HANDLERS[type] === listener?.name && !gatedKeyTypes.has(type)) {
+            const penpaListener = listener;
+            gatedKeyTypes.add(type);
+            listener = function (e) {
+                if (!keyHandler || !keyHandler(e)) {
+                    return penpaListener.call(this, e);
+                }
+            };
+            if (gatedKeyTypes.size === Object.keys(PENPA_KEY_HANDLERS).length) {
+                delete document.addEventListener;
+            }
+        }
+        return EventTarget.prototype.addEventListener.call(this, type, listener, options);
+    };
+
+    // The Puzzle methods whose calls can change what the UI shows. Hooked on the prototype, so a `pu` that load() replaces
+    // stays hooked, and a wrapper on the instance (recorder.js) calls through to the hook.
+    const HOOKED_PUZZLE_METHODS = ['redraw', 'mode_set', 'submode_check', 'stylemode_check', 'subcombimode', 'subsymbolmode'];
+    const changeHandlers = new Set();
+    let changeQueued = false;
+    function queueChange() {
+        if (changeQueued) {
+            return;
+        }
+        changeQueued = true;
+        requestAnimationFrame(() => {
+            changeQueued = false;
+            changeHandlers.forEach((handler) => handler());
+        });
+    }
+    HOOKED_PUZZLE_METHODS.forEach((name) => {
+        const original = Puzzle.prototype[name];
+        Puzzle.prototype[name] = function () {
+            try {
+                return original.apply(this, arguments);
+            } finally {
+                queueChange();
+            }
+        };
+    });
+
+    // MVP gap: Penpa's popups are SweetAlert2's container (the Congratulations popup, its alerts) and its `.modal` elements,
+    // shown by setting `style.display`. The watcher only wakes the `change` event; getState reads the live elements.
+    function penpaDialogOpen() {
+        return document.querySelector('.swal2-container') !== null ||
+            [...document.querySelectorAll('.modal')].some((m) => m.style.display && m.style.display !== 'none');
+    }
+    new MutationObserver(queueChange).observe(document.documentElement, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']
+    });
+
+    const ENGINE_EVENTS = ['change'];
+
     const engine = {
         ready,
+
+        // The state the UI draws from. Read it when `change` fires.
+        getState() {
+            boardCanvas();
+            return { penpaDialogOpen: penpaDialogOpen() };
+        },
+
+        // Runs `handler()` at most once per frame after the state may have changed.
+        on(event, handler) {
+            if (!ENGINE_EVENTS.includes(event)) {
+                throw new RangeError(`engine.on: no event "${String(event)}"; the events are ${ENGINE_EVENTS.join(', ')}`);
+            }
+            if (typeof handler !== 'function') {
+                throw new TypeError('engine.on: handler must be a function');
+            }
+            changeHandlers.add(handler);
+        },
+
+        // The front door for keys. `handler(event)` runs for every keydown and keyup before Penpa's handlers and answers
+        // 'ui' or 'browser' (Penpa never sees the event, and the bridge does not touch its default) or nothing (Penpa gets it).
+        onKey(handler) {
+            if (typeof handler !== 'function') {
+                throw new TypeError('engine.onKey: handler must be a function');
+            }
+            if (gatedKeyTypes.size !== Object.keys(PENPA_KEY_HANDLERS).length) {
+                throw new Error('engine.onKey: the gate missed main.js\'s key handlers, so it would do nothing');
+            }
+            if (keyHandler) {
+                throw new Error('engine.onKey: a key handler is already set');
+            }
+            keyHandler = (e) => {
+                const answer = handler(e);
+                if (answer !== undefined && answer !== 'ui' && answer !== 'browser') {
+                    throw new RangeError(`engine.onKey: the handler answered ${String(answer)}; it must answer 'ui', 'browser' or nothing`);
+                }
+                return answer !== undefined;
+            };
+        },
 
         // Moves the board into `container`, fixes click hit-testing and hides Penpa's own chrome.
         mount(container) {
