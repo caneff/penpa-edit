@@ -1,0 +1,309 @@
+// The Mode card (a searchable list of every tool, then the current tool's styles), the Mouse card (what the mouse does with
+// the current tool) and the board's title-bar tool name. Reaches Penpa only through `engine` (test/ui-boundary.test.mjs
+// fails otherwise).
+(function () {
+    'use strict';
+
+    const SEPARATOR = ' · ';
+    const { GROUPS, NOTHING, describeTool, mouseRows } = window.toolGuide;
+
+    // Space the Mouse card's body keeps below the tallest content, for the borders.
+    const MOUSE_BODY_SLACK_PX = 2;
+
+    function el(tag, attrs = {}, children = []) {
+        const node = document.createElement(tag);
+        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
+        node.append(...children);
+        return node;
+    }
+
+    // ---- The tool in words ------------------------------------------------------------------------------------------
+
+    function styleOf(tool, style) {
+        return tool.styles.find((s) => s.style === style) ?? null;
+    }
+
+    // Mode, sub-mode and style as the Mouse card's headline and the title bar show them.
+    function nameParts(tool, style) {
+        return [tool.modeName, tool.submodeName, styleOf(tool, style)?.name].filter(Boolean);
+    }
+
+    const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
+
+    // ---- The Mouse card ---------------------------------------------------------------------------------------------
+
+    function headline(tool, style) {
+        const h3 = el('h3', { class: 'ui-headline' });
+        nameParts(tool, style).forEach((part, i) => {
+            if (i) {
+                h3.append(el('span', { class: 'ui-hsep' }, [SEPARATOR]));
+            }
+            const span = el('span', { class: ['ui-hmode', 'ui-hsub', 'ui-hstyle'][i] }, [part]);
+            const swatch = i === 2 ? styleOf(tool, style).swatch : null;
+            if (swatch) {
+                span.prepend(el('i', { class: 'ui-dot', style: `background:${swatch}` }));
+            }
+            h3.append(span);
+        });
+        return h3;
+    }
+
+    function renderMouse(target, tool, style) {
+        const rows = mouseRows(tool, styleOf(tool, style)?.name ?? '');
+        const row = (gesture, effect, cls) => el('div', { class: `ui-mrow ${cls}` }, [
+            el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
+        ]);
+        target.replaceChildren(headline(tool, style), el('div', { class: 'ui-mrows' }, [
+            ...[['Left', rows.left], ['Right', rows.right], ['Drag', rows.drag]]
+                .map(([gesture, effect]) => row(gesture, effect, effect === NOTHING ? 'is-none' : '')),
+            ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
+        ]));
+    }
+
+    // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
+    // body at the card's width. Shorter content sits at the top.
+    function measureMouseBody(body, tools) {
+        const probe = el('div', { class: 'ui-body ui-mouse-probe' });
+        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${body.clientWidth}px;box-sizing:border-box;height:auto;`;
+        body.parentElement.append(probe);
+        let tallest = 0;
+        tools.forEach((tool) => {
+            (tool.styles.length ? tool.styles : [{ style: null }]).forEach(({ style }) => {
+                renderMouse(probe, tool, style);
+                tallest = Math.max(tallest, probe.offsetHeight);
+            });
+        });
+        probe.remove();
+        return tallest;
+    }
+
+    // ---- The Mode card ----------------------------------------------------------------------------------------------
+
+    const STYLE_ICON_PX = 20;
+
+    // A 20 px sample of a style for its button: a swatch for a colour, a tiny drawing for the rest.
+    function styleSample(name, swatch) {
+        const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
+        const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
+        const ink = 'stroke="currentColor"';
+        if (swatch) {
+            return svg(`<rect x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>`);
+        }
+        const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
+            `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);
+        switch (name) {
+        case 'thin': return svg(line(`${ink} stroke-width="1"`));
+        case 'thicker': return svg(line(`${ink} stroke-width="4.5"`));
+        case 'dotted': return svg(line(`${ink} stroke-width="2.2" stroke-dasharray="0.1 3.6"`));
+        case 'fat dots': return svg(line(`${ink} stroke-width="4.5" stroke-dasharray="0.1 6.5"`));
+        case 'short': return svg(`<line x1="7" y1="10" x2="13" y2="10" ${ink} stroke-width="3" stroke-linecap="round"/>`);
+        case 'double': return svg(`<line x1="3" y1="7" x2="17" y2="7" ${ink} stroke-width="1.5"/><line x1="3" y1="13" x2="17" y2="13" ${ink} stroke-width="1.5"/>`);
+        case 'grey dot': return svg('<circle cx="10" cy="10" r="3.5" fill="#999"/>');
+        case 'dotted line': return svg(line(`${ink} stroke-width="1.5" stroke-dasharray="2 2.5"`));
+        case 'grey line': return svg(line('stroke="#999" stroke-width="2"'));
+        case 'grey dots': return svg(line('stroke="#999" stroke-width="3" stroke-dasharray="0.1 4"'));
+        case 'solid line': return svg(line(`${ink} stroke-width="2"`));
+        case 'white': return text('1', '<rect x="2" y="2" width="16" height="16" rx="3" fill="#555"/>', '#fff');
+        case 'white background': return text('1', '<rect x="2" y="2" width="16" height="16" rx="2" fill="#fff" stroke="#999"/>', '#222');
+        case 'behind lines': return svg(`<circle cx="10" cy="10" r="5" fill="#bbb"/>${line(`${ink} stroke-width="2"`)}`);
+        case 'in front of lines': return svg(`${line(`${ink} stroke-width="2"`)}<circle cx="10" cy="10" r="5" fill="#bbb"/>`);
+        }
+        return text(String(name).replace(/^style /, '#'));
+    }
+
+    // The picker's entries: every tool the engine lists, filed and named by the guide, with what to search them by.
+    function pickerEntries(tools) {
+        const modeGroups = new Map(GROUPS);
+        return tools.map((tool) => {
+            const { group, name, description } = describeTool(tool);
+            const haystack = [name, description, tool.modeName, modeGroups.get(group), ...tool.labels].join(' ').toLowerCase();
+            return { tool, group, name, description, haystack };
+        });
+    }
+
+    function buildModeCard(body, tools, applyTool) {
+        const entries = pickerEntries(tools);
+        const listId = 'tool-listbox';
+        const input = el('input', {
+            type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
+            'aria-controls': listId, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
+        });
+        const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
+        const styles = el('div', { class: 'ui-toolopts' });
+        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), styles);
+
+        let open = false;
+        let shown = [];
+        let active = -1;
+
+        const entryFor = (tool) => entries.find((e) => toolKey(e.tool) === toolKey(tool));
+
+        function showCurrent() {
+            input.value = entryFor(engine.getTool())?.name ?? '';
+        }
+
+        function markActive() {
+            list.querySelectorAll('[role=option]').forEach((option, i) => {
+                option.setAttribute('aria-selected', String(i === active));
+                if (i === active) {
+                    option.scrollIntoView({ block: 'nearest' });
+                }
+            });
+            if (active >= 0) {
+                input.setAttribute('aria-activedescendant', `tool-option-${active}`);
+            } else {
+                input.removeAttribute('aria-activedescendant');
+            }
+        }
+
+        // The focus returns to the board by leaving the field: nothing else on the page takes keys.
+        function close() {
+            if (!open) {
+                return;
+            }
+            open = false;
+            list.hidden = true;
+            input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
+            showCurrent();
+        }
+
+        function pick(entry) {
+            applyTool({ mode: entry.tool.mode, submode: entry.tool.submode });
+            input.blur();
+        }
+
+        function renderList() {
+            const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+            shown = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
+            list.replaceChildren();
+            GROUPS.forEach(([id, title]) => {
+                const inGroup = shown.filter((e) => e.group === id);
+                if (!inGroup.length) {
+                    return;
+                }
+                const group = el('div', { role: 'group', 'aria-label': title, class: 'ui-group' }, [el('div', { class: 'ui-group-title', 'aria-hidden': 'true' }, [title])]);
+                inGroup.forEach((entry) => {
+                    const option = el('div', { role: 'option', 'aria-selected': 'false', class: 'ui-entry', 'data-mode': entry.tool.mode, 'data-submode': entry.tool.submode ?? '' }, [
+                        el('div', { class: 'ui-ename' }, [entry.name, el('span', { class: 'ui-emode' }, [entry.tool.modeName])]),
+                        el('div', { class: 'ui-edesc' }, [entry.description])
+                    ]);
+                    // The mouse press keeps the focus in the field, so the click that follows is a pick.
+                    option.addEventListener('mousedown', (e) => e.preventDefault());
+                    option.addEventListener('click', () => pick(entry));
+                    group.append(option);
+                });
+                list.append(group);
+            });
+            // The options are numbered in the order they show, which is the groups' order, not `shown`'s.
+            shown = [...list.querySelectorAll('[role=option]')].map((option) => entries.find((e) =>
+                e.tool.mode === option.dataset.mode && (e.tool.submode ?? '') === option.dataset.submode));
+            list.querySelectorAll('[role=option]').forEach((option, i) => { option.id = `tool-option-${i}`; });
+            if (!shown.length) {
+                list.append(el('div', { class: 'ui-none' }, ['No tool matches.']));
+            }
+            markActive();
+        }
+
+        function openList() {
+            if (open) {
+                return;
+            }
+            open = true;
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            input.value = '';
+            active = -1;
+            renderList();
+        }
+
+        input.addEventListener('focus', openList);
+        input.addEventListener('mousedown', () => { if (document.activeElement === input) { openList(); } });
+        input.addEventListener('blur', close);
+        input.addEventListener('input', () => { openList(); active = -1; renderList(); });
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                openList();
+                active = Math.max(0, Math.min(shown.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
+                markActive();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const entry = shown[Math.max(active, 0)];
+                if (entry) {
+                    pick(entry);
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                input.blur();
+            }
+        });
+
+        function renderStyles(tool, style) {
+            styles.replaceChildren();
+            styles.hidden = tool.styles.length === 0;
+            if (!tool.styles.length) {
+                return;
+            }
+            const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
+            tool.styles.forEach((s) => {
+                const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
+                button.innerHTML = styleSample(s.name, s.swatch);
+                button.addEventListener('click', () => {
+                    applyTool({ mode: tool.mode, submode: tool.submode, style: s.style });
+                    button.blur();
+                });
+                group.append(button);
+            });
+            styles.append(el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === 'multicolor' ? 'Colour' : 'Style']), group);
+        }
+
+        return {
+            render(tool, style) {
+                if (!open) {
+                    showCurrent();
+                }
+                renderStyles(tool, style);
+            }
+        };
+    }
+
+    // ---- Wiring -----------------------------------------------------------------------------------------------------
+
+    window.deskReady.then(({ cards, relayout }) => {
+        const tools = engine.listTools();
+        const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current));
+
+        const titleBarName = el('span', { class: 'ui-tool-name', 'data-testid': 'board-tool-name' });
+        cards.board.head.append(titleBarName);
+
+        const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool));
+
+        function sizeMouseCard() {
+            cards.mouse.body.style.height = '';
+            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, tools) + MOUSE_BODY_SLACK_PX}px`;
+        }
+
+        // The engine's `change` also fires for this file's own DOM changes, so a render that would draw the same tool
+        // again does nothing: drawing it would fire `change` again.
+        let drawn = '';
+        function render() {
+            const current = engine.getTool();
+            const now = `${toolKey(current)}/${current.style}`;
+            if (now === drawn) {
+                return;
+            }
+            drawn = now;
+            const tool = toolFor(current);
+            renderMouse(cards.mouse.body, tool, current.style);
+            titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
+            mode.render(tool, current.style);
+        }
+
+        sizeMouseCard();
+        relayout();
+        render();
+        engine.on('change', render);
+        window.addEventListener('resize', () => { sizeMouseCard(); relayout(); });
+    });
+})();

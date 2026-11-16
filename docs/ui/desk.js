@@ -54,10 +54,11 @@
         const cards = {};
         Object.entries(CARD_TITLES).forEach(([id, title]) => {
             const body = el('div', { class: 'ui-body' });
-            const heading = el('h2', {}, [title]);
+            const head = el('div', { class: 'ui-head' }, [el('h2', {}, [title])]);
             cards[id] = {
                 body,
-                node: el('section', { class: `ui-card ui-card-${id}`, 'aria-label': title }, [el('div', { class: 'ui-head' }, [heading]), body])
+                head,
+                node: el('section', { class: `ui-card ui-card-${id}`, 'aria-label': title }, [head, body])
             };
             desk.append(cards[id].node);
         });
@@ -108,13 +109,16 @@
         }
     }
 
-    // A failed load shows its own error dialog (main.js), so a rejected `ready` needs no second report.
-    engine.ready.then(() => {
+    // Resolves to `{ cards, relayout }` once the desk is built, for the files that fill the cards. A failed load shows its
+    // own error dialog (main.js), so a rejected `ready` needs no second report.
+    window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         engine.mount(desk.cards.board.body);
         layout(desk);
         window.addEventListener('resize', () => layout(desk));
         // Fires once on observe, which is the first fit, and again whenever the card's body changes size.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.body);
-    }, () => {});
+        return { cards: desk.cards, relayout: () => layout(desk) };
+    });
+    window.deskReady.catch(() => {});
 })();
