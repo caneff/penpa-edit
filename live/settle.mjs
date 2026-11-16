@@ -13,8 +13,9 @@ const FLOOR_MS = 1000
 // Reads until the value equals `expected` (compared as JSON) and returns it. Otherwise it returns the last value
 // as soon as that value has stayed the same for STABLE_MS after its last change, or for FLOOR_MS from the start
 // when it never changed, so the caller's assert fails on a page that has stopped, not after SETTLE_MS.
-// SETTLE_MS still ends the wait for a page that keeps moving.
-export async function settle (read, expected) {
+// SETTLE_MS still ends the wait for a page that keeps moving. With `patient`, a value that has stopped is still read
+// until SETTLE_MS, for one that only arrives late, such as a cookie the page has written but the browser has not yet stored.
+export async function settle (read, expected, { patient = false } = {}) {
   const want = JSON.stringify(expected)
   const start = Date.now()
   const deadline = start + SETTLE_MS
@@ -30,7 +31,7 @@ export async function settle (read, expected) {
       seen = JSON.stringify(value)
       changedAt = now
       changed = true
-    } else if (seen !== want && now - changedAt >= STABLE_MS && (changed || now - start >= FLOOR_MS)) {
+    } else if (!patient && seen !== want && now - changedAt >= STABLE_MS && (changed || now - start >= FLOOR_MS)) {
       break
     }
   }

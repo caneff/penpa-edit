@@ -75,6 +75,10 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   return { context, page, dialogs, errors }
 }
 
+// Waits until Penpa+ has loaded its saved settings; a setter saves only after that, and a read before it sees defaults.
+export const waitForSettingsLoaded = (page) =>
+  page.waitForFunction(() => typeof UserSettings !== 'undefined' && UserSettings._settingsLoaded)
+
 // Opens one page that boots Penpa+ afresh for every link it loads, cheaper than a page of its own context for each:
 // each load is a navigation, so the page's globals start over, and its storage and cookies start empty, as a new
 // context's do. `served`, `setup` and `contextOptions` are `openPenpa`'s, but `setup` runs once, on the context, and any
