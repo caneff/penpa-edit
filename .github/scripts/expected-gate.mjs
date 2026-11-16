@@ -1,0 +1,146 @@
+// The expected-file gate (#33): a PR may change a recording's expected file only when a ticket it closes listed that
+// recording's id before the change, under a `## Expected changes` heading, one `- \`<id>\`: <the change in words>` bullet
+// per id. A new expected file is not a re-approval and passes unlisted. Every change, listed or not, goes into the PR
+// comment in plain words. An upstream merge never gets here: the nightly refuses any merge that changes an expected
+// file (`.github/scripts/expected-unchanged.sh`), so Chris rules on it.
+//
+// Run by `.github/workflows/ci.yml` on a pull request:
+//   node .github/scripts/expected-gate.mjs <pr> <base-sha> <head-sha> <comment-file>
+// with GH_TOKEN and GITHUB_REPOSITORY set. Writes the comment to <comment-file> when any expected file changed, and
+// exits 1 when one is unlisted.
+import { execFileSync } from 'node:child_process'
+import { writeFileSync } from 'node:fs'
+import { pathToFileURL } from 'node:url'
+import { expectedDiff } from '../../live/expected-diff.mjs'
+
+const HEADING = /^## Expected changes\s*$/
+const RECORDINGS_DIR = 'live/recordings/'
+const EXPECTED_SUFFIX = '.expected.json'
+const STEPS_SUFFIX = '.steps.json'
+// Lines of one recording's diff the comment shows; GitHub refuses a comment over 65536 characters.
+const DIFF_LINES = 40
+
+// The ids a ticket body lists: the first backticked word of each bullet in its `## Expected changes` section.
+export function listedIds (body) {
+  const ids = new Set()
+  let inSection = false
+  for (const line of body.split(/\r?\n/)) {
+    if (/^#{1,2} /.test(line)) inSection = HEADING.test(line)
+    else if (inSection) {
+      const id = line.match(/^\s*[-*] `([^`]+)`/)?.[1]
+      if (id) ids.add(id)
+    }
+  }
+  return ids
+}
+
+// `changes`: { id, status: 'added' | 'modified' | 'deleted', changedAt } per changed expected file, `changedAt` the
+// date of the first PR commit that changed it. `tickets`: { number, versions: [{ at, body }] } per ticket the PR
+// closes, its body's versions oldest first. An id is listed in advance when a ticket's body lists it now and listed it
+// in a version dated no later than its first change.
+export function gateVerdict ({ changes, tickets }) {
+  const verdict = { approved: [], added: [], unlisted: [] }
+  for (const { id, status, changedAt } of changes) {
+    if (status === 'added') {
+      verdict.added.push(id)
+      continue
+    }
+    const listing = tickets.filter(({ versions }) => listedIds(versions.at(-1).body).has(id))
+    const inAdvance = listing.find(({ versions }) => versions.some(({ at, body }) => at <= changedAt && listedIds(body).has(id)))
+    if (inAdvance) verdict.approved.push({ id, ticket: inAdvance.number })
+    else if (listing.length) {
+      const { number, versions } = listing[0]
+      const at = versions.find(({ body }) => listedIds(body).has(id)).at
+      verdict.unlisted.push({ id, reason: `#${number} listed it at ${at}, after its first change at ${changedAt}` })
+    } else verdict.unlisted.push({ id, reason: 'no ticket this PR closes lists it' })
+  }
+  return verdict
+}
+
+const run = (cmd, ...args) => execFileSync(cmd, args, { encoding: 'utf8', maxBuffer: 1 << 28 })
+const git = (...args) => run('git', ...args)
+const gh = (...args) => run('gh', ...args)
+
+// A file's content at `sha` as JSON, or null when it does not exist there.
+function jsonAt (sha, path) {
+  if (!git('ls-tree', '--name-only', sha, '--', path).trim()) return null
+  return JSON.parse(git('show', `${sha}:${path}`))
+}
+
+const STATUS = { A: 'added', M: 'modified', D: 'deleted' }
+
+function changedExpectedFiles (base, head) {
+  const lines = git('diff', '--name-status', '--no-renames', `${base}...${head}`, '--', `:(glob)${RECORDINGS_DIR}**/*${EXPECTED_SUFFIX}`)
+  return lines.split('\n').filter(Boolean).map((line) => {
+    const [code, path] = line.split('\t')
+    const status = STATUS[code]
+    if (!status) throw new Error(`git diff gave status ${code} for ${path}`)
+    const id = path.slice(RECORDINGS_DIR.length, -EXPECTED_SUFFIX.length)
+    const changedAt = git('log', '--format=%cI', '--reverse', `${base}..${head}`, '--', path).split('\n')[0]
+    if (!changedAt) throw new Error(`no commit between ${base} and ${head} changes ${path}`)
+    return { id, path, status, changedAt: new Date(changedAt).toISOString() }
+  })
+}
+
+const ISSUE_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    body createdAt userContentEdits(first: 100) { totalCount nodes { editedAt diff } }
+  } }
+}`
+
+// Every version of a ticket's body, oldest first: GitHub keeps each edit's whole body, the oldest being the original.
+function ticketVersions (repo, number) {
+  const [owner, name] = repo.split('/')
+  const { data } = JSON.parse(gh('api', 'graphql', '-f', `query=${ISSUE_QUERY}`, '-f', `owner=${owner}`, '-f', `name=${name}`, '-F', `number=${number}`))
+  const { body, createdAt, userContentEdits: edits } = data.repository.issue
+  if (edits.totalCount > edits.nodes.length) throw new Error(`#${number} has ${edits.totalCount} edits; the gate reads 100`)
+  if (!edits.nodes.length) return [{ at: new Date(createdAt).toISOString(), body }]
+  const versions = edits.nodes.map(({ editedAt, diff }) => ({ at: new Date(editedAt).toISOString(), body: diff ?? '' }))
+  return versions.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
+}
+
+function diffSection (base, head, { id, path }) {
+  const stepsPath = path.slice(0, -EXPECTED_SUFFIX.length) + STEPS_SUFFIX
+  const recording = jsonAt(head, stepsPath) ?? jsonAt(base, stepsPath)
+  const lines = expectedDiff({ steps: recording?.steps ?? [], before: jsonAt(base, path), after: jsonAt(head, path) })
+  const shown = lines.slice(0, DIFF_LINES).map((line) => `- ${line}`)
+  if (lines.length > DIFF_LINES) shown.push(`- … and ${lines.length - DIFF_LINES} more lines: run \`npm run recordings:approve -- ${id}\` on the base to see them all`)
+  return shown.length ? shown : ['- no checkpoint changed']
+}
+
+export function commentBody ({ head, verdict, sections }) {
+  const out = [`## Expected-file gate at ${head}`, '']
+  const block = (title, items) => {
+    if (!items.length) return
+    out.push(`### ${title}`, '')
+    for (const { id, note } of items) out.push(`#### \`${id}\`${note ? ` — ${note}` : ''}`, '', ...sections.get(id), '')
+  }
+  block('Not listed in advance: this check fails', verdict.unlisted.map(({ id, reason }) => ({ id, note: reason })))
+  block('Approved', verdict.approved.map(({ id, ticket }) => ({ id, note: `listed in #${ticket}` })))
+  block('New recordings', verdict.added.map((id) => ({ id })))
+  return out.join('\n')
+}
+
+async function main ([pr, base, head, commentFile]) {
+  const repo = process.env.GITHUB_REPOSITORY
+  if (!pr || !base || !head || !commentFile || !repo) {
+    throw new Error('usage: GITHUB_REPOSITORY=<owner/name> node .github/scripts/expected-gate.mjs <pr> <base-sha> <head-sha> <comment-file>')
+  }
+  const changed = changedExpectedFiles(base, head)
+  if (!changed.length) {
+    console.log('No expected file changed.')
+    return 0
+  }
+  const closing = JSON.parse(gh('pr', 'view', pr, '--repo', repo, '--json', 'closingIssuesReferences')).closingIssuesReferences
+  const tickets = closing
+    .filter((issue) => `${issue.repository.owner.login}/${issue.repository.name}` === repo)
+    .map(({ number }) => ({ number, versions: ticketVersions(repo, number) }))
+  const verdict = gateVerdict({ changes: changed, tickets })
+  const sections = new Map(changed.map((change) => [change.id, diffSection(base, head, change)]))
+  writeFileSync(commentFile, commentBody({ head, verdict, sections }) + '\n')
+  for (const { id, reason } of verdict.unlisted) console.error(`${id}: expected file changed, not listed in advance: ${reason}`)
+  console.log(`${verdict.approved.length} approved, ${verdict.added.length} new, ${verdict.unlisted.length} not listed in advance`)
+  return verdict.unlisted.length ? 1 : 0
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main(process.argv.slice(2))
