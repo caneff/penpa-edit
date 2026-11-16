@@ -7,7 +7,8 @@
 // method alone. `audit` names the finding of `research/fork-audit-2026-11.md` whose fix the plant undoes.
 import { readFile } from 'node:fs/promises'
 import { Script } from 'node:vm'
-import { readExpected, readRecording, replay } from './replay.mjs'
+import { jsRequest } from './page.mjs'
+import { methodStart, readExpected, readRecording, replay } from './replay.mjs'
 
 const JS = new URL('../docs/js/', import.meta.url)
 
@@ -79,6 +80,14 @@ export const PLANTS = [
     handler: 'mouse_wall',
     find: 'this.re_wallmove(num);',
     replace: ''
+  },
+  {
+    id: 'number-cursor-off-by-one',
+    bug: 'a left click in Number Arrow puts the cursor on the next point',
+    file: 'class_p.js',
+    handler: 'mouse_number',
+    find: 'this.lasty = y;\n            this.cursol = num;',
+    replace: 'this.lasty = y;\n            this.cursol = num + 1;'
   },
   {
     id: 'number-corner-cursor-off-by-one',
@@ -223,7 +232,7 @@ export const PLANTS = [
 // first line to the closing brace at its indent.
 function scopeOf (source, plant) {
   if (!plant.handler) return { start: 0, end: source.length }
-  const start = source.search(new RegExp(`^ {4}${plant.handler}\\(`, 'm'))
+  const start = source.search(methodStart(plant.handler))
   if (start === -1) throw new Error(`${plant.id}: no method ${plant.handler} in ${plant.file}`)
   const close = source.slice(start).search(/^ {4}\}\r?$/m)
   if (close === -1) throw new Error(`${plant.id}: ${plant.handler} has no closing brace`)
@@ -252,10 +261,9 @@ export function plantIn (source, plant) {
 }
 
 // The `setup` that serves `plant.file` with the plant in it, for `replay` with `served: true`.
-export async function plantSetup (plant) {
+async function plantSetup (plant) {
   const body = plantIn(await readFile(new URL(plant.file, JS), 'utf8'), plant)
-  const url = new RegExp(`/js/${plant.file.replace(/\./g, '\\.')}(\\?|$)`)
-  return (context) => context.route(url, (route) => route.fulfill({ contentType: 'text/javascript', body }))
+  return (context) => context.route(jsRequest(plant.file), (route) => route.fulfill({ contentType: 'text/javascript', body }))
 }
 
 // The recordings of `ids` made for the audit finding `plant` undoes the fix of; none for a plant of no finding.
@@ -269,47 +277,48 @@ function huntOrder (plant, ids) {
   return [...own, ...ids.filter((id) => !own.includes(id))]
 }
 
-// Replays the recordings `ids` with `plant` in, in `huntOrder`, until one fails against its expected file, in `lanes`
-// replays at once. Returns `caught`, the id of the recording that failed (null when none did), `why`, the first line of its report, the page
-// error it raised or the error its replay threw, and `replayed`, how many replays ran.
+// Runs `work(item)` for each of `items` in order, `lanes` at once, starting no more once `stop()` is true.
+export async function inLanes (items, lanes, work, stop = () => false) {
+  let next = 0
+  const lane = async () => {
+    while (!stop() && next < items.length) await work(items[next++])
+  }
+  await Promise.all(Array.from({ length: lanes }, lane))
+}
+
+// The first line of the error `replay` throws for a step the page threw at, which a plant can cause; any other throw
+// (a page that never loaded, a closed browser) is the harness's.
+const STEP_THREW = /^.*: step \d+ \(.*\) could not be replayed: /
+
+// Replays the recordings `ids` with `plant` in, in `huntOrder`, `lanes` at once, until one is caught: its replay
+// differs from its expected file, fails its round trip or its final board, throws at a step, or raises a page error.
+// Returns `caught`, that recording's id (null when none was caught), `why`, the first line of its report, page error
+// or throw, `error`, the first line of a harness error that stopped the hunt (null when none did), and `replayed`, how
+// many replays ran. A recording with no expected file rejects the hunt, never counts as a catch.
 export async function hunt (browser, plant, ids, { lanes = 1 } = {}) {
   const setup = await plantSetup(plant)
-  const queue = huntOrder(plant, ids)
-  let next = 0
   let replayed = 0
   let caught = null
   let why = null
-  const lane = async () => {
-    while (!caught && next < queue.length) {
-      const id = queue[next++]
-      replayed++
-      let failure
-      const errors = []
-      // Read outside the `try`: a recording with no expected file is an error of the hunt, not a catch.
-      const [recording, expected] = await Promise.all([readRecording(id), readExpected(id)])
-      try {
-        const { report } = await replay(browser, recording, {
-          id,
-          expected,
-          served: true,
-          setup: async (context) => {
-            context.on('page', (page) => {
-              page.on('pageerror', (e) => errors.push(String(e)))
-              page.on('console', (m) => { if (m.type() === 'error') errors.push(`console.error: ${m.text()}`) })
-            })
-            await setup(context)
-          }
-        })
-        failure = report ?? errors[0]
-      } catch (e) {
-        failure = e.message
+  let error = null
+  await inLanes(huntOrder(plant, ids), lanes, async (id) => {
+    replayed++
+    const [recording, expected] = await Promise.all([readRecording(id), readExpected(id)])
+    let failure
+    try {
+      const { report, errors } = await replay(browser, recording, { id, expected, served: true, setup })
+      failure = report ?? errors[0]
+    } catch (e) {
+      if (!STEP_THREW.test(e.message.split('\n')[0])) {
+        error ??= `${id}: ${e.message.split('\n')[0]}`
+        return
       }
-      if (failure && !caught) {
-        caught = id
-        why = failure.split('\n')[0]
-      }
+      failure = e.message
     }
-  }
-  await Promise.all(Array.from({ length: lanes }, lane))
-  return { caught, why, replayed }
+    if (failure && !caught) {
+      caught = id
+      why = failure.split('\n')[0]
+    }
+  }, () => caught || error)
+  return { caught, why, error, replayed }
 }

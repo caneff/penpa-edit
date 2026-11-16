@@ -8,7 +8,7 @@ import { readFile } from 'node:fs/promises'
 import { before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { useBrowser } from './page.mjs'
+import { jsRequest, useBrowser } from './page.mjs'
 import {
   ANSWER_CELLS, cellPixel, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
   openRecordingPage, readExpected, readRecording, replay, uiDriver
@@ -231,7 +231,7 @@ describe('the engine driver', () => {
         id: SURFACE_ID,
         expected: await readExpected(SURFACE_ID),
         served: true,
-        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })
@@ -255,7 +255,7 @@ describe('the engine driver', () => {
         id: SURFACE_ID,
         expected: await readExpected(SURFACE_ID),
         served: true,
-        setup: (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })
@@ -428,7 +428,7 @@ describe('the UI driver', () => {
       const report = await compareDrivers(browser(), await readRecording(SURFACE_ID), {
         id: SURFACE_ID,
         served: true,
-        setup: (context) => context.route(/\/js\/main\.js(\?|$)/, (route) => route.fulfill({
+        setup: (context) => context.route(jsRequest('main.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
       })

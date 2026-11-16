@@ -24,7 +24,7 @@
 // `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { linkFromNewBoard, openPenpa } from './page.mjs'
+import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 export const RECORDINGS = new URL('./recordings/', import.meta.url)
@@ -466,10 +466,16 @@ function withoutDuplicateDrops (state) {
   return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
 }
 
+// The first line of each method of a `Puzzle` class whose name matches `name` (a regular expression's text), the name
+// its first group: methods sit at a 4-space indent in `class_p.js`.
+export function methodStart (name) {
+  return new RegExp(`^ {4}(${name})\\(`, 'gm')
+}
+
 // The `mouse_*` and `key_*` methods of `class_p.js`: the handlers a click or key reaches through `mouseevent` and
 // `main.js`'s key calls.
-const HANDLER = /^ {4}((?:mouse|key)_\w+)\(/gm
-const CLASS_P_URL = /\/js\/class_p\.js(\?|$)/
+const HANDLER = methodStart('(?:mouse|key)_\\w+')
+const CLASS_P_URL = jsRequest('class_p.js')
 
 // Each handler of `class_p.js` with the times it was called, from the page's JS coverage (Playwright's `coverage`
 // entries); a handler V8 reports no entry for was never called.
@@ -478,7 +484,7 @@ function handlerCallsOf (entries) {
   if (!classP) throw new Error('the JS coverage has no entry for class_p.js')
   const calls = Object.fromEntries([...classP.source.matchAll(HANDLER)].map(([, name]) => [name, 0]))
   // A function's first range spans the whole function and holds its call count.
-  for (const f of classP.functions) if (f.functionName in calls) calls[f.functionName] += f.ranges[0].count
+  for (const f of classP.functions) if (Object.hasOwn(calls, f.functionName)) calls[f.functionName] += f.ranges[0].count
   return calls
 }
 
@@ -489,6 +495,7 @@ function handlerCallsOf (entries) {
 // the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
 // `report` is null. `served` and `setup` go to `openPenpa`, for the duplicate's page as well. With `coverage`, it also
 // returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js` with the times the steps called it.
+// `errors` holds every page error and `console.error` of the replay's page.
 export async function replay (browser, recording, {
   id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, coverage = false
 } = {}) {
@@ -592,7 +599,7 @@ export async function replay (browser, recording, {
     const report = await run()
     const handlerCalls = coverage ? handlerCallsOf(await page.coverage.stopJSCoverage()) : undefined
     // A round trip names an earlier checkpoint than any report the replay itself can make.
-    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report, handlerCalls }
+    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report, handlerCalls, errors: [...errors] }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
     await Promise.allSettled(roundTrips)

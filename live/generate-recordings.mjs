@@ -3,8 +3,8 @@
 // recording whose id starts with a prefix given, or all of them. A recording whose replay is refused is written with
 // no expected file, any earlier one removed, and named at the end, so it fails the seam until it is ruled on. Not a check itself, so
 // `live/**/*.live.mjs` skips it. The design is `research/agentic-legacy-migration.md` § Corpus:
-// - tier A, every solve mode's sub-modes, Composite tools and Shape's two key paths on one small square puzzle, and the
-//   clearing keys in Number and Shape;
+// - tier A, every solve mode's sub-modes, Composite tools and Shape's two key paths on one small square puzzle, the
+//   clearing keys in Number, Shape and Multicolor, and a solve link saved in Number Arrow;
 // - tier B, the smallest of upstream's puzz.link imports per genre in the mode the import opens in, and a Penpa+ board
 //   of each grid class no import builds. A genre whose smallest import does not record (its solve link does not boot)
 //   takes its next smallest, and the header's `import` names the one taken.
@@ -213,8 +213,25 @@ async function tierA (browser) {
     ...pairs.map((pair) => ({ id: idOf(pair), tier: 'A', boards: [async () => ({ query })], act: (page) => inMode(page, pair) })),
     ...CLEAR_KEY_PAIRS.map((pair) => ({
       id: idOf(pair, 'clear keys'), tier: 'A', boards: [async () => ({ query })], act: (page) => clearKeys(page, pair)
-    }))
+    })),
+    {
+      id: 'value/number-arrow-link',
+      tier: 'A',
+      boards: [async () => ({ query: await solveLink(browser, (p) => p.evaluate(arrowBoardInPage)) })],
+      act: (page) => gestures(page)
+    }
   ]
+}
+
+// Runs in the page: a new board whose solve layer is in Number Arrow. Solve mode hides Arrow's button, but a solve link
+// opens in the mode it was saved in, so this is the one way a solver's click reaches `mouse_number` (#32).
+function arrowBoardInPage () {
+  document.getElementById('nb_size1').value = 4
+  document.getElementById('nb_size2').value = 4
+  create_newboard()
+  pu.mode_qa('pu_a')
+  pu.mode_set('number')
+  pu.submode_check('sub_number2')
 }
 
 // Chooses the mode and enters two digits at a cell, the first a 9, after which Number makes a two-digit number, then

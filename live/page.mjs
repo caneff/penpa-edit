@@ -45,6 +45,11 @@ export function serveDocs (context, base) {
   })
 }
 
+// The requests a page makes for `docs/js/<file>`, with or without a query, for a test that serves its own copy.
+export function jsRequest (file) {
+  return new RegExp(`/js/${file.replace(/\./g, '\\.')}(\\?|$)`)
+}
+
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
