@@ -321,7 +321,22 @@
         return tool;
     }
 
-    const ENGINE_EVENTS = ['change'];
+    const ENGINE_EVENTS = ['change', 'timer'];
+
+    // easytimer's events that change the clock's reading or whether it runs. `secondsUpdated` is Penpa's own once-a-second tick.
+    const TIMER_EVENTS = ['secondsUpdated', 'started', 'paused', 'stopped', 'reset'];
+    const timerHandlers = new Set();
+    function watchTimer() {
+        TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, () => timerHandlers.forEach((handler) => handler())));
+    }
+
+    // MVP gap: Penpa's pause and start closures live in main.js's onload and are reached only through their buttons, which
+    // also show and hide Penpa's own pause layer.
+    function pressTimerButton(id) {
+        document.getElementById(id).click();
+    }
+
+    const THEMES = { light: THEME_LIGHT, dark: THEME_DARK };
 
     const engine = {
         ready,
@@ -329,10 +344,17 @@
         // The state the UI draws from. Read it when `change` fires.
         getState() {
             boardCanvas();
-            return { penpaDialogOpen: penpaDialogOpen() };
+            // MVP gap: the solver's undo and redo stacks, where Penpa keeps them.
+            const entries = pu[pu.mode.qa];
+            return {
+                penpaDialogOpen: penpaDialogOpen(),
+                canUndo: entries.command_undo.__a.length > 0,
+                canRedo: entries.command_redo.__a.length > 0
+            };
         },
 
-        // Runs `handler()` at most once per frame after the state may have changed.
+        // `change` runs `handler()` at most once per frame after the state may have changed; `timer` runs it on every tick of
+        // the clock and whenever it starts, pauses or resets. Read `getTimer()` then.
         on(event, handler) {
             if (!ENGINE_EVENTS.includes(event)) {
                 throw new RangeError(`engine.on: no event "${String(event)}"; the events are ${ENGINE_EVENTS.join(', ')}`);
@@ -340,7 +362,75 @@
             if (typeof handler !== 'function') {
                 throw new TypeError('engine.on: handler must be a function');
             }
-            changeHandlers.add(handler);
+            if (event === 'timer') {
+                boardCanvas();
+                if (!timerHandlers.size) {
+                    watchTimer();
+                }
+                timerHandlers.add(handler);
+            } else {
+                changeHandlers.add(handler);
+            }
+        },
+
+        // Undoes the solver's last entry; false when there is none.
+        undo() {
+            boardCanvas();
+            if (!engine.getState().canUndo) {
+                return false;
+            }
+            pu.undo();
+            return true;
+        },
+
+        // Redoes what `undo()` took back; false when there is nothing to redo.
+        redo() {
+            boardCanvas();
+            if (!engine.getState().canRedo) {
+                return false;
+            }
+            pu.redo();
+            return true;
+        },
+
+        // Clears the solver's entries (never the givens), the selection and the undo history, then restarts the clock from
+        // zero, running. A paused board is uncovered.
+        restart() {
+            boardCanvas();
+            pu.reset_board();
+            pu.selection = [];
+            pu.redraw();
+            sw_timer.reset();
+            pressTimerButton('sw_start');
+        },
+
+        // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`.
+        getTimer() {
+            boardCanvas();
+            return { seconds: sw_timer.getTotalTimeValues().secondTenths / 10, paused: sw_timer.isPaused() };
+        },
+
+        // Pauses the clock and covers Penpa's own board with its pause layer; nothing happens when it is already paused.
+        pauseTimer() {
+            boardCanvas();
+            if (!sw_timer.isPaused()) {
+                pressTimerButton('sw_pause');
+            }
+        },
+
+        // Resumes the clock and uncovers the board.
+        startTimer() {
+            boardCanvas();
+            pressTimerButton('sw_start');
+        },
+
+        // 'light' or 'dark': the page's theme and the board's. Penpa remembers it in its settings cookie.
+        setTheme(theme) {
+            if (!(theme in THEMES)) {
+                throw new RangeError(`engine.setTheme: theme must be one of ${Object.keys(THEMES).join(', ')}, got ${String(theme)}`);
+            }
+            boardCanvas();
+            UserSettings.color_theme = THEMES[theme];
         },
 
         // The front door for keys. `handler(event)` runs for every keydown and keyup before Penpa's handlers and answers
@@ -403,7 +493,10 @@
         // The Penpa settings the UI reads, by name: only the ones a ticket has needed so far.
         getSettings() {
             boardCanvas();
-            return { shortcuts_enabled: Boolean(UserSettings.shortcuts_enabled) };
+            return {
+                shortcuts_enabled: Boolean(UserSettings.shortcuts_enabled),
+                theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light'
+            };
         },
 
         // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in

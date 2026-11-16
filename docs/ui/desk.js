@@ -27,28 +27,12 @@
         return node;
     }
 
-    const ICONS = {
-        undo: '<path d="M3.5 6.5h6.5a3.5 3.5 0 0 1 0 7H7"/><path d="M6.5 3.5l-3 3 3 3"/>',
-        redo: '<path d="M12.5 6.5H6a3.5 3.5 0 0 0 0 7h3"/><path d="M9.5 3.5l3 3-3 3"/>'
-    };
-
-    // An icon-only Web Awesome button whose accessible name is `label`. Disabled until the ticket that wires it lands.
-    function iconButton(icon, label) {
-        const button = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's', disabled: '' });
-        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" ' +
-            `stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[icon]}</svg>`;
-        button.append(el('span', { class: 'ui-sr-only' }, [label]));
-        return button;
-    }
-
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
             el('span', { class: 'ui-brand' }, ['ChinStrap']),
             el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
             el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : '']),
-            el('span', { class: 'ui-spacer' }),
-            iconButton('undo', 'Undo'),
-            iconButton('redo', 'Redo')
+            el('span', { class: 'ui-spacer' })
         ]);
         const desk = el('div', { class: 'ui-desk' });
         const cards = {};
@@ -66,7 +50,7 @@
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { desk, cards };
+        return { bar, desk, cards };
     }
 
     // Puts every card at its default place for the desk's current size.
@@ -109,7 +93,7 @@
         }
     }
 
-    // Resolves to `{ cards, relayout }` once the desk is built, for the files that fill the cards. A failed load shows its
+    // Resolves to `{ bar, cards, relayout }` once the desk is built, for the files that fill the bar and the cards. A failed load shows its
     // own error dialog (main.js), so a rejected `ready` needs no second report.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
@@ -118,7 +102,7 @@
         window.addEventListener('resize', () => layout(desk));
         // Fires once on observe, which is the first fit, and again whenever the card's body changes size.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.body);
-        return { cards: desk.cards, relayout: () => layout(desk) };
+        return { bar: desk.bar, cards: desk.cards, relayout: () => layout(desk) };
     });
     window.deskReady.catch(() => {});
 })();
