@@ -12,7 +12,7 @@ const browser = useBrowser()
 // Cells of the center list the test types into, apart from the given and the author's answer cell.
 const SOLVER_CELL = 12
 const PENPA_CELL = 13
-const SHADED_CELL = 20
+const SHADED_CELL = 14
 
 const shadedCells = async (page) => Object.keys((await board(page)).entered.surface ?? {})
 
