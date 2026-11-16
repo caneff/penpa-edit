@@ -4,16 +4,13 @@
 // running clock, and nothing here reads it.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { board, makeNumberSolveLink, openSolvePage, setTool, shadeInPage, typeDigitInPage, useBrowser, waitForDesk } from './page.mjs'
+import { board, DIGIT_CELL, makeNumberSolveLink, MARK_CELL, SHADED_CELL, openSolvePage, setTool, shadeInPage, typeDigitInPage, useBrowser, waitForDesk } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-// Indices in the page's `pu.centerlist` of the cells the test fills, clear of the given and the author's answer.
-const DIGIT_CELL = 12
-const MARK_CELL = 13
-const SHADED_CELL = 14
+// The cell the test fills on index.html, clear of the others.
 const PENPA_CELL = 15
 
 const entered = async (page) => (await board(page)).entered
@@ -48,8 +45,6 @@ describe('Open in Penpa+', () => {
     await page.evaluate(typeDigitInPage, { index: PENPA_CELL, digit: '5' })
     await page.evaluate(shadeInPage, DIGIT_CELL)
     const madeThere = await entered(page)
-    // Penpa+'s own save as the page unloads is not under test here, and it is not awaited, so the save is run to completion.
-    await page.evaluate(() => PenpaProgress.save().then(() => localforage.getItem(PenpaProgress.getHash(pu.url))))
     await page.goBack()
     await waitForDesk(page)
     assert.deepEqual(await settle(() => entered(page), madeThere), madeThere, 'the solve page shows what index.html had')
