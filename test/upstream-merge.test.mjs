@@ -2,7 +2,7 @@
 // stub `gh`. The workflow's own wiring (permissions, step order, the push) is proven only by a workflow_dispatch run.
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,6 +12,7 @@ const script = (name) => fileURLToPath(new URL(`../.github/scripts/${name}`, imp
 const MERGE_SCRIPT = script('upstream-merge.sh')
 const FILE_ISSUE_SCRIPT = script('file-issue-once.sh')
 const FAILING_TESTS_SCRIPT = script('failing-tests.sh')
+const EXPECTED_UNCHANGED_SCRIPT = script('expected-unchanged.sh')
 const UPSTREAM = 'upstream-master'
 
 // No global or system git config, so a merge driver configured on this box cannot help the script.
@@ -28,7 +29,10 @@ const GIT_ENV = {
 const git = (dir, ...args) => execFileSync('git', args, { cwd: dir, env: GIT_ENV, encoding: 'utf8' }).trim()
 
 function commit (dir, files, message) {
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(join(dir, name, '..'), { recursive: true })
+    writeFileSync(join(dir, name), text)
+  }
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', message)
   return git(dir, 'rev-parse', 'HEAD')
@@ -241,5 +245,36 @@ describe('the failing-test extractor', () => {
 
   it('says it found no failing test rather than printing nothing', () => {
     assert.equal(failingTests('npm error code ERESOLVE\n'), '- No failing test is named in the log; read the run.\n')
+  })
+})
+
+// Every expected-file change an upstream merge brings goes to Chris (#33), so the nightly pushes no merge that has one.
+function runExpectedUnchanged (dir) {
+  const report = `${dir}-report.md`
+  writeFileSync(report, '')
+  const { status, stderr } = spawnSync('bash', [EXPECTED_UNCHANGED_SCRIPT, 'HEAD^1', report], { cwd: dir, env: GIT_ENV, encoding: 'utf8' })
+  return { status, stderr, report: readFileSync(report, 'utf8') }
+}
+
+function mergedRepo (theirs) {
+  const { dir } = scratchRepo({ base: { 'engine.js': 'engine\n', [EXPECTED]: '{"checkpoints":[]}\n' }, theirs })
+  git(dir, 'merge', '-q', '--no-ff', '-m', 'merge', UPSTREAM)
+  return dir
+}
+
+const EXPECTED = 'live/recordings/genre/box.expected.json'
+
+describe('expected-unchanged', () => {
+  it('passes a merge that changes no expected file', () => {
+    const { status, stderr, report } = runExpectedUnchanged(mergedRepo({ 'engine.js': 'new engine\n' }))
+    assert.equal(status, 0, stderr)
+    assert.equal(report, '')
+  })
+
+  it('fails a merge that changes an expected file, and names it in the report', () => {
+    const { status, report } = runExpectedUnchanged(mergedRepo({ [EXPECTED]: '{"checkpoints":[1]}\n' }))
+    assert.notEqual(status, 0)
+    assert.match(report, /^## The merge changes expected files$/m)
+    assert.match(report, new RegExp(`^- \`${EXPECTED}\`$`, 'm'))
   })
 })

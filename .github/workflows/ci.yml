@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
 
+# Each job id is a check `.github/scripts/require-checks.sh` makes required on master.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -19,3 +20,40 @@ jobs:
       - run: npm test
       - run: npm run test:live
         if: ${{ !cancelled() }}
+
+  # The expected-file gate (#33): a PR changes an expected file only when a ticket it closes listed the recording
+  # before the change. A push has no ticket to read, so the job is skipped there, which a required check accepts.
+  expected-files:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - id: gate
+        name: Check expected files against the tickets' lists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          node .github/scripts/expected-gate.mjs ${{ github.event.pull_request.number }}
+          ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} "$RUNNER_TEMP/gate-comment.md"
+      # The gate writes a comment only when an expected file changed.
+      - name: Post the plain-words diff on the PR
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          comment="$RUNNER_TEMP/gate-comment.md"
+          if [[ -f $comment ]]; then
+            gh pr comment ${{ github.event.pull_request.number }} --repo "$GITHUB_REPOSITORY" \
+              --edit-last --create-if-none --body-file "$comment"
+          fi

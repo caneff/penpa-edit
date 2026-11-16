@@ -11,7 +11,8 @@ export function expectedDiff ({ steps, before, after }) {
   const now = byStep(after)
   const value = (map, key) => map.get(key) ?? 'absent'
   return [...new Set([...old.keys(), ...now.keys()])].sort((a, b) => a - b).flatMap((step) => {
-    const words = `step ${step} (${checkpointWords(steps, step)})`
+    // A step the steps file does not hold (none at that sha) is named by its number alone.
+    const words = step === 0 || steps[step - 1] ? `step ${step} (${checkpointWords(steps, step)})` : `step ${step}`
     if (!now.has(step)) return [`${words}: a checkpoint only the old file has`]
     if (!old.has(step)) return [`${words}: a checkpoint only the new file has`]
     const w = old.get(step)

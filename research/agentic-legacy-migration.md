@@ -424,6 +424,12 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
   modify the oracle, and an attempt is visible.
 - Upstream merges are characterization in Feathers's sense ([Feathers16]): a recording that changes after a merge is
   reported, not auto-approved; Chris rules whether the new behaviour is a fix or a regression.
+- **Built at #33 (2026-11-15)**: the ticket lists ids under `## Expected changes`, and the gate checks each id was in a
+  version of the ticket's body dated no later than the PR's first commit changing it. A new recording's expected file
+  is not a re-approval and passes unlisted (controller's ruling). The nightly refuses a merge that changes any expected
+  file. The checks are required by a ruleset Chris applies (`.github/scripts/require-checks.sh`); GitHub Actions cannot
+  bypass a ruleset on a personal account's repo, so the nightly posts the statuses itself. How-to: `AGENTS.md` §
+  End-to-end seam.
 
 ### How it gates agent PRs
 

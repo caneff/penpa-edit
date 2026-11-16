@@ -99,12 +99,15 @@ function ticketVersions (repo, number) {
   return versions.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0))
 }
 
-function diffSection (base, head, { id, path }) {
-  const stepsPath = path.slice(0, -EXPECTED_SUFFIX.length) + STEPS_SUFFIX
-  const recording = jsonAt(head, stepsPath) ?? jsonAt(base, stepsPath)
-  const lines = expectedDiff({ steps: recording?.steps ?? [], before: jsonAt(base, path), after: jsonAt(head, path) })
+function diffSection (base, head, { id, path, status }) {
+  const before = jsonAt(base, path)
+  const after = jsonAt(head, path)
+  if (status === 'added') return [`- a new expected file of ${after.checkpoints.length} checkpoints`]
+  if (status === 'deleted') return [`- the expected file is deleted; it had ${before.checkpoints.length} checkpoints`]
+  const { steps } = jsonAt(head, path.slice(0, -EXPECTED_SUFFIX.length) + STEPS_SUFFIX)
+  const lines = expectedDiff({ steps, before, after })
   const shown = lines.slice(0, DIFF_LINES).map((line) => `- ${line}`)
-  if (lines.length > DIFF_LINES) shown.push(`- … and ${lines.length - DIFF_LINES} more lines: run \`npm run recordings:approve -- ${id}\` on the base to see them all`)
+  if (lines.length > DIFF_LINES) shown.push(`- … and ${lines.length - DIFF_LINES} more lines: \`git diff\` the file to see them all`)
   return shown.length ? shown : ['- no checkpoint changed']
 }
 
