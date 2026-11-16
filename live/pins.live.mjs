@@ -313,6 +313,17 @@ describe('the pin toggles', () => {
     assert.equal(await opened.page.getByRole('button', { name: 'Pin current tool' }).count(), 0)
   })
 
+  it('leaves the engine quiet while nobody touches the page', async () => {
+    const { page } = opened
+    await afterChange(page)
+    const changes = await page.evaluate(() => new Promise((resolve) => {
+      let count = 0
+      engine.on('change', () => { count += 1 })
+      setTimeout(() => resolve(count), 1000)
+    }))
+    assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+  })
+
   it('shows the Mode card\'s pin pressed exactly when the current tool is pinned, and toggles it', async () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
@@ -325,6 +336,11 @@ describe('the pin toggles', () => {
     await pin.click()
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner', 'Surface']), ['Line > Normal', 'Sudoku > Corner', 'Surface'])
     assert.equal(await modeCard(page).getByRole('button', { name: 'Unpin Surface' }).getAttribute('aria-pressed'), 'true')
+    // The Tab cycle follows: Surface is the last pin, so Tab from it wraps to the first.
+    await page.keyboard.press('Tab')
+    await waitForTool(page, { mode: 'line', submode: '1' })
+    await setTool(page, { mode: 'surface', submode: null })
+    await waitForTool(page, { mode: 'surface', submode: null })
     await modeCard(page).getByRole('button', { name: 'Unpin Surface' }).click()
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner']), ['Line > Normal', 'Sudoku > Corner'])
     assert.equal(await modeCard(page).getByRole('button', { name: 'Pin Surface' }).getAttribute('aria-pressed'), 'false')
