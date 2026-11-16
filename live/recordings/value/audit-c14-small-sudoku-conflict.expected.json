@@ -306,7 +306,7 @@
     "mode.orientation = null",
     "selection = [26]",
     "conflict_cells = [22,26]",
-    "sol_flag = 1"
+    "sol_flag = 0"
    ]
   },
   {
@@ -360,7 +360,7 @@
     "mode.orientation = null",
     "selection = [26]",
     "conflict_cells = [22,26]",
-    "sol_flag = 1"
+    "sol_flag = 0"
    ]
   },
   {
@@ -583,7 +583,7 @@
     "mode.orientation = null",
     "selection = [34]",
     "conflict_cells = [34,22]",
-    "sol_flag = 1"
+    "sol_flag = 0"
    ]
   },
   {
@@ -641,7 +641,7 @@
     "mode.orientation = null",
     "selection = [34]",
     "conflict_cells = [34,22]",
-    "sol_flag = 1"
+    "sol_flag = 0"
    ]
   }
  ]
