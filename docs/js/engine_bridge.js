@@ -534,16 +534,21 @@
             pressTimerButton('sw_start');
         },
 
-        // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`.
+        // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`. `covered` is true while the solver's
+        // own pause (the Pause button or F4) has Penpa's pause layer up; a solve also pauses the clock, with no layer (#119).
         getTimer() {
             boardCanvas();
-            return { seconds: sw_timer.getTotalTimeValues().secondTenths / 10, paused: sw_timer.isPaused() };
+            return {
+                seconds: sw_timer.getTotalTimeValues().secondTenths / 10,
+                paused: sw_timer.isPaused(),
+                covered: document.getElementById('pause_canvas').style.display !== 'none'
+            };
         },
 
-        // Pauses the clock and covers Penpa's own board with its pause layer; nothing happens when it is already paused.
+        // Pauses the clock and covers Penpa's own board with its pause layer; nothing happens when the layer is already up.
         pauseTimer() {
             boardCanvas();
-            if (!sw_timer.isPaused()) {
+            if (!engine.getTimer().covered) {
                 pressTimerButton('sw_pause');
             }
         },

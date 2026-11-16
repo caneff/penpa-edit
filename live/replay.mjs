@@ -3,8 +3,9 @@
 // it.
 //
 // A recording is `live/recordings/<family>/<name>.steps.json`, its id `<family>/<name>`, `<family>` a mode family,
-// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`), or
-// `fuzz` for a failing run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
+// `genre` and `grid` for the recordings of one genre's or one grid class's board (`live/generate-recordings.mjs`),
+// `solve` for tier C's full solves on links with an answer check (`live/generate-tier-c.mjs`), or `fuzz` for a failing
+// run the fuzz (`live/fuzz.mjs`) saved. As `docs/js/recorder.js` writes it, it holds a header
 // (`source`: the link's query and `#` part; `gridtype`; `genre`: the page's genre tags; `recorder`: the recorder's
 // version), `final` (the recording page's engine state once the steps were made, as `readEngineState` reads it) and its
 // steps, one per line:
@@ -19,12 +20,17 @@
 //     changed the selection to neither none nor all), refused here.
 // Whoever checks a recording in adds the header's `commit`, the short sha it was recorded at, which the page cannot know;
 // the generator also adds `import`, the name of the puzz.link import a genre's recording was made on. The fuzz writes
-// `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`.
+// `commit` itself, and `fuzz` (its puzzle and seed) in place of `recorder`. Tier C's script writes `commit` too, and in
+// place of `recorder` either `generated` (the puzzle and the seed of a generated solve) or `history` (the name of a
+// solver's converted solve history); a converted step may carry `at`, the solver's timer reading in milliseconds when
+// the change it starts was made, which no driver reads.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
-// `npm run recordings:approve` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+// `npm run recordings:approve`, `live/generate-recordings.mjs` or `live/generate-tier-c.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+import { execFileSync } from 'node:child_process'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { inflateRawSync } from 'node:zlib'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
+import { jsRequest, linkFromNewBoard, openPenpa, openReloader } from './page.mjs'
 import { settle } from './settle.mjs'
 
 export const RECORDINGS = new URL('./recordings/', import.meta.url)
@@ -33,8 +39,14 @@ export const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
+
+// Installs `context`'s clock paused at CLOCK_START, before its page opens.
+export async function pauseClock (context) {
+  await context.clock.install({ time: CLOCK_START })
+  await context.clock.pauseAt(CLOCK_START)
+}
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
-// Duplicate-link pages one replay has open at once.
+// Pages one `roundTrips` loads links in at once.
 const ROUND_TRIP_LANES = 4
 
 // Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
@@ -94,6 +106,19 @@ export async function downloadRecording (page) {
   const [file] = await Promise.all([page.waitForEvent('download'), page.click('#recorder_download')])
   const text = await readFile(await file.path(), 'utf8')
   return { name: file.suggestedFilename(), text, recording: JSON.parse(text) }
+}
+
+// A recording's file text, laid out as `docs/js/recorder.js` writes one: the header and the final board on a line
+// each, then one step per line.
+export function recordingText ({ header, final, steps }) {
+  return '{"header": ' + JSON.stringify(header) + ',\n"final": ' + JSON.stringify(final) +
+    ',\n"steps": [\n' + steps.map((s) => JSON.stringify(s)).join(',\n') + '\n]}\n'
+}
+
+// The short sha of the engine a generated recording's goldens come from: master's, where this checkout branched from
+// it, which a branch that adds recordings has not changed.
+export function engineCommit () {
+  return execFileSync('git', ['merge-base', 'HEAD', 'origin/master'], { encoding: 'utf8', cwd: new URL('.', import.meta.url) }).trim().slice(0, 7)
 }
 
 // The id of every recording under `live/recordings/`, sorted.
@@ -430,6 +455,28 @@ function startUiDriver (page, choices, pixelOf) {
   }
 }
 
+// Steps built from board points, for a generator: `board.points` maps each point's index in `pu.point` to its board
+// units.
+function pointerStep (board, action, num, button) {
+  const { x, y } = board.points[num]
+  return { kind: 'pointer', action, button: action === 'down' ? button : null, ctrl: false, x, y, num }
+}
+
+// A press and release of `button` on point `num`.
+export function pressSteps (board, num, button = 'left') {
+  return [pointerStep(board, 'down', num, button), pointerStep(board, 'up', num)]
+}
+
+// A left drag through the points `nums`, in order.
+export function dragSteps (board, nums) {
+  return [pointerStep(board, 'down', nums[0], 'left'), ...nums.slice(1).map((n) => pointerStep(board, 'move', n)), pointerStep(board, 'up', nums.at(-1))]
+}
+
+// Each character of `text` typed as a content key.
+export function typedSteps (text) {
+  return [...text].map((ch) => ({ kind: 'key', call: 'key_number', args: [ch] }))
+}
+
 // A step in words, for a failure report.
 export function stepWords (step) {
   switch (step.kind) {
@@ -516,15 +563,57 @@ function finalReport ({ id, recording, state, errors }) {
   ].join('\n')
 }
 
+// Loads links in pages that boot afresh for each (`openReloader`, given `options`), in ROUND_TRIP_LANES lanes, each
+// lane one load after another, since each waits on a page load. `load(link, want, read)` resolves to `{ got, errors }`:
+// the board `read(page)` gives once it equals `want` or stops changing, and the errors of that load; or to null when
+// the same link, its timer reading aside, was loaded for the same `want` before, since that load checked the same. A
+// page that does not load rejects it with an error marked `notLoaded`. `close()` waits for every load and closes the
+// pages.
+export function roundTrips (browser, options) {
+  const lanes = Array.from({ length: ROUND_TRIP_LANES }, () => ({ done: Promise.resolve(), reloader: null }))
+  const loaded = new Set()
+  return {
+    async load (link, want, read) {
+      const key = withoutTimer(link) + '\n' + want
+      if (loaded.has(key)) return null
+      loaded.add(key)
+      // The set's size counts the loads started, this one included.
+      const lane = lanes[(loaded.size - 1) % ROUND_TRIP_LANES]
+      const result = lane.done.then(async () => {
+        lane.reloader ??= await openReloader(browser, options)
+        const { page, errors } = await lane.reloader.load(link).catch((e) => { throw Object.assign(e, { notLoaded: true }) })
+        return { got: await settle(() => read(page), want), errors }
+      })
+      // The lane's next load waits for this one to end, whatever its result; the caller keeps the result.
+      lane.done = result.catch(() => {})
+      return result
+    },
+    async close () {
+      await Promise.all(lanes.map((lane) => lane.done))
+      await Promise.all(lanes.map((lane) => lane.reloader?.close()))
+    }
+  }
+}
+
+// A line of a link's data that holds only the solve timer's reading, as `maketext_duplicate` writes it (days, hours,
+// minutes, seconds, tenths). Loading it only starts the timer there, and canonical state leaves the timer out.
+const TIMER_LINE = /^\d+(:\d+){3,4}$/
+
+// `link` (a `#` part) with its puzzle data's timer line left out. The data is raw-deflated base64 (`decrypt_data` in
+// general.js), whose lines `load` splits on newlines, which no `COMPRESS_SUB` substitution touches.
+function withoutTimer (link) {
+  return link.replace(/([#&]p=)([^&]*)/, (_, key, data) =>
+    key + inflateRawSync(Buffer.from(data, 'base64')).toString().split('\n').filter((line) => !TIMER_LINE.test(line)).join('\n'))
+}
+
 // Runs in the page: the link Penpa+'s Duplicate button opens for this solve (`duplicate()` in general.js).
-function duplicateLinkInPage () {
+export function duplicateLinkInPage () {
   return pu.maketext_duplicate() + '&l=solvedup'
 }
 
 // Lines a duplicate link drops by design, left out of the round trip's comparison: `maketext_duplicate` empties the
-// redo stacks (class_p.js), no link holds the selection, and the answer check sets `sol_flag` after an input, never on
-// load, so a duplicate of a solved board reads unsolved until its next input.
-const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection|sol_flag) = .*$/
+// redo stacks (class_p.js) and no link holds the selection.
+const DUPLICATE_DROPS = /^(pu_a(_col)?\.command_redo\.length|selection) = .*$/
 
 function withoutDuplicateDrops (state) {
   return state.split('\n').filter((line) => !DUPLICATE_DROPS.test(line)).join('\n')
@@ -555,69 +644,49 @@ function handlerCallsOf (entries) {
 // Replays `recording` through `driver` (the engine driver unless given) in a fresh page and returns its checkpoints, the
 // first being step 0. With `expected` (as `readExpected` returns it, or another replay's checkpoints, named by
 // `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
-// every checkpoint the duplicate link of the board, loaded in another fresh page, must give the same board, less what
-// the link drops by design. A replay that does not end on the recording's final board is reported too; otherwise
-// `report` is null. `served`, `solve` and `setup` go to `openPenpa`, for the duplicate's page as well. With `coverage`, it
-// also returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js` with the times the steps called it.
-// `errors` holds every page error and `console.error` of the replay's page.
+// every checkpoint the duplicate link of the board, loaded in another page booted afresh for it (`roundTrips`), must
+// give the same board, less what the link drops by design. A replay that does not end on the recording's final board
+// is reported too; otherwise `report` is null. `served`, `solve` and `setup` go to `openPenpa`, and `served` and
+// `setup` to `roundTrips` for the duplicate's page. With `coverage`, it also returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js`
+// with the times the steps called it. `errors` holds every page error and `console.error` of the replay's page.
 export async function replay (browser, recording, {
   id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, coverage = false,
   solve = false
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
-  const open = (query) => openPenpa(browser, query, {
+  const openOptions = {
     served,
     solve,
     contextOptions: CONTEXT_OPTIONS,
     setup: async (c) => {
-      await c.clock.install({ time: CLOCK_START })
-      await c.clock.pauseAt(CLOCK_START)
+      await pauseClock(c)
       await setup?.(c)
     }
-  })
+  }
   const readPage = (p) => p.evaluate(readEngineState).then(canonicalState)
-  const { context, page, errors } = await open(recording.header.source)
+  const { context, page, errors } = await openPenpa(browser, recording.header.source, openOptions)
   // Started once the page has loaded, so it counts only what the steps call.
   if (coverage) await page.coverage.startJSCoverage({ resetOnNavigation: false })
   const read = () => readPage(page)
   const apply = driver.start(page)
-  // Each duplicate link checked so far, with the board it must load: a step that changed nothing gives the same pair.
-  const checked = new Set()
-  // The round trips under way, in step order, each resolving to its report or null. They run beside the replay in
-  // ROUND_TRIP_LANES lanes, each lane one after another, since each waits on a page load.
-  const roundTrips = []
-  const lanes = Array(ROUND_TRIP_LANES).fill(Promise.resolve())
-  // The report of how a fresh page that loads `link` differs from `want`, else null.
-  const loadDuplicate = async (n, link, want) => {
-    const words = `${id}: step ${n} (${checkpointWords(steps, n)})`
-    let fresh
-    try {
-      fresh = await open(linkHash(link))
-    } catch (e) {
-      return `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`
-    }
-    try {
-      const got = await settle(() => readPage(fresh.page).then(withoutDuplicateDrops), want)
-      if (got === want) return null
-      return [
-        `${words}: its duplicate link loads a different board`,
-        ...stateDiff({ want, got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...fresh.errors] })
-      ].join('\n')
-    } finally {
-      await fresh.context.close()
-    }
-  }
-  // Starts the check that a fresh page loads the duplicate link of `state`, the board at checkpoint `n`, as `state`.
+  const trips = roundTrips(browser, openOptions)
+  // The round trips under way, in step order, each resolving to its report or null.
+  const reports = []
+  // Starts the check that a page booted afresh loads the duplicate link of `state`, the board at checkpoint `n`, as `state`.
   const startRoundTrip = async (n, state) => {
     const link = await page.evaluate(duplicateLinkInPage)
     const want = withoutDuplicateDrops(state)
-    if (checked.has(link + '\n' + want)) return
-    checked.add(link + '\n' + want)
-    const lane = roundTrips.length % ROUND_TRIP_LANES
-    const result = lanes[lane].then(() => loadDuplicate(n, link, want))
-    roundTrips.push(result)
-    // The next round trip in the lane waits for this one to end, whatever its result; `roundTrips` keeps the result.
-    lanes[lane] = result.catch(() => {})
+    const words = `${id}: step ${n} (${checkpointWords(steps, n)})`
+    reports.push(trips.load(linkHash(link), want, (p) => readPage(p).then(withoutDuplicateDrops)).then((loaded) => {
+      if (!loaded || loaded.got === want) return null
+      return [
+        `${words}: its duplicate link loads a different board`,
+        ...stateDiff({ want, got: loaded.got, wantName: 'replay', gotName: 'duplicate', errors: [...errors, ...loaded.errors] })
+      ].join('\n')
+    }, (e) => {
+      if (!e.notLoaded) throw e
+      return `${words}: its duplicate link did not load: ${e.message.split('\n')[0]}`
+    }))
   }
   const { steps } = recording
   const checkpoints = []
@@ -665,10 +734,10 @@ export async function replay (browser, recording, {
     const report = await run()
     const handlerCalls = coverage ? handlerCallsOf(await page.coverage.stopJSCoverage()) : undefined
     // A round trip names an earlier checkpoint than any report the replay itself can make.
-    return { checkpoints, report: (await Promise.all(roundTrips)).find(Boolean) ?? report, handlerCalls, errors: [...errors] }
+    return { checkpoints, report: (await Promise.all(reports)).find(Boolean) ?? report, handlerCalls, errors: [...errors] }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
-    await Promise.allSettled(roundTrips)
+    await trips.close()
     await context.close()
   }
 }
