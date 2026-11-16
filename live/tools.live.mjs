@@ -79,9 +79,6 @@ function penPixelInPage ({ mode, style, cell }) {
   return [data[0], data[1], data[2]]
 }
 
-// A pen swatch is `#rrggbb`, a canvas's own spelling of a colour.
-const rgbOf = (swatch) => swatch.slice(1).match(/../g).map((h) => parseInt(h, 16))
-
 describe('the pen styles of line, edge line and wall (#158)', () => {
   let opened
   before(async () => { opened = await openSolve() })
@@ -97,7 +94,7 @@ describe('the pen styles of line, edge line and wall (#158)', () => {
       for (const s of coloured) {
         assert.equal(typeof s.swatch, 'string', `${mode} ${s.name} has a swatch`)
         const pixel = await opened.page.evaluate(penPixelInPage, { mode, style: s.style, cell: CELL })
-        assert.deepEqual(rgbOf(s.swatch), pixel, `${mode} ${s.name}: swatch ${s.swatch} against the drawn pixel`)
+        assert.deepEqual(await rgbOfColour(opened.page, s.swatch), pixel, `${mode} ${s.name}: swatch ${s.swatch} against the drawn pixel`)
       }
     })
   }
@@ -115,6 +112,127 @@ describe('the pen styles of line, edge line and wall (#158)', () => {
       }
     })
   }
+})
+
+// Runs in the page: puts a "1" in `style` into the cell at `cell` of Number mode's normal sub-mode and returns the pixels at
+// each of `dxs` cell-widths right of the cell's centre as [r, g, b] (0.3 is inside the disc some styles draw, clear of the
+// digit; 0.41 to 0.43 is its ring), then takes the digit off again.
+function numberPixelsInPage ({ style, cell, dxs }) {
+  const index = pu.centerlist[cell]
+  pu[pu.mode.qa].number[index] = ['1', style, '1']
+  pu.redraw()
+  const { x, y } = pu.point[index]
+  const pixels = dxs.map((dx) => {
+    const { data } = pu.ctx.getImageData(Math.floor((x + dx * pu.size) * pu.resol), Math.floor(y * pu.resol), 1, 1)
+    return [data[0], data[1], data[2]]
+  })
+  delete pu[pu.mode.qa].number[index]
+  pu.redraw()
+  return pixels
+}
+
+// A CSS colour as [r, g, b], read through a canvas.
+const rgbOfColour = (page, colour) => page.evaluate((c) => {
+  const ctx = document.createElement('canvas').getContext('2d')
+  ctx.fillStyle = c
+  ctx.fillRect(0, 0, 1, 1)
+  return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+}, colour)
+
+const distance = (a, b) => Math.max(...a.map((v, i) => Math.abs(v - b[i])))
+
+// Runs in the page: draws the SVG of a button at 4x and counts the pixels in its middle (clear of the disc's ring) that are
+// near black, near white and near red, so what the button shows is read, not the attributes that make it.
+async function middleInkInPage (svgMarkup) {
+  const image = new Image()
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgMarkup)}`
+  await image.decode()
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = 80
+  const ctx = canvas.getContext('2d')
+  ctx.drawImage(image, 0, 0, 80, 80)
+  const { data } = ctx.getImageData(0, 0, 80, 80)
+  const count = { black: 0, white: 0, red: 0 }
+  for (let y = 16; y < 64; y++) {
+    for (let x = 16; x < 64; x++) {
+      const [r, g, b, a] = data.slice((y * 80 + x) * 4, (y * 80 + x) * 4 + 4)
+      if (a < 200) continue
+      if (r < 60 && g < 60 && b < 60) count.black++
+      else if (r > 215 && g > 215 && b > 215) count.white++
+      else if (r > 200 && g < 60 && b < 60) count.red++
+    }
+  }
+  return count
+}
+
+describe('the text styles of Number as samples (#166)', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const NUMBER_SUBMODES = ['1', '10', '6', '5', '7', '3', '9', '8']
+  const SAMPLE_STYLES = { 0: 'outline', 6: 'black on white circle', 7: 'white on black circle', 11: 'white on red circle' }
+  const styleGroup = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
+  const styleButton = (name) => styleGroup().getByRole('button', { name, exact: true })
+
+  for (const submode of NUMBER_SUBMODES) {
+    it(`labels no Style button of Number sub-mode ${submode} with a #n code, and names each in words`, async () => {
+      await setTool(opened.page, { mode: 'number', submode, style: 1 })
+      const buttons = styleGroup().getByRole('button')
+      const count = await buttons.count()
+      assert.ok(count >= 10, `Number lists its styles, got ${count}`)
+      for (let i = 0; i < count; i++) {
+        const name = await buttons.nth(i).getAttribute('aria-label')
+        assert.doesNotMatch(await buttons.nth(i).innerText(), /#\d/, `button ${i} shows no code`)
+        assert.doesNotMatch(name, /#|\d/, `button ${i}'s name ${name} is words`)
+        assert.equal(await buttons.nth(i).getAttribute('title'), name, `button ${i}'s tooltip is its name`)
+      }
+      for (const name of Object.values(SAMPLE_STYLES)) {
+        assert.equal(await styleButton(name).count(), 1, `${name} button`)
+        assert.equal(await styleButton(name).locator('svg text').textContent(), '1', `${name} shows a sample digit`)
+      }
+    })
+  }
+
+  it('shows the digit of every sample, in the colours the style has', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1', style: 1 })
+    const inked = async (name) => opened.page.evaluate(middleInkInPage, await styleButton(name).locator('svg').evaluate((node) => node.outerHTML.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"')))
+    const onWhite = await inked(SAMPLE_STYLES[6])
+    assert.ok(onWhite.black > 20 && onWhite.white > 20, `black on white circle shows a black digit on white, got ${JSON.stringify(onWhite)}`)
+    const onBlack = await inked(SAMPLE_STYLES[7])
+    assert.ok(onBlack.black > 20 && onBlack.white > 20, `white on black circle shows a white digit on black, got ${JSON.stringify(onBlack)}`)
+    const onRed = await inked(SAMPLE_STYLES[11])
+    assert.ok(onRed.red > 20 && onRed.white > 20, `white on red circle shows a white digit on red, got ${JSON.stringify(onRed)}`)
+    const outline = await inked(SAMPLE_STYLES[0])
+    assert.ok(outline.black > 0 && outline.white === 0 && outline.red === 0, `outline shows a black stroke only, got ${JSON.stringify(outline)}`)
+  })
+
+  it('gives each disc style\'s sample the fill and ring the board draws it with', async () => {
+    const tool = (await tools(opened.page)).find((t) => t.mode === 'number' && t.submode === '1')
+    const RING_DXS = [0.4, 0.41, 0.42, 0.43, 0.44]
+    for (const style of [6, 7, 11]) {
+      const name = SAMPLE_STYLES[style]
+      assert.equal(tool.styles.find((s) => s.style === style).name, name)
+      const [fillPixel, ...ringPixels] = await opened.page.evaluate(numberPixelsInPage, { style, cell: CELL, dxs: [0.3, ...RING_DXS] })
+      const circle = styleButton(name).locator('svg circle')
+      assert.deepEqual(await rgbOfColour(opened.page, await circle.getAttribute('fill')), fillPixel, `${name}: sample fill against the board's pixel`)
+      const ring = await rgbOfColour(opened.page, await circle.getAttribute('stroke'))
+      assert.ok(ringPixels.some((pixel) => distance(pixel, ring) < 60), `${name}: sample ring ${ring} is among the board's ring pixels ${JSON.stringify(ringPixels)}`)
+    }
+  })
+
+  it('draws the outline sample hollow with a black stroke, as Penpa+ paints style 0', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1', style: 1 })
+    const text = styleButton(SAMPLE_STYLES[0]).locator('svg text')
+    assert.equal(await text.getAttribute('stroke'), '#000000')
+    assert.equal(await text.getAttribute('fill'), 'rgba(255, 255, 255, 0)')
+  })
+
+  it('hands out a sample the caller can change without changing the next listing', async () => {
+    await opened.page.evaluate(() => { engine.listTools().find((t) => t.mode === 'number').styles.find((s) => s.style === 6).sample.disc.fill = 'red' })
+    const tool = (await tools(opened.page)).find((t) => t.mode === 'number')
+    assert.equal(tool.styles.find((s) => s.style === 6).sample.disc.fill, '#ffffff')
+  })
 })
 
 describe('engine.setTool and engine.getTool', () => {

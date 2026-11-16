@@ -85,8 +85,8 @@
 
     const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
 
-    // A 20 px sample of a style for its button: a swatch for a colour, a tiny drawing for the rest.
-    function styleSample(name, swatch) {
+    // A 20 px sample of a style for its button: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
+    function styleSample(name, swatch, sample) {
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
@@ -94,6 +94,14 @@
         }
         const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
             `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);
+        if (sample) {
+            const { fontSize, text: digit, disc } = sample;
+            const drawnPx = 14;
+            // Penpa+ strokes the digit first and fills it on top, so the outline only shows outside the glyph.
+            return svg(`${disc ? `<circle cx="10" cy="10" r="9" fill="${disc.fill}" stroke="${disc.stroke}" stroke-width="${disc.lineWidth}"/>` : ''}` +
+                `<text x="10" y="14.5" text-anchor="middle" font-size="${drawnPx}" font-family="Helvetica,Arial,sans-serif" paint-order="stroke" ` +
+                `stroke-linejoin="round" fill="${digit.fill}" stroke="${digit.stroke}" stroke-width="${digit.lineWidth * drawnPx / fontSize}">1</text>`);
+        }
         switch (name) {
         case 'thin': return svg(line(`${ink} stroke-width="1"`));
         case 'thicker': return svg(line(`${ink} stroke-width="4.5"`));
@@ -202,7 +210,7 @@
             const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
             tool.styles.forEach((s) => {
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
-                button.innerHTML = styleSample(s.name, s.swatch);
+                button.innerHTML = styleSample(s.name, s.swatch, s.sample);
                 button.addEventListener('click', () => {
                     // A Multicolor swatch colours the selected cells, as a digit key does; any other style is only picked.
                     if (tool.mode === MULTICOLOR_MODE) {
