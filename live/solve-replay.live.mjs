@@ -1,12 +1,13 @@
-// The UI driver on `solve.html` (#102): every recording the UI driver replays on Penpa+'s page replays on the solve page
-// through real mouse and keyboard, mode changes through the Mode card, and reaches the engine driver's states at every
-// checkpoint. The solve page is checked against the engine driver on Penpa+'s page, so a difference is the new page's.
+// The UI driver on `solve.html` (#102): a recording replays on the solve page through real mouse and keyboard, mode
+// changes through the Mode card (the recordings do, in `live/ui-replay-<k>.live.mjs`), and a planted wrong tool in
+// the Mode card fails it. The solve page is checked against the engine driver on Penpa+'s page, so a difference is the
+// new page's.
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { useBrowser } from './page.mjs'
-import { compareDrivers, listRecordings, readRecording } from './replay.mjs'
+import { compareDrivers, readRecording } from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -16,19 +17,7 @@ const APPLY_PICK = /applyTool\(\{ mode: entry\.tool\.mode, submode: entry\.tool\
 // A recording that picks Sudoku's first sub-mode and then enters digits.
 const SUDOKU_ID = 'value/audit-c7-alphabet-digit'
 
-const ids = await listRecordings()
-// The generated corpus (a header `tier`) is left out here as it is for the UI driver on Penpa+'s page
-// (`replay.live.mjs`; controller, 2026-11-13, #31).
-const handMadeIds = []
-for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.push(id)
-
 describe('the UI driver on solve.html', () => {
-  for (const id of handMadeIds) {
-    it(`replays ${id} through the Mode card, mouse and keyboard to the engine driver's states`, async () => {
-      assert.equal(await compareDrivers(browser(), await readRecording(id), { id, solve: true }), null)
-    })
-  }
-
   describe('with a planted wrong tool in the Mode card', () => {
     it('fails the replay: a pick that switches to Sudoku\'s second sub-mode', async () => {
       const source = await readFile(TOOL_CARDS, 'utf8')

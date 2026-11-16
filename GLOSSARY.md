@@ -38,7 +38,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   verdict is in every checkpoint and no step runs it.
 - **Checkpoint**: a point in a recording where the replay compares state: the board the link loads, after each finished
   gesture, content key, mode change, selection key, undo or redo, and at the end. The UI driver checks a digit in
-  Surface and the colour change it makes as one, after both.
+  Surface and the colour change it makes as one, after both, and a Multicolor colour key and the style it sets the same way.
 - **Solve history**: every board change a solver made on a puzzle, in order and with the timer's reading at each,
   which Penpa+'s Share > Replay link carries. Tier C turns one into a recording.
 - **Answer-aimed fuzz**: many generated full solves of a puzzle with an answer check, each checked for no page error
