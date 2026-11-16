@@ -678,10 +678,11 @@
                 .map((radio) => radio.value).filter((direction) => offered.includes(direction));
         },
 
-        // The direction Number mode writes in, or null while the tool is not Number.
+        // The direction Number mode writes in, or null while the tool is not Number or the grid offers no direction. `R` is
+        // what Penpa+'s `mode_set` falls back to while none has been picked.
         getOrientation() {
             const mode = pu.mode[pu.mode.qa].edit_mode;
-            return mode === 'number' ? pu.mode[pu.mode.qa].number[2] || 'R' : null;
+            return mode === 'number' && engine.listOrientations().length ? pu.mode[pu.mode.qa].number[2] || 'R' : null;
         },
 
         // Sets the direction Number mode writes in, which only Number has: another tool, or a direction `listOrientations()`

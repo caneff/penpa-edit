@@ -1,4 +1,4 @@
-// The Mode card (a searchable list of every tool, then the current tool's styles), the Mouse card (what the mouse does with
+// The Mode card (a searchable list of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
 // the current tool) and the board's title-bar tool name. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs
 // fails otherwise).
 (function () {
@@ -83,9 +83,10 @@
 
     const STYLE_ICON_PX = 20;
 
+    const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
+
     // A 20 px sample of a style for its button: a swatch for a colour, a tiny drawing for the rest.
     function styleSample(name, swatch) {
-        const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
@@ -139,8 +140,8 @@
             'aria-controls': listId, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
         const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
-        const styles = el('div', { class: 'ui-toolopts' });
-        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), styles);
+        const toolOptions = el('div', { class: 'ui-toolopts' });
+        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), toolOptions);
 
         let open = false;
         let shown = [];
@@ -271,11 +272,10 @@
         function orientationGroup(current) {
             const group = el('div', { role: 'group', 'aria-label': 'Orientation', class: 'ui-styles' });
             orientations.list().forEach((direction) => {
-                const name = `${ORIENTATION_NAMES[direction]}`;
+                const name = ORIENTATION_NAMES[direction];
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(direction === current), 'aria-label': name, title: name });
-                button.innerHTML = `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">` +
-                    `<text x="10" y="10" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="700" ` +
-                    `font-family="system-ui,sans-serif" fill="currentColor" transform="rotate(${ORIENTATION_TURN[direction]} 10 10)">A</text></svg>`;
+                button.innerHTML = svg(`<text x="10" y="10" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="700" ` +
+                    `font-family="system-ui,sans-serif" fill="currentColor" transform="rotate(${ORIENTATION_TURN[direction]} 10 10)">A</text>`);
                 button.addEventListener('click', () => {
                     orientations.apply(direction);
                     button.blur();
@@ -285,10 +285,10 @@
             return [el('div', { class: 'ui-sub' }, ['Orientation']), group];
         }
 
-        function renderStyles(tool, style, orientation) {
+        function renderToolOptions(tool, style, orientation) {
             const parts = [...(tool.styles.length ? styleGroup(tool, style) : []), ...(orientation ? orientationGroup(orientation) : [])];
-            styles.replaceChildren(...parts);
-            styles.hidden = parts.length === 0;
+            toolOptions.replaceChildren(...parts);
+            toolOptions.hidden = parts.length === 0;
         }
 
         return {
@@ -296,7 +296,7 @@
                 if (!open) {
                     showCurrent();
                 }
-                renderStyles(tool, style, orientation);
+                renderToolOptions(tool, style, orientation);
             }
         };
     }
