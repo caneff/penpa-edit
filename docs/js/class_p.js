@@ -8016,8 +8016,8 @@ class Puzzle {
                             var j_start = 0;
                             var length_limit = 8;
 
-                            // caneff (#140): upstream skipped the top-left corner (j_start = 1, length_limit = 6) in Solution mode when the
-                            // puzzle had any small given number (killer cage totals); marks now always start top-left and a cell holds 8.
+                            // caneff (#140): marks always start top-left and a cell holds 8 (Chris's ruling, 2026-11-16), so the upstream
+                            // case that started at slot 1 and held 6 when the puzzle had a small given number is gone.
 
                             // First step: go through all cells in the selection that don't have a main single digit, and
                             // collect the digits that are in the corner of each

@@ -12,7 +12,8 @@ const SUDOKU = 'https://puzz.link/p?sudoku/9/9/15i96l17i7g65i42k1g5368h2i7g2p3h5
 // Index in `pu.centerlist` of a cell clear of the board's edges.
 const CELL = 12
 
-// Corner slots 0..3 are top-left, top-right, bottom-left, bottom-right; side slots 4..7 follow (class_square.js).
+// A cell holds 8 marks: corner slots 0..3 are top-left, top-right, bottom-left, bottom-right; side slots 4..7 follow
+// (class_square.js).
 const SLOTS = 8
 
 // Opens the 9x9 sudoku, gives it a small number in a cell's corner in the question layer when `killer` is set (as a
@@ -28,6 +29,7 @@ async function typeCornerMarks (keys, { killer }) {
         pu.set_value('numberS', 4 * (pu.centerlist[i] + pu.nx0 * pu.ny0), ['12', 1])
         pu.mode_qa('pu_a')
       }, CELL)
+      assert.equal(await page.evaluate(() => Object.keys(pu.pu_q.numberS).length), 1, 'the cage total is in the question layer')
     }
     await page.evaluate((i) => {
       pu.mode_set('sudoku')
@@ -52,7 +54,8 @@ describe('Sudoku corner marks', () => {
   it('start top-left on a puzzle with a small given number, and a cell holds 8', async () => {
     const slots = await typeCornerMarks(['7', '2', '5', '1', '3', '4', '6', '8', '9'], { killer: true })
     assert.deepEqual(slots.slice(0, 4), ['7', '2', '5', '1'])
-    assert.equal(slots.filter((s) => s !== '').length, 8)
+    assert.equal(slots.length, SLOTS)
+    assert.equal(slots.filter((s) => s !== '').length, SLOTS)
   })
 
   it('start top-left on a puzzle with no small number', async () => {
