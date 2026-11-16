@@ -5,6 +5,7 @@
     'use strict';
 
     const { chipLabel, toolKey } = window.toolGuide;
+    const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
     // Z, X, C and V jump to pins 1 to 4.
@@ -27,15 +28,6 @@
     }
 
     const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + pin.id * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
-
-    // FNV-1a over the link's `#` part: the same puzzle, the same key.
-    function puzzleHash() {
-        let hash = 0x811c9dc5;
-        for (const char of location.hash) {
-            hash = Math.imul(hash ^ char.codePointAt(0), 0x01000193) >>> 0;
-        }
-        return hash.toString(16);
-    }
 
     // Penpa tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.
     function capsLockIsOn(e) {

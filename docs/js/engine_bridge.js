@@ -11,6 +11,34 @@
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
 
+    // The Penpa settings the solve UI shows, by name. A boolean setting takes `true` or `false`; the others take one of the
+    // whole numbers listed, which are the values of Penpa's own controls.
+    const BOOLEAN = 'boolean';
+    const SETTINGS = {
+        sudoku_centre_size: [1, 2, 3],
+        sudoku_normal_size: [1, 2],
+        outline_text: BOOLEAN,
+        secondcolor: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        custom_colors_on: BOOLEAN,
+        conflict_detection: [1, 2, 3],
+        check_pencil_marks: BOOLEAN,
+        ignore_line_style: BOOLEAN,
+        starbattle_dots: [1, 2, 3],
+        local_storage: BOOLEAN,
+        auto_save_history: BOOLEAN,
+        reload_button: BOOLEAN,
+        shortcuts_enabled: BOOLEAN
+    };
+
+    // MVP gap: most setters save their own cookie, but custom_colors_on's does not, and shortcuts_enabled is in no cookie
+    // list at all. Its cookie is read back before boot() runs, so a link's own override (an `alphabet` puzzle turns the
+    // shortcuts off) still wins.
+    const SHORTCUTS_COOKIE = 'shortcuts_enabled';
+    const SETTING_SAVERS = {
+        custom_colors_on: () => UserSettings.attemptSave(),
+        shortcuts_enabled: (on) => setCookie(SHORTCUTS_COOKIE, on ? '1' : '0', UserSettings._expDate)
+    };
+
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -72,6 +100,10 @@
     });
     const penpaBoot = window.boot;
     window.boot = function () {
+        const savedShortcuts = getCookie(SHORTCUTS_COOKIE);
+        if (savedShortcuts !== null) {
+            UserSettings.shortcuts_enabled = savedShortcuts === '1';
+        }
         const booting = penpaBoot.apply(this, arguments);
         booting.then(() => (pu.mmode === 'solve' ? resolveBoot() : reopenInSolveMode()), rejectBoot);
         return booting;
@@ -490,13 +522,48 @@
             });
         },
 
-        // The Penpa settings the UI reads, by name: only the ones a ticket has needed so far.
+        // Every setting of the fixed list by name: a boolean, or the number Penpa's own control holds. `theme` is read here too,
+        // but set with `setTheme`.
         getSettings() {
             boardCanvas();
-            return {
-                shortcuts_enabled: Boolean(UserSettings.shortcuts_enabled),
-                theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light'
-            };
+            const listed = Object.fromEntries(Object.entries(SETTINGS).map(([name, allowed]) =>
+                [name, allowed === BOOLEAN ? Boolean(UserSettings[name]) : UserSettings[name]]));
+            return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
+        },
+
+        // Changes one setting and saves it where Penpa saves it. An unknown name or a value the setting does not take throws and
+        // changes nothing. conflict_detection 2 is "off for this puzzle": Penpa keeps it in memory only and turns it back on for
+        // the next puzzle it loads, so the UI keeps it per puzzle.
+        setSetting(name, value) {
+            boardCanvas();
+            if (!Object.hasOwn(SETTINGS, name)) {
+                throw new RangeError(`engine.setSetting: no setting "${String(name)}"; the settings are ${Object.keys(SETTINGS).join(', ')}`);
+            }
+            const allowed = SETTINGS[name];
+            if (allowed === BOOLEAN && typeof value !== 'boolean') {
+                throw new TypeError(`engine.setSetting: ${name} takes true or false, got ${String(value)}`);
+            }
+            if (allowed !== BOOLEAN && !allowed.includes(value)) {
+                throw new RangeError(`engine.setSetting: ${name} takes one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`);
+            }
+            UserSettings[name] = value;
+            SETTING_SAVERS[name]?.(value);
+        },
+
+        // Removes this puzzle's saved progress, and stops Penpa saving it again until the page reloads, as Penpa's "Clear this
+        // puzzle" does. A puzzle with no link data was never saved, so there is nothing to clear.
+        // MVP gap: PenpaProgress.clearPuzzle does not wait for localforage's removal, so this waits for it itself.
+        async clearSavedProgress() {
+            boardCanvas();
+            if (!pu.url) {
+                return;
+            }
+            UserSettings.save_current_puzzle = false;
+            const hash = PenpaProgress.getHash(pu.url);
+            await PenpaProgress.clearPuzzle(hash);
+            if (await PenpaProgress.canSaveProgress()) {
+                await localforage.removeItem(hash);
+            }
         },
 
         // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in
