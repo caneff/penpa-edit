@@ -1,5 +1,6 @@
 // The solve page: the top bar and the desk of cards, built once `engine` has the puzzle loaded. Every card moves by its
-// title bar and resizes by any edge or corner; one layout for every puzzle is kept in localStorage.
+// title bar and resizes by any edge or corner; one layout for every puzzle is kept in localStorage, with the Rules
+// card's text size beside it.
 // Also `window.uiKit`, the element builders the UI files share. Reaches Penpa+ only through `engine`
 // (test/ui-boundary.test.mjs fails otherwise).
 (function () {
@@ -20,6 +21,9 @@
     const ZOOM_STEP_PX = 4;
     // The smallest a card is dragged to, [width, height].
     const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80], rules: [200, 80] };
+    // The Rules card's own text size, kept beside the layout and cleared with it. Pixels; the - and + buttons step it.
+    const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1';
+    const RULES_TEXT_RANGE_PX = { min: 10, max: 28, step: 2 };
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
     const RESIZE_HANDLES = {
         top: ['top'], right: ['right'], bottom: ['bottom'], left: ['left'],
@@ -92,21 +96,23 @@
             };
             desk.append(cards[id].node);
         });
-        const zoomButton = (symbol, label) => {
+        const symbolButton = (symbol, label) => {
             return el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' },
                 [el('span', { 'aria-hidden': 'true' }, [symbol]), el('span', { class: 'ui-sr-only' }, [label])]);
         };
         const zoom = {
-            out: zoomButton('\u2212', 'Zoom out'),
-            in: zoomButton('+', 'Zoom in'),
+            out: symbolButton('\u2212', 'Zoom out'),
+            in: symbolButton('+', 'Zoom in'),
             fit: el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' }, ['Fit'])
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
+        const rulesText = { smaller: symbolButton('\u2212', 'Smaller rules text'), bigger: symbolButton('+', 'Bigger rules text') };
+        cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { bar, desk, cards, zoom, resetButton };
+        return { bar, desk, cards, zoom, rulesText, resetButton };
     }
 
     // ---- The kept layout --------------------------------------------------------------------------------------------
@@ -354,8 +360,35 @@
             return;
         }
         const { min, max } = engine.CELL_SIZE_RANGE;
-        cellPx = Math.max(min, Math.min(max, cellPx + steps * ZOOM_STEP_PX));
+        cellPx = clamp(cellPx + steps * ZOOM_STEP_PX, min, max);
         engine.setCellSize(cellPx);
+    }
+
+    // ---- The Rules card's text size ---------------------------------------------------------------------------------
+
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    // The default size lives in the stylesheet, so the buttons read the size back from the page rather than from a
+    // constant. A kept size this code did not write is said in the console and the default is used.
+    function showRulesText({ cards, rulesText }) {
+        const { min, max } = RULES_TEXT_RANGE_PX;
+        const raw = localStorage.getItem(RULES_TEXT_KEY);
+        const kept = raw === null ? null : Number(raw);
+        const isUsable = kept !== null && Number.isFinite(kept) && kept >= min && kept <= max;
+        if (raw !== null && !isUsable) {
+            console.warn(`${RULES_TEXT_KEY} is ${JSON.stringify(raw)}, not a size from ${min} to ${max}; the default size is used.`);
+        }
+        cards.rules.body.style.fontSize = isUsable ? `${kept}px` : '';
+        const shown = parseFloat(getComputedStyle(cards.rules.body).fontSize);
+        rulesText.smaller.disabled = shown <= min;
+        rulesText.bigger.disabled = shown >= max;
+    }
+
+    function stepRulesText(desk, steps) {
+        const { min, max, step } = RULES_TEXT_RANGE_PX;
+        const shown = parseFloat(getComputedStyle(desk.cards.rules.body).fontSize);
+        localStorage.setItem(RULES_TEXT_KEY, String(clamp(shown + steps * step, min, max)));
+        showRulesText(desk);
     }
 
     // Resolves to `{ bar, cards, relayout, resetLayout }` once the desk is built, for the files that fill the bar and the
@@ -367,13 +400,18 @@
         const relayout = () => layout(desk);
         window.addEventListener('resize', relayout);
         makeMovable(desk.bar, desk.desk, desk.cards);
-        // Every card back to its default size and place.
+        // Every card back to its default size and place, and the Rules text to its default size.
         const resetLayout = () => {
             saved = {};
             localStorage.removeItem(LAYOUT_KEY);
+            localStorage.removeItem(RULES_TEXT_KEY);
+            showRulesText(desk);
             relayout();
         };
         desk.resetButton.addEventListener('click', resetLayout);
+        showRulesText(desk);
+        desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));
+        desk.rulesText.bigger.addEventListener('click', () => stepRulesText(desk, 1));
         desk.zoom.out.addEventListener('click', () => zoomBoard(-1));
         desk.zoom.in.addEventListener('click', () => zoomBoard(1));
         desk.zoom.fit.addEventListener('click', () => fitBoard(desk.cards.board.body));
