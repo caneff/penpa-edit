@@ -38,15 +38,10 @@
             nodes.some((node) => node.matches(`${PLAIN_CONTROL}, ${BOARD}`));
     }
 
-    // Closes the innermost open menu, else the open dialog. True when it closed one.
-    function closeOnePopup() {
-        const menus = document.querySelectorAll(OPEN_MENU);
-        const popup = menus.length ? menus[menus.length - 1] : document.querySelector(OPEN_DIALOG);
-        if (!popup) {
-            return false;
-        }
-        popup.open = false;
-        return true;
+    // Web Awesome closes an open menu or dialog on Escape itself, only the top-most one per press, so the UI only keeps
+    // the press from Penpa while one is open.
+    function popupIsOpen() {
+        return document.querySelector(`${OPEN_MENU}, ${OPEN_DIALOG}`) !== null;
     }
 
     // The deepest focused element, through shadow roots.
@@ -76,9 +71,7 @@
             if (engine.getState().penpaDialogOpen) {
                 return 'browser';
             }
-            if (e.type === 'keydown' && e.key === 'Escape' && closeOnePopup()) {
-                // Without this the native dialog closes on the same press.
-                e.preventDefault();
+            if (e.key === 'Escape' && popupIsOpen()) {
                 return 'ui';
             }
             if (!boardHasFocus(e.composedPath()) || isBrowserKey(e)) {

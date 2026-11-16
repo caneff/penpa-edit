@@ -190,7 +190,7 @@ describe('Escape', () => {
 })
 
 describe('Penpa\'s Congratulations popup', () => {
-  it('blocks the board\'s keys while it is open', async () => {
+  it('is a Penpa dialog: engine.getState says so, and a digit does not change the board', async () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openSolve(link)
     try {
@@ -206,6 +206,29 @@ describe('Penpa\'s Congratulations popup', () => {
       await page.keyboard.press('5')
       await page.keyboard.press('Backspace')
       assert.deepEqual(await board(page), before)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('Penpa\'s own modal dialogs', () => {
+  it('block the board\'s keys while one is open, and stop blocking when it closes', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await setMode(page, 'number')
+      await clickCell(page, CELL)
+      const before = await board(page)
+      assert.equal(before.selection.length, 1, 'a cell is selected, so a digit would be entered')
+      const showModal = (display) => page.evaluate((d) => { document.querySelector('.modal').style.display = d }, display)
+      await showModal('block')
+      assert.equal(await settle(() => page.evaluate(() => engine.getState().penpaDialogOpen), true), true)
+      await page.keyboard.press('5')
+      assert.deepEqual(await board(page), before)
+      await showModal('none')
+      assert.equal(await settle(() => page.evaluate(() => engine.getState().penpaDialogOpen), false), false)
+      await page.keyboard.press('5')
+      assert.deepEqual(await typedDigits(page), ['5'])
     } finally {
       await context.close()
     }
