@@ -1608,6 +1608,8 @@ class Puzzle {
     }
 
     mode_set(mode, loadtype = 'new', skipredraw = false) {
+        // Number's 1/4 sub-mode can leave a selection index that is not a point, which draw_selection cannot draw
+        this.selection = this.selection.filter(k => this.point[k]);
         this.mode[this.mode.qa].edit_mode = mode;
         this.submode_reset();
         if (document.getElementById('mode_' + mode)) {

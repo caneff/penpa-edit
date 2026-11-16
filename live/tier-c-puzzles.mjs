@@ -452,12 +452,7 @@ async function buildKiller (page, open) {
   })
   const apply = engineDriver.start(page)
   for (const step of steps) await apply(step)
-  // Number's 1/4 leaves a selection that is not a cell, which Sudoku mode's selection drawing throws on (#118), so it
-  // goes before the switch back to the answer layer.
-  await page.evaluate(() => {
-    pu.selection = []
-    pu.mode_qa('pu_a')
-  })
+  await page.evaluate(() => pu.mode_qa('pu_a'))
   const answer = await givenAllBut(page, cells.map((c, i) => ({ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n })), open)
   const writes = answer.map(({ num, digit }) => ['number', num, authorDigit(digit)])
   const source = await page.evaluate(answerLinkInPage, { writes, boxes: ['sol_number'] })
