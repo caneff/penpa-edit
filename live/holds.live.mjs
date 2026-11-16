@@ -41,7 +41,8 @@ async function waitForTool (page, want) {
     const { mode, submode } = engine.getTool()
     return { mode, submode }
   })
-  return settle(read, want)
+  assert.deepEqual(await settle(read, want), want, 'the tool settles')
+  return want
 }
 
 const headline = (page) => page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
@@ -68,10 +69,6 @@ describe('a held Shift or Ctrl', () => {
     await page.keyboard.up('Shift')
     await waitForTool(page, NORMAL)
     assert.equal(await waitForHeadline(page, 'Sudoku · normal · dark blue'), 'Sudoku · normal · dark blue', 'the tag goes with the hold')
-    await page.keyboard.down('Control')
-    await waitForTool(page, CENTRE)
-    await page.keyboard.up('Control')
-    await waitForTool(page, NORMAL)
   })
 
   it('ends the hold when the window loses focus, and the next hold still works', async () => {
@@ -127,6 +124,8 @@ describe('a held Shift or Ctrl', () => {
     await page.keyboard.up('Shift')
     assert.deepEqual(await waitForTool(page, NORMAL), NORMAL, 'the key-up after it changes nothing')
     await page.evaluate(() => Swal.close())
+    // The popup still answers keys as Penpa's while it fades out.
+    await page.locator('.swal2-container').waitFor({ state: 'detached' })
   })
 
   it('drops the hold on Tab, steps from the tool before it, and the key-up changes nothing', async () => {
@@ -142,6 +141,24 @@ describe('a held Shift or Ctrl', () => {
     assert.equal(await page.evaluate(() => engine.getState().held), false)
     await settle(() => headlineText(page), 'Sudoku · corner · dark blue')
     assert.deepEqual(await waitForTool(page, CORNER), CORNER)
+  })
+})
+
+// A page of its own: Penpa treats a key pressed within 15 ms of a Shift release as a Shift press, which a Ctrl hold right after the
+// Shift tests would trip.
+describe('a held Ctrl', () => {
+  let opened
+  before(async () => { opened = await openSolve(['Sudoku Normal', 'Sudoku Corner']) })
+  after(async () => { await opened?.context.close() })
+
+  it('lends Centre, and key-up restores', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Control')
+    await waitForTool(page, CENTRE)
+    assert.equal(await waitForHeadline(page, 'Sudoku · centre · dark blueheld'), 'Sudoku · centre · dark blueheld')
+    await page.keyboard.up('Control')
+    await waitForTool(page, NORMAL)
   })
 })
 
