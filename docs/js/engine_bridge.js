@@ -4,11 +4,33 @@
 (function () {
     'use strict';
 
-    // UserSettings.displaysize clamps to these and pops a message up when it does (settings.js), so a call outside throws.
-    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 90 });
+    // UserSettings.displaysize clamps to 12-90 and pops a message up when it does (settings.js). The solve page draws up to
+    // `max`, so a small board can fill a large Board card; a size over PENPA_CELL_SIZE_MAX is written past the setter and never
+    // leaves the page (see keepPenpaSizeInRange). A call outside the range throws.
+    const PENPA_CELL_SIZE_MAX = 90;
+    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
+
+    // What index.html reads back is a puzzle link, the progress store and the `displaysize` cookie. Each is written while the
+    // size is held at PENPA_CELL_SIZE_MAX at most, since index.html clamps a larger one and shows its max-size message.
+    // MVP gap: every link and the stored progress text come out of Puzzle.__export_text_shared; the cookie out of
+    // UserSettings.attemptSave.
+    function keepPenpaSizeInRange(owner, key, method) {
+        const original = owner[method];
+        owner[method] = function (...args) {
+            const real = this[key];
+            this[key] = Math.min(real, PENPA_CELL_SIZE_MAX);
+            try {
+                return original.apply(this, args);
+            } finally {
+                this[key] = real;
+            }
+        };
+    }
+    keepPenpaSizeInRange(Puzzle.prototype, 'size', '__export_text_shared');
+    keepPenpaSizeInRange(UserSettings, '_displaysize', 'attemptSave');
 
     // Surface's colours as [style, name], in the order of Penpa+'s palette; `secondcolor` takes the same values.
     const SURFACE_COLOURS = Object.freeze([
@@ -915,7 +937,13 @@
                 throw new RangeError(`engine.setCellSize: px must be a whole number from ${CELL_SIZE_RANGE.min} to ${CELL_SIZE_RANGE.max}, got ${String(px)}`);
             }
             boardCanvas();
-            UserSettings.displaysize = px;
+            if (px <= PENPA_CELL_SIZE_MAX) {
+                UserSettings.displaysize = px;
+            } else {
+                // MVP gap: the setter clamps to 90 with a message, so a larger size is stored under it and the grid redrawn as it does.
+                UserSettings._displaysize = px;
+                redraw_grid();
+            }
         },
 
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.
