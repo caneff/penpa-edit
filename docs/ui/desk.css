@@ -137,6 +137,45 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-flash-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
 
+/* The top bar's controls. */
+.ui-timer { font: 700 15px ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #fff; min-width: 3.4em; text-align: center; }
+
+/* The cover a paused board wears: over the whole Board card, opaque, taking every click. */
+.ui-paused { position: absolute; inset: 0; z-index: 30; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; border-radius: 9px; background: #ece8de; color: #3b3e45; font-size: 28px; font-weight: 700; }
+.ui-paused[hidden] { display: none; }
+.ui-paused-hint { font-size: 13px; font-weight: 400; color: #6b6656; }
+
+/* Dark: the desk, the cards and their text; the bar is dark already. */
+body.engine-mounted:has(.ui-dark) { background: #16181d; }
+.ui-dark { color: #e3e6eb; }
+.ui-dark .ui-desk { background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 0) 0 0 / 22px 22px, #16181d; }
+.ui-dark .ui-card { background: #22252c; border-color: #3a3f4b; box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.ui-dark .ui-head { background: #2b2f38; border-bottom-color: #3a3f4b; color: #b9bfcb; }
+.ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
+.ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
+.ui-dark .ui-paused-hint { color: #a9b0bd; }
+.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #e3e6eb); }
+.ui-dark .ui-headline { color: #e3eaff; }
+.ui-dark .ui-hsub { color: #8fb2ff; }
+.ui-dark .ui-hstyle { color: #d5d9e0; }
+.ui-dark .ui-hsep { color: #949fb8; }
+.ui-dark .ui-mrow { background: #26324a; }
+.ui-dark .ui-mg { color: #9fbdff; }
+.ui-dark .ui-mrow.is-none { background: #272a31; color: #8d94a1; }
+.ui-dark .ui-mrow.is-none .ui-mg { color: #8d94a1; }
+.ui-dark .ui-mrow.is-more { background: transparent; color: #c3c8d2; }
+.ui-dark .ui-mrow.is-more .ui-mg { color: #a5b2cc; }
+.ui-dark .ui-search { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
+.ui-dark .ui-list { background: #262a32; border-color: #4a5060; }
+.ui-dark .ui-entry:hover { background: #30343e; }
+.ui-dark .ui-entry[aria-selected="true"] { background: #2c3d5e; }
+.ui-dark .ui-group-title, .ui-dark .ui-sub, .ui-dark .ui-emode, .ui-dark .ui-edesc, .ui-dark .ui-none { color: #a9b0bd; }
+.ui-dark .ui-stylebtn { background: #2f333d; color: #eef0f4; border-color: #4a5060; }
+.ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
+.ui-dark .ui-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--ui-pin-colour, #4a5060); }
+.ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
+
 /* The Settings dialog: one fieldset per group, one setting per row. */
 .ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }
 .ui-settings-group legend { padding: 0 8px 0 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b6656; }
@@ -145,3 +184,6 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-tag { padding: 2px 8px; border-radius: 999px; background: #e3ebfb; color: #2f5bb2; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .ui-tag[hidden] { display: none; }
 .ui-settings-note { color: #5f5b4c; font-size: 12px; }
+.ui-dark .ui-settings-group { border-top-color: #3a3f4b; }
+.ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note { color: #a9b0bd; }
+.ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }

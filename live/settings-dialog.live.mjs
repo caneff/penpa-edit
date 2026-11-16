@@ -130,10 +130,10 @@ const board = (page) => page.evaluate(() => {
 const typedDigits = async (page) => Object.values((await board(page)).entered.number ?? {}).map(([digit]) => digit)
 
 describe('engine.getSettings and engine.setSetting', () => {
-  it('lists the fixed settings, and no other', async () => {
+  it('lists the fixed settings and the theme, and no other', async () => {
     const { context, page } = await openSolve()
     try {
-      assert.deepEqual(Object.keys(await settings(page)).sort(), [...SETTING_NAMES].sort())
+      assert.deepEqual(Object.keys(await settings(page)).sort(), [...SETTING_NAMES, 'theme'].sort(), 'the fixed list, and the theme the top bar reads')
     } finally {
       await context.close()
     }
