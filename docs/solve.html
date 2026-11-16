@@ -147,6 +147,8 @@
             "./ui/recent.js",
             "./ui/settings.js"
         ];
+        // PROTOTYPE #160 (branch prototype/mode-tree only): the tree picker variants, loaded with ?variant=.
+        if (new URLSearchParams(location.search).get("variant")) { script_sources.push("./ui/prototype-mode-tree.js"); }
         for (let i = 0; i < script_sources.length; i++) {
             let script = document.createElement("script");
             script.type = "text/javascript";
