@@ -403,9 +403,11 @@ function twoDigitWindows (steps) {
 // recorded as a key step and then a Surface mode step, both made by the one key press, so that pair is checked once,
 // after the mode step.
 // A Multicolor colour key is recorded the other way round, its style step first, and is checked after the key.
-const uiCheckpointAfter = (step, next) => endsGroup(step) &&
-  !(step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' && next.mode === 'surface') &&
-  !isKeyStyle(step, next)
+const uiCheckpointAfter = (step, next) => endsGroup(step) && !isSurfaceKey(step, next) && !isKeyStyle(step, next)
+
+// A Surface digit and the style step it makes, which follows it.
+const isSurfaceKey = (step, next) => step.kind === 'key' && step.call === 'key_number' && next?.kind === 'mode' &&
+  next.mode === 'surface'
 
 // Penpa+'s own page: a mode change is a click in its mode panel.
 export const uiDriver = {
@@ -554,6 +556,8 @@ function startUiDriver (page, steps, choices) {
   }
 
   async function mode (step) {
+    // A digit's own style step in Surface: the key press made it, and a click in the panel would hide a wrong key.
+    if (stepsMade > 1 && isSurfaceKey(steps[stepsMade - 2], step) && (await page.evaluate(modeInPage, step.mode)).edit === 'surface') return
     // The style a colour key sets is left to the key, so the mode step switches only the mode.
     const target = isKeyStyle(step, steps[stepsMade]) ? { ...step, style: (await page.evaluate(modeInPage, step.mode)).style } : step
     return switchMode(page, target, choices(page, target, clickInPanel, () => { mousePixel = null }))
