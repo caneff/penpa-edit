@@ -66,7 +66,7 @@
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { desk, cards };
+        return { desk, cards, bar };
     }
 
     // Puts every card at its default place for the desk's current size.
@@ -109,7 +109,7 @@
         }
     }
 
-    // Resolves to `{ cards, relayout }` once the desk is built, for the files that fill the cards. A failed load shows its
+    // Resolves to `{ cards, bar, relayout }` once the desk is built, for the files that fill the cards. A failed load shows its
     // own error dialog (main.js), so a rejected `ready` needs no second report.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
@@ -118,7 +118,7 @@
         window.addEventListener('resize', () => layout(desk));
         // Fires once on observe, which is the first fit, and again whenever the card's body changes size.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.body);
-        return { cards: desk.cards, relayout: () => layout(desk) };
+        return { cards: desk.cards, bar: desk.bar, relayout: () => layout(desk) };
     });
     window.deskReady.catch(() => {});
 })();

@@ -136,3 +136,12 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
 .ui-flash-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+
+/* The Settings dialog: one fieldset per group, one setting per row. */
+.ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }
+.ui-settings-group legend { padding: 0 8px 0 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b6656; }
+.ui-setting { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.ui-setting wa-select { min-width: 250px; }
+.ui-tag { padding: 2px 8px; border-radius: 999px; background: #e3ebfb; color: #2f5bb2; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ui-tag[hidden] { display: none; }
+.ui-settings-note { color: #5f5b4c; font-size: 12px; }
