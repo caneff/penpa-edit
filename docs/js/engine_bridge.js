@@ -112,6 +112,11 @@
         location.reload();
     }
 
+    // solve.html never uses Penpa Lite, so every tool the grid supports is offered whatever the link's Tab set. Its three
+    // callers (a loaded link, a saved tab cookie, the puzz.link import) look the function up by name when they run, so
+    // replacing it here keeps the Tab set for the pins and the Tab cycle (`tabSet`) and leaves Penpa+'s files as they are.
+    window.advancecontrol_off = function () {};
+
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
     // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads.
     let resolveBoot;
