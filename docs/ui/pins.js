@@ -219,6 +219,16 @@
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 
+        // What the presets read and replace. A pin for a tool the link lacks is left out, like a saved pin the link no longer offers.
+        window.pinBoard = {
+            snapshot: () => pins.map(({ mode, submode, style }) => ({ mode, submode, style })),
+            replace(entries) {
+                pins = entries.filter(toolOf).map(({ mode, submode, style }) => ({ id: nextId++, mode, submode, style: style ?? null }));
+                save();
+                render();
+            }
+        };
+
         render();
         engine.on('change', render);
     });

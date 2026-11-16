@@ -126,6 +126,9 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
+/* The preset pulldown and the save row under the chips. */
+.ui-preset-row { display: flex; gap: 8px; align-items: end; margin-top: 8px; }
+.ui-preset-row > wa-select, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
 .ui-chip-unpin { padding: 0 6px; opacity: .55; }
 .ui-chip-unpin:hover { opacity: 1; }
 .ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
