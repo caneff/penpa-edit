@@ -66,7 +66,8 @@ describe('solve.html on a solve link', () => {
 
   it('refits the board when the window resizes', async () => {
     const { page } = opened
-    const before = await boardAgainstCard(page)
+    // Read once the board has stopped changing: the fitted layout refits it a moment after the desk opens.
+    const before = await settle(() => boardAgainstCard(page), null)
     await page.setViewportSize({ width: 900, height: 600 })
     const read = async () => { const r = await boardAgainstCard(page); return r.inside && r.w < before.w }
     assert.equal(await settle(read, true), true, 'smaller window, smaller board that still fits')

@@ -14,6 +14,9 @@
     const TOP_MARGIN_PX = 12;
     // Below this a card body is a layout in progress, not a box to fit the board to.
     const MIN_FIT_BOX_PX = 40;
+    const FIT_PASSES = 3;
+    // The finest width the fit pass tells apart when it looks for the narrowest left column that needs no scroll.
+    const LEFT_WIDTH_STEP_PX = 8;
     // A card never reaches closer than this to the desk's edge once it has to shrink to stay inside.
     const EDGE_MARGIN_PX = 8;
     const LAYOUT_KEY = 'chinstrap-solve-layout-v1';
@@ -30,7 +33,7 @@
         'top-left': ['top', 'left'], 'top-right': ['top', 'right'], 'bottom-right': ['bottom', 'right'], 'bottom-left': ['bottom', 'left']
     };
 
-    // Variant L's default layout: Mouse and Rules on the left, the Board between, Pinned, Mode and Recent on the right.
+    // Variant L's arrangement, which the fitted layout sizes: Mouse and Rules on the left, the Board between, Pinned, Mode and Recent on the right.
     const LEFT_COLUMN = ['mouse', 'rules'];
     const RIGHT_COLUMN = ['pins', 'mode', 'recent'];
     const CARD_TITLES = { board: 'Board', mouse: 'Mouse', rules: 'Rules', pins: 'Pinned', mode: 'Mode', recent: 'Recent' };
@@ -174,8 +177,37 @@
 
     // ---- Placing the cards ------------------------------------------------------------------------------------------
 
-    // Puts every card at its place for the desk's current size: the default for one never touched, else its kept size
-    // and, if it was moved, its kept place. Every card ends inside the desk, shrunk (to its minimum at most) if need be.
+    // Where the Mouse card's measured height comes from, set by the file that knows its content (tool-cards.js): the
+    // card's whole height that fits every tool's rows at a card width. Until it is set the desk keeps variant L's fixed layout.
+    const fit = { mouseCardHeight: null };
+    // True until the fit pass has run for the desk as it was opened or last reset.
+    let fitPending = Object.keys(saved).length === 0;
+
+    const columnWidthFor = (deskWidth) => Math.max(MIN_COLUMN_WIDTH_PX,
+        Math.min(COLUMN_WIDTH_PX, Math.floor((deskWidth - 4 * DESK_MARGIN_PX - MIN_BOARD_WIDTH_PX) / 2)));
+
+    const position = (cards, id, x, y, w) => {
+        const style = cards[id].node.style;
+        style.left = `${x}px`;
+        style.top = `${y}px`;
+        style.width = `${saved[id]?.w ?? Math.max(MIN_SIZE[id][0], w)}px`;
+    };
+
+    // Share i of n starts at an even fraction of the column's height; a card never starts closer than CARD_GAP_PX
+    // below the card above it, so one that outgrows its share pushes the next down.
+    function stack(cards, ids, x, width, deskHeight) {
+        const columnHeight = deskHeight - TOP_MARGIN_PX - CARD_GAP_PX;
+        let nextFree = TOP_MARGIN_PX;
+        ids.forEach((id, i) => {
+            const y = Math.max(TOP_MARGIN_PX + Math.round(i * (columnHeight + CARD_GAP_PX) / ids.length), nextFree);
+            position(cards, id, x, y, width);
+            nextFree = y + cards[id].node.offsetHeight + CARD_GAP_PX;
+        });
+    }
+
+    // Puts every card at its place for the desk's current size: the fitted layout for a desk with none kept, else each
+    // card's kept size and, if it was moved, its kept place, the default for one never touched. Every card ends inside
+    // the desk, shrunk (to its minimum at most) if need be.
     function layout({ desk, cards }) {
         const width = desk.clientWidth;
         const height = desk.clientHeight;
@@ -187,35 +219,94 @@
                 setHeight(node, saved[id].h);
             }
         });
-        const columnWidth = Math.max(MIN_COLUMN_WIDTH_PX,
-            Math.min(COLUMN_WIDTH_PX, Math.floor((width - 4 * DESK_MARGIN_PX - MIN_BOARD_WIDTH_PX) / 2)));
-        const leftX = DESK_MARGIN_PX;
-        const boardX = leftX + columnWidth + DESK_MARGIN_PX;
+        if (fitPending && fit.mouseCardHeight) {
+            fitPending = false;
+            fitCards(desk, cards);
+            return;
+        }
+        const columnWidth = columnWidthFor(width);
         const rightX = width - DESK_MARGIN_PX - columnWidth;
-        const position = (id, x, y, w) => {
-            const style = cards[id].node.style;
-            style.left = `${x}px`;
-            style.top = `${y}px`;
-            style.width = `${saved[id]?.w ?? Math.max(MIN_SIZE[id][0], w)}px`;
-        };
-        // Share i of n starts at an even fraction of the column's height; a card never starts closer than CARD_GAP_PX
-        // below the card above it, so one that outgrows its share pushes the next down.
-        const stack = (ids, x) => {
-            const columnHeight = height - TOP_MARGIN_PX - CARD_GAP_PX;
-            let nextFree = TOP_MARGIN_PX;
-            ids.forEach((id, i) => {
-                const y = Math.max(TOP_MARGIN_PX + Math.round(i * (columnHeight + CARD_GAP_PX) / ids.length), nextFree);
-                position(id, x, y, columnWidth);
-                nextFree = y + cards[id].node.offsetHeight + CARD_GAP_PX;
-            });
-        };
-        stack(LEFT_COLUMN, leftX);
-        stack(RIGHT_COLUMN, rightX);
-        position('board', boardX, TOP_MARGIN_PX, rightX - DESK_MARGIN_PX - boardX);
+        const boardX = DESK_MARGIN_PX + columnWidth + DESK_MARGIN_PX;
+        stack(cards, LEFT_COLUMN, DESK_MARGIN_PX, columnWidth, height);
+        stack(cards, RIGHT_COLUMN, rightX, columnWidth, height);
+        position(cards, 'board', boardX, TOP_MARGIN_PX, rightX - DESK_MARGIN_PX - boardX);
         if (!saved.board?.h) {
             setHeight(cards.board.node, Math.max(MIN_SIZE.board[1], height - 2 * TOP_MARGIN_PX));
         }
         Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
+    }
+
+    const columnMinWidth = (ids) => Math.max(MIN_COLUMN_WIDTH_PX, ...ids.map((id) => MIN_SIZE[id][0]));
+
+    // The height the Rules card needs to show its whole text at `cardWidth`, measured in a hidden copy of its body.
+    function rulesCardHeight({ node, body }, cardWidth) {
+        const probe = el('div', { class: 'ui-body' });
+        probe.textContent = body.textContent;
+        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;box-sizing:border-box;height:auto;max-height:none;` +
+            `width:${cardWidth - (node.offsetWidth - body.offsetWidth)}px;font-size:${getComputedStyle(body).fontSize};`;
+        node.append(probe);
+        const needed = probe.offsetHeight + node.offsetHeight - body.offsetHeight;
+        probe.remove();
+        return needed;
+    }
+
+    // The layout that suits the puzzle on screen: the Board card as tall as the desk and only as wide as the board at
+    // that height needs (never past what the columns' minimum widths leave); the right column at its default width; the
+    // left column as wide as Mouse and Rules need to show everything in the desk's height, or all the board leaves; and
+    // the width still spare shared as equal gaps. The result is kept in memory like a layout the solver made, so a
+    // window resize keeps it, and it is written only when a card is moved or resized.
+    function fitCards(desk, cards) {
+        const width = desk.clientWidth;
+        const height = desk.clientHeight;
+        const columnHeight = height - 2 * TOP_MARGIN_PX;
+        const leftMin = columnMinWidth(LEFT_COLUMN);
+        const rightWidth = Math.max(columnWidthFor(width), columnMinWidth(RIGHT_COLUMN));
+
+        const boardMax = Math.max(MIN_SIZE.board[0], width - 4 * DESK_MARGIN_PX - leftMin - rightWidth);
+        const board = cards.board;
+        board.node.style.width = `${boardMax}px`;
+        setHeight(board.node, Math.max(MIN_SIZE.board[1], columnHeight));
+        fitBoard(board.body);
+        const drawnWidth = board.body.firstElementChild.getBoundingClientRect().width;
+        const boardWidth = clamp(Math.ceil(drawnWidth) + board.node.offsetWidth - bodyRoom(board.body).w, MIN_SIZE.board[0], boardMax);
+
+        const leftMax = Math.max(leftMin, width - 4 * DESK_MARGIN_PX - boardWidth - rightWidth);
+        const neededHeight = (w) => fit.mouseCardHeight(w) + CARD_GAP_PX + rulesCardHeight(cards.rules, w);
+        // Both cards only get shorter as they widen, so the narrowest width that fits is found by halving; when none does,
+        // the cards take all the width there is.
+        let leftWidth = leftMax;
+        if (neededHeight(leftMax) <= columnHeight) {
+            let [low, high] = [leftMin, leftMax];
+            while (high - low > LEFT_WIDTH_STEP_PX) {
+                const middle = Math.floor((low + high) / 2);
+                if (neededHeight(middle) <= columnHeight) {
+                    high = middle;
+                } else {
+                    low = middle;
+                }
+            }
+            leftWidth = neededHeight(low) <= columnHeight ? low : high;
+        }
+        const mouseHeight = clamp(fit.mouseCardHeight(leftWidth), MIN_SIZE.mouse[1], columnHeight - CARD_GAP_PX - MIN_SIZE.rules[1]);
+
+        const gap = Math.max(DESK_MARGIN_PX, Math.floor((width - boardWidth - leftWidth - rightWidth) / 4));
+        const boardX = gap + leftWidth + gap;
+        const rightX = boardX + boardWidth + gap;
+        stack(cards, RIGHT_COLUMN, rightX, rightWidth, height);
+        const place = (id, x, y, w, h) => {
+            Object.assign(cards[id].node.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
+            setHeight(cards[id].node, h);
+        };
+        place('board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
+        place('mouse', gap, TOP_MARGIN_PX, leftWidth, mouseHeight);
+        place('rules', gap, TOP_MARGIN_PX + mouseHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - mouseHeight);
+        Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
+        Object.entries(cards).forEach(([id, { node }]) => {
+            saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: width, vh: height };
+            if (node.classList.contains('is-sized')) {
+                saved[id].h = node.offsetHeight;
+            }
+        });
     }
 
     function keepInside(id, node, deskWidth, deskHeight) {
@@ -346,12 +437,27 @@
     let cellPx = null;
 
     // The box inside the body's padding (desk.css), which is the room the board has.
+    function bodyRoom(body) {
+        const style = getComputedStyle(body);
+        return {
+            w: body.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+            h: body.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+        };
+    }
+
+    // Redrawing the board can change the room it has (a scrollbar going, the layout settling), so the fit repeats until
+    // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
-        const style = getComputedStyle(boardBody);
-        const w = boardBody.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
-        const h = boardBody.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-        if (w >= MIN_FIT_BOX_PX && h >= MIN_FIT_BOX_PX) {
+        for (let pass = 0; pass < FIT_PASSES; pass++) {
+            const { w, h } = bodyRoom(boardBody);
+            if (w < MIN_FIT_BOX_PX || h < MIN_FIT_BOX_PX) {
+                return;
+            }
             cellPx = engine.fitBoard(w, h);
+            const after = bodyRoom(boardBody);
+            if (after.w === w && after.h === h) {
+                return;
+            }
         }
     }
 
@@ -391,7 +497,7 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, relayout, resetLayout }` once the desk is built, for the files that fill the bar and the
+    // Resolves to `{ bar, cards, relayout, resetLayout, fit }` once the desk is built, for the files that fill the bar and the
     // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
@@ -400,9 +506,10 @@
         const relayout = () => layout(desk);
         window.addEventListener('resize', relayout);
         makeMovable(desk.bar, desk.desk, desk.cards);
-        // Every card back to its default size and place, and the Rules text to its default size.
+        // Every card back to the layout fitted to the window and puzzle, and the Rules text to its default size.
         const resetLayout = () => {
             saved = {};
+            fitPending = true;
             localStorage.removeItem(LAYOUT_KEY);
             localStorage.removeItem(RULES_TEXT_KEY);
             showRulesText(desk);
@@ -418,7 +525,7 @@
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit drops any zoom.
         // The card is watched, not its body, since a scrollbar appearing narrows the body and would undo the zoom at once.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.

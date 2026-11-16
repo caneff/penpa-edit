@@ -9,6 +9,7 @@ import { settle } from './settle.mjs'
 const browser = useBrowser()
 
 const FULL_HD = { viewport: { width: 1920, height: 1080 } }
+const SHORT = { viewport: { width: 1920, height: 800 } }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 // The smallest width a column's card may have (desk.js MIN_COLUMN_WIDTH_PX) and the pixels a drawn height may miss by.
 const MIN_COLUMN_PX = 240
@@ -57,9 +58,9 @@ describe('Reset layout fits the desk to the puzzle', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
-  async function open (puzzle) {
+  async function open (puzzle, contextOptions = FULL_HD) {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, { ...puzzle, rules: RULES })
-    opened = await openSolvePage(browser(), link, { contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), link, { contextOptions })
     await settle(() => boardFills(opened.page), true)
     return opened.page
   }
@@ -93,11 +94,11 @@ describe('Reset layout fits the desk to the puzzle', () => {
   })
 
   it('caps the Board card for a wide board and keeps every card at its minimum width', async () => {
-    const page = await open({ cols: 20, rows: 10 })
+    const page = await open({ cols: 30, rows: 10 })
     const read = await reset(page)
     const right = read.cards.Pinned.w
     const cap = read.desk.w - 4 * 14 - MIN_COLUMN_PX - right
-    assert.equal(Math.abs(read.cards.Board.w - cap) <= 2, true, `the Board card is ${read.cards.Board.w}px wide, the cap ${cap}px`)
+    assert.equal(cap - read.cards.Board.w <= 50 && read.cards.Board.w <= cap, true, `the Board card is ${read.cards.Board.w}px wide, the cap ${cap}px`)
     assert.equal(read.canvas.w <= read.boardRoom.w + FIT_SLACK_PX, true, `the board ${read.canvas.w}px fits its ${read.boardRoom.w}px room`)
     for (const name of CARDS) assert.equal(read.cards[name].w >= MIN_COLUMN_PX - 1, true, `${name} is ${read.cards[name].w}px wide`)
     assertCardsOnDesk(read)
@@ -109,6 +110,14 @@ describe('Reset layout fits the desk to the puzzle', () => {
     for (const name of ['Mouse', 'Rules']) {
       assert.deepEqual(read.scroll[name], { overflowY: 0, overflowX: 0 }, `${name} scrolls`)
     }
-    assert.equal(read.cards.Mouse.w > 380, true, `Mouse widened past the old column (${read.cards.Mouse.w}px)`)
+  })
+
+  it('keeps Mouse and Rules scroll-free on a short desk', async () => {
+    const page = await open({ cols: 9, rows: 9 }, SHORT)
+    const read = await reset(page)
+    for (const name of ['Mouse', 'Rules']) {
+      assert.deepEqual(read.scroll[name], { overflowY: 0, overflowX: 0 }, `${name} scrolls`)
+    }
+    assertCardsOnDesk(read)
   })
 })

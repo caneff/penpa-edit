@@ -62,18 +62,36 @@
         ]));
     }
 
-    // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
-    // body at the card's width. Shorter content sits at the top.
-    function measureMouseBody(body, tools) {
-        const probe = el('div', { class: 'ui-body ui-mouse-probe' });
-        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${body.clientWidth}px;box-sizing:border-box;height:auto;`;
-        body.parentElement.append(probe);
-        let tallest = 0;
+    // The contents that can set the Mouse card's height, as markup: of the contents sharing one set of rows, only the one
+    // with the longest headline, since the headline's wrapping is all that tells them apart. Found once, so measuring at
+    // a new width costs one layout per set of rows, not one render per tool and style.
+    let mouseContents = null;
+    function allMouseContents(probe, tools) {
+        const longest = new Map();
         tools.forEach((tool) => {
             (tool.styles.length ? tool.styles : [{ style: null }]).forEach(({ style }) => {
                 renderMouse(probe, tool, style, true);
-                tallest = Math.max(tallest, probe.offsetHeight);
+                const rows = probe.querySelector('.ui-mrows').innerHTML;
+                const headlineLength = probe.querySelector('.ui-headline').textContent.length;
+                if (headlineLength > (longest.get(rows)?.headlineLength ?? -1)) {
+                    longest.set(rows, { headlineLength, html: probe.innerHTML });
+                }
             });
+        });
+        return [...longest.values()].map(({ html }) => html);
+    }
+
+    // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
+    // body at `width` (the card's own by default). Shorter content sits at the top.
+    function measureMouseBody(body, tools, width = body.clientWidth) {
+        const probe = el('div', { class: 'ui-body ui-mouse-probe' });
+        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${width}px;box-sizing:border-box;height:auto;`;
+        body.parentElement.append(probe);
+        mouseContents ??= allMouseContents(probe, tools);
+        let tallest = 0;
+        mouseContents.forEach((html) => {
+            probe.innerHTML = html;
+            tallest = Math.max(tallest, probe.offsetHeight);
         });
         probe.remove();
         return tallest;
@@ -304,7 +322,7 @@
 
     // ---- Wiring -----------------------------------------------------------------------------------------------------
 
-    onDeskReady(({ cards, relayout }) => {
+    onDeskReady(({ cards, relayout, fit }) => {
         const tools = engine.listTools();
         // A tool the link does not list (Penpa+ was put in a hidden mode) is drawn with its mode's name alone.
         const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current)) ??
@@ -339,6 +357,12 @@
             mode.render(tool, current.style, orientation);
         }
 
+        // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
+        fit.mouseCardHeight = (cardWidth) => {
+            const { node, body } = cards.mouse;
+            const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
+            return node.offsetHeight - body.offsetHeight + measureMouseBody(body, tools, bodyWidth) + MOUSE_BODY_SLACK_PX;
+        };
         sizeMouseCard();
         relayout();
         render();

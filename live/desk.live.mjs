@@ -57,12 +57,13 @@ describe('the desk', () => {
 
   it('keeps a moved and resized card after a reload, and Reset layout puts it back', async () => {
     const start = await boxOf(page, 'Rules')
-    await drag(page, await headCentre(page, 'Rules'), 120, 70)
+    // Up and to the right: the fitted layout puts Rules at the bottom of the desk.
+    await drag(page, await headCentre(page, 'Rules'), 120, -70)
     await drag(page, await handleCentre(page, 'Rules'), 40, 30)
     const changed = await boxOf(page, 'Rules')
     assert.notDeepEqual(changed, start)
     assert.equal(changed.x, start.x + 120)
-    assert.equal(changed.y, start.y + 70)
+    assert.equal(changed.y, start.y - 70)
 
     await page.reload()
     await card(page, 'Rules').waitFor()
@@ -84,8 +85,9 @@ describe('the desk', () => {
 
   for (const { handle, dx, dy, fixed } of HANDLE_DRAGS) {
     it(`resizes the Rules card from its ${handle} handle, keeps the size after a reload`, async () => {
-      // Moved clear of the desk's edges first, so every handle has room to grow into.
-      await drag(page, await headCentre(page, 'Rules'), 80, 60)
+      // Moved clear of the desk's edges first, so every handle has room to grow into: the fitted layout puts Rules at the
+      // bottom of the desk, so up.
+      await drag(page, await headCentre(page, 'Rules'), 80, -60)
       const start = await boxOf(page, 'Rules')
       await drag(page, await handleCentre(page, 'Rules', handle), dx, dy)
       const grown = await boxOf(page, 'Rules')
@@ -131,8 +133,8 @@ describe('the desk', () => {
 
   it('still moves the card by its title bar below the top strip', async () => {
     const start = await boxOf(page, 'Rules')
-    await drag(page, await headCentre(page, 'Rules'), 50, 40)
-    assert.deepEqual(await boxOf(page, 'Rules'), { ...start, x: start.x + 50, y: start.y + 40 })
+    await drag(page, await headCentre(page, 'Rules'), 50, -40)
+    assert.deepEqual(await boxOf(page, 'Rules'), { ...start, x: start.x + 50, y: start.y - 40 })
   })
 
   // The key the desk keeps its layout under: the stored value with a card's entry in it.
@@ -222,7 +224,8 @@ describe('the desk', () => {
   })
 
   it('refits the board when its card resizes, and + then − zooms it with the card scrolling', async () => {
-    await drag(page, await handleCentre(page, 'Board'), -200, -150)
+    // 201 and not 200: the board is 484 px wide at 200, exactly the room the card leaves it, and its container's border then scrolls the card.
+    await drag(page, await handleCentre(page, 'Board'), -201, -150)
     const fitted = await settle(async () => { const r = await boardAgainstCard(page); return r.inside }, true)
     assert.equal(fitted, true, 'the smaller card still holds the whole board')
     const small = await boardAgainstCard(page)
