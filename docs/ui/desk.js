@@ -66,9 +66,10 @@
     function build(info) {
         const resetButton = el('wa-button', { class: 'ui-reset', appearance: 'filled', variant: 'neutral', size: 's' }, ['Reset layout']);
         const bar = el('header', { class: 'ui-bar' }, [
-            el('span', { class: 'ui-brand' }, ['ChinStrap']),
-            el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
-            el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : '']),
+            el('div', { class: 'ui-heading' }, [
+                el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
+                el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
+            ]),
             el('span', { class: 'ui-spacer' }),
             resetButton
         ]);

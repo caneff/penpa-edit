@@ -39,12 +39,58 @@
     // list at all. Its cookie is read back before boot() runs, so a link's own override (an `alphabet` puzzle turns the
     // shortcuts off) still wins.
     const SHORTCUTS_COOKIE = 'shortcuts_enabled';
+    // The outline's own cookie: Penpa+'s `outline_text` cookie is shared with Penpa+'s page, which keeps it off by default.
+    const OUTLINE_COOKIE = 'chinstrap_outline_text';
     const SETTING_SAVERS = {
         custom_colors_on: () => UserSettings.attemptSave(),
-        shortcuts_enabled: (on) => setCookie(SHORTCUTS_COOKIE, on ? '1' : '0', UserSettings._expDate)
+        shortcuts_enabled: (on) => setCookie(SHORTCUTS_COOKIE, on ? '1' : '0', UserSettings._expDate),
+        outline_text: (on) => setCookie(OUTLINE_COOKIE, on ? '1' : '0', UserSettings._expDate)
     };
     // MVP gap: the setters of these keep the new value but leave the board as it was drawn, so the bridge redraws it.
     const REDRAWN_SETTINGS = ['sudoku_normal_size'];
+
+    // ---- Outline on text: Penpa+ strokes every board text before filling it, and its Outline on text setting only makes the
+    // stroke white, at whatever width the last style left (often 1 px, whatever the font size). So the bridge scales the
+    // width to the font and rounds the joins while a text is drawn. The setting is on until the visitor turns it off, and,
+    // like the theme, is kept out of the cookies Penpa+'s own page shares.
+    const OUTLINE_WIDTH_PER_FONT_PX = 0.1;
+    // Penpa+'s style 0 is hollow text: a black stroke round a transparent fill, which a white stroke would hide.
+    const HOLLOW_TEXT_STYLE = 0;
+    UserSettings.can_save = UserSettings.can_save.filter((name) => name !== 'outline_text');
+
+    // The width the next text() strokes at, set by the style it follows; null for a text that keeps Penpa+'s own.
+    let outlineWidth = null;
+    const penpaSetFontStyle = window.set_font_style;
+    window.set_font_style = function (ctx, size, type) {
+        penpaSetFontStyle.apply(this, arguments);
+        outlineWidth = null;
+        if (!UserSettings.outline_text) {
+            return;
+        }
+        if (type === HOLLOW_TEXT_STYLE) {
+            ctx.strokeStyle = Color.BLACK;
+        } else {
+            outlineWidth = parseFloat(size) * OUTLINE_WIDTH_PER_FONT_PX;
+        }
+    };
+
+    // Only text() takes the width and the round joins (they keep a thick stroke from growing spikes at a glyph's corners), and
+    // gives back the context's own: Penpa+'s other drawing (arrows, lines) relies on the width and join it set last or the default.
+    const penpaText = CanvasRenderingContext2D.prototype.text;
+    CanvasRenderingContext2D.prototype.text = function () {
+        if (!UserSettings.outline_text || outlineWidth === null) {
+            return penpaText.apply(this, arguments);
+        }
+        const { lineWidth, lineJoin } = this;
+        this.lineWidth = outlineWidth;
+        this.lineJoin = 'round';
+        try {
+            return penpaText.apply(this, arguments);
+        } finally {
+            this.lineWidth = lineWidth;
+            this.lineJoin = lineJoin;
+        }
+    };
 
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
@@ -112,6 +158,11 @@
         location.reload();
     }
 
+    // solve.html never uses Penpa Lite, so every tool the grid supports is offered whatever the link's Tab set. Penpa+ looks
+    // the function up by its global name when it runs, so replacing it here keeps the Tab set for the pins and the Tab cycle
+    // (`tabSet`) and leaves Penpa+'s files as they are.
+    window.advancecontrol_off = function () {};
+
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
     // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads.
     let resolveBoot;
@@ -122,6 +173,7 @@
     });
     const penpaBoot = window.boot;
     window.boot = function () {
+        UserSettings.outline_text = getCookie(OUTLINE_COOKIE) !== '0';
         const savedShortcuts = getCookie(SHORTCUTS_COOKIE);
         if (savedShortcuts !== null) {
             UserSettings.shortcuts_enabled = savedShortcuts === '1';
@@ -363,7 +415,7 @@
     const COMPOSITE_LINE_STYLE = ['linex', 'lineox', 'linedir', 'yajilin', 'rassisillai', 'tents'];
     const COMPOSITE_EDGE_STYLE = ['edgex', 'edgexoi'];
 
-    // MVP gap: Penpa+ hides what a grid type or a link's tab set leaves out by `display: none` on the element or an
+    // MVP gap: Penpa+ hides what a grid type or a mode of the solve page leaves out by `display: none` on the element or an
     // ancestor, or by the class `is_hidden`. `container` is the mode's own box, whose display follows the current mode.
     function hiddenInPenpa(node, container) {
         for (let n = node; n && n !== container; n = n.parentElement) {
@@ -665,7 +717,7 @@
             const mode = pu.mode[pu.mode.qa].edit_mode;
             const [submode, style] = pu.mode[pu.mode.qa][mode];
             const listed = toolCatalog().find((t) => t.mode === mode && t.submode === rememberedSubmode(submode));
-            // A key or a script can put Penpa+ in a mode the link's tab set leaves out; it is still the tool in use.
+            // A key or a script can put Penpa+ in a mode the catalogue leaves out; it is still the tool in use.
             const current = listed?.styles.find((s) => s.style === Number(style));
             return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
         },

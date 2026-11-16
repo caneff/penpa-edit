@@ -105,8 +105,9 @@ describe('a held key in Sudoku', () => {
       await setTool(page, { mode: 'line', submode: '1' })
       await afterChange(page)
       await setTool(page, { mode: 'sudoku', submode: '1' })
-      const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal'])
-      assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal'], 'before the hold')
+      // Surface, the tool the page opens on, is a tool of the link whatever its Tab set, so Recent lists it.
+      const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal', 'Surface'])
+      assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal', 'Surface'], 'before the hold')
       await page.keyboard.down(key)
       await waitForTool(page, { mode: 'sudoku', submode: lent })
       // A change shows on the next frame; two frames after the hold began, a recorded hold would be drawn.
@@ -131,7 +132,7 @@ describe('a held key in Sudoku', () => {
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     await setTool(page, { mode: 'line', submode: '1' })
-    const expected = ['Line > Normal', 'Sudoku > Normal']
+    const expected = ['Line > Normal', 'Sudoku > Normal', 'Surface']
     assert.deepEqual(await settle(() => recentNames(page), expected), expected)
   })
 })
