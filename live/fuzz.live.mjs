@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fuzz, FUZZ_SEEDS, FUZZ_STEPS } from './fuzz.mjs'
-import { AKARI_SOLVE, makeNumberSolveLink, takePageErrors, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, jsRequest, makeNumberSolveLink, takePageErrors, useBrowser } from './page.mjs'
 import { makeSurfaceSolveLink, replay } from './replay.mjs'
 
 const browser = useBrowser()
@@ -121,7 +121,7 @@ describe('the fuzz', () => {
       it(`catches a broken ${plant.invariant} and saves a recording that replays to the board it failed on`, async () => {
         const planted = source.replace(plant.from, plant.to)
         assert.notEqual(planted, source, 'the line to plant at is in class_p.js')
-        const setup = (context) => context.route(/\/js\/class_p\.js(\?|$)/, (route) => route.fulfill({
+        const setup = (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
         const { failure, saved } = await fuzz(browser(), { name: PLANT_PUZZLE, source: sources[PLANT_PUZZLE] }, {

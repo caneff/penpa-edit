@@ -1,8 +1,10 @@
 name: Upstream merge
 
 # Merges upstream Penpa+ into master with a merge commit and pushes only when both test suites pass on the merged
-# tree; master:/docs is what Pages serves, so the push publishes. A conflict, a red run or a refused push pushes
-# nothing and files one issue, or comments on it while it is open.
+# tree and it changes no recording's expected file (each such change is Chris's to rule on, #33); master:/docs is what
+# Pages serves, so the push publishes. A conflict, a red run, a changed expected file or a refused push pushes nothing
+# and files one issue, or comments on it while it is open. Each upstream commit that touched a file we own
+# (merge=ours) gets one needs-triage issue, filed before the tests, and even when the merge conflicts.
 on:
   schedule:
     - cron: '17 5 * * *'
@@ -11,11 +13,13 @@ on:
 permissions:
   contents: write
   issues: write
+  statuses: write
 
 concurrency: upstream-merge
 
 env:
   REPORT: ${{ github.workspace }}/../upstream-merge-report.md
+  OWNED_COMMITS: ${{ github.workspace }}/../upstream-owned-commits.tsv
   TEST_LOG: ${{ github.workspace }}/../upstream-merge-test.log
 
 jobs:
@@ -35,7 +39,15 @@ jobs:
       - id: merge
         name: Merge upstream/master
         shell: bash
-        run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT"
+        run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT" "$OWNED_COMMITS"
+      # Also after a conflicted merge: once someone merges it by hand, those commits are no longer upstream-only, so a
+      # later night would never list them.
+      - if: ${{ !cancelled() }}
+        name: File a triage issue per upstream commit to an owned file
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/file-upstream-triage.sh "$OWNED_COMMITS"
       - if: steps.merge.outputs.merged == 'true'
         uses: ./.github/actions/setup-tests
       - id: tests
@@ -47,9 +59,32 @@ jobs:
           npm test 2>&1 | tee "$TEST_LOG" || status=1
           npm run test:live 2>&1 | tee -a "$TEST_LOG" || status=1
           exit "$status"
+      - id: expected
+        if: steps.merge.outputs.merged == 'true'
+        name: No expected file changed
+        run: bash .github/scripts/expected-unchanged.sh HEAD^1 "$REPORT"
+      # master's ruleset (`.github/scripts/require-checks.sh`) requires CI's checks on every commit pushed to it, and
+      # GitHub Actions cannot bypass it on a personal account's repo. So the merged commit goes to a scratch branch
+      # first, gets a status for each check whose own suite this run passed on it, and only then goes to master.
       - id: push
         if: steps.merge.outputs.merged == 'true'
-        run: git push origin HEAD:master
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TESTS: ${{ steps.tests.outcome }}
+          EXPECTED: ${{ steps.expected.outcome }}
+        run: |
+          sha=$(git rev-parse HEAD)
+          run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          git push --force origin HEAD:refs/heads/upstream-merge-candidate
+          if [[ $TESTS == success ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state=success -f context=test -f target_url="$run_url" \
+              -f description="npm test and test:live passed on ${sha:0:12} in nightly run $GITHUB_RUN_ID" >/dev/null
+          fi
+          if [[ $EXPECTED == success ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/statuses/$sha" -f state=success -f context=expected-files -f target_url="$run_url" \
+              -f description="No expected file changed on ${sha:0:12} in nightly run $GITHUB_RUN_ID" >/dev/null
+          fi
+          git push origin HEAD:master
       - name: Run summary
         if: ${{ !cancelled() }}
         shell: bash
@@ -75,6 +110,9 @@ jobs:
               echo '## Failing tests'
               echo
               bash .github/scripts/failing-tests.sh "$TEST_LOG"
+            elif [[ '${{ steps.expected.outcome }}' == failure ]]; then
+              echo 'The merged tree changes expected files; nothing was pushed. Each is Chris'"'"'s to rule on (#33): see the'
+              echo 'report below.'
             elif [[ '${{ steps.push.outcome }}' == failure ]]; then
               echo 'The push to master was refused; nothing was pushed. Either master moved during the run, or upstream'
               echo 'changed `.github/workflows/`, which the workflow token cannot push.'

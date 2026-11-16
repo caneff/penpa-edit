@@ -424,6 +424,12 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
   modify the oracle, and an attempt is visible.
 - Upstream merges are characterization in Feathers's sense ([Feathers16]): a recording that changes after a merge is
   reported, not auto-approved; Chris rules whether the new behaviour is a fix or a regression.
+- **Built at #33 (2026-11-15)**: the ticket lists ids under `## Expected changes`, and the gate checks each id was in a
+  version of the ticket's body dated no later than the earliest author date of the PR's commits. A new recording's expected file
+  is not a re-approval and passes unlisted (controller's ruling). The nightly refuses a merge that changes any expected
+  file. The checks are required by a ruleset Chris applies (`.github/scripts/require-checks.sh`); GitHub Actions cannot
+  bypass a ruleset on a personal account's repo, so the nightly posts the statuses itself. How-to: `AGENTS.md` §
+  End-to-end seam.
 
 ### How it gates agent PRs
 
@@ -438,6 +444,11 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
   table, one-line mutations of the mode handlers caught or missed, copied from sudokupad-scripts' `fuzz:plants`
   ([BacheVid] for why coverage alone is not enough). Plants should include bugs taken from the audit, not only ones
   written by the harness's author (the caveat in `fuzz-planted-bugs.md`).
+  - **Measured at #32 (2026-11-15)**: `npm run measure` (`live/measure.mjs`, plants in `live/plants.mjs`). Every
+    handler a solve mode reaches is called, after four `clear keys` recordings added Backspace, Delete and Ctrl+Space
+    and one opens a solve link saved in Number Arrow; all 26 plants are caught, the five audit plants (C1, C4, C7, C13,
+    C14) each at its own recording. The seam checks that each audit plant still applies and is caught. Tables and method:
+    `research/safety-net-measure-2026-11.md`.
 - The independent reviewer in the lane reads the recordings' semantic diff, not only the code diff ([Cherny25]).
 
 ### Order of the first tickets
