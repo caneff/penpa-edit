@@ -29,8 +29,8 @@ async function headCentre (page, name) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
 }
 
-async function cornerCentre (page, name) {
-  const box = await card(page, name).getByTestId('resize-corner').boundingBox()
+async function handleCentre (page, name, handle = 'bottom-right') {
+  const box = await card(page, name).getByTestId(`resize-${handle}`).boundingBox()
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
 }
 
@@ -58,7 +58,7 @@ describe('the desk', () => {
   it('keeps a moved and resized card after a reload, and Reset layout puts it back', async () => {
     const start = await boxOf(page, 'Rules')
     await drag(page, await headCentre(page, 'Rules'), 120, 70)
-    await drag(page, await cornerCentre(page, 'Rules'), 40, 30)
+    await drag(page, await handleCentre(page, 'Rules'), 40, 30)
     const changed = await boxOf(page, 'Rules')
     assert.notDeepEqual(changed, start)
     assert.equal(changed.x, start.x + 120)
@@ -70,6 +70,69 @@ describe('the desk', () => {
 
     await page.getByRole('button', { name: 'Reset layout' }).click()
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start)
+  })
+
+  // Each handle with the drag (dx, dy) that makes the card bigger, and the card's edges that stay where they are.
+  const HANDLE_DRAGS = [
+    { handle: 'top', dx: 0, dy: -40, fixed: ['right', 'bottom', 'left'] },
+    { handle: 'left', dx: -40, dy: 0, fixed: ['right', 'bottom', 'top'] },
+    { handle: 'top-left', dx: -40, dy: -30, fixed: ['right', 'bottom'] },
+    { handle: 'top-right', dx: 40, dy: -30, fixed: ['left', 'bottom'] },
+    { handle: 'bottom-left', dx: -40, dy: 30, fixed: ['right', 'top'] }
+  ]
+  const edgeOf = (box, edge) => ({ left: box.x, top: box.y, right: box.x + box.width, bottom: box.y + box.height })[edge]
+
+  for (const { handle, dx, dy, fixed } of HANDLE_DRAGS) {
+    it(`resizes the Rules card from its ${handle} handle, keeps the size after a reload`, async () => {
+      // Moved clear of the desk's edges first, so every handle has room to grow into.
+      await drag(page, await headCentre(page, 'Rules'), 80, 60)
+      const start = await boxOf(page, 'Rules')
+      await drag(page, await handleCentre(page, 'Rules', handle), dx, dy)
+      const grown = await boxOf(page, 'Rules')
+      assert.equal(grown.width, start.width + Math.abs(dx))
+      assert.equal(grown.height, start.height + Math.abs(dy))
+      for (const edge of fixed) assert.equal(edgeOf(grown, edge), edgeOf(start, edge), `${edge} edge stays`)
+
+      await page.reload()
+      await card(page, 'Rules').waitFor()
+      assert.deepEqual(await settle(() => boxOf(page, 'Rules'), grown), grown)
+    })
+  }
+
+  it('keeps the place of a card resized from its top edge that was never moved', async () => {
+    await drag(page, await handleCentre(page, 'Rules', 'top'), 0, -30)
+    const grown = await boxOf(page, 'Rules')
+    await page.reload()
+    await card(page, 'Rules').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Rules'), grown), grown)
+  })
+
+  it('leaves the Board card\'s Fit button clickable at its right end, under the top-right handle', async () => {
+    const fit = await card(page, 'Board').getByRole('button', { name: 'Fit' }).boundingBox()
+    const handle = await card(page, 'Board').getByTestId('resize-top-right').boundingBox()
+    assert.equal(handle.x >= fit.x + fit.width, true, `handle starts at ${handle.x}, the button ends at ${fit.x + fit.width}`)
+  })
+
+  it('stops the top and left handles at the minimum size and at the desk edge', async () => {
+    const start = await boxOf(page, 'Rules')
+    await drag(page, await handleCentre(page, 'Rules', 'top-left'), 2000, 2000)
+    const shrunk = await boxOf(page, 'Rules')
+    assert.equal(shrunk.width, 200, 'minimum width')
+    assert.equal(shrunk.height, 80, 'minimum height')
+    assert.equal(shrunk.x + shrunk.width, start.x + start.width)
+    assert.equal(shrunk.y + shrunk.height, start.y + start.height)
+
+    await drag(page, await handleCentre(page, 'Rules', 'top-left'), -3000, -3000)
+    const widest = await boxOf(page, 'Rules')
+    const desk = await page.locator('.ui-desk').boundingBox()
+    assert.equal(widest.x, Math.round(desk.x), 'left edge stops at the desk')
+    assert.equal(widest.y, Math.round(desk.y), 'top edge stops at the desk')
+  })
+
+  it('still moves the card by its title bar below the top strip', async () => {
+    const start = await boxOf(page, 'Rules')
+    await drag(page, await headCentre(page, 'Rules'), 50, 40)
+    assert.deepEqual(await boxOf(page, 'Rules'), { ...start, x: start.x + 50, y: start.y + 40 })
   })
 
   // The key the desk keeps its layout under: the stored value with a card's entry in it.
@@ -111,7 +174,7 @@ describe('the desk', () => {
   })
 
   it('refits the board when its card resizes, and + then − zooms it with the card scrolling', async () => {
-    await drag(page, await cornerCentre(page, 'Board'), -200, -150)
+    await drag(page, await handleCentre(page, 'Board'), -200, -150)
     const fitted = await settle(async () => { const r = await boardAgainstCard(page); return r.inside }, true)
     assert.equal(fitted, true, 'the smaller card still holds the whole board')
     const small = await boardAgainstCard(page)
