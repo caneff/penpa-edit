@@ -366,7 +366,7 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     board becomes it once it checks as a solved star battle or slitherlink; an unfinished solve is refused, and a
     converted history's puzzle is fuzzed like the generated ones (`live/tier-c-puzzles.mjs`). Found on the way: saved progress keeps
     `command_replay`, and its reload reads solved; #83 does not show on these boards with a running or a paused clock,
-    so it is not marked on them. #64 is a `todo` test. The 10x10 star battle runs below the replay's 720-pixel
+    so it is not marked on them. #64 was a `todo` test until its fix. The 10x10 star battle runs below the replay's 720-pixel
     viewport, which the UI driver does not scroll, so it is not in the UI driver's sample.
 - **Tier D, the audit bugs**: one recording per LIVE finding in Correctness and Input (C1-C15, I1-I9 where the step
   vocabulary reaches them), marked `todo: #<ticket>` until fixed, as sudokupad-scripts does.
