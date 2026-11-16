@@ -50,20 +50,30 @@ async function waitForDesk (page) {
   await page.evaluate(() => engine.ready)
 }
 
-// Reloads the page as a visitor would, leaving a "leave this page?" question answered yes.
-async function reload (page) {
+// A page that asks "leave this page?" (the reload protection setting) is left as a visitor who says yes leaves it.
+function acceptLeaving (page) {
   page.removeAllListeners('dialog')
   page.on('dialog', (d) => d.accept())
+}
+
+// Reloads the page as a visitor would.
+async function reload (page) {
+  acceptLeaving(page)
   await page.reload()
   await waitForDesk(page)
 }
 
 // Goes to `query` on the same page and context, which keep their cookies and storage.
 async function openLink (page, query) {
+  acceptLeaving(page)
   await page.goto('about:blank')
   await page.goto(SOLVE_PAGE + query)
   await waitForDesk(page)
 }
+
+// A puzzle other than AKARI_SOLVE: a setting that is global holds there too, and is not just part of the first puzzle's saved progress.
+let otherPuzzle
+const otherLink = async () => (otherPuzzle ??= await makeNumberSolveLink(browser()))
 
 const settings = (page) => page.evaluate(() => engine.getSettings())
 
@@ -161,6 +171,8 @@ describe('engine.getSettings and engine.setSetting', () => {
         assert.equal((await settings(page))[control.name], control.to)
         await reload(page)
         assert.equal((await settings(page))[control.name], control.to, 'the value is back after a reload')
+        await openLink(page, await otherLink())
+        assert.equal((await settings(page))[control.name], control.to, 'the value holds on another puzzle')
       } finally {
         await context.close()
       }
@@ -198,6 +210,9 @@ describe('the Settings dialog', () => {
         } else {
           assert.equal(await again.getByRole('combobox', { name: control.select }).inputValue(), control.choose)
         }
+        await closeDialog(page)
+        await openLink(page, await otherLink())
+        assert.equal((await settings(page))[control.name], control.to, 'the value holds on another puzzle')
       } finally {
         await context.close()
       }
