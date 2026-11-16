@@ -30,7 +30,7 @@
 
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 
-    function headline(tool, style) {
+    function headline(tool, style, held) {
         const h3 = el('h3', { class: 'ui-headline' });
         nameParts(tool, style).forEach((part, i) => {
             if (i) {
@@ -43,15 +43,18 @@
             }
             h3.append(span);
         });
+        if (held) {
+            h3.append(el('span', { class: 'ui-held' }, ['held']));
+        }
         return h3;
     }
 
-    function renderMouse(target, tool, style) {
+    function renderMouse(target, tool, style, held = false) {
         const rows = mouseRows(tool, styleOf(tool, style)?.name ?? '');
         const row = (gesture, effect, cls) => el('div', { class: `ui-mrow ${cls}` }, [
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
         ]);
-        target.replaceChildren(headline(tool, style), el('div', { class: 'ui-mrows' }, [
+        target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
             ...[['Left', rows.left], ['Right', rows.right], ['Drag', rows.drag]]
                 .map(([gesture, effect]) => row(gesture, effect, effect === NOTHING ? 'is-none' : '')),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
@@ -67,7 +70,7 @@
         let tallest = 0;
         tools.forEach((tool) => {
             (tool.styles.length ? tool.styles : [{ style: null }]).forEach(({ style }) => {
-                renderMouse(probe, tool, style);
+                renderMouse(probe, tool, style, true);
                 tallest = Math.max(tallest, probe.offsetHeight);
             });
         });
@@ -289,13 +292,14 @@
         let drawn = '';
         function render() {
             const current = engine.getTool();
-            const now = `${toolKey(current)}/${current.style}`;
+            const held = engine.getState().held;
+            const now = `${toolKey(current)}/${current.style}/${held}`;
             if (now === drawn) {
                 return;
             }
             drawn = now;
             const tool = toolFor(current);
-            renderMouse(cards.mouse.body, tool, current.style);
+            renderMouse(cards.mouse.body, tool, current.style, held);
             titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
             mode.render(tool, current.style);
         }

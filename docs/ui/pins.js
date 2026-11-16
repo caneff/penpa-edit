@@ -108,6 +108,8 @@
                     return 'browser';
                 }
                 e.preventDefault();
+                // A hold lends the tool it shows; the step starts from the tool before it.
+                engine.releaseHolds();
                 applyPin(pins[stepTarget(e.shiftKey ? -1 : 1)]);
                 return 'ui';
             }
@@ -185,6 +187,10 @@
         // A tool that was just landed on, by a pin or by a pick that matches one, comes back with that pin's style; while it
         // stays current a style change is the pin's new one.
         function followTool() {
+            // A tool a hold lends is no landing: it flashes nothing and changes no pin.
+            if (engine.getState().held) {
+                return;
+            }
             const current = engine.getTool();
             const index = pinIndexOf(current);
             const landed = lastKey !== null && toolKey(current) !== lastKey;

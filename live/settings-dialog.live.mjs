@@ -255,6 +255,8 @@ describe('conflict detection off for this puzzle only', () => {
       const dialog = await openDialog(page)
       await dialog.getByRole('combobox', { name: 'Conflict detection' }).click()
       await page.getByRole('option', { name: 'Off for this puzzle' }).click()
+      // A click on the select while its list is still closing toggles it shut again.
+      await page.getByRole('option', { name: 'On', exact: true }).waitFor({ state: 'hidden' })
       await dialog.getByRole('combobox', { name: 'Conflict detection' }).click()
       await page.getByRole('option', { name: 'On', exact: true }).click()
       assert.equal(await settle(async () => (await settings(page)).conflict_detection, 1), 1)
@@ -277,6 +279,10 @@ describe('Clear saved progress', () => {
       await page.keyboard.press('7')
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit is on the board')
 
+      // Penpa saves on unload, and a reload can cut that write short: save now and wait until it is stored.
+      await page.evaluate(() => PenpaProgress.save())
+      const stored = () => page.evaluate(async () => Boolean(await localforage.getItem(PenpaProgress.getHash(pu.url))))
+      assert.equal(await settle(stored, true), true, 'the progress is stored before the reload')
       await reload(page)
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit came back from the saved progress')
 
