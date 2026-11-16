@@ -46,6 +46,42 @@
     // MVP gap: the setters of these keep the new value but leave the board as it was drawn, so the bridge redraws it.
     const REDRAWN_SETTINGS = ['sudoku_normal_size'];
 
+    // ---- Outline on text: Penpa+ strokes every board text before filling it, and its Outline on text setting only makes the
+    // stroke white, at whatever width the last style left (often 1 px, whatever the font size). So the bridge scales the
+    // width to the font and rounds the joins, and turns the setting on for a visitor who has not chosen.
+    const OUTLINE_WIDTH_PER_FONT_PX = 0.1;
+    const OUTLINE_COOKIE = 'outline_text';
+    // Penpa+'s style 0 is hollow text: a black stroke round a transparent fill, which a white stroke would hide.
+    const HOLLOW_TEXT_STYLE = 0;
+
+    const penpaSetFontStyle = window.set_font_style;
+    window.set_font_style = function (ctx, size, type) {
+        penpaSetFontStyle.apply(this, arguments);
+        if (!UserSettings.outline_text) {
+            return;
+        }
+        if (type === HOLLOW_TEXT_STYLE) {
+            ctx.strokeStyle = Color.BLACK;
+        } else {
+            ctx.lineWidth = parseFloat(size) * OUTLINE_WIDTH_PER_FONT_PX;
+        }
+    };
+
+    // Round joins keep a thick stroke from growing spikes at a glyph's sharp corners; the other line drawing sets its own join.
+    const penpaText = CanvasRenderingContext2D.prototype.text;
+    CanvasRenderingContext2D.prototype.text = function () {
+        if (!UserSettings.outline_text) {
+            return penpaText.apply(this, arguments);
+        }
+        const join = this.lineJoin;
+        this.lineJoin = 'round';
+        try {
+            return penpaText.apply(this, arguments);
+        } finally {
+            this.lineJoin = join;
+        }
+    };
+
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
@@ -122,6 +158,10 @@
     });
     const penpaBoot = window.boot;
     window.boot = function () {
+        // Penpa+'s cookie load, in the boot below, overrides this for a visitor who has chosen.
+        if (getCookie(OUTLINE_COOKIE) === null) {
+            UserSettings.outline_text = true;
+        }
         const savedShortcuts = getCookie(SHORTCUTS_COOKIE);
         if (savedShortcuts !== null) {
             UserSettings.shortcuts_enabled = savedShortcuts === '1';
