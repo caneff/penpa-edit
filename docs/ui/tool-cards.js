@@ -1,21 +1,16 @@
 // The Mode card (a searchable list of every tool, then the current tool's styles), the Mouse card (what the mouse does with
-// the current tool) and the board's title-bar tool name. Reaches Penpa only through `engine` (test/ui-boundary.test.mjs
+// the current tool) and the board's title-bar tool name. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs
 // fails otherwise).
 (function () {
     'use strict';
 
     const SEPARATOR = ' · ';
-    const { GROUPS, NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const MULTICOLOR_MODE = 'multicolor';
+    const { TOOL_GROUPS, NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
     const MOUSE_BODY_SLACK_PX = 2;
-
-    function el(tag, attrs = {}, children = []) {
-        const node = document.createElement(tag);
-        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
-        node.append(...children);
-        return node;
-    }
 
     // ---- The tool in words ------------------------------------------------------------------------------------------
 
@@ -120,15 +115,16 @@
 
     // The picker's entries: every tool the engine lists, filed and named by the guide, with what to search them by.
     function pickerEntries(tools) {
-        const modeGroups = new Map(GROUPS);
+        const toolGroups = new Map(TOOL_GROUPS);
         return tools.map((tool) => {
             const { group, name, description } = describeTool(tool);
-            const haystack = [name, description, tool.modeName, modeGroups.get(group), ...tool.labels].join(' ').toLowerCase();
+            const haystack = [name, description, tool.modeName, toolGroups.get(group), ...tool.labels].join(' ').toLowerCase();
             return { tool, group, name, description, haystack };
         });
     }
 
-    function buildModeCard(body, tools, applyTool) {
+    // `applyTool(tool)` picks a tool; `colourSelection(style)` is a Multicolor swatch's press.
+    function buildModeCard(body, tools, applyTool, colourSelection) {
         const entries = pickerEntries(tools);
         const listId = 'tool-listbox';
         const input = el('input', {
@@ -186,7 +182,7 @@
             // The options are numbered in the order they show, which is the groups' order, not the filter's.
             const matching = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
             shown = [];
-            GROUPS.forEach(([id, title]) => {
+            TOOL_GROUPS.forEach(([id, title]) => {
                 const inGroup = matching.filter((e) => e.group === id);
                 if (!inGroup.length) {
                     return;
@@ -257,12 +253,17 @@
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
                 button.innerHTML = styleSample(s.name, s.swatch);
                 button.addEventListener('click', () => {
-                    applyTool({ mode: tool.mode, submode: tool.submode, style: s.style });
+                    // A Multicolor swatch colours the selected cells, as a digit key does; any other style is only picked.
+                    if (tool.mode === MULTICOLOR_MODE) {
+                        colourSelection(s.style);
+                    } else {
+                        applyTool({ mode: tool.mode, submode: tool.submode, style: s.style });
+                    }
                     button.blur();
                 });
                 group.append(button);
             });
-            styles.append(el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === 'multicolor' ? 'Colour' : 'Style']), group);
+            styles.append(el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE ? 'Colour' : 'Style']), group);
         }
 
         return {
@@ -277,16 +278,16 @@
 
     // ---- Wiring -----------------------------------------------------------------------------------------------------
 
-    window.deskReady.then(({ cards, relayout }) => {
+    onDeskReady(({ cards, relayout }) => {
         const tools = engine.listTools();
-        // A tool the link does not list (Penpa was put in a hidden mode) is drawn with its mode's name alone.
+        // A tool the link does not list (Penpa+ was put in a hidden mode) is drawn with its mode's name alone.
         const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current)) ??
             { mode: current.mode, modeName: current.mode, submode: current.submode, submodeName: null, name: current.mode, labels: [], styles: [] };
 
         const titleBarName = el('span', { class: 'ui-tool-name', 'data-testid': 'board-tool-name' });
         cards.board.head.append(titleBarName);
 
-        const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool));
+        const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style));
 
         function sizeMouseCard() {
             cards.mouse.body.style.height = '';

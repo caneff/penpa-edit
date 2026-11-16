@@ -325,12 +325,12 @@ export const uiDriver = {
 }
 
 // `solve.html`: a mode change is a pick in the Mode card.
-export const solveUiDriver = {
+const solveUiDriver = {
   start: (page) => startUiDriver(page, modeCardChoices, ({ x, y }) => page.evaluate(scaledBoardPixelInPage, { x, y, recordedSize: RECORDED_CELL_PX })),
   checkpointAfter: uiCheckpointAfter
 }
 
-// The `choose` of `switchMode` for Penpa's mode panel; `clickInPanel` clicks a button there by id.
+// The `choose` of `switchMode` for Penpa+'s mode panel; `clickInPanel` clicks a button there by id.
 function panelChoices (page, step, clickInPanel, afterInput) {
   return {
     mode: (name) => clickInPanel('mo_' + name),

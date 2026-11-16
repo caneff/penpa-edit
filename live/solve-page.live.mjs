@@ -1,14 +1,15 @@
 // `solve.html` opens a Penpa+ link on the desk: the board fits its card, and the title, author and rules show in the UI.
 // The engine API holds what it promises: its state, its theme kept apart from Penpa+'s, its key gate and its boot.
-// The UI is read by role and accessible name and the state through `engine`; Penpa's own state and DOM are read only
-// where the check is about Penpa (the mode a link opened in, its hidden toolbar, its theme cookie).
+// The UI is read by role and accessible name and the state through `engine`; Penpa+'s own state and DOM are read only
+// where the check is about Penpa+ (the mode a link opened in, its hidden toolbar, its theme cookie).
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
 import {
   AKARI_SOLVE, ANSWER_CELL, boardAgainstCard, boardCanvasInPage, jsRequest, linkFromNewBoard, makeNumberSolveLink, openPenpa,
-  takePageErrors, typeDigitInPage, useBrowser
+  openSolvePage, takePageErrors, typeDigitInPage, useBrowser
 } from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -34,18 +35,17 @@ describe('solve.html on a solve link', () => {
   let links
   before(async () => {
     links = await linkFromNewBoard(browser(), linksInPage, { title: TITLE, author: AUTHOR, rules: RULES })
-    opened = await openPenpa(browser(), links.solve, { solve: true, contextOptions: { viewport: { width: 1400, height: 900 } } })
-    await opened.page.getByRole('region', { name: 'Board' }).waitFor()
+    opened = await openSolvePage(browser(), links.solve)
   })
   after(async () => { await opened?.context.close() })
 
-  it('shows the board inside the Board card, fitted, with no Penpa chrome', async () => {
+  it('shows the board inside the Board card, fitted, with no Penpa+ chrome', async () => {
     const { page } = opened
     const read = async () => (await boardAgainstCard(page)).inside
     assert.equal(await settle(read, true), true)
     const { w, h, cardW, cardH } = await boardAgainstCard(page)
     assert.ok(w > cardW / 2 || h > cardH / 2, `the board fills its card (canvas ${w}x${h} in ${cardW}x${cardH})`)
-    assert.equal(await page.getByText('New Grid / Update').isVisible(), false, 'Penpa\'s toolbar is hidden')
+    assert.equal(await page.getByText('New Grid / Update').isVisible(), false, 'Penpa+\'s toolbar is hidden')
     assert.equal(await page.getByRole('button', { name: 'Undo' }).count(), 1, 'only the UI\'s Undo is on the page')
   })
 
@@ -86,7 +86,7 @@ describe('solve.html on an edit link', () => {
       const read = async () => (await boardAgainstCard(page)).inside
       assert.equal(await settle(read, true), true)
       assert.equal(await page.evaluate(() => engine.getInfo().title), TITLE)
-      // The engine API does not say which mode Penpa opened the link in, so Penpa is asked.
+      // The engine API does not say which mode Penpa+ opened the link in, so Penpa+ is asked.
       assert.equal(await page.evaluate(() => pu.mmode), 'solve')
     } finally {
       await context.close()
@@ -129,16 +129,17 @@ describe('the engine', () => {
   })
 
   it('zooms the board with setCellSize and fits it with fitBoard', async () => {
-    const sizes = await opened.page.evaluate(async (boardCanvas) => {
-      await engine.ready
-      const canvas = new Function(`return (${boardCanvas})()`)()
+    await opened.page.evaluate(() => engine.ready)
+    const boardCanvas = await opened.page.evaluateHandle(boardCanvasInPage)
+    const sizes = await boardCanvas.evaluate((canvas) => {
       engine.setCellSize(20)
       const small = canvas.getBoundingClientRect().width
       engine.setCellSize(40)
       const big = canvas.getBoundingClientRect().width
       const fitted = engine.fitBoard(300, 300)
       return { small, big, fitted, fits: canvas.getBoundingClientRect().width <= 300 }
-    }, boardCanvasInPage.toString())
+    })
+    await boardCanvas.dispose()
     assert.ok(sizes.big > sizes.small * 1.5, `setCellSize 40 draws a bigger board than 20 (${sizes.small} -> ${sizes.big})`)
     assert.equal(sizes.fits, true)
     assert.ok(Number.isInteger(sizes.fitted) && sizes.fitted >= 12 && sizes.fitted <= 90)
@@ -184,7 +185,7 @@ describe('Multicolor', () => {
   })
   after(async () => { await opened?.context.close() })
 
-  // The selected cell's colours (Penpa saves one colour bare and several as a list), and whether there is anything to undo.
+  // The selected cell's colours (Penpa+ saves one colour bare and several as a list), and whether there is anything to undo.
   const cellAndUndo = () => opened.page.evaluate((index) => ({
     colours: [].concat(pu[pu.mode.qa].surface[pu.centerlist[index]] ?? []),
     canUndo: engine.getState().canUndo
@@ -201,6 +202,32 @@ describe('Multicolor', () => {
     assert.deepEqual(await cellAndUndo(), { colours: [5], canUndo: true })
     await opened.page.evaluate(() => engine.colourSelection(5))
     assert.deepEqual((await cellAndUndo()).colours, [])
+  })
+
+  const swatch = (name) => opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' }).getByRole('button', { name })
+
+  it('colours the selected cells on a swatch press in the Mode card, as colourSelection does', async () => {
+    await opened.page.evaluate(() => engine.setTool({ mode: 'multicolor', submode: null }))
+    await swatch('red').click()
+    assert.deepEqual((await cellAndUndo()).colours, [6], 'the press coloured the selected cell')
+    await swatch('red').click()
+    assert.deepEqual((await cellAndUndo()).colours, [], 'a second press took the colour off')
+  })
+
+  it('changes nothing on a swatch press or colourSelection while the board is paused', async () => {
+    const { page } = opened
+    await page.evaluate(() => engine.setTool({ mode: 'multicolor', submode: null }))
+    await page.evaluate(() => engine.pauseTimer())
+    try {
+      assert.equal(await settle(() => page.evaluate(() => engine.getTimer().covered), true), true, 'the board is covered')
+      await swatch('red').click()
+      assert.equal(await page.evaluate(() => engine.colourSelection(6)), false, 'colourSelection says it did nothing')
+      assert.deepEqual((await cellAndUndo()).colours, [], 'the selected cell is not coloured')
+    } finally {
+      await page.evaluate(() => engine.startTimer())
+    }
+    await swatch('red').click()
+    assert.deepEqual((await cellAndUndo()).colours, [6], 'resumed, the press colours again')
   })
 })
 
@@ -225,7 +252,7 @@ describe('the theme', () => {
     try {
       await page.evaluate(() => engine.ready.then(() => {
         engine.setTheme('dark')
-        // Any setting makes Penpa save every setting on its cookie list.
+        // Any setting makes Penpa+ save every setting on its cookie list.
         engine.setSetting('outline_text', !engine.getSettings().outline_text)
       }))
       assert.equal(await themeCookie(context), null, 'no theme cookie is written')
@@ -239,7 +266,7 @@ describe('the theme', () => {
 
 // An upstream rename of main.js's key handler would leave the gate unable to wrap it; onKey refuses then, so the UI
 // fails loudly instead of leaving every key ungated.
-describe('the key gate with one of Penpa\'s key handlers renamed', () => {
+describe('the key gate with one of Penpa+\'s key handlers renamed', () => {
   it('makes engine.onKey throw', async () => {
     const renamed = readFileSync(new URL('../docs/js/main.js', import.meta.url), 'utf8').replaceAll('onKeyUp', 'onKeyRelease')
     const setup = (context) => context.route(jsRequest('main.js'), (route) => route.fulfill({ contentType: 'text/javascript', body: renamed }))
@@ -288,7 +315,7 @@ describe('a solve link that opens in another mode', () => {
   })
 })
 
-describe('Penpa\'s CSS and the top bar', () => {
+describe('Penpa+\'s CSS and the top bar', () => {
   it('does not restyle a Web Awesome button', async () => {
     const { context, page } = await openPenpa(browser(), AKARI_SOLVE, { solve: true })
     try {
@@ -296,19 +323,19 @@ describe('Penpa\'s CSS and the top bar', () => {
       const styles = await page.evaluate(async () => {
         await customElements.whenDefined('wa-button')
         const read = (el) => { const s = getComputedStyle(el); return { padding: s.paddingLeft, radius: s.borderTopLeftRadius } }
-        // Penpa styles its own `.button` with a 5px padding and a 4px radius. A control outside the UI shows its sheets are on.
+        // Penpa+ styles its own `.button` with a 5px padding and a 4px radius. A control outside the UI shows its sheets are on.
         const outside = document.createElement('a')
         outside.className = 'button'
         document.body.append(outside)
         const control = read(outside)
-        // The same rule aimed at a top-bar Web Awesome button: the class Penpa's selector needs, planted on a clone.
+        // The same rule aimed at a top-bar Web Awesome button: the class Penpa+'s selector needs, planted on a clone.
         const topBar = document.querySelector('header wa-button')
         const planted = topBar.cloneNode(true)
         planted.classList.add('button')
         topBar.after(planted)
         return { control, planted: read(planted) }
       })
-      assert.deepEqual(styles.control, { padding: '5px', radius: '4px' }, 'Penpa\'s stylesheet is active on the page')
+      assert.deepEqual(styles.control, { padding: '5px', radius: '4px' }, 'Penpa+\'s stylesheet is active on the page')
       assert.deepEqual(styles.planted, { padding: '0px', radius: '0px' })
     } finally {
       await context.close()

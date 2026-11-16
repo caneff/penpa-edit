@@ -1,6 +1,6 @@
-// Puts Penpa's stylesheets in the cascade layer `penpa`, below everything else, and reverts that layer for the UI root,
-// so Penpa's broad selectors (`*`, `body`, `.button`) never reach the UI's controls (variant O of the prototype).
-// A <style> first in <head> re-imports each of Penpa's <link>s into the layer, and the links are disabled once the
+// Puts Penpa+'s stylesheets in the cascade layer `penpa`, below everything else, and reverts that layer for the UI root,
+// so Penpa+'s broad selectors (`*`, `body`, `.button`) never reach the UI's controls (variant O of the prototype).
+// A <style> first in <head> re-imports each of Penpa+'s <link>s into the layer, and the links are disabled once the
 // imports have loaded, so the page is never unstyled. `@layer penpa;` comes first so every other layer, Web Awesome's
 // included, ranks above it.
 (function () {
@@ -14,7 +14,7 @@
     const links = PENPA_STYLE_LINK_IDS.map((id) => document.getElementById(id));
     const style = document.createElement('style');
 
-    // Rewritten after a theme switch, because Penpa swaps the theme link's href (settings.js) and the imports must follow it.
+    // Rewritten after a theme switch, because Penpa+ swaps the theme link's href (settings.js) and the imports must follow it.
     function writeImports() {
         style.textContent = '@layer penpa;\n' +
             links.map((link) => `@import url("${link.href}") layer(penpa);`).join('\n') + '\n' +

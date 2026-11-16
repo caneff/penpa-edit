@@ -3,49 +3,14 @@
 // accessible name, the tool by `engine.getTool()`; the keys and clicks are real.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
+import { afterChange, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
+const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
-// Runs in the page. A 6x6 board whose Tab set is `names` (Penpa's own names for them), as a solve link's `#` part.
-function solveLinkWithTabSetInPage (names) {
-  document.getElementById('nb_size1').value = 6
-  document.getElementById('nb_size2').value = 6
-  create_newboard()
-  UserSettings.tab_settings = names
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
-
-const links = new Map()
-async function openSolve (tabSet) {
-  const key = tabSet.join('|')
-  if (!links.has(key)) {
-    links.set(key, await linkFromNewBoard(browser(), solveLinkWithTabSetInPage, tabSet))
-  }
-  const opened = await openPenpa(browser(), links.get(key), { solve: true, contextOptions: DESK_SIZE })
-  await opened.page.getByRole('region', { name: 'Board' }).waitFor()
-  await opened.page.evaluate(() => engine.ready)
-  return opened
-}
-
-const currentTool = (page) => page.evaluate(() => engine.getTool())
-const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
-
-async function waitForTool (page, mode, submode) {
-  const read = async () => {
-    const { mode: m, submode: s } = await currentTool(page)
-    return { mode: m, submode: s }
-  }
-  return settle(read, { mode, submode })
-}
-
-// Two animation frames: the bridge's `change` fires in the first, and the UI has drawn it by the second. Two tools picked
-// inside one frame make one change, so each pick below waits for it.
-const afterChange = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+// Two tools picked inside one frame make one change, so each pick below waits for it with `afterChange`.
 
 const recentCard = (page) => page.getByRole('region', { name: 'Recent' })
 const recentChips = (page) => recentCard(page).getByRole('button')
@@ -71,7 +36,7 @@ describe('the Recent card', () => {
     const { page } = opened
     for (const { tool } of TOOLS.slice(0, 6)) {
       await setTool(page, tool)
-      await waitForTool(page, tool.mode, tool.submode)
+      await waitForTool(page, tool)
       await afterChange(page)
     }
     const expected = TOOLS.slice(1, 6).map((t) => t.name).reverse()
@@ -107,13 +72,13 @@ describe('the Recent card', () => {
   it('sets the tool on a click and gives focus back to the board', async () => {
     const { page } = opened
     await setTool(page, TOOLS[2].tool)
-    await waitForTool(page, 'sudoku', '1')
+    await waitForTool(page, { mode: 'sudoku', submode: '1' })
     await afterChange(page)
     await setTool(page, TOOLS[6].tool)
-    await waitForTool(page, 'line', '4')
+    await waitForTool(page, { mode: 'line', submode: '4' })
     await afterChange(page)
     await recentChips(page).filter({ hasText: 'Sudoku > Normal' }).click()
-    assert.deepEqual(await waitForTool(page, 'sudoku', '1'), { mode: 'sudoku', submode: '1' })
+    await waitForTool(page, { mode: 'sudoku', submode: '1' })
     const boardHasFocus = () => page.evaluate(() => document.activeElement === document.body)
     assert.equal(await boardHasFocus(), true, 'focus is on the board, not the chip')
     // The current tool's chip is not redrawn by the click, so only an explicit blur takes focus off it.
@@ -122,7 +87,7 @@ describe('the Recent card', () => {
   })
 })
 
-// The key, and the Sudoku sub-mode Penpa lends while it is held.
+// The key, and the Sudoku sub-mode Penpa+ lends while it is held.
 const HOLDS = [
   { key: 'Shift', lent: '2' },
   { key: 'Control', lent: '3' },
@@ -143,12 +108,12 @@ describe('a held key in Sudoku', () => {
       const before = await settle(() => recentNames(page), ['Sudoku > Normal', 'Line > Normal'])
       assert.deepEqual(before, ['Sudoku > Normal', 'Line > Normal'], 'before the hold')
       await page.keyboard.down(key)
-      await waitForTool(page, 'sudoku', lent)
+      await waitForTool(page, { mode: 'sudoku', submode: lent })
       // A change shows on the next frame; two frames after the hold began, a recorded hold would be drawn.
       await afterChange(page)
       assert.deepEqual(await recentNames(page), before, 'during the hold')
       await page.keyboard.up(key)
-      await waitForTool(page, 'sudoku', '1')
+      await waitForTool(page, { mode: 'sudoku', submode: '1' })
       await afterChange(page)
       assert.deepEqual(await recentNames(page), before, 'after the hold')
     })
@@ -158,7 +123,7 @@ describe('a held key in Sudoku', () => {
     const { page } = opened
     await setTool(page, { mode: 'sudoku', submode: '1' })
     await page.keyboard.down('Shift')
-    await waitForTool(page, 'sudoku', '2')
+    await waitForTool(page, { mode: 'sudoku', submode: '2' })
     await page.getByRole('button', { name: 'Restart', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Restart the puzzle?' })
     await dialog.waitFor()

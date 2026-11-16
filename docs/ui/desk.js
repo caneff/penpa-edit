@@ -1,6 +1,7 @@
 // The solve page: the top bar and the desk of cards, built once `engine` has the puzzle loaded. Every card moves by its
 // title bar and resizes by its right edge, bottom edge or corner; one layout for every puzzle is kept in localStorage.
-// Reaches Penpa only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Also `window.uiKit`, the element builders the UI files share. Reaches Penpa+ only through `engine`
+// (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
@@ -15,9 +16,7 @@
     // A card never reaches closer than this to the desk's edge once it has to shrink to stay inside.
     const EDGE_MARGIN_PX = 8;
     const LAYOUT_KEY = 'chinstrap-solve-layout-v1';
-    // The engine's cell sizes (engine.setCellSize) and the step of the board card's - and + buttons.
-    const MIN_CELL_PX = 12;
-    const MAX_CELL_PX = 90;
+    // The step of the board card's - and + buttons, in pixels per cell.
     const ZOOM_STEP_PX = 4;
     // The smallest a card is dragged to, [width, height].
     const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80], rules: [200, 80] };
@@ -34,6 +33,35 @@
         node.append(...children);
         return node;
     }
+
+    // A button showing a 16x16 line icon (`icon` is its SVG markup, drawn in currentColor) and naming itself `label` to
+    // screen readers only. `show(icon, label)` swaps both, and does nothing when that icon is already shown.
+    function iconButton(icon, label, onClick) {
+        const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' });
+        const text = el('span', { class: 'ui-sr-only' });
+        node.append(text);
+        node.addEventListener('click', onClick);
+        let shown = null;
+        function show(nextIcon, nextLabel) {
+            if (nextIcon === shown) {
+                return;
+            }
+            shown = nextIcon;
+            node.querySelector('svg')?.remove();
+            node.insertAdjacentHTML('afterbegin', '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" ' +
+                `stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${nextIcon}</svg>`);
+            text.textContent = nextLabel;
+        }
+        show(icon, label);
+        return { node, show };
+    }
+
+    // Runs `build(desk)` once the desk is built. A desk that never got built is reported once, where `deskReady` is made.
+    function onDeskReady(build) {
+        return window.deskReady.then(build, () => {});
+    }
+
+    window.uiKit = { el, iconButton, onDeskReady };
 
     function build(info) {
         const resetButton = el('wa-button', { class: 'ui-reset', appearance: 'filled', variant: 'neutral', size: 's' }, ['Reset layout']);
@@ -86,9 +114,12 @@
         try {
             saved = JSON.parse(localStorage.getItem(LAYOUT_KEY));
         } catch (e) {
+            // An unreadable layout is only card places, cheap to redo: the desk opens on the default one, and the next card
+            // moved or resized replaces it. Said in the console, so the loss is never silent.
+            console.warn(`${LAYOUT_KEY} is unreadable (${e.message}); the default layout is used, and the next change replaces it.`);
             return {};
         }
-        // A value this code did not write (another version's, or edited by hand) is the same as none.
+        // A card entry this code did not write (another version's, or edited by hand) is left out, as is any other key.
         const isNumbers = (entry) => entry && typeof entry === 'object' && Object.values(entry).every(Number.isFinite);
         const layout = {};
         Object.keys(CARD_TITLES).forEach((id) => {
@@ -297,12 +328,13 @@
         if (cellPx === null) {
             return;
         }
-        cellPx = Math.max(MIN_CELL_PX, Math.min(MAX_CELL_PX, cellPx + steps * ZOOM_STEP_PX));
+        const { min, max } = engine.CELL_SIZE_RANGE;
+        cellPx = Math.max(min, Math.min(max, cellPx + steps * ZOOM_STEP_PX));
         engine.setCellSize(cellPx);
     }
 
-    // Resolves to `{ bar, cards, relayout }` once the desk is built, for the files that fill the bar and the cards. A failed load shows its
-    // own error dialog (main.js), so a rejected `ready` needs no second report.
+    // Resolves to `{ bar, cards, relayout, resetLayout }` once the desk is built, for the files that fill the bar and the
+    // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         engine.mount(desk.cards.board.body);
@@ -310,18 +342,22 @@
         const relayout = () => layout(desk);
         window.addEventListener('resize', relayout);
         makeMovable(desk.bar, desk.desk, desk.cards);
-        desk.resetButton.addEventListener('click', () => {
+        // Every card back to its default size and place.
+        const resetLayout = () => {
             saved = {};
             localStorage.removeItem(LAYOUT_KEY);
             relayout();
-        });
+        };
+        desk.resetButton.addEventListener('click', resetLayout);
         desk.zoom.out.addEventListener('click', () => zoomBoard(-1));
         desk.zoom.in.addEventListener('click', () => zoomBoard(1));
         desk.zoom.fit.addEventListener('click', () => fitBoard(desk.cards.board.body));
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit drops any zoom.
         // The card is watched, not its body, since a scrollbar appearing narrows the body and would undo the zoom at once.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout };
     });
-    window.deskReady.catch(() => {});
+    // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
+    // again, so it shows as a page error.
+    window.deskReady.catch((error) => engine.ready.then(() => { throw error; }, () => {}));
 })();

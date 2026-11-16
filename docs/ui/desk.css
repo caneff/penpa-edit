@@ -83,7 +83,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-body { padding: 10px 12px; min-height: 48px; overflow: auto; }
 
 .ui-card-board .ui-body { flex: 1 1 auto; min-height: 0; padding: 8px; display: flex; }
-/* The UI root reverts Penpa's stylesheets, the board's own white ground included. Centred while it fits; when the
+/* The UI root reverts Penpa+'s stylesheets, the board's own white ground included. Centred while it fits; when the
    board outgrows the card it starts at the top left and the body scrolls. */
 .ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .ui-card-board canvas { background: #fff; }
@@ -132,7 +132,7 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
 
-/* The board's frame: the current tool's colour, a pin's own or the neutral one (--ui-tool-colour, set by pins.js). */
+/* The board's frame: --ui-tool-colour, the current tool's colour (a pin's own, or the neutral one off the pins). */
 .ui-card-board { outline: 3px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */

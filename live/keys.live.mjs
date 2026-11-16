@@ -1,55 +1,27 @@
 // The key front door of `solve.html` (#93): browser keys stay the browser's, a text field keeps its digits, Escape closes
-// one thing at a time, Penpa's popups block the board, and the keys the board keeps work as on the old page.
-// The pages are driven with real keys and clicks; the UI is found by role and accessible name, the board by what Penpa
+// one thing at a time, Penpa+'s popups block the board, and the keys the board keeps work as on the old page.
+// The pages are driven with real keys and clicks; the UI is found by role and accessible name, the board by what Penpa+
 // would save (`readEngineState`, defined by recorder.js).
 import assert from 'node:assert/strict'
 import { after, before, beforeEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, ANSWER_CELL, makeNumberSolveLink, openPenpa, typeDigitInPage, useBrowser } from './page.mjs'
+import {
+  AKARI_SOLVE, ANSWER_CELL, DESK_SIZE, board, makeNumberSolveLink, openPenpa, openSolvePage, typeDigitInPage, typedDigits, useBrowser, waitForDesk
+} from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
 const DIALOG_NAME = 'Test dialog'
 
 // Index in `pu.centerlist` of a cell clear of the board's edges.
 const CELL = 12
 const OTHER_CELL = 13
 
-// Opens `solve.html` on `query` and returns once the desk is built.
-async function openSolve (query = AKARI_SOLVE) {
-  const opened = await openPenpa(browser(), query, { solve: true, contextOptions: DESK_SIZE })
-  await opened.page.getByRole('region', { name: 'Board' }).waitFor()
-  await opened.page.evaluate(() => engine.ready)
-  return opened
-}
+const openSolve = (query = AKARI_SOLVE) => openSolvePage(browser(), query)
 
-// Runs in the page. Where the cell at `index` of the center list lies on the screen.
-function cellPositionInPage (index) {
-  const canvas = [...document.querySelectorAll('canvas')].find((c) => c.getBoundingClientRect().width > 0)
-  const rect = canvas.getBoundingClientRect()
-  const point = pu.point[pu.centerlist[index]]
-  return { x: rect.left + point.x, y: rect.top + point.y }
-}
-
-async function clickCell (page, index) {
-  const { x, y } = await page.evaluate(cellPositionInPage, index)
-  await page.mouse.click(x, y)
-}
-
-// Puts Penpa in `mode`, as a click on a mode button would.
+// Puts Penpa+ in `mode`, as a click on a mode button would.
 const setMode = (page, mode) => page.evaluate((m) => pu.mode_set(m), mode)
-
-// What the solver has entered, the selection and the mode: what a key could change on the board.
-const board = (page) => page.evaluate(() => {
-  const state = readEngineState()
-  // The undo and replay logs carry the time between keys, which differs between runs.
-  const { command_undo: undo, command_redo: redo, command_replay: replay, ...entered } = state.pu_a
-  return { entered, selection: state.selection, mode: state.mode }
-})
-
-// The digits the solver has typed into Number mode cells.
-const typedDigits = async (page) => Object.values((await board(page)).entered.number ?? {}).map(([digit]) => digit)
 
 const selected = async (page) => (await board(page)).selection.length
 
@@ -114,7 +86,7 @@ describe('browser keys', () => {
     }
   })
 
-  it('F2 and F3 do not open Penpa\'s setter-mode question', async () => {
+  it('F2 and F3 do not open Penpa+\'s setter-mode question', async () => {
     const { context, page } = await openSolve()
     try {
       await page.keyboard.press('F2')
@@ -182,15 +154,15 @@ describe('Escape', () => {
       assert.equal(await selected(page), 1, 'the selection stays')
 
       await page.keyboard.press('Escape')
-      assert.equal(await settle(() => selected(page), 0), 0, 'with nothing else open Escape reaches Penpa')
+      assert.equal(await settle(() => selected(page), 0), 0, 'with nothing else open Escape reaches Penpa+')
     } finally {
       await context.close()
     }
   })
 })
 
-describe('Penpa\'s Congratulations popup', () => {
-  it('is a Penpa dialog: engine.getState says so, and a digit does not change the board', async () => {
+describe('Penpa+\'s Congratulations popup', () => {
+  it('is a Penpa+ dialog: engine.getState says so, and a digit does not change the board', async () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openSolve(link)
     try {
@@ -207,7 +179,7 @@ describe('Penpa\'s Congratulations popup', () => {
   })
 })
 
-describe('Penpa\'s own modal dialogs', () => {
+describe('Penpa+\'s own modal dialogs', () => {
   it('block the board\'s keys while one is open, and stop blocking when it closes', async () => {
     const { context, page } = await openSolve()
     try {
@@ -319,7 +291,7 @@ describe('content keys', () => {
       for (const solve of [false, true]) {
         const { context, page } = await openPenpa(browser(), AKARI_SOLVE, { solve, contextOptions: DESK_SIZE })
         try {
-          if (solve) await page.getByRole('region', { name: 'Board' }).waitFor()
+          if (solve) await waitForDesk(page)
           await setMode(page, mode)
           await page.evaluate((i) => { pu.selection = [pu.centerlist[i]]; pu.cursol = pu.centerlist[i] }, CELL)
           for (const key of KEYS) await page.keyboard.press(key)

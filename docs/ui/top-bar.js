@@ -1,7 +1,9 @@
 // The top bar's controls: undo, redo, Restart, the timer, Pause and the light/dark toggle, and the cover a paused board wears.
-// Reaches Penpa only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
+
+    const { iconButton, onDeskReady } = window.uiKit;
 
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
@@ -17,25 +19,6 @@
         lightTheme: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'
     };
 
-    function iconButton(icon, label, onClick) {
-        const button = document.createElement('wa-button');
-        button.setAttribute('appearance', 'filled');
-        button.setAttribute('variant', 'neutral');
-        button.setAttribute('size', 's');
-        button.addEventListener('click', onClick);
-        const text = document.createElement('span');
-        text.className = 'ui-sr-only';
-        button.append(text);
-        button.setIcon = (name, newLabel) => {
-            button.querySelector('svg')?.remove();
-            button.insertAdjacentHTML('afterbegin', '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" ' +
-                `stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`);
-            text.textContent = newLabel;
-        };
-        button.setIcon(icon, label);
-        return button;
-    }
-
     const twoDigits = (n) => String(n).padStart(2, '0');
 
     // 83 seconds is "01:23"; an hour or more adds the hours.
@@ -47,19 +30,19 @@
         return hours ? `${hours}:${minutes}:${rest}` : `${minutes}:${rest}`;
     }
 
-    window.deskReady.then(({ bar, cards }) => {
-        const undo = iconButton('undo', 'Undo', () => engine.undo());
-        const redo = iconButton('redo', 'Redo', () => engine.redo());
-        const restartButton = iconButton('restart', 'Restart', () => { restartDialog.open = true; });
-        const pause = iconButton('pause', 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()));
-        const themeButton = iconButton('darkTheme', 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
+    onDeskReady(({ bar, cards }) => {
+        const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo());
+        const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo());
+        const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
+        const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()));
+        const themeButton = iconButton(ICONS.darkTheme, 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
 
         const clock = document.createElement('span');
         clock.className = 'ui-timer';
         clock.setAttribute('role', 'timer');
         clock.setAttribute('aria-label', 'Time');
 
-        // The Restart question is the UI's own dialog; Penpa's popup library stays out of the solve page.
+        // The Restart question is the UI's own dialog; Penpa+'s popup library stays out of the solve page.
         const restartDialog = document.createElement('wa-dialog');
         restartDialog.setAttribute('label', 'Restart the puzzle?');
         restartDialog.innerHTML = 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.' +
@@ -75,7 +58,7 @@
         cover.innerHTML = '<div>Paused</div><div class="ui-paused-hint">Press F4 or Resume to continue</div>';
         cards.board.node.append(cover);
 
-        bar.append(undo, redo, restartButton, clock, pause, themeButton);
+        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, themeButton.node);
         bar.after(restartDialog);
 
         function renderTimer() {
@@ -86,18 +69,15 @@
                 cover.hidden = !covered;
                 renderHistory();
             }
-            const label = covered ? 'Resume' : 'Pause';
-            if (pause.querySelector('.ui-sr-only').textContent !== label) {
-                pause.setIcon(covered ? 'resume' : 'pause', label);
-            }
+            pause.show(covered ? ICONS.resume : ICONS.pause, covered ? 'Resume' : 'Pause');
         }
 
         // The board cannot change while paused, so neither can the history.
         function renderHistory() {
             const { canUndo, canRedo } = engine.getState();
             const { covered } = engine.getTimer();
-            undo.toggleAttribute('disabled', !canUndo || covered);
-            redo.toggleAttribute('disabled', !canRedo || covered);
+            undo.node.toggleAttribute('disabled', !canUndo || covered);
+            redo.node.toggleAttribute('disabled', !canRedo || covered);
         }
 
         function renderState() {
@@ -105,15 +85,12 @@
             const dark = engine.getSettings().theme === 'dark';
             document.documentElement.classList.toggle('wa-dark', dark);
             bar.parentElement.classList.toggle('ui-dark', dark);
-            const next = dark ? 'Light theme' : 'Dark theme';
-            if (themeButton.querySelector('.ui-sr-only').textContent !== next) {
-                themeButton.setIcon(dark ? 'lightTheme' : 'darkTheme', next);
-            }
+            themeButton.show(dark ? ICONS.lightTheme : ICONS.darkTheme, dark ? 'Light theme' : 'Dark theme');
         }
 
         engine.on('timer', renderTimer);
         engine.on('change', renderState);
         renderTimer();
         renderState();
-    }, () => {});
+    });
 })();

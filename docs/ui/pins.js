@@ -1,10 +1,11 @@
 // The Pinned card, the Tab cycle and the colour that says which tool is current. A pin is a mode, a sub-mode and the last
 // style used on it; the pins are seeded once per puzzle from the link's Tab set and kept per puzzle in localStorage.
-// Reaches Penpa only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
     const { chipLabel, toolKey } = window.toolGuide;
+    const { el, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
@@ -20,41 +21,43 @@
     const NEUTRAL_COLOUR = '#7d828c';
     const BUTTON = 'button, wa-button';
 
-    function el(tag, attrs = {}, children = []) {
-        const node = document.createElement(tag);
-        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
-        node.append(...children);
-        return node;
-    }
-
     const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + pin.id * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
 
-    // Penpa tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.
+    // Penpa+ tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.
     function capsLockIsOn(e) {
         const isLetter = e.key.length === 1 && e.key.toLowerCase() !== e.key.toUpperCase();
         return e.getModifierState('CapsLock') || (isLetter && (e.key === e.key.toUpperCase()) !== e.shiftKey);
     }
 
-    window.deskReady.then(({ cards }) => {
+    onDeskReady(({ cards }) => {
         const tools = engine.listTools();
         const storageKey = STORAGE_PREFIX + puzzleHash();
         const toolOf = (pin) => tools.find((t) => toolKey(t) === toolKey(pin));
 
         // ---- The pins, kept ---------------------------------------------------------------------------------------------
 
-        // What an earlier visit saved: pins in the shape `save` writes, or null for none. A saved value this code did not
-        // write (another version's, or edited by hand) is the same as none: the Tab set seeds again.
+        // What an earlier visit saved: pins in the shape `save` writes, or null for none. A saved value that is unreadable,
+        // or that this code did not write (another version's, or edited by hand), cannot be shown as pins: the Tab set seeds
+        // them again and replaces it, which the console says, so the loss is never silent.
         function savedState() {
             const raw = localStorage.getItem(storageKey);
+            if (raw === null) {
+                return null;
+            }
             let saved;
             try {
                 saved = JSON.parse(raw);
             } catch (e) {
+                console.warn(`${storageKey} is unreadable (${e.message}); the Tab set seeds the pins and replaces it.`);
                 return null;
             }
             const valid = Array.isArray(saved?.pins) && Number.isInteger(saved.nextId) &&
                 saved.pins.every((p) => Number.isInteger(p.id) && typeof p.mode === 'string');
-            return valid ? saved : null;
+            if (!valid) {
+                console.warn(`${storageKey} does not hold pins as this page saves them; the Tab set seeds the pins and replaces it.`);
+                return null;
+            }
+            return saved;
         }
 
         function seededState() {
@@ -99,7 +102,7 @@
 
         const originIsButton = (e) => e.composedPath().some((node) => node instanceof Element && node.matches(BUTTON));
 
-        // Enter does what Tab does unless a button has focus: then the button takes it, and Penpa never sees it, since Penpa
+        // Enter does what Tab does unless a button has focus: then the button takes it, and Penpa+ never sees it, since Penpa+
         // would step its own Tab set. With no pins neither key is ours, so the browser keeps them.
         window.uiKeys.add((e) => {
             if (e.type !== 'keydown' || e.ctrlKey || e.metaKey || e.altKey) {
@@ -220,18 +223,22 @@
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 
-        // What the presets read and replace. A pin for a tool the link lacks is left out, like a saved pin the link no longer offers.
+        // What the presets and the Settings dialog read and replace. A pin for a tool the link lacks is left out, like a saved
+        // pin the link no longer offers.
         window.pinBoard = {
             snapshot: () => pins.map(({ mode, submode, style }) => ({ mode, submode, style })),
             replace(entries) {
                 pins = entries.filter(toolOf).map(({ mode, submode, style }) => ({ id: nextId++, mode, submode, style: style ?? null }));
                 save();
                 render();
+            },
+            // The pins the link's Tab set seeds, as on the puzzle's first visit.
+            reseed() {
+                window.pinBoard.replace(engine.tabSet());
             }
         };
 
         render();
         engine.on('change', render);
     });
-    window.deskReady.catch(() => {});
 })();

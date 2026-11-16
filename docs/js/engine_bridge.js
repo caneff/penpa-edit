@@ -1,24 +1,29 @@
-// The solve UI's only door to Penpa's engine: the global `engine`. The UI files (docs/ui/) never name `pu`,
-// `UserSettings` or a legacy element id; this file does, once, and each call that has to read Penpa's internals
-// says why (MVP gap). Loaded by solve.html after general.js, before main.js's onload runs boot().
+// The solve UI's only door to Penpa+'s engine: the global `engine`. The UI files (docs/ui/) never name `pu`,
+// `UserSettings` or a legacy element id; this file does, once, and each call that has to read Penpa+'s internals
+// says why (MVP gap). It must load after general.js and before main.js's onload runs boot().
 (function () {
     'use strict';
 
     // UserSettings.displaysize clamps to these and pops a message up when it does (settings.js), so a call outside throws.
-    const MIN_CELL_SIZE = 12;
-    const MAX_CELL_SIZE = 90;
+    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 90 });
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
 
-    // The Penpa settings the solve UI shows, by name. A boolean setting takes `true` or `false`; the others take one of the
-    // whole numbers listed, which are the values of Penpa's own controls.
+    // Surface's colours as [style, name], in the order of Penpa+'s palette; `secondcolor` takes the same values.
+    const SURFACE_COLOURS = Object.freeze([
+        [1, 'dark grey'], [8, 'grey'], [3, 'light grey'], [4, 'black'], [2, 'green'], [5, 'blue'], [6, 'red'], [7, 'yellow'],
+        [9, 'pink'], [10, 'orange'], [11, 'purple'], [12, 'brown']
+    ].map((pair) => Object.freeze(pair)));
+
+    // The Penpa+ settings the solve UI shows, by name. A boolean setting takes `true` or `false`; the others take one of the
+    // whole numbers listed, which are the values of Penpa+'s own controls.
     const BOOLEAN = 'boolean';
     const SETTINGS = {
         sudoku_centre_size: [1, 2, 3],
         sudoku_normal_size: [1, 2],
         outline_text: BOOLEAN,
-        secondcolor: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        secondcolor: SURFACE_COLOURS.map(([style]) => style),
         custom_colors_on: BOOLEAN,
         conflict_detection: [1, 2, 3],
         check_pencil_marks: BOOLEAN,
@@ -38,6 +43,8 @@
         custom_colors_on: () => UserSettings.attemptSave(),
         shortcuts_enabled: (on) => setCookie(SHORTCUTS_COOKIE, on ? '1' : '0', UserSettings._expDate)
     };
+    // MVP gap: the setters of these keep the new value but leave the board as it was drawn, so the bridge redraws it.
+    const REDRAWN_SETTINGS = ['sudoku_normal_size'];
 
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
@@ -55,8 +62,8 @@
         return canvas;
     }
 
-    // MVP gap: Penpa hit-tests a click as `e.pageX - canvas.offsetLeft` (main.js), which is right only while the canvas's
-    // offsetParent is the page. The real page position makes it right wherever the board sits. Penpa also assumes
+    // MVP gap: Penpa+ hit-tests a click as `e.pageX - canvas.offsetLeft` (main.js), which is right only while the canvas's
+    // offsetParent is the page. The real page position makes it right wherever the board sits. Penpa+ also assumes
     // 1 CSS px = 1 canvas px, so the board is never scaled by CSS; setCellSize resizes it.
     function fixPointerOffset(canvas) {
         Object.defineProperty(canvas, 'offsetLeft', {
@@ -69,8 +76,8 @@
         });
     }
 
-    // MVP gap: Penpa's toolbars live in the page the board lives in. They are hidden, not removed, so main.js and
-    // general.js keep finding their ids. Penpa's `.modal` dialogs stay usable, above the UI's layers and below
+    // MVP gap: Penpa+'s toolbars live in the page the board lives in. They are hidden, not removed, so main.js and
+    // general.js keep finding their ids. Penpa+'s `.modal` dialogs stay usable, above the UI's layers and below
     // SweetAlert2's popups (1060).
     const chromeStyle = document.createElement('style');
     chromeStyle.textContent =
@@ -86,16 +93,16 @@
         return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
     }
 
-    // MVP gap: Penpa keeps its theme in its `color_theme` cookie, which Penpa+'s own page shares. Taken off the list of
-    // settings Penpa reads from and writes to its cookies, the solve page neither follows nor changes Penpa+'s theme;
-    // Penpa's setter still swaps its stylesheet and redraws the board.
+    // MVP gap: Penpa+ keeps its theme in its `color_theme` cookie, which Penpa+'s own page shares. Taken off the list of
+    // settings Penpa+ reads from and writes to its cookies, the solve page neither follows nor changes Penpa+'s theme;
+    // Penpa+'s setter still swaps its stylesheet and redraws the board.
     UserSettings.can_save = UserSettings.can_save.filter((name) => name !== 'color_theme');
     function applyTheme(theme) {
         UserSettings.color_theme = THEMES[theme];
     }
 
-    // MVP gap: Penpa decides the mode from the link's `m`, and an edit link's data does not load as a solve link. So an
-    // edit link opens as Penpa opens it, then the page reopens on the solve link made from it.
+    // MVP gap: Penpa+ decides the mode from the link's `m`, and an edit link's data does not load as a solve link. So an
+    // edit link opens as Penpa+ opens it, then the page reopens on the solve link made from it.
     function reopenInSolveMode() {
         const solveLink = pu.maketext_solve();
         if (location.hash.includes('m=solve')) {
@@ -135,17 +142,17 @@
         return booting;
     };
 
-    // ---- Holds: in Sudoku mode Penpa lends Corner to a held Shift and Centre to a held Ctrl, and gives the sub-mode back on
-    // the key's key-up. Penpa keeps no record the bridge can read, and a key-up that never comes (the window lost focus)
+    // ---- Holds: in Sudoku mode Penpa+ lends Corner to a held Shift and Centre to a held Ctrl, and gives the sub-mode back on
+    // the key's key-up. Penpa+ keeps no record the bridge can read, and a key-up that never comes (the window lost focus)
     // leaves its counters stuck so the next hold does nothing. So the bridge keeps its own: each key it saw start a hold,
     // with the tool before it.
     const HOLD_KEYS = ['Shift', 'Control', 'Meta'];
     const holds = new Map();
-    // Keys whose hold was ended early: their real key-up, and the auto-repeats of the key still down, never reach Penpa.
+    // Keys whose hold was ended early: their real key-up, and the auto-repeats of the key still down, never reach Penpa+.
     const releasedKeys = new Set();
     let releasing = false;
 
-    // Penpa's own condition for starting a hold (main.js onKeyDown): the first press, in Sudoku mode, with no other modifier.
+    // Penpa+'s own condition for starting a hold (main.js onKeyDown): the first press, in Sudoku mode, with no other modifier.
     function startsHold(e) {
         const otherModifier = e.key === 'Shift' ? e.ctrlKey || e.metaKey || e.altKey : e.shiftKey || e.altKey;
         return HOLD_KEYS.includes(e.key) && !e.repeat && !otherModifier && pu.mode[pu.mode.qa].edit_mode === 'sudoku';
@@ -154,21 +161,28 @@
     // The sub-mode of Sudoku each hold key lends: Shift Corner, Ctrl and Cmd Centre.
     const HOLD_SUBMODES = { Shift: '2', Control: '3', Meta: '3' };
 
-    // A grid without the tool a key would lend (hex has no Corner) gets no hold from it: Penpa would put itself on a tool
+    // A grid without the tool a key would lend (hex has no Corner) gets no hold from it: Penpa+ would put itself on a tool
     // `listTools()` does not list.
     function lendsListedTool(key) {
         return toolCatalog().some((t) => t.mode === 'sudoku' && t.submode === HOLD_SUBMODES[key]);
     }
 
-    // MVP gap: main.js's onKeyUp is the only way to end a hold, so the end is a synthetic key-up straight to it.
+    // MVP gap: main.js's onKeyUp is the only way to end a hold, so the end is a synthetic key-up straight to it. That key-up
+    // stamps a Shift's release with Date.now(), and any key-down within 15 ms of the stamp turns Corner on in whatever mode
+    // is then current (main.js onKeyDown reads a quick release-and-type as Shift still held). A release the bridge makes is
+    // no such thing, so its stamp is main.js's own "long ago".
+    const LONG_AGO_MS = -1e5;
     function endHolds() {
         for (const key of [...holds.keys()]) {
             holds.delete(key);
             releasedKeys.add(key);
             releasing = true;
+            const now = Date.now;
+            Date.now = () => LONG_AGO_MS;
             try {
                 document.dispatchEvent(new KeyboardEvent('keyup', { key, bubbles: true }));
             } finally {
+                Date.now = now;
                 releasing = false;
             }
         }
@@ -186,12 +200,12 @@
     const PENPA_KEY_HANDLERS = { keydown: 'onKeyDown', keyup: 'onKeyUp' };
     const gatedKeyTypes = new Set();
     let keyHandler = null;
-    // A hold ends on its key's key-up wherever focus is: the UI may answer for that key-up, and Penpa ignores one aimed
+    // A hold ends on its key's key-up wherever focus is: the UI may answer for that key-up, and Penpa+ ignores one aimed
     // at a text field.
     function endsHold(e) {
         return e.type === 'keyup' && holds.has(e.key);
     }
-    // Runs Penpa's handler for a key the gate let through, keeping the holds' record.
+    // Runs Penpa+'s handler for a key the gate let through, keeping the holds' record.
     function passToPenpa(penpaListener, self, e) {
         if (e.type === 'keyup') {
             holds.delete(e.key);
@@ -260,7 +274,7 @@
         };
     });
 
-    // MVP gap: Penpa's first landing on Shape mode switches `UserSettings.panel_shown` on, and the solve page has no control
+    // MVP gap: Penpa+'s first landing on Shape mode switches `UserSettings.panel_shown` on, and the solve page has no control
     // for it, so picking a tool restores the setting as it was.
     const penpaModeSet = Puzzle.prototype.mode_set;
     Puzzle.prototype.mode_set = function () {
@@ -274,7 +288,7 @@
         }
     };
 
-    // MVP gap: Penpa's left click with a Shape tool places the panel's selected variant (the first, as the hidden panel
+    // MVP gap: Penpa+'s left click with a Shape tool places the panel's selected variant (the first, as the hidden panel
     // is never clicked) only while `panel_shown` is on, and otherwise just moves the cursor. The raw field is set, not the
     // setter, so no panel or toggle on the page changes.
     const penpaMouseSymbol = Puzzle.prototype.mouse_symbol;
@@ -288,7 +302,7 @@
         }
     };
 
-    // MVP gap: Penpa's popups are SweetAlert2's container (the Congratulations popup, its alerts) and its `.modal` elements,
+    // MVP gap: Penpa+'s popups are SweetAlert2's container (the Congratulations popup, its alerts) and its `.modal` elements,
     // shown by setting `style.display`. The watcher only wakes the `change` event; getState reads the live elements.
     function penpaDialogOpen() {
         return document.querySelector('.swal2-container') !== null ||
@@ -299,7 +313,7 @@
     });
 
 
-    // ---- The tool catalog: what the link offers, read once from Penpa's mode radios and menus. A tool is a mode, a
+    // ---- The tool catalog: what the link offers, read once from Penpa+'s mode radios and menus. A tool is a mode, a
     // sub-mode (null where the mode has none) and a style (null where the tool has none).
 
     // Style names, checked against the legacy labels' computed backgrounds on 2026-11-13 (the prototype's tables).
@@ -308,10 +322,7 @@
         13: 'fat dots', 17: 'fat dots', 40: 'short', 30: 'double', 21: 'thicker', 14: 'grey dot'
     };
     const VALUE_STYLE = { 1: 'black', 2: 'green', 8: 'blue', 3: 'grey', 9: 'dark blue', 10: 'red', 4: 'white', 5: 'white background' };
-    const SURFACE_STYLE = {
-        1: 'dark grey', 8: 'grey', 3: 'light grey', 4: 'black', 2: 'green', 5: 'blue', 6: 'red', 7: 'yellow', 9: 'pink',
-        10: 'orange', 11: 'purple', 12: 'brown'
-    };
+    const SURFACE_STYLE = Object.fromEntries(SURFACE_COLOURS);
     const STYLE_NAMES = {
         line: PATH_STYLE, lineE: PATH_STYLE, wall: PATH_STYLE, number: VALUE_STYLE, sudoku: VALUE_STYLE,
         surface: SURFACE_STYLE, symbol: { 1: 'behind lines', 2: 'in front of lines' },
@@ -340,18 +351,18 @@
         battleship: 'Ship pieces + water', tents: 'Tents + ×', mines: 'Mines + ×', doublemines: 'One or two mines + ×',
         magnets: 'Magnet poles + −', arrowS: 'Arrows in cells'
     };
-    // Penpa's shape groups, from the ms1_ / ms3_ / ms4_ ids of the Shape menu.
+    // Penpa+'s shape groups, from the ms1_ / ms3_ / ms4_ ids of the Shape menu.
     const SHAPE_GROUP_NAMES = {
         circle: 'Circle', square: 'Square', triup: 'Triangle up', tridown: 'Triangle down', triright: 'Triangle right',
         trileft: 'Triangle left', diamond: 'Diamond', hexpoint: 'Hexagon, point up', hexflat: 'Hexagon, flat',
         ox: '○ △ □ ×', bars: 'Bars', math: 'Math', degital: 'Digital digits', arrow_B: 'Arrow', arrow_N: 'Arrow, notched',
         arrow_tri: 'Arrow, triangle', arrow_fouredge: 'Arrows, four edges', arrow_GP: 'Arrow, graphic', battleship: 'Ship'
     };
-    // The Composite tools that show Penpa's line / edge style box (subcombimode in class_p.js).
+    // The Composite tools that show Penpa+'s line / edge style box (subcombimode in class_p.js).
     const COMPOSITE_LINE_STYLE = ['linex', 'lineox', 'linedir', 'yajilin', 'rassisillai', 'tents'];
     const COMPOSITE_EDGE_STYLE = ['edgex', 'edgexoi'];
 
-    // MVP gap: Penpa hides what a grid type or a link's tab set leaves out by `display: none` on the element or an
+    // MVP gap: Penpa+ hides what a grid type or a link's tab set leaves out by `display: none` on the element or an
     // ancestor, or by the class `is_hidden`. `container` is the mode's own box, whose display follows the current mode.
     function hiddenInPenpa(node, container) {
         for (let n = node; n && n !== container; n = n.parentElement) {
@@ -392,7 +403,7 @@
         });
     }
 
-    // The Shape menu's shapes this grid type offers, each with the label Penpa shows and the group it sits in.
+    // The Shape menu's shapes this grid type offers, each with the label Penpa+ shows and the group it sits in.
     function shapeTools() {
         const menu = document.getElementById('mode_symbol');
         const tools = [];
@@ -466,7 +477,7 @@
         return catalog;
     }
 
-    // Penpa stores a mode with no sub-mode as "" and a missing one as undefined.
+    // Penpa+ stores a mode with no sub-mode as "" and a missing one as undefined.
     function rememberedSubmode(value) {
         return value === undefined || value === '' ? null : String(value);
     }
@@ -486,15 +497,15 @@
 
     const ENGINE_EVENTS = ['change', 'timer'];
 
-    // easytimer's events that change the clock's reading or whether it runs. `secondsUpdated` is Penpa's own once-a-second tick.
+    // easytimer's events that change the clock's reading or whether it runs. `secondsUpdated` is Penpa+'s own once-a-second tick.
     const TIMER_EVENTS = ['secondsUpdated', 'started', 'paused', 'stopped', 'reset'];
     const timerHandlers = new Set();
     function watchTimer() {
         TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, () => timerHandlers.forEach((handler) => handler())));
     }
 
-    // MVP gap: Penpa's pause and start closures live in main.js's onload and are reached only through their buttons, which
-    // also show and hide Penpa's own pause layer.
+    // MVP gap: Penpa+'s pause and start closures live in main.js's onload and are reached only through their buttons, which
+    // also show and hide Penpa+'s own pause layer.
     function pressTimerButton(id) {
         document.getElementById(id).click();
     }
@@ -513,11 +524,11 @@
         // per cell.
         getState() {
             boardCanvas();
-            // MVP gap: the solver's undo and redo stacks, where Penpa keeps them.
+            // MVP gap: the solver's undo and redo stacks, where Penpa+ keeps them.
             const entries = pu[pu.mode.qa];
             return {
                 tool: engine.getTool(),
-                // MVP gap: Penpa's answer check keeps its verdict in `sol_flag`.
+                // MVP gap: Penpa+'s answer check keeps its verdict in `sol_flag`.
                 solved: pu.sol_flag === 1,
                 cellSize: UserSettings.displaysize,
                 penpaDialogOpen: penpaDialogOpen(),
@@ -586,18 +597,18 @@
         },
 
         // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`. `covered` is true while the solver's
-        // own pause (the Pause button or F4) has Penpa's pause layer up; a solve also pauses the clock, with no layer (#119).
+        // own pause (the Pause button or F4) has Penpa+'s pause layer up; a solve also pauses the clock, with no layer (#119).
         getTimer() {
             boardCanvas();
             return {
                 seconds: sw_timer.getTotalTimeValues().secondTenths / 10,
                 paused: sw_timer.isPaused(),
-                // MVP gap: read from Penpa's pause layer, which its Pause and Start buttons show and hide.
+                // MVP gap: read from Penpa+'s pause layer, which its Pause and Start buttons show and hide.
                 covered: document.getElementById('pause_canvas').style.display !== 'none'
             };
         },
 
-        // Pauses the clock and covers Penpa's own board with its pause layer; nothing happens when the layer is already up.
+        // Pauses the clock and covers Penpa+'s own board with its pause layer; nothing happens when the layer is already up.
         pauseTimer() {
             boardCanvas();
             if (!engine.getTimer().covered) {
@@ -621,8 +632,8 @@
             applyTheme(theme);
         },
 
-        // The front door for keys. `handler(event)` runs for every keydown and keyup before Penpa's handlers and answers
-        // 'ui' or 'browser' (Penpa never sees the event, and the bridge does not touch its default) or nothing (Penpa gets it).
+        // The front door for keys. `handler(event)` runs for every keydown and keyup before Penpa+'s handlers and answers
+        // 'ui' or 'browser' (Penpa+ never sees the event, and the bridge does not touch its default) or nothing (Penpa+ gets it).
         onKey(handler) {
             if (typeof handler !== 'function') {
                 throw new TypeError('engine.onKey: handler must be a function');
@@ -642,24 +653,24 @@
             };
         },
 
-        // Every tool the link offers, in the order of Penpa's mode list. `labels` are the names Penpa's own menus give it,
+        // Every tool the link offers, in the order of Penpa+'s mode list. `labels` are the names Penpa+'s own menus give it,
         // `styles` its colours and line looks with a display name and the swatch colour (null where the style is no colour).
         listTools() {
             return toolCatalog().map((tool) => ({ ...tool, labels: [...tool.labels], styles: tool.styles.map((style) => ({ ...style })) }));
         },
 
-        // The tool in use: Penpa's current mode with that mode's sub-mode and style.
+        // The tool in use: Penpa+'s current mode with that mode's sub-mode and style.
         getTool() {
             const mode = pu.mode[pu.mode.qa].edit_mode;
             const [submode, style] = pu.mode[pu.mode.qa][mode];
             const listed = toolCatalog().find((t) => t.mode === mode && t.submode === rememberedSubmode(submode));
-            // A key or a script can put Penpa in a mode the link's tab set leaves out; it is still the tool in use.
+            // A key or a script can put Penpa+ in a mode the link's tab set leaves out; it is still the tool in use.
             const current = listed?.styles.find((s) => s.style === Number(style));
             return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
         },
 
-        // The link's Tab set, in the order the link gives it, as tools of `listTools()` without a style. Penpa names a mode
-        // with no sub-mode of its own in the set (Shape, Special, Composite); it is the sub-mode Penpa remembers for the
+        // The link's Tab set, in the order the link gives it, as tools of `listTools()` without a style. Penpa+ names a mode
+        // with no sub-mode of its own in the set (Shape, Special, Composite); it is the sub-mode Penpa+ remembers for the
         // mode, else the first listed. A name the link's grid does not offer is left out, and so is a repeat.
         tabSet() {
             const catalog = toolCatalog();
@@ -678,7 +689,7 @@
             });
         },
 
-        // Every setting of the fixed list by name: a boolean, or the number Penpa's own control holds. `theme` is read here too,
+        // Every setting of the fixed list by name: a boolean, or the number Penpa+'s own control holds. `theme` is read here too,
         // but set with `setTheme`.
         getSettings() {
             boardCanvas();
@@ -687,8 +698,8 @@
             return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
         },
 
-        // Changes one setting and saves it where Penpa saves it. An unknown name or a value the setting does not take throws and
-        // changes nothing. conflict_detection 2 is "off for this puzzle": Penpa keeps it in memory only and turns it back on for
+        // Changes one setting and saves it where Penpa+ saves it. An unknown name or a value the setting does not take throws and
+        // changes nothing. conflict_detection 2 is "off for this puzzle": Penpa+ keeps it in memory only and turns it back on for
         // the next puzzle it loads, so the UI keeps it per puzzle.
         setSetting(name, value) {
             boardCanvas();
@@ -704,9 +715,12 @@
             }
             UserSettings[name] = value;
             SETTING_SAVERS[name]?.(value);
+            if (REDRAWN_SETTINGS.includes(name)) {
+                pu.redraw();
+            }
         },
 
-        // Removes this puzzle's saved progress, and stops Penpa saving it again until the page reloads, as Penpa's "Clear this
+        // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this
         // puzzle" does. A puzzle with no link data was never saved, so there is nothing to clear.
         // MVP gap: PenpaProgress.clearPuzzle does not wait for localforage's removal, so this waits for it itself.
         async clearSavedProgress() {
@@ -722,7 +736,7 @@
             }
         },
 
-        // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in
+        // Applies a tool. A sub-mode or style left out stays as Penpa+ remembers it for the mode; one given must be in
         // `listTools()` (`submode: null` for a mode with none), or the call throws and changes nothing. A held Shift or Ctrl
         // ends first, and a style only picks the colour: it never colours a cell (`colourSelection` does).
         setTool(tool) {
@@ -730,7 +744,7 @@
                 throw new TypeError('engine.setTool: tool must be an object like { mode, submode, style }');
             }
             const { mode, style } = tool;
-            // A hold has lent Penpa's remembered sub-mode; the one before it is what the hold gives back.
+            // A hold has lent Penpa+'s remembered sub-mode; the one before it is what the hold gives back.
             const beforeHold = holds.values().next().value;
             const remembered = beforeHold?.mode === mode ? beforeHold.submode
                 : rememberedSubmode(pu.mode[pu.mode.qa][mode]?.[0]);
@@ -742,7 +756,7 @@
             if (style === null && tool.style !== undefined && entry.styles.length) {
                 throw new RangeError(`engine.setTool: ${entry.name} needs one of its styles, not null`);
             }
-            // While still in Sudoku, the only mode whose key-up Penpa resets its hold counters in.
+            // While still in Sudoku, the only mode whose key-up Penpa+ resets its hold counters in.
             endHolds();
             if (pu.mode[pu.mode.qa].edit_mode !== mode) {
                 pu.mode_set(mode);
@@ -763,9 +777,13 @@
         },
 
         // Multicolor's swatch press: adds colour `style` to the selected cells, or takes it off when they all have it, and
-        // makes it the colour in use. Throws when the tool is not Multicolor or the style is not one of its colours.
+        // makes it the colour in use. Throws when the tool is not Multicolor or the style is not one of its colours. While
+        // the solver's pause covers the board it changes nothing and returns false; otherwise it returns true.
         colourSelection(style) {
             boardCanvas();
+            if (engine.getTimer().covered) {
+                return false;
+            }
             const tool = engine.getTool();
             if (tool.mode !== 'multicolor') {
                 throw new Error(`engine.colourSelection: the tool is ${tool.mode}, not multicolor`);
@@ -776,9 +794,10 @@
             }
             pu.stylemode_check(`st_surface${style}`);
             pu.key_number(String(style));
+            return true;
         },
 
-        // Moves the board into `container`, fixes click hit-testing and hides Penpa's own chrome.
+        // Moves the board into `container`, fixes click hit-testing and hides Penpa+'s own chrome.
         mount(container) {
             if (!(container instanceof HTMLElement)) {
                 throw new TypeError('engine.mount: container must be an element');
@@ -789,10 +808,16 @@
             document.body.classList.add('engine-mounted');
         },
 
-        // Zooms the board to `px` pixels per cell, 12 to 90.
+        // The cell sizes `setCellSize` takes, in pixels per cell: `min` to `max`.
+        CELL_SIZE_RANGE,
+
+        // Surface's colours as [style, name], in the order of its palette: the values `secondcolor` takes, with their names.
+        SURFACE_COLOURS,
+
+        // Zooms the board to `px` pixels per cell, within CELL_SIZE_RANGE.
         setCellSize(px) {
-            if (!Number.isInteger(px) || px < MIN_CELL_SIZE || px > MAX_CELL_SIZE) {
-                throw new RangeError(`engine.setCellSize: px must be a whole number from ${MIN_CELL_SIZE} to ${MAX_CELL_SIZE}, got ${String(px)}`);
+            if (!Number.isInteger(px) || px < CELL_SIZE_RANGE.min || px > CELL_SIZE_RANGE.max) {
+                throw new RangeError(`engine.setCellSize: px must be a whole number from ${CELL_SIZE_RANGE.min} to ${CELL_SIZE_RANGE.max}, got ${String(px)}`);
             }
             boardCanvas();
             UserSettings.displaysize = px;
@@ -814,12 +839,12 @@
             // The canvas holds fixed margins besides the cells, so this estimate runs a little small; the loops settle it.
             const perCell = UserSettings.displaysize;
             let px = Math.floor(Math.min(w / (drawn.width / perCell), h / (drawn.height / perCell)));
-            px = Math.min(MAX_CELL_SIZE, Math.max(MIN_CELL_SIZE, px));
+            px = Math.min(CELL_SIZE_RANGE.max, Math.max(CELL_SIZE_RANGE.min, px));
             engine.setCellSize(px);
-            while (px > MIN_CELL_SIZE && !fits()) {
+            while (px > CELL_SIZE_RANGE.min && !fits()) {
                 engine.setCellSize(--px);
             }
-            while (px < MAX_CELL_SIZE) {
+            while (px < CELL_SIZE_RANGE.max) {
                 engine.setCellSize(px + 1);
                 if (!fits()) {
                     engine.setCellSize(px);
@@ -828,6 +853,16 @@
                 px++;
             }
             return px;
+        },
+
+        // A key for the open puzzle that the solver's progress never changes, so a history copy of its link (which carries the
+        // progress) has the same key. Two puzzles that differ only in the grid lines the setter erased share one key.
+        // MVP gap: an MD5 of the grid and the givens, read where Penpa+ keeps them. The undo logs are left out, and so are
+        // the erased grid lines, since Penpa+ keeps the solver's erasures among the givens.
+        getPuzzleId() {
+            boardCanvas();
+            const { command_undo, command_redo, command_replay, deletelineE, ...givens } = pu.pu_q;
+            return md5(JSON.stringify([pu.gridtype, pu.nx, pu.ny, pu.space, givens]));
         },
 
         // The puzzle's text as the link carries it: Title, Author and Rules, plain text.

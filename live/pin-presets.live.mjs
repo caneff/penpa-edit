@@ -3,44 +3,18 @@
 // accessible name; the pins are read by walking them with Tab and by `engine.getTool()`.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
+import { currentTool, newBoardSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
-
-// Runs in the page. A 6x6 board whose Tab set is `names`, as a solve link's `#` part.
-function solveLinkWithTabSetInPage (names) {
-  document.getElementById('nb_size1').value = 6
-  document.getElementById('nb_size2').value = 6
-  create_newboard()
-  UserSettings.tab_settings = names
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
-
 // A link offers only the modes its Tab set shows, so the built-in presets are tried on a set that shows their modes.
 const BROAD_TAB_SET = ['Sudoku Normal', 'Line Normal', 'Wall', 'Number Normal', 'Surface']
 
-const link = (tabSet) => linkFromNewBoard(browser(), solveLinkWithTabSetInPage, tabSet)
+const link = (tabSet) => newBoardSolveLink(browser(), tabSet)
+const openSolve = (hash) => openSolvePage(browser(), hash)
 
-async function waitForDesk (page) {
-  await page.getByRole('region', { name: 'Board' }).waitFor()
-  await page.evaluate(() => engine.ready)
-}
-
-async function openSolve (hash) {
-  const opened = await openPenpa(browser(), hash, { solve: true, contextOptions: DESK_SIZE })
-  await waitForDesk(opened.page)
-  return opened
-}
-
-const currentTool = (page) => page.evaluate(() => engine.getTool())
 const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
-
-// Waits for the current tool to be `key` ('mode/submode').
-const waitForTool = (page, key) => settle(async () => toolKeyOf(await currentTool(page)), key)
 
 const presetPulldown = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('combobox', { name: 'Pin presets' })
 // The pulldown closes with an animation; a click while it still shows would close it again.
@@ -103,16 +77,13 @@ describe('a preset naming a tool the link lacks', () => {
   let opened
   before(async () => {
     const hash = await link(['Line Normal'])
-    opened = await openPenpa(browser(), hash, {
-      solve: true,
-      contextOptions: DESK_SIZE,
+    opened = await openSolvePage(browser(), hash, {
       setup: (context) => context.addInitScript(() => {
         localStorage.setItem('chinstrap.pinPresets', JSON.stringify([
           { name: 'Odd set', tools: [{ mode: 'nosuchmode', submode: null }, { mode: 'line', submode: '1' }] }
         ]))
       })
     })
-    await waitForDesk(opened.page)
   })
   after(async () => { await opened?.context.close() })
 

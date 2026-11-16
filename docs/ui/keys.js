@@ -1,13 +1,13 @@
-// Where each key goes: the board (Penpa), the browser or the UI. Answers `engine.onKey`, and returns focus to the board after
-// a board click, a menu choice and a dialog closing. Reaches Penpa only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Where each key goes: the board (Penpa+), the browser or the UI. Answers `engine.onKey`, and returns focus to the board after
+// a board click, a menu choice and a dialog closing. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
-    // Keys the browser keeps in every mode. Penpa's own Ctrl+D (clone) and Ctrl+digit are dropped for the same reason.
+    // Keys the browser keeps in every mode. Penpa+'s own Ctrl+D (clone) and Ctrl+digit are dropped for the same reason.
     const BROWSER_KEYS = ['F1', 'F2', 'F3', 'F5', 'F11', 'F12', 'PageDown', 'Home', 'Alt'];
     const BROWSER_ALT_KEYS = ['ArrowLeft', 'ArrowRight'];
     const BROWSER_CTRL_DIGIT = /^Digit[1-9]$/;
-    // Penpa's pause toggle, the one key a paused board answers.
+    // Penpa+'s pause toggle, the one key a paused board answers.
     const RESUME_KEY = 'F4';
 
     const TEXT_ENTRY = 'input, textarea, select, [contenteditable], wa-input, wa-select';
@@ -41,7 +41,7 @@
     }
 
     // Web Awesome closes an open menu or dialog on Escape itself, only the top-most one per press, so the UI only keeps
-    // the press from Penpa while one is open.
+    // the press from Penpa+ while one is open.
     function popupIsOpen() {
         return document.querySelector(`${OPEN_MENU}, ${OPEN_DIALOG}`) !== null;
     }
@@ -85,7 +85,7 @@
 
     engine.ready.then(() => {
         engine.onKey((e) => {
-            // A paused board answers F4 alone, wherever the focus is: Penpa ignores a key typed in a text field, so the UI
+            // A paused board answers F4 alone, wherever the focus is: Penpa+ ignores a key typed in a text field, so the UI
             // resumes the clock itself.
             if (engine.getTimer().covered) {
                 if (e.type === 'keydown' && e.key === RESUME_KEY && !e.repeat) {
@@ -105,7 +105,7 @@
             return answerOfHandlers(e) ?? (e.key === '?' ? 'ui' : undefined);
         });
 
-        // Capture, because Penpa may stop a click's default before focus would move.
+        // Capture, because Penpa+ may stop a click's default before focus would move.
         document.addEventListener('mousedown', (e) => {
             if (elementsOf(e.composedPath()).some((node) => node.matches(BOARD))) {
                 focusBoard();
@@ -132,5 +132,6 @@
             const dropdown = e.target.closest('wa-dropdown');
             dropdown?.addEventListener('wa-after-hide', focusBoardAfterWebAwesome, { once: true });
         });
+        // A failed load leaves no board to route keys to, and main.js shows its error dialog already.
     }, () => {});
 })();

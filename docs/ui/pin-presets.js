@@ -1,8 +1,10 @@
 // Pin presets: ready-made sets of pins, titled by puzzle genre, and the sets the solver saves. A pulldown on the Pinned card
-// loads one, replacing the puzzle's pins; the saved sets are kept in localStorage for every puzzle. Reaches Penpa only through
+// loads one, replacing the puzzle's pins; the saved sets are kept in localStorage for every puzzle. Reaches Penpa+ only through
 // `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
+
+    const { el, onDeskReady } = window.uiKit;
 
     const STORAGE_KEY = 'chinstrap.pinPresets';
 
@@ -18,31 +20,34 @@
         ['Sudoku variants', 'Thermo and cages', ['sudoku/1', 'sudoku/2', 'special/thermo', 'cage/1']]
     ];
 
-    function el(tag, attrs = {}, children = []) {
-        const node = document.createElement(tag);
-        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
-        node.append(...children);
-        return node;
-    }
-
     const toolOfKey = (key) => {
         const [mode, submode] = key.split('/');
         return { mode, submode: submode === '' ? null : submode, style: null };
     };
 
-    // What an earlier visit saved: `{ name, tools }` entries, or [] for none. A value this code did not write is the same as none.
+    // What an earlier visit saved: `{ name, tools }` entries, or [] for none. A saved value that is unreadable, or that this
+    // code did not write, offers no preset; the next save replaces it, which the console says, so the loss is never silent.
     function savedPresets() {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw === null) {
+            return [];
+        }
         let saved;
         try {
-            saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            saved = JSON.parse(raw);
         } catch (e) {
+            console.warn(`${STORAGE_KEY} is unreadable (${e.message}); no saved preset is offered, and the next save replaces it.`);
             return [];
         }
         const valid = Array.isArray(saved) && saved.every((p) => typeof p?.name === 'string' && Array.isArray(p.tools));
-        return valid ? saved : [];
+        if (!valid) {
+            console.warn(`${STORAGE_KEY} does not hold presets as this page saves them; none is offered, and the next save replaces it.`);
+            return [];
+        }
+        return saved;
     }
 
-    window.deskReady.then(({ cards }) => {
+    onDeskReady(({ cards }) => {
         const select = el('wa-select', { label: 'Pin presets', placeholder: 'Load a preset…', size: 'small', class: 'ui-presets' });
         const nameInput = el('wa-input', { label: 'Preset name', size: 'small' });
         const save = el('wa-button', { size: 'small' }, ['Save pins as preset']);
@@ -89,6 +94,14 @@
         });
 
         cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [select]), el('div', { class: 'ui-preset-row' }, [nameInput, save]));
+
+        // The solver's saved presets, for the Settings dialog to list and delete.
+        window.pinPresets = {
+            savedNames: () => savedPresets().map((p) => p.name),
+            remove(name) {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(savedPresets().filter((p) => p.name !== name)));
+                fillOptions();
+            }
+        };
     });
-    window.deskReady.catch(() => {});
 })();

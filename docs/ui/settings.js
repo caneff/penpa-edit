@@ -1,9 +1,10 @@
-// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once. Conflict detection off
-// for this puzzle only is kept here, per puzzle, because Penpa forgets it on the next puzzle. Reaches Penpa only through
-// `engine` (test/ui-boundary.test.mjs fails otherwise).
+// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the desk's own
+// (theme, layout, pins and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
+    const { el, iconButton, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const CONFLICT_ON = 1;
@@ -20,14 +21,15 @@
     // The row that holds the Clear saved progress button, in the group its rows are listed in.
     const CLEAR_PROGRESS_ROW = ['clear saved progress'];
 
+    const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+
     // A select is `[name, label, [[value, option label], ...]]` and a switch `[name, label]`.
     const GROUPS = [
         ['Board look', [
             ['sudoku_centre_size', 'Sudoku centre marks', [[1, 'Dynamic'], [2, 'Large'], [3, 'Small']]],
             ['sudoku_normal_size', 'Sudoku digits', [[1, 'Centred'], [2, 'Bottom']]],
             ['outline_text', 'Outline on text'],
-            ['secondcolor', 'Surface second colour', [[1, 'Dark grey'], [8, 'Grey'], [3, 'Light grey'], [4, 'Black'], [2, 'Green'], [5, 'Blue'],
-                [6, 'Red'], [7, 'Yellow'], [9, 'Pink'], [10, 'Orange'], [11, 'Purple'], [12, 'Brown']]],
+            ['secondcolor', 'Surface second colour', engine.SURFACE_COLOURS.map(([style, name]) => [style, capitalised(name)])],
             ['custom_colors_on', 'Custom colours']
         ]],
         ['Checking', [
@@ -48,17 +50,12 @@
         ]]
     ];
 
-    function el(tag, attrs = {}, children = []) {
-        const node = document.createElement(tag);
-        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
-        node.append(...children);
-        return node;
-    }
+    const THEMES = [['light', 'Light'], ['dark', 'Dark']];
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    window.deskReady.then(({ bar }) => {
-        // Penpa turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
+    onDeskReady(({ bar, resetLayout }) => {
+        // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
         }
@@ -101,25 +98,51 @@
 
         const clearRow = el('div', { class: 'ui-setting' }, [clear, cleared]);
 
-        const dialog = el('wa-dialog', { label: 'Settings' }, GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])));
-        // The controls show what the engine holds each time the dialog opens, so they never go stale. Done before the dialog
-        // opens, not on its `wa-show`, which can come after the visitor's first click.
+        // ---- The desk's own settings, kept by the UI in localStorage --------------------------------------------------
+
+        const theme = el('wa-select', { label: 'Theme', size: 'small' },
+            THEMES.map(([value, text]) => el('wa-option', { value }, [text])));
+        theme.addEventListener('change', () => engine.setTheme(theme.value));
+
+        const resetLayoutButton = el('wa-button', { size: 'small' }, ['Reset layout']);
+        resetLayoutButton.addEventListener('click', resetLayout);
+
+        const resetPins = el('wa-button', { size: 'small' }, ['Reset pins to the link\'s Tab set']);
+        resetPins.addEventListener('click', () => window.pinBoard.reseed());
+
+        const presets = el('wa-select', { label: 'Your presets', size: 'small', placeholder: 'None saved' });
+        const deletePreset = el('wa-button', { size: 'small' }, ['Delete preset']);
+        function showPresets() {
+            presets.replaceChildren(...window.pinPresets.savedNames().map((name) => el('wa-option', { value: name }, [name])));
+            presets.value = '';
+            deletePreset.toggleAttribute('disabled', true);
+        }
+        presets.addEventListener('change', () => deletePreset.toggleAttribute('disabled', presets.value === ''));
+        deletePreset.addEventListener('click', () => {
+            window.pinPresets.remove(presets.value);
+            showPresets();
+        });
+
+        const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
+            el('div', { class: 'ui-setting' }, [theme]),
+            el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
+            el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
+
+        const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
+            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup]);
+        // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
+        // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
             const current = engine.getSettings();
             controls.forEach((show, name) => show(current[name]));
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
+            theme.value = current.theme;
+            showPresets();
             dialog.open = true;
         }
 
-        const button = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' });
-        button.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" ' +
-            `stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${GEAR_ICON}</svg>`;
-        button.append(el('span', { class: 'ui-sr-only' }, ['Settings']));
-        button.addEventListener('click', openDialog);
-
-        bar.append(button);
+        bar.append(iconButton(GEAR_ICON, 'Settings', openDialog).node);
         document.querySelector('.ui-root').append(dialog);
     });
 })();

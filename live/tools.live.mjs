@@ -1,61 +1,30 @@
 // The tool catalog and the Mode and Mouse cards of `solve.html` (#95): the engine lists every tool a link offers and
 // applies a whole one, the Mode card's combobox picks any of them, and the Mouse card and the board's title bar say what
-// the current one does. The UI is found by role and accessible name or test id, the board by what Penpa would save
+// the current one does. The UI is found by role and accessible name or test id, the board by what Penpa+ would save
 // (`readEngineState`, defined by recorder.js).
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
-
-// The modes a solve link offers on a square grid: every Penpa mode but Box, which solve mode hides.
+// The modes a solve link offers on a square grid: every Penpa+ mode but Box, which solve mode hides.
 const SOLVE_MODES = ['surface', 'multicolor', 'line', 'lineE', 'wall', 'number', 'symbol', 'special', 'cage', 'combi', 'sudoku', 'move']
 
 // Index in `pu.centerlist` of cells clear of the board's edges.
 const CELL = 12
 const OTHER_CELL = 18
 
-// Runs in the page. A 6x6 board with no tab set, so its solve link offers every mode.
-function newBoardSolveLinkInPage () {
-  document.getElementById('nb_size1').value = 6
-  document.getElementById('nb_size2').value = 6
-  create_newboard()
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
+// With no query, a new board's link, which has no Tab set and so offers every mode.
+const openSolve = async (query) => openSolvePage(browser(), query ?? await newBoardSolveLink(browser()))
 
-let fullLink
-async function openSolve (query) {
-  fullLink ??= await linkFromNewBoard(browser(), newBoardSolveLinkInPage)
-  const opened = await openPenpa(browser(), query ?? fullLink, { solve: true, contextOptions: DESK_SIZE })
-  await opened.page.getByRole('region', { name: 'Board' }).waitFor()
-  await opened.page.evaluate(() => engine.ready)
-  return opened
-}
-
-// Runs in the page. Where the cell at `index` of the center list lies on the screen.
-function cellPositionInPage (index) {
-  const canvas = [...document.querySelectorAll('canvas')].find((c) => c.getBoundingClientRect().width > 0)
-  const rect = canvas.getBoundingClientRect()
-  const point = pu.point[pu.centerlist[index]]
-  return { x: rect.left + point.x, y: rect.top + point.y }
-}
-
-async function clickCell (page, index) {
-  const { x, y } = await page.evaluate(cellPositionInPage, index)
-  await page.mouse.click(x, y)
-}
-
-// What the solver has shaded: cell index -> the style Penpa saved.
+// What the solver has shaded: cell index -> the style Penpa+ saved.
 const shaded = (page) => page.evaluate(() => Object.fromEntries(Object.entries(readEngineState().pu_a.surface).map(([cell, style]) => [cell, style])))
 
 const tools = (page) => page.evaluate(() => engine.listTools())
-const currentTool = (page) => page.evaluate(() => engine.getTool())
-const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
 
 describe('engine.listTools', () => {
   let opened
@@ -77,19 +46,19 @@ describe('engine.listTools', () => {
     assert.deepEqual(list.find((t) => t.mode === 'surface').submode, null)
   })
 
-  it('gives each tool a name, Penpa\'s labels and its styles with a display name', async () => {
+  it('gives each tool a name, Penpa+\'s labels and its styles with a display name', async () => {
     const list = await tools(opened.page)
     for (const t of list) {
       assert.equal(typeof t.name, 'string', `${t.mode}/${t.submode} has a name`)
       assert.notEqual(t.name, '', `${t.mode}/${t.submode} has a name`)
-      assert.ok(Array.isArray(t.labels) && t.labels.length > 0, `${t.mode}/${t.submode} has Penpa labels`)
+      assert.ok(Array.isArray(t.labels) && t.labels.length > 0, `${t.mode}/${t.submode} has Penpa+ labels`)
       for (const s of t.styles) assert.ok(Number.isInteger(s.style) && s.name, `${t.mode}/${t.submode} style ${JSON.stringify(s)}`)
     }
     const surface = list.find((t) => t.mode === 'surface')
     assert.deepEqual(surface.styles.find((s) => s.style === 2).name, 'green')
     assert.match(surface.styles.find((s) => s.style === 2).swatch, /^rgb\(/)
     const blpo = list.find((t) => t.submode === 'blpo')
-    assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa\'s label')
+    assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa+\'s label')
     assert.deepEqual(list.find((t) => t.submode === 'akari').styles, [], 'Akari has no style')
   })
 })
@@ -124,7 +93,7 @@ describe('engine.setTool and engine.getTool', () => {
     }
   })
 
-  it('keeps Penpa\'s remembered sub-mode and style for a part it is not given', async () => {
+  it('keeps Penpa+\'s remembered sub-mode and style for a part it is not given', async () => {
     await setTool(opened.page, { mode: 'number', submode: '6', style: 8 })
     await setTool(opened.page, { mode: 'line' })
     await setTool(opened.page, { mode: 'number' })
@@ -179,7 +148,7 @@ describe('the Mode card', () => {
     await opened.page.keyboard.press('Escape')
   })
 
-  it('finds a tool by the name Penpa gives it', async () => {
+  it('finds a tool by the name Penpa+ gives it', async () => {
     await combobox().click()
     await combobox().fill('Black / dot')
     assert.equal(await options().count(), 1)

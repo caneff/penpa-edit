@@ -1,15 +1,16 @@
 // The Settings dialog of `solve.html` (#100): `engine.getSettings` / `setSetting` over the fixed list, the dialog's four
 // groups, every change saved at once, conflict detection off for one puzzle only, Clear saved progress, and the keys.
-// The UI is found by role and accessible name, the board by what Penpa would save (`readEngineState`, defined by
+// The UI is found by role and accessible name, the board by what Penpa+ would save (`readEngineState`, defined by
 // recorder.js); the keys and clicks are real. Settings live in cookies, so every page is served over `https://penpa.test/`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
-import { AKARI_SOLVE, makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
+import { after, before, describe, it } from 'node:test'
+import {
+  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser, waitForDesk
+} from './page.mjs'
+import { cellPixel, clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
-
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
 
 // Index in `pu.centerlist` of a cell clear of the board's edges.
 const CELL = 12
@@ -38,16 +39,7 @@ const CONTROLS = [
 ]
 
 // Opens `solve.html` on `query` in a context of its own, served so that cookies work, and returns once the desk is built.
-async function openSolve (query = AKARI_SOLVE, options = {}) {
-  const opened = await openPenpa(browser(), query, { solve: true, served: true, contextOptions: DESK_SIZE, ...options })
-  await waitForDesk(opened.page)
-  return opened
-}
-
-async function waitForDesk (page) {
-  await page.getByRole('region', { name: 'Board' }).waitFor()
-  await page.evaluate(() => engine.ready)
-}
+const openSolve = (query = AKARI_SOLVE, options = {}) => openSolvePage(browser(), query, { served: true, ...options })
 
 // A page that asks "leave this page?" (the reload protection setting) is left as a visitor who says yes leaves it.
 function acceptLeaving (page) {
@@ -103,21 +95,6 @@ async function useControl (page, group, control) {
   }
 }
 
-// Runs in the page. Where the cell at `index` of the center list lies on the screen.
-function cellPositionInPage (index) {
-  const canvas = [...document.querySelectorAll('canvas')].find((c) => c.getBoundingClientRect().width > 0)
-  const rect = canvas.getBoundingClientRect()
-  const point = pu.point[pu.centerlist[index]]
-  return { x: rect.left + point.x, y: rect.top + point.y }
-}
-
-async function clickCell (page, index) {
-  const { x, y } = await page.evaluate(cellPositionInPage, index)
-  await page.mouse.click(x, y)
-}
-
-const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
-
 // Types `digit` into the cell at `index` in Number mode, as a visitor does, and waits until it is on the board.
 async function typeDigit (page, index, digit) {
   await setTool(page, { mode: 'number', submode: '1' })
@@ -126,23 +103,12 @@ async function typeDigit (page, index, digit) {
   assert.deepEqual(await settle(() => typedDigits(page), [digit]), [digit], 'the digit is on the board')
 }
 
-// Runs Penpa's own save, as it does on leaving the page. Its storage write is issued, not awaited, but a later read of
+// Runs Penpa+'s own save, as it does on leaving the page. Its storage write is issued, not awaited, but a later read of
 // the same store waits for it.
 const savePenpa = (page) => page.evaluate(() => PenpaProgress.save())
 
-// The progress Penpa holds for the open puzzle, or null for none.
+// The progress Penpa+ holds for the open puzzle, or null for none.
 const storedProgress = (page) => page.evaluate(() => localforage.getItem(PenpaProgress.getHash(pu.url)))
-
-// What the solver has entered, the selection and the mode: what a key could change on the board.
-const board = (page) => page.evaluate(() => {
-  const state = readEngineState()
-  // The undo and replay logs carry the time between keys, which differs between runs.
-  const { command_undo: undo, command_redo: redo, command_replay: replay, ...entered } = state.pu_a
-  return { entered, selection: state.selection, mode: state.mode }
-})
-
-// The digits the solver has typed into Number mode cells.
-const typedDigits = async (page) => Object.values((await board(page)).entered.number ?? {}).map(([digit]) => digit)
 
 describe('engine.getSettings and engine.setSetting', () => {
   it('lists the fixed settings and the theme, and no other', async () => {
@@ -167,7 +133,7 @@ describe('engine.getSettings and engine.setSetting', () => {
         }
       }, [name, value])
       assert.match(await failure('no_such_setting', true), /^RangeError: .*no_such_setting/)
-      assert.match(await failure('color_theme', 2), /^RangeError/, 'a Penpa setting outside the list is unknown')
+      assert.match(await failure('color_theme', 2), /^RangeError/, 'a Penpa+ setting outside the list is unknown')
       assert.match(await failure('outline_text', 1), /^TypeError: .*outline_text/)
       assert.match(await failure('sudoku_centre_size', 9), /^RangeError: .*sudoku_centre_size/)
       assert.match(await failure('sudoku_centre_size', '2'), /^RangeError/)
@@ -196,11 +162,11 @@ describe('engine.getSettings and engine.setSetting', () => {
 })
 
 describe('the Settings dialog', () => {
-  it('shows the four groups', async () => {
+  it('shows the four groups of Penpa+ settings and the desk\'s own', async () => {
     const { context, page } = await openSolve()
     try {
       const dialog = await openDialog(page)
-      for (const group of ['Board look', 'Checking', 'Progress', 'Keys']) {
+      for (const group of ['Board look', 'Checking', 'Progress', 'Keys', 'Desk']) {
         assert.equal(await dialog.getByRole('group', { name: group }).isVisible(), true, `${group} is a group`)
       }
     } finally {
@@ -264,9 +230,9 @@ describe('conflict detection off for this puzzle only', () => {
     }
   })
 
-  // Penpa's history copy rewrites the link's `#` part on every save, so a key read off the link names another puzzle
-  // after the reload. The fix needs the bridge to name the puzzle by its data.
-  it('is off again after a reload of a link the history copy rewrote', { todo: '#90 P1: needs a puzzle id from engine' }, async () => {
+  // Penpa+'s history copy rewrites the link's `#` part on every save, with the solver's progress in it; the setting is the
+  // puzzle's, so it holds across it.
+  it('is off again after a reload of a link the history copy rewrote', async () => {
     const { context, page } = await openSolve(AKARI_SOLVE)
     try {
       const dialog = await openDialog(page)
@@ -315,7 +281,7 @@ describe('Clear saved progress', () => {
       await page.keyboard.press('7')
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit is on the board')
 
-      // Penpa saves on unload, and a reload can cut that write short: save now and wait until it is stored.
+      // Penpa+ saves on unload, and a reload can cut that write short: save now and wait until it is stored.
       await page.evaluate(() => PenpaProgress.save())
       const stored = () => page.evaluate(async () => Boolean(await localforage.getItem(PenpaProgress.getHash(pu.url))))
       assert.equal(await settle(stored, true), true, 'the progress is stored before the reload')
@@ -473,6 +439,273 @@ describe('the keys', () => {
       await closeDialog(page)
       await page.keyboard.press('z')
       assert.equal(await settle(modeNow, firstPin.mode), firstPin.mode, 'Z jumps to the first pin with shortcuts on')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+// Runs in the page. A 4x4 board's solve link `#` part, built for one setting's effect to show:
+// - `sudoku`: a classic sudoku, conflict checked, with two given 1s in its top row, a given 2 in its bottom right cell and
+//   an author's answer, which Penpa+ needs before it checks for conflicts;
+// - `colour`: a given shaded cell in a custom colour of its own;
+// - `lineAnswer`: an author's answer of a green line between the two top-left cells, checked as a loop line.
+function settingBoardInPage ({ sudoku, colour, lineAnswer }) {
+  document.getElementById('nb_size1').value = 4
+  document.getElementById('nb_size2').value = 4
+  create_newboard()
+  const cell = (x, y) => pu.centerlist[y * 4 + x]
+  const solveLink = (checked) => {
+    for (const box of [...document.getElementsByClassName('solcheck'), ...document.getElementsByClassName('solcheck_or')]) box.checked = false
+    document.getElementById(checked).checked = true
+    return pu.maketext_solve_solution()
+  }
+  let url = null
+  if (sudoku) {
+    set_genre_tags(['classic'])
+    for (const [x, y, value] of [[0, 0, 1], [2, 0, 1], [3, 3, 2]]) pu.pu_q.number[cell(x, y)] = [String(value), 1, '1']
+    pu.pu_a.number[cell(1, 1)] = ['3', 2, '1']
+    url = solveLink('sol_number')
+  } else if (colour) {
+    pu.pu_q.surface[cell(1, 1)] = 1
+    pu.pu_q_col.surface[cell(1, 1)] = 'rgba(255,0,0,1)'
+    UserSettings.custom_colors_on = true
+    url = pu.maketext_solve()
+  } else if (lineAnswer) {
+    pu.pu_a.line[[cell(0, 0), cell(1, 0)].join(',')] = 3
+    url = solveLink('sol_loopline')
+  }
+  return url.slice(url.indexOf('#'))
+}
+
+const settingLinks = new Map()
+const settingLink = (kind) => {
+  if (!settingLinks.has(kind)) settingLinks.set(kind, linkFromNewBoard(browser(), settingBoardInPage, { [kind]: true }))
+  return settingLinks.get(kind)
+}
+
+// The drawn board, as an image's data URL.
+async function boardPicture (page) {
+  const canvas = await page.evaluateHandle(boardCanvasInPage)
+  try {
+    return await canvas.evaluate((c) => c.toDataURL())
+  } finally {
+    await canvas.dispose()
+  }
+}
+
+const setSetting = (page, name, value) => page.evaluate(([n, v]) => engine.setSetting(n, v), [name, value])
+
+// Sets `name` to `to` and back to `from`: the board must look different at `to` and as it was at `from`. The bridge's
+// setters draw before they return, so no wait is needed.
+async function assertRedrawn (page, name, from, to) {
+  await setSetting(page, name, from)
+  const before = await boardPicture(page)
+  await setSetting(page, name, to)
+  assert.notEqual(await boardPicture(page), before, `${name} ${JSON.stringify(to)} changes the board`)
+  await setSetting(page, name, from)
+  assert.equal(await boardPicture(page), before, `${name} ${JSON.stringify(from)} draws it as before`)
+}
+
+// The symbols the solver has placed, by Penpa+'s point number.
+const placedSymbols = (page) => page.evaluate(() => readEngineState().pu_a.symbol)
+
+describe('each Board look and Checking setting, on a board where it applies', () => {
+  describe('on a classic sudoku', () => {
+    let opened
+    before(async () => { opened = await openSolve(await settingLink('sudoku')) })
+    after(async () => { await opened?.context.close() })
+
+    it('sudoku_normal_size moves the digits', async () => {
+      await assertRedrawn(opened.page, 'sudoku_normal_size', 1, 2)
+    })
+
+    it('conflict_detection shows the two given 1s in conflict only while it is on', async () => {
+      await assertRedrawn(opened.page, 'conflict_detection', 1, 3)
+    })
+
+    it('check_pencil_marks marks a corner mark that conflicts with a given', async () => {
+      const { page } = opened
+      // A corner 2 beside the given 2 of the bottom row.
+      await setTool(page, { mode: 'sudoku', submode: '2' })
+      await clickCell(page, 14)
+      await page.keyboard.press('2')
+      await settle(async () => Object.keys((await board(page)).entered.numberS ?? {}).length, 1)
+      await assertRedrawn(page, 'check_pencil_marks', false, true)
+    })
+
+    it('outline_text outlines a given on a shaded cell', async () => {
+      const { page } = opened
+      await setTool(page, { mode: 'surface', submode: null, style: 4 })
+      await clickCell(page, 0)
+      await settle(async () => Object.keys((await board(page)).entered.surface ?? {}).length, 1)
+      await assertRedrawn(page, 'outline_text', false, true)
+    })
+
+    it('sudoku_centre_size sets the size a centre mark is entered at', async () => {
+      const { page } = opened
+      const sizeAt = (index) => page.evaluate((i) => readEngineState().pu_a.number[pu.centerlist[i]]?.[2] ?? null, index)
+      await setTool(page, { mode: 'sudoku', submode: '3' })
+      // Penpa+ keeps a centre mark as a number of size "6", large, or "5", small.
+      await setSetting(page, 'sudoku_centre_size', 2)
+      await clickCell(page, 5)
+      await page.keyboard.press('4')
+      assert.equal(await settle(() => sizeAt(5), '6'), '6', 'Large: a large mark')
+      await setSetting(page, 'sudoku_centre_size', 3)
+      await clickCell(page, 6)
+      await page.keyboard.press('4')
+      assert.equal(await settle(() => sizeAt(6), '5'), '5', 'Small: a small mark')
+    })
+
+    it('secondcolor is the colour a right click paints in Surface', async () => {
+      const { page } = opened
+      const shadeAt = (index) => page.evaluate((i) => readEngineState().pu_a.surface[pu.centerlist[i]] ?? null, index)
+      await setTool(page, { mode: 'surface', submode: null })
+      for (const [colour, index] of [[5, 9], [7, 10]]) {
+        await setSetting(page, 'secondcolor', colour)
+        await clickCell(page, index, { button: 'right' })
+        assert.equal(await settle(() => shadeAt(index), colour), colour, `second colour ${colour}`)
+      }
+    })
+
+    it('starbattle_dots decides whether a right click near a corner puts a dot there', async () => {
+      const { page } = opened
+      await setTool(page, { mode: 'combi', submode: 'star' })
+      // A right click near the bottom-right corner of a cell, inside the cell.
+      const nearCorner = async () => {
+        const centre = await cellPixel(page, 6)
+        const size = await page.evaluate(() => engine.getState().cellSize)
+        return { x: centre.x + size * 0.42, y: centre.y + size * 0.42 }
+      }
+      const rightClickNearCorner = async () => {
+        const before = JSON.stringify(await placedSymbols(page))
+        const { x, y } = await nearCorner()
+        await page.mouse.click(x, y, { button: 'right' })
+        await settle(async () => JSON.stringify(await placedSymbols(page)) !== before, true)
+        const placed = await placedSymbols(page)
+        await page.evaluate(() => engine.undo())
+        return placed
+      }
+      const cellPoint = String(await page.evaluate(() => pu.centerlist[6]))
+      await setSetting(page, 'starbattle_dots', 1)
+      const high = await rightClickNearCorner()
+      assert.deepEqual(Object.entries(high).map(([point, [, shape]]) => [point === cellPoint, shape]), [[false, 'circle_SS']], 'High range: a dot on the corner')
+      await setSetting(page, 'starbattle_dots', 3)
+      const off = await rightClickNearCorner()
+      assert.deepEqual(Object.keys(off), [cellPoint], 'Off: the mark goes in the cell')
+    })
+  })
+
+  it('custom_colors_on draws a given\'s own colour only while it is on', async () => {
+    const { context, page } = await openSolve(await settingLink('colour'))
+    try {
+      assert.equal((await settings(page)).custom_colors_on, true, 'a link with colours of its own turns it on')
+      await assertRedrawn(page, 'custom_colors_on', true, false)
+    } finally {
+      await context.close()
+    }
+  })
+
+  for (const on of [false, true]) {
+    it(`ignore_line_style ${on ? 'on' : 'off'}: a red line ${on ? 'matches' : 'does not match'} the author's green line`, async () => {
+      const { context, page } = await openSolve(await settingLink('lineAnswer'))
+      try {
+        await setSetting(page, 'ignore_line_style', on)
+        await setTool(page, { mode: 'line', submode: '1', style: 8 })
+        const [from, to] = [await cellPixel(page, 0), await cellPixel(page, 1)]
+        await page.mouse.move(from.x, from.y)
+        await page.mouse.down()
+        await page.mouse.move(to.x, to.y, { steps: 5 })
+        await page.mouse.up()
+        await settle(async () => Object.keys((await board(page)).entered.line ?? {}).length, 1)
+        const solved = () => page.evaluate(() => engine.getState().solved)
+        assert.equal(await settle(solved, on), on)
+      } finally {
+        await context.close()
+      }
+    })
+  }
+})
+
+describe('the desk\'s own settings in the dialog', () => {
+  const desk = (dialog) => dialog.getByRole('group', { name: 'Desk' })
+  // The pins, by their unpin buttons' names.
+  const pinNames = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^Unpin / })
+    .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')))
+
+  it('switches the theme, and keeps it for the next visit', async () => {
+    const { context, page } = await openSolve()
+    try {
+      const dialog = await openDialog(page)
+      await desk(dialog).getByRole('combobox', { name: 'Theme' }).click()
+      await page.getByRole('option', { name: 'Dark' }).click()
+      assert.equal(await settle(async () => (await settings(page)).theme, 'dark'), 'dark')
+      await closeDialog(page)
+      await reload(page)
+      assert.equal((await settings(page)).theme, 'dark', 'dark after a reload')
+      assert.equal(await desk(await openDialog(page)).getByRole('combobox', { name: 'Theme' }).inputValue(), 'Dark')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('resets the layout', async () => {
+    const { context, page } = await openSolve()
+    try {
+      const rules = page.getByRole('region', { name: 'Rules' })
+      const start = await rules.boundingBox()
+      const head = await rules.getByRole('heading', { name: 'Rules' }).boundingBox()
+      await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(head.x + head.width / 2 + 120, head.y + head.height / 2 + 70, { steps: 5 })
+      await page.mouse.up()
+      assert.notDeepEqual(await rules.boundingBox(), start, 'the card moved')
+      const dialog = await openDialog(page)
+      await desk(dialog).getByRole('button', { name: 'Reset layout' }).click()
+      assert.deepEqual(await settle(() => rules.boundingBox(), start), start)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('resets the pins to the link\'s Tab set', async () => {
+    const { context, page } = await openSolve()
+    try {
+      assert.equal(await settle(async () => (await pinNames(page)).length > 1, true), true, 'the Tab set seeds two pins or more')
+      const seeded = await pinNames(page)
+      await page.getByRole('button', { name: seeded[0] }).click()
+      assert.deepEqual(await settle(() => pinNames(page), seeded.slice(1)), seeded.slice(1), 'a pin is gone')
+      const dialog = await openDialog(page)
+      await desk(dialog).getByRole('button', { name: 'Reset pins to the link\'s Tab set' }).click()
+      assert.deepEqual(await settle(() => pinNames(page), seeded), seeded)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('deletes a saved preset, which the Pinned card then no longer offers', async () => {
+    const { context, page } = await openSolve()
+    try {
+      const pinned = page.getByRole('region', { name: 'Pinned' })
+      await pinned.getByRole('textbox', { name: 'Preset name' }).fill('Mine')
+      await pinned.getByRole('button', { name: 'Save pins as preset' }).click()
+      const offered = async () => {
+        await pinned.getByRole('combobox', { name: 'Pin presets' }).click()
+        const names = await page.getByRole('option').allInnerTexts()
+        await page.keyboard.press('Escape')
+        await page.getByRole('option').first().waitFor({ state: 'hidden' })
+        return names.includes('Mine')
+      }
+      assert.equal(await offered(), true, 'the saved preset is offered')
+
+      const dialog = await openDialog(page)
+      const deleteButton = desk(dialog).getByRole('button', { name: 'Delete preset' })
+      assert.equal(await deleteButton.isDisabled(), true, 'nothing to delete until one is chosen')
+      await desk(dialog).getByRole('combobox', { name: 'Your presets' }).click()
+      await page.getByRole('option', { name: 'Mine' }).click()
+      await deleteButton.click()
+      await closeDialog(page)
+      assert.equal(await offered(), false, 'the deleted preset is no longer offered')
     } finally {
       await context.close()
     }

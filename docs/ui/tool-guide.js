@@ -1,12 +1,13 @@
 // What each tool is for, in words: the group the Mode card files it under, its picker name and description, and what the
-// mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, checked against Penpa's mouse handlers. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
+// mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, checked against Penpa+'s mouse handlers. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
 (function () {
     'use strict';
 
     // The dash a Mouse row shows for nothing.
     const NOTHING = '—';
 
-    const GROUPS = [
+    // The tool groups the Mode card files tools under, by what they put on the board (GLOSSARY.md).
+    const TOOL_GROUPS = [
         ['shade', 'Shading and colour'],
         ['lines', 'Lines through cells'],
         ['edges', 'Edges and walls'],
@@ -53,29 +54,33 @@
         'cage/2': ['objects', 'Free cage lines', 'Drag cage lines along corners.'],
         'move/1': ['move', 'Move anything', 'Drag a number or shape elsewhere.'],
         'move/2': ['move', 'Move numbers', 'Drag a number elsewhere.'],
-        'move/3': ['move', 'Move shapes', 'Drag a shape elsewhere.'],
-        'combi/blpo': ['shade', 'Shade + dot', 'Left shades a cell, right puts a dot (unshaded).'],
-        'combi/shaka': ['shade', 'Corner triangles + dot', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
-        'combi/linex': ['lines', 'Loop + edge ×', 'Drag a loop through cell centres; right on an edge: ×.'],
-        'combi/lineox': ['lines', 'Loop + cell ○ ×', 'Drag a loop; click a cell: ○, again ×.'],
-        'combi/linedir': ['lines', 'Line + direction marks', 'Drag a line; marks its direction.'],
-        'combi/yajilin': ['lines', 'Shade + loop', 'Click shades a cell, drag draws a loop; right: dot or edge ×.'],
-        'combi/hashi': ['lines', 'Bridges', 'Drag between cells: a bridge, again: double.'],
-        'combi/rassisillai': ['lines', 'Line + cell marks', 'Drag a line through cells; clicks mark cells.'],
-        'combi/edgex': ['edges', 'Edges + ×', 'Drag along grid lines; right on an edge: ×.'],
-        'combi/edgexoi': ['edges', 'Edges + inside / outside', 'Drag along grid lines; click a cell: inside / outside colour.'],
-        'combi/edgesub': ['edges', 'Edges + helper line', 'Drag along grid lines; a second helper line.'],
-        'combi/numfl': ['numbers', 'Numbers by flick', 'Drag from a cell in a direction to enter a number.'],
-        'combi/alfl': ['numbers', 'Letters by flick', 'Drag from a cell in a direction to enter a letter.'],
-        'combi/blwh': ['symbols', 'Black + white circles', 'Left: white ○, again black ●; right: black ●.'],
-        'combi/star': ['symbols', 'Stars + ×', 'Left: star; right: ×; right on a corner: dot.'],
-        'combi/akari': ['symbols', 'Bulbs + dots', 'Left: bulb; right: dot (no bulb); right on an edge: ×.'],
-        'combi/battleship': ['symbols', 'Ship pieces + water', 'Left cycles ship pieces; drag points a ship end; right: water.'],
-        'combi/tents': ['symbols', 'Tents + ×', 'Left: tent; right: ×; drag links a tent to its tree.'],
-        'combi/mines': ['symbols', 'Mines + ×', 'Left: mine; right: ×.'],
-        'combi/doublemines': ['symbols', 'One or two mines + ×', 'Left: 1 mine, again 2; right: ×.'],
-        'combi/magnets': ['symbols', 'Magnet poles + −', 'Places + and − poles.'],
-        'combi/arrowS': ['symbols', 'Arrows in cells', 'Places an arrow in a cell.']
+        'move/3': ['move', 'Move shapes', 'Drag a shape elsewhere.']
+    };
+
+    // Composite sub-mode -> [group, description]. Its picker name is the engine's name for the sub-mode.
+    const COMPOSITE_ENTRIES = {
+        blpo: ['shade', 'Left shades a cell, right puts a dot (unshaded).'],
+        shaka: ['shade', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
+        linex: ['lines', 'Drag a loop through cell centres; right on an edge: ×.'],
+        lineox: ['lines', 'Drag a loop; click a cell: ○, again ×.'],
+        linedir: ['lines', 'Drag a line; marks its direction.'],
+        yajilin: ['lines', 'Click shades a cell, drag draws a loop; right: dot or edge ×.'],
+        hashi: ['lines', 'Drag between cells: a bridge, again: double.'],
+        rassisillai: ['lines', 'Drag a line through cells; clicks mark cells.'],
+        edgex: ['edges', 'Drag along grid lines; right on an edge: ×.'],
+        edgexoi: ['edges', 'Drag along grid lines; click a cell: inside / outside colour.'],
+        edgesub: ['edges', 'Drag along grid lines; a second helper line.'],
+        numfl: ['numbers', 'Drag from a cell in a direction to enter a number.'],
+        alfl: ['numbers', 'Drag from a cell in a direction to enter a letter.'],
+        blwh: ['symbols', 'Left: white ○, again black ●; right: black ●.'],
+        star: ['symbols', 'Left: star; right: ×; right on a corner: dot.'],
+        akari: ['symbols', 'Left: bulb; right: dot (no bulb); right on an edge: ×.'],
+        battleship: ['symbols', 'Left cycles ship pieces; drag points a ship end; right: water.'],
+        tents: ['symbols', 'Left: tent; right: ×; drag links a tent to its tree.'],
+        mines: ['symbols', 'Left: mine; right: ×.'],
+        doublemines: ['symbols', 'Left: 1 mine, again 2; right: ×.'],
+        magnets: ['symbols', 'Places + and − poles.'],
+        arrowS: ['symbols', 'Places an arrow in a cell.']
     };
 
     // One tool's identity, for a lookup: its mode and sub-mode.
@@ -87,6 +92,10 @@
         if (known) {
             return { group: known[0], name: known[1], description: known[2] };
         }
+        const composite = tool.mode === 'combi' && COMPOSITE_ENTRIES[tool.submode];
+        if (composite) {
+            return { group: composite[0], name: tool.submodeName, description: composite[1] };
+        }
         if (tool.mode === 'symbol') {
             const name = capitalised(submodeLabel(tool));
             const description = ON_OFF_SHAPES.includes(tool.submode) ? 'Shape at the cursor; digits switch its parts on and off.'
@@ -97,7 +106,7 @@
     }
 
     // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
-    // `research/mouse-card-wording-2026-11.md`, every row read from Penpa's handlers; a click that cycles reads `A → B → clear`.
+    // `research/mouse-card-wording-2026-11.md`, every row read from Penpa+'s handlers; a click that cycles reads `A → B → clear`.
     const CYCLE_END = 'clear';
     const ERASE = 'starting on it: erase';
     // Rows the number, digit and colour-selection tools share: they select cells, and a digit types into the selection.
@@ -221,7 +230,7 @@
         'move/3': move('a shape')
     };
 
-    // The two row sets of the Shape tools. Which one a shape gets is Penpa's `onoff_symbolmode_list`.
+    // The two row sets of the Shape tools. Which one a shape gets is Penpa+'s `onoff_symbolmode_list`.
     const ON_OFF_SHAPES = ['cross', 'arrow_cross', 'arrow_fourtip', 'arrow_eight', 'arrow_fouredge_B', 'arrow_fouredge_G', 'arrow_fouredge_E',
         'degital_B', 'degital_G', 'degital_E', 'degital_f', 'dice', 'polyomino', 'polyhex'];
     const SHAPE_ROWS = {
@@ -231,7 +240,7 @@
             more: [['Digit', 'add or remove part n of the shape at the cursor']] }
     };
 
-    // Picker names for Shape tools whose Penpa name reads badly (`research/mouse-card-wording-2026-11.md`).
+    // Picker names for Shape tools whose Penpa+ name reads badly (`research/mouse-card-wording-2026-11.md`).
     const SHAPE_NAMES = {
         cross: 'Cross arms', arrow_cross: 'Arrow cross', arrow_Short: 'Arrow, short and fat', arrow_S: 'Arrow, small',
         arrow_eight: 'Arrows, 8-way', arrow_fouredge_B: 'Edge arrows, black', arrow_fouredge_G: 'Edge arrows, grey',
@@ -268,5 +277,5 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel, submodeLabel };
+    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel, submodeLabel };
 })();

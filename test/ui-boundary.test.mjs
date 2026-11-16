@@ -1,4 +1,4 @@
-// The solve UI (docs/ui/) reaches Penpa only through `engine`: no UI file may name Penpa's puzzle object, its settings, its
+// The solve UI (docs/ui/) reaches Penpa+ only through `engine`: no UI file may name Penpa+'s puzzle object, its settings, its
 // timer, its popup library or an element id of its page. A Node check, since only a grep can see a name that does nothing in silence.
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
@@ -12,11 +12,11 @@ const UI_EXTENSIONS = /\.(js|css|html)$/
 // Web Awesome's bundle is not ours to check.
 const VENDOR_DIR = 'vendor'
 
-// Penpa's own names a UI file must not use, as whole words.
+// Penpa+'s own names a UI file must not use, as whole words.
 const INTERNAL_NAMES = ['pu', 'UserSettings', 'sw_timer', 'Swal']
 
-// The element ids Penpa's page marks up.
-export function legacyIds (indexHtml) {
+// The element ids Penpa+'s page marks up.
+function legacyIds (indexHtml) {
   return new Set([...indexHtml.matchAll(/\bid="([^"]+)"/g)].map((m) => m[1]))
 }
 
@@ -24,7 +24,7 @@ const escapeForRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // The forbidden names `text` uses, one `{ line, name }` each. An id counts when used as one: `getElementById`, a
 // `#id` selector, an `id="..."` attribute or `[id=...]`, so a plain word that happens to equal an id is not flagged.
-export function findViolations (text, ids) {
+function findViolations (text, ids) {
   const found = []
   const idUse = new RegExp(`(^|[^\\w&])#(${[...ids].map(escapeForRegExp).join('|')})(?![\\w-])|\\bid\\s*=\\s*["']?(${[...ids].map(escapeForRegExp).join('|')})(?![\\w-])|getElementById\\(`)
   text.split('\n').forEach((lineText, i) => {
@@ -47,7 +47,7 @@ function uiFiles (dir) {
 const ids = legacyIds(readFileSync(join(ROOT, 'docs/index.html'), 'utf8'))
 
 describe('the solve UI files', () => {
-  it('name none of Penpa\'s internals', () => {
+  it('name none of Penpa+\'s internals', () => {
     const files = uiFiles(UI_DIR)
     assert.notEqual(files.length, 0, 'there are UI files to check')
     const violations = files.flatMap((file) =>
@@ -57,7 +57,7 @@ describe('the solve UI files', () => {
 })
 
 describe('the check', () => {
-  it('reads Penpa\'s element ids off index.html', () => {
+  it('reads Penpa+\'s element ids off index.html', () => {
     assert.equal(ids.has('dvique'), true)
     assert.equal(ids.has('saveinfotitle'), true)
   })
@@ -79,7 +79,7 @@ describe('the check', () => {
     })
   }
 
-  it('passes the words that only look like Penpa\'s names', () => {
+  it('passes the words that only look like Penpa+\'s names', () => {
     const text = 'const published = 1 // Swallow, UserSettingsX, input_pu\nel.className = "ui-title"\nconst h = document.createElement("header")'
     assert.deepEqual(findViolations(text, ids), [])
   })

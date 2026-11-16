@@ -3,12 +3,11 @@
 // accessible name or test id; the board's size is what its canvas draws.
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, boardAgainstCard, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, boardAgainstCard, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const VIEWPORT = { width: 1400, height: 900 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 
 const card = (page, name) => page.getByRole('region', { name })
@@ -50,9 +49,8 @@ describe('the desk', () => {
   let opened
   let page
   beforeEach(async () => {
-    opened = await openPenpa(browser(), AKARI_SOLVE, { solve: true, contextOptions: { viewport: VIEWPORT } })
+    opened = await openSolvePage(browser(), AKARI_SOLVE)
     page = opened.page
-    await card(page, 'Board').waitFor()
     await settle(async () => (await boardAgainstCard(page)).inside, true)
   })
   afterEach(async () => { await opened?.context.close() })
@@ -95,10 +93,13 @@ describe('the desk', () => {
     await card(page, 'Rules').waitFor()
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start, 'an entry with a value that is no number')
 
+    const warnings = []
+    page.on('console', (m) => { if (m.type() === 'warning') warnings.push(m.text()) })
     await page.evaluate((k) => localStorage.setItem(k, '{"rules":'), key)
     await page.reload()
     await card(page, 'Rules').waitFor()
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start, 'a value that is no JSON')
+    assert.equal(warnings.some((w) => w.includes(key) && w.includes('unreadable')), true, `the console says the layout was unreadable: ${warnings}`)
   })
 
   it('keeps every card inside the window after it shrinks', async () => {

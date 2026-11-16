@@ -21,6 +21,14 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
+- **Tool**: a mode with one of its sub-modes and, where it has them, one of its styles; what the solver picks and pins.
+- **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board
+  (Shading and colour, Lines through cells, ...). It groups tools, not modes: the tools of Composite or Line sit in
+  several. Not a Mode family, which groups whole modes by how their keys and clicks work.
+- **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle.
+- **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent.
+- **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
+  ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
   generated from them. Not "trace" (Playwright's word) or "script". A failing fuzz run is saved as one, unreviewed and
   with no expected states until its bug is fixed.
@@ -38,7 +46,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Engine driver**: replays a recording's steps as the engine calls their inputs made (`live/replay.mjs`).
 - **UI driver**: replays a recording's steps as real mouse and keyboard input on the page; any checkpoint where it
   differs from the engine driver is a UI bug.
-- **Bridge**: the layer the MVP calls to read and drive Penpa's engine as it stands; replaced by the engine API at the split.
+- **Bridge**: the layer the MVP calls to read and drive Penpa+'s engine as it stands (`docs/js/engine_bridge.js`); replaced
+  by the engine API at the split.
+- **MVP gap**: a bridge behaviour that has to read or patch Penpa+'s internals, marked so in its comment with the reason;
+  the engine API must do it natively at the split.
 - **Engine API**: the calls and events the solve UI uses to read and drive the engine. It starts as the Bridge's
   interface; the split re-implements it over the engine's own code. Not a second interface the UI is ported to.
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by

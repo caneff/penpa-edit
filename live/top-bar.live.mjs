@@ -1,15 +1,14 @@
 // The top bar of `solve.html` (#94): undo, redo, Restart, Pause, the timer and the light/dark toggle. The UI is found by role
-// and accessible name and the state by `engine.getState()`; what the solver has entered is read as Penpa would save it
+// and accessible name and the state by `engine.getState()`; what the solver has entered is read as Penpa+ would save it
 // (`readEngineState`, defined by recorder.js); the keys and clicks are real.
 import assert from 'node:assert/strict'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, it } from 'node:test'
-import { ANSWER_CELL, makeNumberSolveLink, openPenpa, useBrowser } from './page.mjs'
+import { ANSWER_CELL, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser } from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
-
-const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
 
 // Index in `pu.centerlist` of a cell clear of the board's edges.
 const CELL = 12
@@ -20,29 +19,11 @@ const HOLD_WATCH_MS = 1500
 let numberLink
 async function openSolve () {
   numberLink ??= await makeNumberSolveLink(browser())
-  const opened = await openPenpa(browser(), numberLink, { solve: true, contextOptions: DESK_SIZE })
-  await opened.page.getByRole('region', { name: 'Board' }).waitFor()
-  await opened.page.evaluate(() => engine.ready)
+  const opened = await openSolvePage(browser(), numberLink)
   // The Number tool takes a digit in a selected cell.
-  await opened.page.evaluate(() => engine.setTool({ mode: 'number', submode: '1' }))
+  await setTool(opened.page, { mode: 'number', submode: '1' })
   return opened
 }
-
-// Runs in the page. Where the cell at `index` of the center list lies on the screen.
-function cellPositionInPage (index) {
-  const canvas = [...document.querySelectorAll('canvas')].find((c) => c.getBoundingClientRect().width > 0)
-  const rect = canvas.getBoundingClientRect()
-  const point = pu.point[pu.centerlist[index]]
-  return { x: rect.left + point.x, y: rect.top + point.y }
-}
-
-async function clickCell (page, index) {
-  const { x, y } = await page.evaluate(cellPositionInPage, index)
-  await page.mouse.click(x, y)
-}
-
-// The digits the solver has entered, in cell order.
-const typedDigits = (page) => page.evaluate(() => Object.values(readEngineState().pu_a.number ?? {}).map(([digit]) => digit))
 
 const canUndo = (page) => page.evaluate(() => engine.getState().canUndo)
 const canRedo = (page) => page.evaluate(() => engine.getState().canRedo)

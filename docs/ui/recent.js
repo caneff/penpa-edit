@@ -1,22 +1,16 @@
 // The Recent card: the last five tools the solver used, newest first, as pin chips without number or ×. Kept for this visit
-// only, and outside the Tab cycle. Reaches Penpa only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// only, and outside the Tab cycle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
     const { chipLabel, toolKey } = window.toolGuide;
+    const { el, onDeskReady } = window.uiKit;
 
     const MAX_ENTRIES = 5;
     // A button the mouse reaches and Tab does not.
     const OUT_OF_TAB_ORDER = { tabindex: '-1' };
 
-    function el(tag, attrs = {}, children = []) {
-        const node = document.createElement(tag);
-        Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
-        node.append(...children);
-        return node;
-    }
-
-    window.deskReady.then(({ cards }) => {
+    onDeskReady(({ cards }) => {
         const tools = engine.listTools();
         const toolOf = (entry) => tools.find((t) => toolKey(t) === toolKey(entry));
 
@@ -61,5 +55,4 @@
         render();
         engine.on('change', render);
     });
-    window.deskReady.catch(() => {});
 })();
