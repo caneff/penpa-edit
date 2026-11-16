@@ -64,7 +64,7 @@ async function clickCell (page, index) {
 // The characters the solver has typed into Number mode cells.
 const typed = (page) => page.evaluate(() => Object.values(readEngineState().pu_a.number ?? {}).map(([text]) => text))
 
-const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current)/ })
+const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as preset)/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
 
 // What the page keeps in localStorage, whatever the UI calls its keys.
