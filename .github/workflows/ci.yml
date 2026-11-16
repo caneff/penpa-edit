@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      # AGENTS.md: a file we own may be marked merge=ours in .gitattributes, and git has no built-in driver of that name.
-      - run: git config merge.ours.driver true
       # The live tests that open Penpa+ as upstream ships it read the upstream/master ref.
       - run: git fetch --no-tags --depth=1 https://github.com/swaroopg92/penpa-edit.git master:refs/remotes/upstream/master
       - uses: ./.github/actions/setup-tests

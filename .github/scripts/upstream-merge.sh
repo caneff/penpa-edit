@@ -14,9 +14,6 @@ if git merge-base --is-ancestor "$upstream" HEAD; then
   exit 0
 fi
 
-# Git has no built-in `ours` driver; without this a merge=ours file both sides changed is text-merged.
-git config merge.ours.driver true
-
 # Every file an upstream commit touched, not the net diff, so a change upstream later undid is still reported.
 # Attributes come from our working tree: a file is ours by our .gitattributes.
 touched=$(git -c core.quotePath=false log --format= --name-only "HEAD..$upstream" | sed '/^$/d' | sort -u)
@@ -44,7 +41,9 @@ EOF
   printf '%s\n\n' "$owned_section" >>"$report"
 fi
 
-if ! git merge --no-ff --no-commit "$upstream"; then
+# Git has no built-in `ours` driver; this merge alone names one, so a merge=ours file both sides changed keeps our side.
+# It is never written to a config: every other merge in a clone must text-merge or conflict (#117).
+if ! git -c merge.ours.driver=true merge --no-ff --no-commit "$upstream"; then
   conflicted=$(git diff --name-only --diff-filter=U)
   if [[ -n $conflicted ]]; then
     printf '## The merge conflicted\n\n%s\n' "$(sed 's/.*/- `&`/' <<<"$conflicted")" >>"$report"
