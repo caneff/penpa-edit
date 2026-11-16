@@ -137,12 +137,12 @@ describe('the engine', () => {
       engine.setCellSize(40)
       const big = canvas.getBoundingClientRect().width
       const fitted = engine.fitBoard(300, 300)
-      return { small, big, fitted, fits: canvas.getBoundingClientRect().width <= 300 }
+      return { small, big, fitted, max: engine.CELL_SIZE_RANGE.max, fits: canvas.getBoundingClientRect().width <= 300 }
     })
     await boardCanvas.dispose()
     assert.ok(sizes.big > sizes.small * 1.5, `setCellSize 40 draws a bigger board than 20 (${sizes.small} -> ${sizes.big})`)
     assert.equal(sizes.fits, true)
-    assert.ok(Number.isInteger(sizes.fitted) && sizes.fitted >= 12 && sizes.fitted <= 90)
+    assert.ok(Number.isInteger(sizes.fitted) && sizes.fitted >= 12 && sizes.fitted <= sizes.max)
   })
   it('reports the tool, the cell size and whether the board is solved in getState', async () => {
     const state = await opened.page.evaluate(async () => {
