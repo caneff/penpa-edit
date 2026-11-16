@@ -14,6 +14,7 @@ const FILE_ISSUE_SCRIPT = script('file-issue-once.sh')
 const FILE_TRIAGE_SCRIPT = script('file-upstream-triage.sh')
 const FAILING_TESTS_SCRIPT = script('failing-tests.sh')
 const UPSTREAM = 'upstream-master'
+const SEP = '\x1f'
 
 // No global or system git config, so a merge driver configured on this box cannot help the script.
 const GIT_ENV = {
@@ -183,8 +184,8 @@ describe('the upstream merge script', () => {
     const { status, stderr, ownedCommits } = runMerge(dir)
     assert.equal(status, 0, stderr)
     assert.deepEqual(ownedCommits.trim().split('\n').sort(), [
-      `${theirsTips[0]}\tupstream change 1\tui.js`,
-      `${theirsTips[2]}\tupstream change 3\tui.js`
+      `${theirsTips[0]}${SEP}upstream change 1${SEP}ui.js`,
+      `${theirsTips[2]}${SEP}upstream change 3${SEP}ui.js`
     ].sort())
   })
 
@@ -203,16 +204,16 @@ describe('the upstream merge script', () => {
     })
     const { status, ownedCommits } = runMerge(dir)
     assert.notEqual(status, 0)
-    assert.equal(ownedCommits, `${theirsTip}\tupstream change\tui.js\n`)
+    assert.equal(ownedCommits, `${theirsTip}${SEP}upstream change${SEP}ui.js\n`)
   })
 })
 
-// A stub `gh` on PATH answers `issue list` with `openIssues` ("<number>\t<title>" lines), or fails it when `listFails`.
-function stubGh ({ openIssues = '', listFails = false }) {
+// A stub `gh` on PATH prints `listOutput` for `issue list`, whatever its flags, or fails it when `listFails`.
+function stubGh ({ listOutput = '', listFails = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'stub-gh-'))
   const log = join(dir, 'calls.jsonl')
   writeFileSync(log, '')
-  writeFileSync(join(dir, 'open-issues'), openIssues)
+  writeFileSync(join(dir, 'open-issues'), listOutput)
   writeFileSync(join(dir, 'gh'), `#!/usr/bin/env bash
 node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)) + "\\n")' -- "$@" >>"${log}"
 if [[ $1 == issue && $2 == list ]]; then ${listFails ? 'exit 1' : `cat "${join(dir, 'open-issues')}"`}; fi
@@ -235,13 +236,13 @@ const BODY = 'The merge conflicted in `a.js`.'
 
 describe('file-issue-once', () => {
   it('files a bug, needs-info issue when none with the title is open', () => {
-    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n` })
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listOutput: `7\t${TITLE} again\n` })
     assert.equal(status, 0, stderr)
     assert.deepEqual(writes, [['issue', 'create', '--repo', 'owner/repo', '--label', 'bug,needs-info', '--title', TITLE, '--body', BODY]])
   })
 
   it('comments on the open issue with exactly the title instead of filing another', () => {
-    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n42\t${TITLE}\n` })
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listOutput: `7\t${TITLE} again\n42\t${TITLE}\n` })
     assert.equal(status, 0, stderr)
     assert.deepEqual(writes, [['issue', 'comment', '42', '--repo', 'owner/repo', '--body', BODY]])
   })
@@ -268,7 +269,7 @@ function runFileTriage ({ lines, ...stub }) {
 describe('file-upstream-triage', () => {
   it('files one needs-triage issue per upstream commit, naming the commit, its subject and the owned files', () => {
     const { status, stderr, writes } = runFileTriage({
-      lines: [`${SHA_A}\tFix the grid\tdocs/js/class_p.js`, `${SHA_B}\tAdd a button\tdocs/js/class_p.js,docs/index.html`]
+      lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`, `${SHA_B}${SEP}Add a button${SEP}docs/js/class_p.js,docs/index.html`]
     })
     assert.equal(status, 0, stderr)
     assert.equal(writes.length, 2)
@@ -285,22 +286,47 @@ describe('file-upstream-triage', () => {
 
   it('files nothing for a commit whose title is already on an issue of any state, but files the others', () => {
     const { status, stderr, lists, writes } = runFileTriage({
-      lines: [`${SHA_A}\tFix the grid\tdocs/js/class_p.js`, `${SHA_B}\tAdd a button\tdocs/js/class_p.js`],
-      openIssues: `9\tUpstream ${SHA_A.slice(0, 10)}: Fix the grid\n`
+      lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`, `${SHA_B}${SEP}Add a button${SEP}docs/js/class_p.js`],
+      listOutput: `Upstream ${SHA_A.slice(0, 10)}: Fix the grid\n`
     })
     assert.equal(status, 0, stderr)
-    assert.equal(lists.length, 1)
-    assert.equal(lists[0][lists[0].indexOf('--state') + 1], 'all')
+    const flagValue = (call, flag) => call[call.indexOf(flag) + 1]
+    assert.deepEqual(lists.map((call) => flagValue(call, '--search')), [`${SHA_A.slice(0, 10)} in:title`, `${SHA_B.slice(0, 10)} in:title`])
+    assert.ok(lists.every((call) => flagValue(call, '--state') === 'all'), 'a closed issue must count as filed')
     assert.deepEqual(writes.map((call) => call[7]), [`Upstream ${SHA_B.slice(0, 10)}: Add a button`])
+  })
+
+  it('caps a long subject so the title stays under GitHub\'s 256 characters, and still finds it by its sha', () => {
+    const { status, stderr, writes } = runFileTriage({ lines: [`${SHA_A}${SEP}${'x'.repeat(379)}${SEP}docs/js/class_p.js`] })
+    assert.equal(status, 0, stderr)
+    assert.ok(writes[0][7].length <= 256, `title is ${writes[0][7].length} characters`)
+    assert.ok(writes[0][7].startsWith(`Upstream ${SHA_A.slice(0, 10)}: xxx`))
+  })
+
+  it('keeps the owned files of a commit with an empty subject', () => {
+    const { status, stderr, writes } = runFileTriage({ lines: [`${SHA_A}${SEP}${SEP}docs/js/class_p.js`] })
+    assert.equal(status, 0, stderr)
+    assert.equal(writes[0][7], `Upstream ${SHA_A.slice(0, 10)}: `)
+    assert.match(writes[0][9], /^- `docs\/js\/class_p\.js`$/m)
   })
 
   it('files nothing for an empty list, and fails with no write when the issues cannot be listed', () => {
     const empty = runFileTriage({ lines: [] })
     assert.equal(empty.status, 0, empty.stderr)
+    assert.deepEqual(empty.lists, [])
     assert.deepEqual(empty.writes, [])
-    const blind = runFileTriage({ lines: [`${SHA_A}\tFix the grid\tdocs/js/class_p.js`], listFails: true })
+    const blind = runFileTriage({ lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`], listFails: true })
     assert.notEqual(blind.status, 0)
     assert.deepEqual(blind.writes, [])
+  })
+})
+
+describe('the upstream-merge workflow', () => {
+  const workflow = readFileSync(fileURLToPath(new URL('../.github/workflows/upstream-merge.yml', import.meta.url)), 'utf8')
+
+  it('hands the merge script the owned-commit file and runs the triage script on it, whether or not the merge succeeded', () => {
+    assert.match(workflow, /upstream-merge\.sh upstream\/master "\$REPORT" "\$OWNED_COMMITS"/)
+    assert.match(workflow, /- if: \$\{\{ !cancelled\(\) \}\}\n\s+name: File a triage issue[^\n]*\n(?:\s+[^\n]*\n)*?\s+run: bash \.github\/scripts\/file-upstream-triage\.sh "\$OWNED_COMMITS"/)
   })
 })
 

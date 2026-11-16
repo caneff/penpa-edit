@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # A failed merge exits non-zero with no merge left in progress; the report says whether it conflicted.
-# <owned-commits-file> gets one line per upstream commit that touched a merge=ours file: sha, subject and those files, tab-separated.
+# <owned-commits-file> gets one line per upstream commit that touched a merge=ours file: sha, subject and those files (comma-separated), split by the ASCII unit separator: `read` collapses tabs, so an empty subject would vanish.
 # Usage: upstream-merge.sh <upstream-ref> <report-file> <owned-commits-file>
 set -euo pipefail
 upstream=$1
@@ -27,19 +27,21 @@ fi
 owned_section=
 if [[ -n $owned ]]; then
   mapfile -t owned_files <<<"$owned"
+  owned_lines=
+  while IFS=$'\x1f' read -r sha subject; do
+    files=$(git diff-tree --no-commit-id --name-only -r -z "$sha" -- "${owned_files[@]}" | tr '\0' ',' | sed 's/,$//')
+    printf '%s\x1f%s\x1f%s\n' "$sha" "$subject" "$files" >>"$owned_commits"
+    owned_lines+="- ${sha:0:12} $subject"$'\n'
+  done < <(git log --full-history --no-merges --format='%H%x1f%s' "HEAD..$upstream" -- "${owned_files[@]}")
   owned_section=$(cat <<EOF
 ## Upstream commits that touched a file we own (merge=ours)
 
 Our side of each file was kept: port each change by hand or drop it.
 
-$(git log --full-history --no-merges --format='- %h %s' "HEAD..$upstream" -- "${owned_files[@]}")
+${owned_lines%$'\n'}
 EOF
 )
   printf '%s\n\n' "$owned_section" >>"$report"
-  while read -r sha subject; do
-    files=$(git diff-tree --no-commit-id --name-only -r -z "$sha" -- "${owned_files[@]}" | tr '\0' ',' | sed 's/,$//')
-    printf '%s\t%s\t%s\n' "$sha" "$subject" "$files" >>"$owned_commits"
-  done < <(git log --full-history --no-merges --format='%H %s' "HEAD..$upstream" -- "${owned_files[@]}")
 fi
 
 if ! git merge --no-ff --no-commit "$upstream"; then

@@ -3,7 +3,7 @@ name: Upstream merge
 # Merges upstream Penpa+ into master with a merge commit and pushes only when both test suites pass on the merged
 # tree; master:/docs is what Pages serves, so the push publishes. A conflict, a red run or a refused push pushes
 # nothing and files one issue, or comments on it while it is open. Each upstream commit that touched a file we own
-# (merge=ours) gets one needs-triage issue, filed before the tests so a refused push still leaves it.
+# (merge=ours) gets one needs-triage issue, filed before the tests, and even when the merge conflicts.
 on:
   schedule:
     - cron: '17 5 * * *'
@@ -38,7 +38,9 @@ jobs:
         name: Merge upstream/master
         shell: bash
         run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT" "$OWNED_COMMITS"
-      - if: steps.merge.outputs.merged == 'true'
+      # Also after a conflicted merge: once someone merges it by hand, those commits are no longer upstream-only, so a
+      # later night would never list them.
+      - if: ${{ !cancelled() }}
         name: File a triage issue per upstream commit to an owned file
         shell: bash
         env:
