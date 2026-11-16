@@ -79,8 +79,8 @@ function penPixelInPage ({ mode, style, cell }) {
   return [data[0], data[1], data[2]]
 }
 
-// A swatch is `#rrggbb` (a canvas's own spelling of a pen colour) or `rgb(r, g, b)` (a label's computed background).
-const rgbOf = (swatch) => swatch.startsWith('#') ? swatch.slice(1).match(/../g).map((h) => parseInt(h, 16)) : swatch.match(/\d+/g).slice(0, 3).map(Number)
+// A pen swatch is `#rrggbb`, a canvas's own spelling of a colour.
+const rgbOf = (swatch) => swatch.slice(1).match(/../g).map((h) => parseInt(h, 16))
 
 describe('the pen styles of line, edge line and wall (#158)', () => {
   let opened
@@ -102,17 +102,19 @@ describe('the pen styles of line, edge line and wall (#158)', () => {
     })
   }
 
-  it('shows each as a colour chip with the colour as its accessible name, not as text', async () => {
-    await opened.page.evaluate(() => engine.setTool({ mode: 'line', submode: '2', style: 3 }))
-    const group = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
-    for (const name of COLOUR_PENS) {
-      const button = group.getByRole('button', { name, exact: true })
-      assert.equal(await button.count(), 1, `${name} button`)
-      assert.equal(await button.getAttribute('title'), name)
-      assert.equal(await button.innerText(), '', `${name} shows no text`)
-      assert.equal(await button.locator('svg rect').count(), 1, `${name} shows a colour chip`)
-    }
-  })
+  for (const [mode, submode] of [['line', '2'], ['lineE', '6'], ['wall', null]]) {
+    it(`shows ${mode}'s five colours as colour chips named for the colour, not as text`, async () => {
+      await opened.page.evaluate((t) => engine.setTool(t), { mode, submode, style: 3 })
+      const group = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
+      for (const name of COLOUR_PENS) {
+        const button = group.getByRole('button', { name, exact: true })
+        assert.equal(await button.count(), 1, `${mode} ${name} button`)
+        assert.equal(await button.getAttribute('title'), name)
+        assert.equal(await button.innerText(), '', `${mode} ${name} shows no text`)
+        assert.equal(await button.locator('svg rect').count(), 1, `${mode} ${name} shows a colour chip`)
+      }
+    })
+  }
 })
 
 describe('engine.setTool and engine.getTool', () => {
