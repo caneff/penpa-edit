@@ -139,11 +139,13 @@ function onErrors (page, add) {
   page.on('console', (m) => { if (m.type() === 'error') add(`console.error: ${m.text()}`) })
 }
 
-// Runs in the page: shades the cell at `index` of the center list as its own undo group, through the call a click makes.
-export function shadeInPage (index) {
+// Runs in the page: shades the cell at `cell` (an index of the center list, or `{ index, style }` for Penpa+'s surface style
+// `style`; 1 by default) as its own undo group, through the call a click makes.
+export function shadeInPage (cell) {
+  const { index, style = 1 } = typeof cell === 'number' ? { index: cell } : cell
   pu.mode_set('surface')
   pu.undoredo_counter++
-  pu.set_surface(pu.centerlist[index], 1)
+  pu.set_surface(pu.centerlist[index], style)
   pu.redraw()
 }
 

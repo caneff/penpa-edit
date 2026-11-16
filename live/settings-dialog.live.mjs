@@ -25,7 +25,7 @@ const SETTING_NAMES = [
 const CONTROLS = [
   { name: 'sudoku_centre_size', group: 'Board look', select: 'Sudoku centre marks', choose: 'Large', from: 1, to: 2 },
   { name: 'sudoku_normal_size', group: 'Board look', select: 'Sudoku digits', choose: 'Bottom', from: 1, to: 2 },
-  { name: 'outline_text', group: 'Board look', toggle: 'Outline on text', from: false, to: true },
+  { name: 'outline_text', group: 'Board look', toggle: 'Outline on text', from: true, to: false },
   { name: 'secondcolor', group: 'Board look', select: 'Surface second colour', choose: 'Blue', from: 2, to: 5 },
   { name: 'custom_colors_on', group: 'Board look', toggle: 'Custom colours', from: false, to: true },
   { name: 'conflict_detection', group: 'Checking', select: 'Conflict detection', choose: 'Off for every puzzle', from: 1, to: 3 },
@@ -539,7 +539,7 @@ describe('each Board look and Checking setting, on a board where it applies', ()
       await setTool(page, { mode: 'surface', submode: null, style: 4 })
       await clickCell(page, 0)
       await settle(async () => Object.keys((await board(page)).entered.surface ?? {}).length, 1)
-      await assertRedrawn(page, 'outline_text', false, true)
+      await assertRedrawn(page, 'outline_text', true, false)
     })
 
     it('sudoku_centre_size sets the size a centre mark is entered at', async () => {
