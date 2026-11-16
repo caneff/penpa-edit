@@ -117,3 +117,18 @@ function numberSolveLinkInPage ({ given, answer }) {
 export function makeNumberSolveLink (browser) {
   return linkFromNewBoard(browser, numberSolveLinkInPage, { given: GIVEN_CELL, answer: ANSWER_CELL })
 }
+
+// Runs in the page. The board's canvas in the Board card: the drawn one, since Penpa keeps a hidden pause canvas beside it.
+export function boardCanvasInPage () {
+  const canvases = [...document.querySelectorAll('section[aria-label="Board"] canvas')]
+  return canvases.find((c) => c.getBoundingClientRect().width > 0)
+}
+
+// Reads where the board's canvas lies against the Board card's body, in CSS px.
+export async function boardAgainstCard (page) {
+  return page.evaluate((boardCanvas) => {
+    const card = document.querySelector('section[aria-label="Board"]').getBoundingClientRect()
+    const canvas = new Function(`return (${boardCanvas})()`)().getBoundingClientRect()
+    return { cardW: card.width, cardH: card.height, w: canvas.width, h: canvas.height, inside: canvas.left >= card.left - 1 && canvas.right <= card.right + 1 && canvas.top >= card.top - 1 && canvas.bottom <= card.bottom + 1 }
+  }, boardCanvasInPage.toString())
+}

@@ -65,6 +65,18 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
     text-transform: uppercase;
     color: #6b6656;
 }
+/* A card the solver sized (or that shrank to fit the desk) has a height of its own, which its body then fills and scrolls in. */
+.ui-card.is-sized .ui-body { flex: 1 1 auto; min-height: 0; }
+.ui-card-rules.is-sized .ui-body { max-height: none; }
+.ui-head { cursor: grab; }
+.ui-head wa-button { cursor: pointer; }
+.ui-zoom { order: 2; display: flex; gap: 4px; }
+
+/* The edges a card is resized by: inside the card, over its border. */
+.ui-resize { position: absolute; z-index: 3; }
+.ui-resize-right { top: 0; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
+.ui-resize-bottom { left: 0; right: 14px; bottom: 0; height: 6px; cursor: ns-resize; }
+.ui-resize-corner { right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
 .ui-body { padding: 10px 12px; min-height: 48px; overflow: auto; }
 
 .ui-card-board .ui-body { flex: 1 1 auto; min-height: 0; padding: 8px; display: flex; }
