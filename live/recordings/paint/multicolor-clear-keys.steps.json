@@ -1,0 +1,20 @@
+{"header": {"source":"#m=solve&p=zVPfT6NMFH3nr9jMq5MIRV1K4kN/aWJsP7vW7WcJaaZ0KtiB0QFqM0b/du8MmBaKJvuwyYZyOJw7zNx7e0/6nBNB8QlctoNNbKmrDU+425b6meU1iTJG3R+4k2chF0Aw/u/iAq8ISym+un/s9tedl0Hn/+PTmW3fjVZHj/3x3eNy+tsam9GxMEfMSYY3/S47upSzYdjZ0AE9u0l5EDJKlkTOpldbllw4D+HK6l2FPWdFEjN9dibtTXd8fm54ZSK+4SELYdSC20L+u7x99xDClm+8yl/uq5y7nv+G5d2OOjt6674CjjRaGu81TiCMpa2xr9HUeKrxWq8ZaJxq7Gk80Xim1/xUBxiGZzlFD/Fp8xPSh0xRytk8zcWKBHROtyTIkFt0cj+C3EzkpZTk8YKKyirG+ROLkqYNPkMVMXpIuKCNISXS5cNXW6lQw1YLLpa1nF4IY9VS9IBVpCASAatKmYgq70QI/lJRYpKFFWFBMhjINIyeqjvRpNbLjFRTJGtSOy3etePNQFukb8/GLXyipqrtyjGWl25l7rAcw1gNXXmrpqqYQIzinGVRwBmHI0sNpkd/2AI62NGpjivWK0TLBD4qOdB7oEWn5teFcuN6coKROrurv1YUxXwDyRe5qfeAxwsoz0N7DcI2BNJ8ydd5udRSbuj8WQWwyWcFihYVKNZQgSrs71bQ9t+KP8v8F4y/LT3NxTe23gXrcoO7Qf3G4HvRJv0LL+9F6/qBcVWyh94FtcG+oNYdDNKhiUE88DFoX1hZ7Vp3s8qqbmh11IGn1VH7tvZ84wM=&a=VcKxCQBADELRXX5tdSFkGHH/NawPns07xCyRPyk=","gridtype":"square","genre":[],"recorder":2,"commit":"4bd0c8d","tier":"A"},
+"final": {"pu_a":{"command_redo":[],"command_undo":[["surface",18,null,"pu_a",3,null],["surface",18,"9","pu_a",4,null],["surface",18,"[9,8]","pu_a",5,null],["surface",18,null,"pu_a",6,null],["surface",18,"3","pu_a",7,null],["surface",18,null,"pu_a",8,null]],"command_replay":[["surface",18,9,"pu_a",3,1000],["surface",18,[9,8],"pu_a",4,1000],["surface",18,null,"pu_a",5,1000],["surface",18,3,"pu_a",6,1000],["surface",18,null,"pu_a",7,1000],["surface",18,4,"pu_a",8,1000]],"surface":{"18":4},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"pu_a_col":{"command_redo":[],"command_undo":[["surface",18,null,"pu_a_col",3],["surface",18,null,"pu_a_col",4],["surface",18,null,"pu_a_col",5],["surface",18,null,"pu_a_col",6],["surface",18,null,"pu_a_col",7],["surface",18,null,"pu_a_col",8]],"command_replay":[["surface",18,null,"pu_a_col",3],["surface",18,null,"pu_a_col",4],["surface",18,null,"pu_a_col",5],["surface",18,null,"pu_a_col",6],["surface",18,null,"pu_a_col",7],["surface",18,null,"pu_a_col",8]],"surface":{},"number":{},"numberS":{},"symbol":{},"thermo":[],"arrows":[],"direction":[],"squareframe":[],"polygon":[],"line":{},"lineE":{},"wall":{},"cage":{},"deletelineE":{},"killercages":[],"nobulbthermo":[]},"mode":{"qa":"pu_a","edit_mode":"multicolor","submode":"","style":4,"orientation":null},"selection":[18],"conflict_cells":[],"sol_flag":0},
+"steps": [
+{"kind":"mode","mode":"multicolor","submode":"","style":1},
+{"kind":"pointer","action":"move","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"down","button":"left","ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"pointer","action":"up","button":null,"ctrl":false,"x":38,"y":38,"num":18},
+{"kind":"mode","mode":"multicolor","submode":"","style":9},
+{"kind":"key","call":"key_number","args":[9]},
+{"kind":"mode","mode":"multicolor","submode":"","style":8},
+{"kind":"key","call":"key_number","args":[8]},
+{"kind":"key","call":"key_backspace","args":[]},
+{"kind":"mode","mode":"multicolor","submode":"","style":3},
+{"kind":"key","call":"key_number","args":[3]},
+{"kind":"key","call":"key_space","args":[46,false,false]},
+{"kind":"mode","mode":"multicolor","submode":"","style":4},
+{"kind":"key","call":"key_number","args":[4]},
+{"kind":"key","call":"key_shiftspace","args":[]},
+{"kind":"pointer","action":"out","button":null,"ctrl":false,"x":0,"y":0,"num":0}
+]}

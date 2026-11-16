@@ -50,16 +50,19 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/fuzz.mjs` and `live/puzzlink-cases.mjs`), replays every
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/settle.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs` and `live/puzzlink-cases.mjs`), replays every
   recording under `live/recordings/` on the engine driver against its expected file (one with none fails) and on the UI
   driver against the engine driver (`live/replay.mjs`), and fuzzes a few puzzles with fixed seeds against the solving
-  invariants, saving a failing run as a recording under `live/recordings/fuzz/`. In both commands, a page error or
+  invariants, saving a failing run as a recording under `live/recordings/fuzz/`. It also checks that each plant undoing an
+  audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
   merges upstream nightly and pushes only when both pass on the merged tree.
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
-  Mocha page stays as `npm run test:browser`; it is not part of the seam.
+  Mocha page stays as `npm run test:browser`; it is not part of the seam. Nor is `npm run measure` (`live/measure.mjs`,
+  #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
+  enforces when; its last tables are in `research/safety-net-measure-2026-11.md`.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
 - **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and
   the nightly upstream merge (#3) must run unattended (Chris, 2026-11-09).
