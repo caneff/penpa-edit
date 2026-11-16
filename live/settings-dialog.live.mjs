@@ -279,6 +279,10 @@ describe('Clear saved progress', () => {
       await page.keyboard.press('7')
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit is on the board')
 
+      // Penpa saves on unload, and a reload can cut that write short: save now and wait until it is stored.
+      await page.evaluate(() => PenpaProgress.save())
+      const stored = () => page.evaluate(async () => Boolean(await localforage.getItem(PenpaProgress.getHash(pu.url))))
+      assert.equal(await settle(stored, true), true, 'the progress is stored before the reload')
       await reload(page)
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit came back from the saved progress')
 
