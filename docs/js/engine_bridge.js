@@ -4,11 +4,46 @@
 (function () {
     'use strict';
 
-    // UserSettings.displaysize clamps to these and pops a message up when it does (settings.js), so a call outside throws.
-    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 90 });
+    // UserSettings.displaysize clamps to 12-90 and pops a message up when it does (settings.js). The solve page draws up to
+    // `max`, so a small board can fill a large Board card; a size over PENPA_CELL_SIZE_MAX is written past the setter and never
+    // leaves the page (see exportAtPenpaSize). A call outside the range throws.
+    const PENPA_CELL_SIZE_MAX = 90;
+    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
+
+    // What index.html reads back is a puzzle link, the progress store and the `displaysize` cookie. Each is written as Penpa+
+    // would write it at PENPA_CELL_SIZE_MAX, since index.html clamps a larger size with its max-size message and sizes the
+    // board's canvas from `canvasx / size`.
+    // MVP gap: this assumes every link and the stored progress text come out of Puzzle.__export_text_shared and the cookie out of
+    // UserSettings.attemptSave; a new way out of the page would carry the large size.
+    function exportAtPenpaSize() {
+        const original = Puzzle.prototype.__export_text_shared;
+        Puzzle.prototype.__export_text_shared = function (...args) {
+            const real = { size: this.size, canvasx: this.canvasx, canvasy: this.canvasy };
+            const scale = Math.min(1, PENPA_CELL_SIZE_MAX / real.size);
+            this.size = real.size * scale;
+            this.canvasx = real.canvasx * scale;
+            this.canvasy = real.canvasy * scale;
+            try {
+                return original.apply(this, args);
+            } finally {
+                Object.assign(this, real);
+            }
+        };
+        const originalSave = UserSettings.attemptSave;
+        UserSettings.attemptSave = function (...args) {
+            const real = this._displaysize;
+            this._displaysize = Math.min(real, PENPA_CELL_SIZE_MAX);
+            try {
+                return originalSave.apply(this, args);
+            } finally {
+                this._displaysize = real;
+            }
+        };
+    }
+    exportAtPenpaSize();
 
     // Surface's colours as [style, name], in the order of Penpa+'s palette; `secondcolor` takes the same values.
     const SURFACE_COLOURS = Object.freeze([
@@ -381,6 +416,8 @@
         surface: SURFACE_STYLE, symbol: { 1: 'behind lines', 2: 'in front of lines' },
         cage: { 10: 'dotted line', 7: 'grey line', 15: 'grey dots', 16: 'solid line' }
     };
+    // The modes whose colour styles are pen strokes, so their swatch is the stroke colour of Penpa+'s `set_line_style`.
+    const PEN_BOXES = new Set(['line', 'lineE', 'wall']);
     // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
@@ -438,6 +475,14 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
+    // MVP gap: calls Penpa+'s `set_line_style` on a scratch canvas to read the colour it strokes pen style `style` with.
+    // A legacy label's background is no source: a checked label has a ground of its own, and the greys differ.
+    function penColourOf(style) {
+        const scratch = document.createElement('canvas').getContext('2d');
+        set_line_style(scratch, style);
+        return scratch.strokeStyle;
+    }
+
     function stylesOf(mode, submode) {
         const box = styleBoxOf(mode, submode);
         const container = box && document.getElementById(`style_${box}`);
@@ -450,9 +495,13 @@
                 return [];
             }
             const name = STYLE_NAMES[box]?.[radio.value] ?? `style ${radio.value}`;
+            const style = parseInt(radio.value, 10);
             const background = getComputedStyle(label).backgroundColor;
-            const swatch = COLOUR_STYLE_NAMES.has(name) && background !== 'rgba(0, 0, 0, 0)' ? background : null;
-            return [{ style: parseInt(radio.value, 10), name, swatch }];
+            let swatch = null;
+            if (COLOUR_STYLE_NAMES.has(name)) {
+                swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
+            }
+            return [{ style, name, swatch }];
         });
     }
 
@@ -915,7 +964,14 @@
                 throw new RangeError(`engine.setCellSize: px must be a whole number from ${CELL_SIZE_RANGE.min} to ${CELL_SIZE_RANGE.max}, got ${String(px)}`);
             }
             boardCanvas();
-            UserSettings.displaysize = px;
+            if (px <= PENPA_CELL_SIZE_MAX) {
+                UserSettings.displaysize = px;
+            } else {
+                // MVP gap: the setter clamps with a message, so a larger size is stored in its `_displaysize` and the grid redrawn as
+                // the setter does. The setter's other step, copying the size into the hidden `nb_size3` inputs, is skipped.
+                UserSettings._displaysize = px;
+                redraw_grid();
+            }
         },
 
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.

@@ -25,16 +25,21 @@ const choosePreset = async (page, name) => {
   await page.getByRole('option', { name, exact: true }).click()
 }
 
+// Presses Tab and returns the tool it switched to.
+async function tabToNextTool (page) {
+  const before = toolKeyOf(await currentTool(page))
+  await page.keyboard.press('Tab')
+  await settle(async () => toolKeyOf(await currentTool(page)) !== before, true)
+  return toolKeyOf(await currentTool(page))
+}
+
 // The tools the pins hold, in order: starts on the first pin and Tabs round once.
 async function walkPins (page, count) {
   const keys = []
   await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^1/ }).click()
   keys.push(toolKeyOf(await currentTool(page)))
   for (let i = 1; i < count; i++) {
-    const before = keys[keys.length - 1]
-    await page.keyboard.press('Tab')
-    await settle(async () => toolKeyOf(await currentTool(page)) !== before, true)
-    keys.push(toolKeyOf(await currentTool(page)))
+    keys.push(await tabToNextTool(page))
   }
   return keys
 }
@@ -70,6 +75,44 @@ describe('loading a built-in preset', () => {
         assert.equal(listed.includes(key), true, `${name}: ${key} is a listed tool`)
       }
     }
+  })
+})
+
+// A pick hands the keyboard back to the puzzle (#157): Tab then cycles the newly pinned tools, not the Pinned card's fields.
+describe('after picking a preset', () => {
+  let opened
+  before(async () => { opened = await openSolve(await link(BROAD_TAB_SET)) })
+  after(async () => { await opened?.context.close() })
+
+  const focusInPinnedCard = (page) => page.evaluate(() => document.activeElement?.closest('.ui-card-pins') !== null)
+
+  // Focus is off the Pinned card, the preset's pins are loaded, and Tab lands on one of them.
+  const assertTabCyclesPins = async (page, keys) => {
+    assert.equal(await settle(() => focusInPinnedCard(page), false), false, 'focus left the Pinned card')
+    assert.equal(await settle(() => chipCount(page), keys.length), keys.length)
+    assert.ok(keys.includes(await tabToNextTool(page)), `Tab lands on one of ${keys}`)
+    assert.equal(await focusInPinnedCard(page), false, 'focus is still off the Pinned card after Tab')
+  }
+
+  it('with the mouse, Tab switches to the next pinned tool', async () => {
+    const { page } = opened
+    await choosePreset(page, 'Sudoku')
+    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3'])
+  })
+
+  it('with the keyboard, Tab switches to the next pinned tool', async () => {
+    const { page } = opened
+    await closed(page)
+    await presetPulldown(page).focus()
+    await page.keyboard.press('Enter')
+    const target = 'Sudoku with lines and marks'
+    const highlighted = () => page.evaluate(() => [...document.querySelectorAll('wa-select.ui-presets wa-option')].find((o) => o.current)?.textContent.trim())
+    for (let presses = 0; presses < 12 && (await highlighted()) !== target; presses++) {
+      await page.keyboard.press('ArrowDown')
+    }
+    assert.equal(await highlighted(), target)
+    await page.keyboard.press('Enter')
+    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3', 'line/1', 'line/4'])
   })
 })
 
