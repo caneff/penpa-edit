@@ -9,19 +9,17 @@
 //   of each grid class no import builds. A genre whose smallest import does not record (its solve link does not boot)
 //   takes its next smallest, and the header's `import` names the one taken.
 // The header's `tier` (`A` or `B`) marks a recording as generated.
-import { execFileSync } from 'node:child_process'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { openPenpa } from './page.mjs'
 import { cases, readSnapshot } from './puzzlink-cases.mjs'
 import {
-  ANSWER_CELLS, RECORDINGS, downloadRecording, linkHash, makeSurfaceSolveLink, pointPixel, replay, writeExpected
+  ANSWER_CELLS, RECORDINGS, downloadRecording, engineCommit, linkHash, makeSurfaceSolveLink, pointPixel, replay, writeExpected
 } from './replay.mjs'
 import { settle } from './settle.mjs'
 
-// The engine the goldens come from: master's, which this branch has not changed.
-const COMMIT = execFileSync('git', ['merge-base', 'HEAD', 'origin/master'], { encoding: 'utf8' }).trim().slice(0, 7)
+const COMMIT = engineCommit()
 
 // Indices in `pu.centerlist`, taken modulo its length, of the cells each gesture starts at, none of them tier A's
 // ANSWER_CELLS, so a gesture does not shade the answer whole.
