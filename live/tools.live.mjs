@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, afterChange, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -249,9 +249,12 @@ describe('Number orientation', () => {
     for (const submode of ['1', '7']) {
       await setTool(opened.page, { mode: 'number', submode })
       await settle(() => group().count(), 1)
+      // The card redraws in the frame after a change, and a redraw between focus and key press drops the focus.
+      await afterChange(opened.page)
       await group().getByRole('button', { name: 'up', exact: true }).focus()
       await opened.page.keyboard.press('Enter')
       assert.equal(await settle(orientation, 'U'), 'U')
+      await afterChange(opened.page)
       await group().getByRole('button', { name: 'right', exact: true }).focus()
       await opened.page.keyboard.press('Enter')
       assert.equal(await settle(orientation, 'R'), 'R')
