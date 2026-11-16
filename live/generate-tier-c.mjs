@@ -2,7 +2,8 @@
 // replay. Not a check itself, so `live/**/*.live.mjs` skips it.
 //   node live/generate-tier-c.mjs [<puzzle> ...]
 //     one generated solve per puzzle named (all of TIER_C_PUZZLES when none is), made with RECORDING_SEED, as
-//     `solve/<puzzle>`; the header's `generated` names the puzzle and the seed.
+//     `solve/<puzzle>`, of only KEPT_OPEN_CELLS's count of open cells where it names one; the header's `generated`
+//     names the puzzle, the seed and any such count.
 //   node live/generate-tier-c.mjs --history <name> <file>
 //     a solver's history: the Share > Replay link in `<file>` converted, as `solve/<name>-history`; the header's
 //     `history` is `<name>`.
@@ -12,7 +13,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { RECORDINGS, engineCommit, recordingText, replay, writeExpected } from './replay.mjs'
 import { answerRun, convertReplayLink, generateSolve, RECORDING_SEED, TIER_C_FAMILY } from './tier-c.mjs'
-import { buildPuzzle, TIER_C_PUZZLES } from './tier-c-puzzles.mjs'
+import { buildPuzzle, KEPT_OPEN_CELLS, TIER_C_PUZZLES } from './tier-c-puzzles.mjs'
 
 const removeExpected = (id) => rm(new URL(id + '.expected.json', RECORDINGS), { force: true })
 
@@ -32,7 +33,8 @@ async function write (browser, id, recording) {
 }
 
 async function generated (browser, name) {
-  const puzzle = await buildPuzzle(browser, name)
+  const open = KEPT_OPEN_CELLS[name]
+  const puzzle = await buildPuzzle(browser, name, { open })
   const id = `${TIER_C_FAMILY}/${name}`
   const steps = generateSolve(puzzle, RECORDING_SEED)
   const { failure, final, gridtype, genre } = await answerRun(browser, puzzle, steps)
@@ -40,7 +42,7 @@ async function generated (browser, name) {
     await removeExpected(id)
     return failure
   }
-  const header = { source: puzzle.source, gridtype, genre, commit: engineCommit(), tier: 'C', generated: { puzzle: name, seed: RECORDING_SEED } }
+  const header = { source: puzzle.source, gridtype, genre, commit: engineCommit(), tier: 'C', generated: { puzzle: name, seed: RECORDING_SEED, ...open && { open } } }
   return write(browser, id, { header, final, steps })
 }
 

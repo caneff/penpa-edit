@@ -355,6 +355,26 @@ export function answerLinkInPage ({ writes, boxes }) {
   return url.slice(url.indexOf('#'))
 }
 
+// The puzzles whose kept recording is a solve of only some of their cells, and how many it leaves open: the rest are
+// given. The engine replay round-trips a duplicate link at every checkpoint, so a recording's cost grows faster than
+// its length, and a full 9x9 or killer solve went past the seam's 60-second test limit on CI (#34, controller's
+// ruling). The answer-aimed fuzz still solves these puzzles whole.
+export const KEPT_OPEN_CELLS = { 'sudoku-9x9': 20, killer: 20 }
+// The open cells are drawn from this seed, so the kept puzzle is the same on every build.
+const OPEN_SEED = 1
+
+// `answer` (a sudoku's entries still to make) with all but `open` of them, drawn by OPEN_SEED, written into the
+// puzzle as givens on `page`; all of it when `open` is not given.
+async function givenAllBut (page, answer, open) {
+  if (!open) return answer
+  const rand = random(OPEN_SEED)
+  const kept = new Set(answer.map((c) => [rand(), c]).sort((a, b) => a[0] - b[0]).slice(0, open).map(([, c]) => c))
+  await page.evaluate((given) => {
+    for (const [num, digit] of given) pu.pu_q.number[num] = [String(digit), 1, '1']
+  }, answer.filter((c) => !kept.has(c)).map((c) => [c.num, c.digit]))
+  return answer.filter((c) => kept.has(c))
+}
+
 // The author's answer digit in a cell, as Penpa+'s edit mode writes it: the digit, colour 2, size 1.
 const authorDigit = (digit) => [String(digit), 2, '1']
 
@@ -362,11 +382,12 @@ const authorDigit = (digit) => [String(digit), 2, '1']
 const STAR = [2, 'star', 2]
 const LINE = 3
 
-// Each puzzle's builder: given a page with nothing loaded, it builds the board and returns the solve link's `#` part,
-// the answer as the generator enters it, and what else the generator needs.
+// Each puzzle's builder: given a page with nothing loaded, and for a sudoku a count of open cells (KEPT_OPEN_CELLS), it
+// builds the board and returns the solve link's `#` part, the answer as the generator enters it, and what else the
+// generator needs.
 const BUILDERS = {
-  'sudoku-9x9': (page) => buildSudoku(page, IMPORTS['sudoku-9x9']),
-  'sudoku-6x6': (page) => buildSudoku(page, IMPORTS['sudoku-6x6']),
+  'sudoku-9x9': (page, open) => buildSudoku(page, IMPORTS['sudoku-9x9'], open),
+  'sudoku-6x6': (page, open) => buildSudoku(page, IMPORTS['sudoku-6x6'], open),
   killer: buildKiller,
   starbattle: buildStarbattle,
   slitherlink: buildSlitherlink,
@@ -410,7 +431,7 @@ const KILLER_SEED = 1
 // A killer on the 9x9 sudoku's solution: its givens taken away, a dashed cage drawn around each cage's cells in Cage
 // mode and the cage's sum written in its first cell's corner in Number mode's 1/4, both through the engine's own calls
 // in the question layer.
-async function buildKiller (page) {
+async function buildKiller (page, open) {
   await page.evaluate((u) => import_url(u), IMPORTS['sudoku-9x9'])
   const cells = await page.evaluate(cellsInPage)
   const n = Math.sqrt(cells.length)
@@ -437,7 +458,7 @@ async function buildKiller (page) {
     pu.selection = []
     pu.mode_qa('pu_a')
   })
-  const answer = cells.map((c, i) => ({ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n }))
+  const answer = await givenAllBut(page, cells.map((c, i) => ({ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n })), open)
   const writes = answer.map(({ num, digit }) => ['number', num, authorDigit(digit)])
   const source = await page.evaluate(answerLinkInPage, { writes, boxes: ['sol_number'] })
   return { source, kind: 'digits', digits: n, answer, nums }
@@ -452,16 +473,16 @@ async function buildStarbattle (page) {
   return { source, kind: 'stars', answer, cells, nums: cells }
 }
 
-async function buildSudoku (page, url) {
+async function buildSudoku (page, url, open) {
   await page.evaluate((u) => import_url(u), url)
   const cells = await page.evaluate(cellsInPage)
   const n = Math.sqrt(cells.length)
   const givens = cells.map((c) => c.given)
   const grid = solveSudoku(givens, n)
-  const open = cells.flatMap((c, i) => c.given ? [] : [{ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n }])
-  const writes = open.map(({ num, digit }) => ['number', num, authorDigit(digit)])
+  const answer = await givenAllBut(page, cells.flatMap((c, i) => c.given ? [] : [{ num: c.num, digit: grid[i], row: Math.floor(i / n), col: i % n }]), open)
+  const writes = answer.map(({ num, digit }) => ['number', num, authorDigit(digit)])
   const source = await page.evaluate(answerLinkInPage, { writes, boxes: ['sol_number'] })
-  return { source, kind: 'digits', digits: n, answer: open, nums: open.map((c) => c.num) }
+  return { source, kind: 'digits', digits: n, answer, nums: answer.map((c) => c.num) }
 }
 
 // The mode a link opens in and the board units of each of `nums`, read from a fresh page of the link.
@@ -474,9 +495,10 @@ async function solvePage (browser, source, nums) {
 
 // Builds the puzzle named `name` (one of TIER_C_PUZZLES) and returns it: `name`, `source` (its solve link's `#` part),
 // `kind` (how its answer is entered), `mode` (the mode the link opens in), `answer` (the entries the generator makes),
-// `points` (the board units of every point the generator presses), and the kind's own fields.
-export async function buildPuzzle (browser, name) {
-  const { nums, ...puzzle } = await withPage(browser, '', (page) => BUILDERS[name](page))
+// `points` (the board units of every point the generator presses), and the kind's own fields. `open`, for a sudoku,
+// leaves only that many of its answer's cells open and gives the rest.
+export async function buildPuzzle (browser, name, { open } = {}) {
+  const { nums, ...puzzle } = await withPage(browser, '', (page) => BUILDERS[name](page, open))
   return { name, ...puzzle, ...await solvePage(browser, puzzle.source, nums) }
 }
 

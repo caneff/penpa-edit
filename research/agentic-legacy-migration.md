@@ -357,7 +357,10 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     Node and checked valid before it becomes the author's answer: the 9x9 and 6x6 sudoku, the 10x10 two-star battle and
     the 5x5 slitherlink from upstream's puzz.link imports, a killer drawn in Cage mode on the 9x9's solution, and an OR
     puzzle whose answer is the same cells shaded OR as black squares. The answer-aimed fuzz runs three seeds per puzzle
-    on the seam; one seed per puzzle is kept under `live/recordings/solve/`. A Replay link converts by trying, for each
+    on the seam; one seed per puzzle is kept under `live/recordings/solve/`. The kept 9x9 and killer are solves of
+    the same puzzles with all but 20 cells given (`KEPT_OPEN_CELLS`): the engine replay round-trips a duplicate link
+    at every checkpoint, so a recording's cost grows faster than its length, and their full solves passed the seam's
+    60-second test limit on CI (controller's ruling, #34). The fuzz still solves both whole. A Replay link converts by trying, for each
     change, the inputs of its natural mode (Composite star, Composite edgex, Surface) until one makes it; changes to
     other layers or properties are refused until a link needs them. A Replay link carries no answer, so the solve's last
     board becomes it once it checks as a solved star battle or slitherlink; an unfinished solve is refused, and a
