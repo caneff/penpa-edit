@@ -211,6 +211,9 @@ async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
 // and `setup` go to `openPenpa` for the run's page and to `roundTrips` for its save/load round trips' pages.
 export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup }) {
   const { context, page, errors } = await openPenpa(browser, puzzle.source, { served, setup })
+  // index.html's autosave (progress_autosave.js) makes a Clone link after each edit; the fuzz makes its own at each check,
+  // and a planted bug in `maketext_duplicate` must fire only there.
+  await page.evaluate(() => { UserSettings.save_current_puzzle = false })
   const trips = roundTrips(browser, { served, setup })
   const readRaw = () => page.evaluate(readEngineState)
   const steps = []

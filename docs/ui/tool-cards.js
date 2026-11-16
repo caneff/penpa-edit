@@ -1,4 +1,4 @@
-// The Mode card (a searchable list of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
+// The Mode card (a searchable tree of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
 // the current tool) and the board's title-bar tool name. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs
 // fails otherwise).
 (function () {
@@ -6,7 +6,7 @@
 
     const SEPARATOR = ' · ';
     const MULTICOLOR_MODE = 'multicolor';
-    const { TOOL_GROUPS, NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const { NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -120,35 +120,83 @@
         R: 'right', UR: 'up and right', U: 'up', UL: 'up and left', L: 'left', DL: 'down and left', D: 'down', DR: 'down and right'
     };
 
-    // The picker's entries: every tool the engine lists, filed and named by the guide, with what to search them by.
-    function pickerEntries(tools) {
-        const toolGroups = new Map(TOOL_GROUPS);
-        return tools.map((tool) => {
-            const { group, name, description } = describeTool(tool);
-            const haystack = [name, description, tool.modeName, toolGroups.get(group), ...tool.labels].join(' ').toLowerCase();
-            return { key: toolKey(tool), tool, group, name, description, haystack, attrs: { 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' } };
-        });
-    }
-
     // `applyTool(tool)` picks a tool; `colourSelection(style)` is a Multicolor swatch's press; `orientations.list()` and
     // `orientations.apply(direction)` are Number mode's directions and the pick of one.
     function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
-        const entries = pickerEntries(tools);
-        const toolOptions = el('div', { class: 'ui-toolopts' });
-        const entryFor = (tool) => entries.find((e) => e.key === toolKey(tool));
-
-        const picker = window.combobox.create({
-            idPrefix: 'tool', label: 'Tool', listLabel: 'Tools', placeholder: 'Search tools…', noMatch: 'No tool matches.',
-            groups: () => TOOL_GROUPS.map(([id, title]) => ({ title, entries: entries.filter((e) => e.group === id) })),
-            renderEntry: (entry) => [
-                el('div', { class: 'ui-ename' }, [entry.name, el('span', { class: 'ui-emode' }, [entry.tool.modeName])]),
-                el('div', { class: 'ui-edesc' }, [entry.description])
-            ],
-            currentText: () => entryFor(engine.getTool())?.name ?? '',
-            onPick: (entry) => applyTool({ mode: entry.tool.mode, submode: entry.tool.submode })
+        const input = el('input', {
+            type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-haspopup': 'tree', 'aria-expanded': 'false',
+            'aria-controls': window.modeTree.TREE_ID, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
+        const none = el('div', { class: 'ui-none', hidden: '' }, ['No tool matches.']);
+        const toolTree = window.modeTree.createModeTree(tools, (tool) => pick(tool));
+        const list = el('div', { class: 'ui-list', hidden: '' }, [toolTree.levels, toolTree.tree, none]);
+        const toolOptions = el('div', { class: 'ui-toolopts' });
+        const picker = el('div', { class: 'ui-picker' }, [input, list]);
         // pins.js adds the pin toggle to the row.
-        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker.node]), toolOptions);
+        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker]), toolOptions);
+
+        let open = false;
+
+        function showCurrent() {
+            const current = tools.find((t) => toolKey(t) === toolKey(engine.getTool()));
+            input.value = current ? describeTool(current).name : '';
+        }
+
+        // The focus returns to the board by leaving the picker: nothing else on the page takes keys.
+        function close() {
+            if (!open) {
+                return;
+            }
+            open = false;
+            list.hidden = true;
+            input.setAttribute('aria-expanded', 'false');
+            showCurrent();
+        }
+
+        function pick(tool) {
+            applyTool({ mode: tool.mode, submode: tool.submode });
+            document.activeElement?.blur();
+        }
+
+        function filter() {
+            none.hidden = toolTree.search(input.value) > 0;
+        }
+
+        function openList() {
+            if (open) {
+                return;
+            }
+            open = true;
+            list.hidden = false;
+            input.setAttribute('aria-expanded', 'true');
+            input.value = '';
+            filter();
+            toolTree.openBranchOf(engine.getTool());
+            toolTree.scrollToSelected();
+        }
+
+        input.addEventListener('focus', openList);
+        input.addEventListener('input', filter);
+        picker.addEventListener('focusout', (e) => {
+            if (!picker.contains(e.relatedTarget)) {
+                close();
+            }
+        });
+        picker.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                document.activeElement?.blur();
+            } else if (e.target === input && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                e.preventDefault();
+                toolTree.focusSelected();
+            } else if (e.target === input && e.key === 'Enter') {
+                e.preventDefault();
+                const first = input.value.trim() ? toolTree.firstMatch() : null;
+                if (first) {
+                    pick(first);
+                }
+            }
+        });
 
         function styleGroup(tool, style) {
             const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
@@ -193,7 +241,10 @@
 
         return {
             render(tool, style, orientation) {
-                picker.showCurrent();
+                toolTree.select(tool);
+                if (!open) {
+                    showCurrent();
+                }
                 renderToolOptions(tool, style, orientation);
             }
         };
