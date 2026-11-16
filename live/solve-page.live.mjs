@@ -2,7 +2,7 @@
 // The UI is read by role and accessible name, never through `pu` or Penpa's DOM.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, boardAgainstCard, boardCanvasInPage, linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -21,21 +21,6 @@ function linksInPage ({ title, author, rules }) {
   document.getElementById('saveinforules').value = rules
   const hash = (url) => url.slice(url.indexOf('#'))
   return { edit: hash(pu.maketext()), solve: hash(pu.maketext_solve()) }
-}
-
-// Runs in the page. The board's canvas in the Board card: the drawn one, since Penpa keeps a hidden pause canvas beside it.
-function boardCanvasInPage () {
-  const canvases = [...document.querySelectorAll('section[aria-label="Board"] canvas')]
-  return canvases.find((c) => c.getBoundingClientRect().width > 0)
-}
-
-// Reads where the board's canvas lies against the Board card's body, in CSS px.
-async function boardAgainstCard (page) {
-  return page.evaluate((boardCanvas) => {
-    const card = document.querySelector('section[aria-label="Board"]').getBoundingClientRect()
-    const canvas = new Function(`return (${boardCanvas})()`)().getBoundingClientRect()
-    return { cardW: card.width, cardH: card.height, w: canvas.width, h: canvas.height, inside: canvas.left >= card.left - 1 && canvas.right <= card.right + 1 && canvas.top >= card.top - 1 && canvas.bottom <= card.bottom + 1 }
-  }, boardCanvasInPage.toString())
 }
 
 describe('solve.html on a solve link', () => {
