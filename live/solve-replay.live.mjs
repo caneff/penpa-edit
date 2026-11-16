@@ -13,7 +13,7 @@ const browser = useBrowser()
 
 const TOOL_CARDS = fileURLToPath(new URL('../docs/ui/tool-cards.js', import.meta.url))
 // The line of the Mode card that applies the tool a pick chose.
-const APPLY_PICK = /applyTool\(\{ mode: entry\.tool\.mode, submode: entry\.tool\.submode \}\);/
+const APPLY_PICK = /applyTool\(\{ mode: tool\.mode, submode: tool\.submode \}\);/
 // A recording that picks Sudoku's first sub-mode and then enters digits.
 const SUDOKU_ID = 'value/audit-c7-alphabet-digit'
 
@@ -21,7 +21,7 @@ describe('the UI driver on solve.html', () => {
   describe('with a planted wrong tool in the Mode card', () => {
     it('fails the replay: a pick that switches to Sudoku\'s second sub-mode', async () => {
       const source = await readFile(TOOL_CARDS, 'utf8')
-      const planted = source.replace(APPLY_PICK, "applyTool({ mode: entry.tool.mode, submode: entry.tool.submode === '1' ? '2' : entry.tool.submode });")
+      const planted = source.replace(APPLY_PICK, "applyTool({ mode: tool.mode, submode: tool.submode === '1' ? '2' : tool.submode });")
       assert.notEqual(planted, source, 'the line to plant in is in tool-cards.js')
       await assert.rejects(
         compareDrivers(browser(), await readRecording(SUDOKU_ID), {
