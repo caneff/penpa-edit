@@ -44,6 +44,7 @@ const choosePreset = async (page, name) => {
 const offered = (page) => presetList(page).getByRole('option').allInnerTexts()
 const groupTitles = (page) => presetList(page).getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')))
 const optionsOfGroup = (page, title) => presetList(page).getByRole('group', { name: title }).getByRole('option').allInnerTexts()
+const hasFavourites = (page) => groupTitles(page).then((titles) => titles.includes('Favourites'))
 const star = (page, name) => presetList(page).getByRole('button', { name: `Favourite ${name}`, exact: true })
 
 // Presses Tab and returns the tool it switched to.
@@ -66,6 +67,16 @@ async function walkPins (page, count) {
 }
 
 const chipCount = (page) => pinnedCard(page).getByRole('button', { name: /^Unpin / }).count()
+
+// A pick hands the keyboard back to the puzzle (#157): focus is off the Pinned card, the preset's pins are loaded, and Tab lands on
+// one of them without the focus returning to the card.
+const focusInPinnedCard = (page) => page.evaluate(() => document.activeElement?.closest('.ui-card-pins') !== null)
+const assertTabCyclesPins = async (page, keys) => {
+  assert.equal(await settle(() => focusInPinnedCard(page), false), false, 'focus left the Pinned card')
+  assert.equal(await settle(() => chipCount(page), keys.length), keys.length)
+  assert.equal(keys.includes(await tabToNextTool(page)), true, `Tab lands on one of ${keys}`)
+  assert.equal(await focusInPinnedCard(page), false, 'focus is still off the Pinned card after Tab')
+}
 
 // The genres of `penpa_constraints.setting` that have solve tools, and the other common ones the ticket names.
 const EXPECTED_GENRES = [
@@ -157,10 +168,7 @@ describe('typing in the preset field', () => {
     await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
     await closed(page)
-    const tools = ['sudoku/1', 'sudoku/2', 'sudoku/3', 'symbol/circle_L', 'symbol/square_L']
-    assert.equal(await settle(() => chipCount(page), tools.length), tools.length)
-    assert.equal(await page.evaluate(() => document.activeElement?.closest('.ui-card-pins') !== null), false, 'focus left the Pinned card')
-    assert.equal(tools.includes(await tabToNextTool(page)), true, 'Tab switches between the loaded pins')
+    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3', 'symbol/circle_L', 'symbol/square_L'])
   })
 
   it('closes on Escape and loads nothing', async () => {
@@ -173,12 +181,23 @@ describe('typing in the preset field', () => {
     assert.equal(await chipCount(page), before)
   })
 
+  it('Shift+Enter with nothing highlighted loads nothing', async () => {
+    const { page } = opened
+    const before = await chipCount(page)
+    await presetField(page).click()
+    await presetField(page).fill('kropki')
+    await page.keyboard.press('Shift+Enter')
+    await presetList(page).waitFor()
+    assert.equal(await chipCount(page), before, 'no preset was loaded')
+    assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'false', 'and none was starred')
+    await page.keyboard.press('Escape')
+    await closed(page)
+  })
+
   it('picks with the mouse and hands the keyboard back to the board', async () => {
     const { page } = opened
     await choosePreset(page, 'Classic sudoku')
-    assert.equal(await settle(() => chipCount(page), 3), 3)
-    assert.equal(await page.evaluate(() => document.activeElement?.closest('.ui-card-pins') !== null), false, 'focus left the Pinned card')
-    assert.equal(['sudoku/1', 'sudoku/2', 'sudoku/3'].includes(await tabToNextTool(page)), true)
+    await assertTabCyclesPins(page, ['sudoku/1', 'sudoku/2', 'sudoku/3'])
   })
 })
 
@@ -190,7 +209,7 @@ describe('favourites', () => {
   it('a star files the preset first, under Favourites; it survives a reload; unstarring puts it back', async () => {
     const { page } = opened
     await openList(page)
-    assert.equal(await groupTitles(page).then((t) => t.includes('Favourites')), false, 'no favourites yet')
+    assert.equal(await hasFavourites(page), false, 'no favourites yet')
     assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'false')
     await star(page, 'Kropki').click()
     assert.equal(await star(page, 'Kropki').getAttribute('aria-pressed'), 'true')
@@ -204,7 +223,7 @@ describe('favourites', () => {
     await openList(page)
     assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Kropki'])
     await star(page, 'Kropki').click()
-    assert.equal(await groupTitles(page).then((t) => t.includes('Favourites')), false, 'the group goes with its last star')
+    assert.equal(await hasFavourites(page), false, 'the group goes with its last star')
     assert.equal((await optionsOfGroup(page, 'Sudoku variants')).includes('Kropki'), true, 'back in its family')
     await page.keyboard.press('Escape')
   })
@@ -323,7 +342,8 @@ describe('deleting a saved preset', () => {
     await star(page, 'First').click()
     assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['First'])
     await deleteButton(page, 'First').click()
-    assert.equal(await groupTitles(page).then((t) => t.includes('Favourites')), false)
+    assert.equal(await hasFavourites(page), false)
+    assert.equal(await page.evaluate(() => localStorage.getItem('chinstrap.pinPresetStars')), '[]', 'the deleted preset is no longer starred in storage')
     await page.keyboard.press('Escape')
     await pinnedCard(page).getByRole('button', { name: 'Undo delete of First' }).click()
     await openList(page)
@@ -352,5 +372,48 @@ describe('a preset naming a tool the link lacks', () => {
     await choosePreset(page, 'Odd set')
     assert.equal(await settle(() => chipCount(page), 1), 1)
     assert.deepEqual(await walkPins(page, 1), ['line/1'])
+  })
+})
+
+describe('undoing a delete', () => {
+  let opened
+  before(async () => {
+    opened = await openSolvePage(browser(), await link(['Line Normal', 'Sudoku Corner']), {
+      setup: (context) => context.addInitScript(() => {
+        if (localStorage.getItem('chinstrap.pinPresets') === null) {
+          localStorage.setItem('chinstrap.pinPresets', JSON.stringify([{ name: 'A', tools: [{ mode: 'line', submode: '1' }] }]))
+        }
+      })
+    })
+  })
+  after(async () => { await opened?.context.close() })
+
+  it('is no longer offered once a preset of that name is saved, so it cannot replace the newer one', async () => {
+    const { page } = opened
+    await openList(page)
+    await presetList(page).getByRole('button', { name: 'Delete preset A', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await pinnedCard(page).getByRole('textbox', { name: 'Save current pins as…' }).fill('A')
+    await pinnedCard(page).getByRole('button', { name: 'Save these pins as a preset', exact: true }).click()
+    assert.equal(await pinnedCard(page).getByRole('button', { name: 'Undo delete of A' }).count(), 0)
+    assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.tools.length)), [2])
+  })
+})
+
+describe('stored favourites this page did not write', () => {
+  let opened
+  before(async () => {
+    opened = await openSolvePage(browser(), await link(['Line Normal']), {
+      setup: (context) => context.addInitScript(() => localStorage.setItem('chinstrap.pinPresetStars', '{"a":1}'))
+    })
+  })
+  after(async () => { await opened?.context.close() })
+
+  it('offer no favourite, and the list still opens', async () => {
+    const { page } = opened
+    await openList(page)
+    assert.equal(await hasFavourites(page), false)
+    assert.equal((await offered(page)).includes('Classic sudoku'), true)
+    await page.keyboard.press('Escape')
   })
 })

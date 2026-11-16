@@ -10,6 +10,10 @@
 
     const STORAGE_KEY = 'chinstrap.pinPresets';
     const STARS_KEY = 'chinstrap.pinPresetStars';
+    const SAVE_LABEL = 'Save these pins as a preset';
+    // Keys that act on the highlighted preset, with Shift held; the buttons' hints name the same chords.
+    const STAR_KEY = 'Enter';
+    const DELETE_KEY = 'Delete';
     const FAVOURITES = 'Favourites';
     const YOUR_PRESETS = 'Your presets';
 
@@ -87,11 +91,11 @@
         try {
             stored = JSON.parse(raw);
         } catch (e) {
-            console.warn(`${key} is unreadable (${e.message}); no ${what} is offered, and the next save replaces it.`);
+            console.warn(`${key} is unreadable (${e.message}); no ${what} is offered, and the next write replaces it.`);
             return [];
         }
         if (!Array.isArray(stored) || !stored.every(isValid)) {
-            console.warn(`${key} does not hold ${what} as this page saves them; none is offered, and the next save replaces it.`);
+            console.warn(`${key} does not hold ${what} as this page saves them; none is offered, and the next write replaces it.`);
             return [];
         }
         return stored;
@@ -117,9 +121,12 @@
     // A 14 px line icon for a button.
     const icon = (inner) => `<svg ${ICON_ATTRS}>${inner}</svg>`;
 
-    function entryButton(cls, label, hint, svg, onClick) {
-        // Not in the Tab order: Tab leaves the field, which closes the list.
-        const button = el('button', { type: 'button', class: `ui-entry-btn ${cls}`, 'aria-label': label, title: hint, tabindex: '-1' });
+    function entryButton(cls, label, key, svg, onClick) {
+        const chord = `Shift+${key}`;
+        // Not in the Tab order: Tab leaves the field, which closes the list; the chord is the keyboard's way to it.
+        const button = el('button', {
+            type: 'button', class: `ui-entry-btn ${cls}`, 'aria-label': label, title: `${label} (${chord})`, 'aria-keyshortcuts': chord, tabindex: '-1'
+        });
         button.innerHTML = svg;
         button.addEventListener('click', onClick);
         return button;
@@ -127,17 +134,19 @@
 
     onDeskReady(({ cards }) => {
         const nameInput = el('wa-input', { label: 'Save current pins as…', placeholder: 'Name this pin set', size: 'small' });
-        const save = iconButton(SAVE_ICON, 'Save these pins as a preset', () => {
+        const save = iconButton(SAVE_ICON, SAVE_LABEL, () => {
             const name = nameInput.value.trim();
             if (!name) {
                 return;
             }
             writePresets([...savedPresets().filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
+            // An undo for a delete would put the older preset of that name over this one.
+            undoRow.replaceChildren();
             nameInput.value = '';
             save.node.blur();
         });
-        save.node.setAttribute('title', 'Save these pins as a preset');
-        // What the last delete removed, until the next one: the saved preset, where it stood and whether it was starred.
+        save.node.setAttribute('title', SAVE_LABEL);
+        // The line offering to undo the last delete, until the next delete or save.
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
 
         function toggleStar(preset) {
@@ -146,7 +155,7 @@
             picker.redraw();
         }
 
-        // Takes a saved preset out of storage, with its star; returns what undo needs to put it back.
+        // Takes a saved preset out of storage, with its star; returns what undo needs: the preset, where it stood and whether it was starred.
         function removeSaved(name) {
             const all = savedPresets();
             const index = all.findIndex((p) => p.name === name);
@@ -159,7 +168,7 @@
 
         function undoDelete({ preset, index, wasStarred }) {
             const others = savedPresets().filter((p) => p.name !== preset.name);
-            others.splice(Math.min(index, others.length), 0, preset);
+            others.splice(index, 0, preset);
             writePresets(others);
             if (wasStarred) {
                 writeStars([...starredKeys(), savedKey(preset.name)]);
@@ -199,23 +208,26 @@
             renderEntry: ({ preset }) => [preset.name],
             rowButtons: ({ preset }) => {
                 const isStarred = starredKeys().includes(preset.key);
-                const star = entryButton('ui-entry-star', `Favourite ${preset.name}`, 'Favourite (Shift+Enter)', icon(STAR_ICON), () => toggleStar(preset));
+                const star = entryButton('ui-entry-star', `Favourite ${preset.name}`, STAR_KEY, icon(STAR_ICON), () => toggleStar(preset));
                 star.setAttribute('aria-pressed', String(isStarred));
                 return preset.saved
-                    ? [star, entryButton('ui-entry-delete', `Delete preset ${preset.name}`, 'Delete (Shift+Delete)', icon(TRASH_ICON), () => deleteSaved(preset))]
+                    ? [star, entryButton('ui-entry-delete', `Delete preset ${preset.name}`, DELETE_KEY, icon(TRASH_ICON), () => deleteSaved(preset))]
                     : [star];
             },
             currentText: () => '',
             onPick: ({ preset }) => window.pinBoard.replace(preset.tools),
             onKey: (e, entry) => {
-                if (!entry || !e.shiftKey) {
+                if (!e.shiftKey) {
                     return false;
                 }
-                if (e.key === 'Enter') {
-                    toggleStar(entry.preset);
+                // With nothing highlighted Shift+Enter does nothing, rather than picking the first match.
+                if (e.key === STAR_KEY) {
+                    if (entry) {
+                        toggleStar(entry.preset);
+                    }
                     return true;
                 }
-                if (e.key === 'Delete' && entry.preset.saved) {
+                if (e.key === DELETE_KEY && entry?.preset.saved) {
                     deleteSaved(entry.preset);
                     return true;
                 }

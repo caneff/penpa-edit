@@ -1,6 +1,6 @@
 // A searchable list: a text field that opens a grouped list on focus, filters it as you type, and picks by mouse or by Arrow keys
 // and Enter. Escape closes it. The pick leaves the field, which is how focus returns to the board: nothing else on the page takes
-// keys. The Mode card's tool picker and the Pinned card's preset picker are built on it. Plain DOM, so it needs no `engine`.
+// keys. Plain DOM, so it needs no `engine`.
 (function () {
     'use strict';
 

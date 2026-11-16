@@ -135,7 +135,7 @@
     function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
         const entries = pickerEntries(tools);
         const toolOptions = el('div', { class: 'ui-toolopts' });
-        const entryFor = (tool) => entries.find((e) => toolKey(e.tool) === toolKey(tool));
+        const entryFor = (tool) => entries.find((e) => e.key === toolKey(tool));
 
         const picker = window.combobox.create({
             idPrefix: 'tool', label: 'Tool', listLabel: 'Tools', placeholder: 'Search tools…', noMatch: 'No tool matches.',
