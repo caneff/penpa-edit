@@ -220,6 +220,55 @@ describe('the Mode card', () => {
   })
 })
 
+describe('Number orientation', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const group = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Orientation' })
+  const orientation = () => opened.page.evaluate(() => engine.getOrientation())
+  const DIRECTIONS = ['R', 'UR', 'U', 'UL', 'L', 'DL', 'D', 'DR']
+
+  it('offers each direction index.html offers, to the mouse, in Number mode only', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1' })
+    assert.deepEqual(await opened.page.evaluate(() => engine.listOrientations()), DIRECTIONS)
+    assert.equal(await settle(() => group().getByRole('button').count(), DIRECTIONS.length), DIRECTIONS.length)
+    const names = ['right', 'up and right', 'up', 'up and left', 'left', 'down and left', 'down', 'down and right']
+    for (const [i, direction] of DIRECTIONS.entries()) {
+      await group().getByRole('button', { name: names[i], exact: true }).click()
+      assert.equal(await settle(orientation, direction), direction)
+      const pressed = group().getByRole('button', { name: names[i], exact: true })
+      assert.equal(await settle(() => pressed.getAttribute('aria-pressed'), 'true'), 'true')
+    }
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    assert.equal(await settle(() => group().count(), 0), 0)
+    assert.equal(await orientation(), null)
+  })
+
+  it('is set with the keyboard, and shows on every Number sub-mode, styles or none', async () => {
+    for (const submode of ['1', '7']) {
+      await setTool(opened.page, { mode: 'number', submode })
+      await settle(() => group().count(), 1)
+      await group().getByRole('button', { name: 'up', exact: true }).focus()
+      await opened.page.keyboard.press('Enter')
+      assert.equal(await settle(orientation, 'U'), 'U')
+      await group().getByRole('button', { name: 'right', exact: true }).focus()
+      await opened.page.keyboard.press('Enter')
+      assert.equal(await settle(orientation, 'R'), 'R')
+    }
+  })
+
+  it('follows an orientation set from outside, and the engine refuses a bad one', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1' })
+    await opened.page.evaluate(() => engine.setOrientation('DL'))
+    assert.equal(await settle(() => group().getByRole('button', { name: 'down and left', exact: true }).getAttribute('aria-pressed'), 'true'), 'true')
+    const bad = (d) => opened.page.evaluate((d) => { try { engine.setOrientation(d); return 'no throw' } catch (e) { return e.message } }, d)
+    assert.match(await bad('X'), /no direction "X"/)
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    assert.match(await bad('U'), /not number/)
+  })
+})
+
 describe('the Mouse card and the title bar', () => {
   let opened
   before(async () => { opened = await openSolve() })
