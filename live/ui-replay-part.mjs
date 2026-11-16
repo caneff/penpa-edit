@@ -25,8 +25,10 @@ const TIER_C_SAMPLE = ['or-shading', 'slitherlink', 'sudoku-6x6', 'starbattle'].
 //   genre/compass: a drag along points halfway between two others, aimed from the page's own whole-pixel origin;
 //   genre/shimaguni: Surface's two-digit colour, a `1` and then a digit within main.js's 300 ms window;
 //   paint/multicolor-clear-keys: Multicolor's colour digits, remapped;
-//   genre-tool/combi-linedir: a press outside the frame, which makes no engine call, then a drag onto the board.
-const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-clear-keys', 'genre-tool/combi-linedir']
+//   genre-tool/combi-linedir: a press outside the frame, which makes no engine call, then a drag onto the board;
+//   genre/alternation: a click under Shape mode's key panel, which floats over the board until moved aside.
+const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-clear-keys', 'genre-tool/combi-linedir',
+  'genre/alternation']
 
 // The recordings whose UI-driver replay on solve.html still differs from the engine driver's, each with the ticket for
 // its gap (controller, 2026-11-16); node runs them as `todo`, so a difference is reported and fails nothing until the
