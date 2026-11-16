@@ -132,6 +132,15 @@
             const dropdown = e.target.closest('wa-dropdown');
             dropdown?.addEventListener('wa-after-hide', focusBoardAfterWebAwesome, { once: true });
         });
+        // A pick in a select on the desk hands the keyboard back too: Web Awesome has closed the list by the time it announces
+        // `change`. A select in a dialog leaves it to the dialog's own close rule; typing in a text field fires no `change`
+        // from a select, so it keeps focus.
+        document.addEventListener('change', (e) => {
+            const select = e.target.closest?.('wa-select');
+            if (select && !select.closest('wa-dialog')) {
+                focusBoardAfterWebAwesome();
+            }
+        });
         // A failed load leaves no board to route keys to, and main.js shows its error dialog already.
     }, () => {});
 })();
