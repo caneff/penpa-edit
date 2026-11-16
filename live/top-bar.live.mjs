@@ -134,20 +134,24 @@ describe('Pause', () => {
   it('covers the board; a click and a digit change nothing; F4 resumes', async () => {
     const { context, page } = await openSolve()
     try {
+      // A cell selected before the pause is where a digit would go.
+      await clickCell(page, CELL)
+      assert.equal(await page.evaluate(() => readEngineState().selection.length), 1)
       await button(page, 'Pause').click()
       const covered = page.getByRole('region', { name: 'Paused' })
       await covered.waitFor()
       assert.equal((await timer(page)).paused, true)
 
-      await clickCell(page, CELL)
       await page.keyboard.press('1')
+      await clickCell(page, CELL + 1)
       assert.deepEqual(await typedDigits(page), [], 'nothing was entered')
-      assert.equal(await page.evaluate(() => readEngineState().selection.length), 0, 'the click selected nothing')
+      assert.equal(await page.evaluate(() => readEngineState().selection.length), 1, 'and the click moved no selection')
 
       await page.keyboard.press('F4')
       await covered.waitFor({ state: 'hidden' })
       assert.equal((await timer(page)).paused, false)
-      await enterDigit(page)
+      await page.keyboard.press('1')
+      assert.deepEqual(await settle(() => typedDigits(page), ['1']), ['1'], 'after F4 the board takes the digit')
     } finally {
       await context.close()
     }
