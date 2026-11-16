@@ -1,0 +1,209 @@
+/* The solve page: the top bar and the desk of cards (variant L of the prototype, `a023d8a`). */
+
+body.engine-mounted { overflow: hidden; background: #e7e4dc; }
+
+.ui-root {
+    --ui-bar-height: 44px;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    color: #23262c;
+    font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.ui-root h1, .ui-root h2 { font: inherit; }
+
+.ui-bar {
+    position: absolute;
+    left: 0; right: 0; top: 0;
+    height: var(--ui-bar-height);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    background: #2b2f38;
+    color: #eef0f4;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
+    z-index: 950;
+}
+.ui-brand { font-size: 11px; font-weight: 700; letter-spacing: .04em; color: #9aa2b1; }
+.ui-title { font-size: 20px; font-weight: 800; color: #fff; margin-left: 6px; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-author { font-size: 13px; color: #b9c0cc; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+.ui-spacer { flex: 1; }
+/* Reset layout ends the bar, after the controls the other files add to it. */
+.ui-reset { order: 99; }
+.ui-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+.ui-desk {
+    position: absolute;
+    left: 0; right: 0; top: var(--ui-bar-height); bottom: 0;
+    background:
+        radial-gradient(circle at 1px 1px, rgba(0, 0, 0, .09) 1px, transparent 0) 0 0 / 22px 22px,
+        #e7e4dc;
+    overflow: hidden;
+}
+
+.ui-card {
+    position: absolute;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    background: #fbfaf7;
+    border: 1px solid #cfcabd;
+    border-radius: 9px;
+    box-shadow: 0 2px 10px rgba(40, 35, 20, .14);
+    z-index: 20;
+}
+.ui-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    min-height: 26px;
+    background: #ece8de;
+    border-bottom: 1px solid #ddd7c8;
+    border-radius: 9px 9px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: #6b6656;
+}
+/* A card the solver sized (or that shrank to fit the desk) has a height of its own, which its body then fills and scrolls in. */
+.ui-card.is-sized .ui-body { flex: 1 1 auto; min-height: 0; }
+.ui-card-rules.is-sized .ui-body { max-height: none; }
+.ui-head { cursor: grab; }
+.ui-head wa-button { cursor: pointer; }
+.ui-zoom { order: 2; display: flex; gap: 4px; }
+
+/* The edges a card is resized by: inside the card, over its border. */
+.ui-resize { position: absolute; z-index: 3; }
+.ui-resize-right { top: 0; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
+.ui-resize-bottom { left: 0; right: 14px; bottom: 0; height: 6px; cursor: ns-resize; }
+.ui-resize-corner { right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.ui-body { padding: 10px 12px; min-height: 48px; overflow: auto; }
+
+.ui-card-board .ui-body { flex: 1 1 auto; min-height: 0; padding: 8px; display: flex; }
+/* The UI root reverts Penpa+'s stylesheets, the board's own white ground included. Centred while it fits; when the
+   board outgrows the card it starts at the top left and the body scrolls. */
+.ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
+.ui-card-board canvas { background: #fff; }
+.ui-card-rules .ui-body { max-height: 520px; font-size: 12.5px; color: #3b3e45; white-space: pre-wrap; }
+.ui-card-mouse { border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
+.ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
+
+/* The board's title bar: the current tool's name, after the card's title. */
+.ui-tool-name { margin-left: auto; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45); }
+
+/* The Mouse card. */
+.ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; }
+.ui-hsep { color: #9aa7c2; font-weight: 400; }
+.ui-hsub { color: #2f5bb2; }
+.ui-hstyle { color: #444; white-space: nowrap; }
+.ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
+.ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+.ui-mrows { display: grid; gap: 4px; }
+.ui-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: 14px; }
+.ui-mrow.is-none { background: #f4f4f2; color: #6f6f68; }
+.ui-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 8px; color: #555; }
+.ui-mg { font-weight: 700; color: #2f5bb2; }
+.ui-mrow.is-none .ui-mg { color: #6f6f68; }
+.ui-mrow.is-more .ui-mg { font-weight: 600; color: #5d6985; }
+
+/* The Mode card: the combobox, its list, then the style buttons. */
+.ui-picker { position: relative; }
+.ui-search { box-sizing: border-box; width: 100%; font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: inherit; }
+.ui-search:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
+.ui-list { margin-top: 4px; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
+.ui-list[hidden] { display: none; }
+.ui-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; margin: 8px 4px 3px; }
+.ui-entry { padding: 4px 8px; border-radius: 5px; cursor: pointer; }
+.ui-entry:hover { background: #f0ede4; }
+.ui-entry[aria-selected="true"] { background: #e3ebfb; outline: 2px solid #8aa6e0; outline-offset: -2px; }
+.ui-ename { font-weight: 600; }
+.ui-emode { font-weight: 400; font-size: 11px; color: #6f6a5a; margin-left: 6px; }
+.ui-edesc { font-size: 11.5px; color: #5f5b4c; }
+.ui-none { padding: 6px 8px; color: #6f6a5a; }
+.ui-toolopts { margin-top: 10px; display: grid; gap: 4px; }
+.ui-toolopts[hidden] { display: none; }
+.ui-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; }
+.ui-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.ui-stylebtn { width: 28px; height: 28px; padding: 3px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #23262c; cursor: pointer; }
+.ui-stylebtn:hover { border-color: #8aa6e0; }
+.ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
+.ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
+
+/* The board's frame: --ui-tool-colour, the current tool's colour (a pin's own, or the neutral one off the pins). */
+.ui-card-board { outline: 3px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
+
+/* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
+.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.ui-chip { display: flex; align-items: center; border: 1px solid #cfcabd; border-left: 6px solid var(--ui-pin-colour, #cfcabd); border-radius: 7px; background: #fff; white-space: nowrap; }
+.ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
+.ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
+.ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
+.ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
+/* The preset pulldown and the save row under the chips. */
+.ui-preset-row { display: flex; gap: 8px; align-items: end; margin-top: 8px; }
+.ui-preset-row > wa-select, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
+.ui-chip-unpin { padding: 0 6px; opacity: .55; }
+.ui-chip-unpin:hover { opacity: 1; }
+.ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
+
+/* The flash: the tool's name near the top of the board for a moment on each change; it never takes a click. */
+.ui-flash { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 7px;
+    padding: 3px 11px; border-radius: 999px; background: rgba(18, 20, 26, .6); color: #fff; font-size: 13px; font-weight: 600; white-space: nowrap; opacity: 0; }
+.ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
+.ui-flash-dot { width: 9px; height: 9px; border-radius: 50%; box-shadow: 0 0 0 1.5px rgba(255, 255, 255, .85); flex: none; }
+@keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
+
+/* The top bar's controls. */
+.ui-timer { font: 700 15px ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #fff; min-width: 3.4em; text-align: center; }
+
+/* The cover a paused board wears: over the whole Board card, opaque, taking every click. */
+.ui-paused { position: absolute; inset: 0; z-index: 30; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; border-radius: 9px; background: #ece8de; color: #3b3e45; font-size: 28px; font-weight: 700; }
+.ui-paused[hidden] { display: none; }
+.ui-paused-hint { font-size: 13px; font-weight: 400; color: #6b6656; }
+
+/* Dark: the desk, the cards and their text; the bar is dark already. */
+body.engine-mounted:has(.ui-dark) { background: #16181d; }
+.ui-dark { color: #e3e6eb; }
+.ui-dark .ui-desk { background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 0) 0 0 / 22px 22px, #16181d; }
+.ui-dark .ui-card { background: #22252c; border-color: #3a3f4b; box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
+.ui-dark .ui-head { background: #2b2f38; border-bottom-color: #3a3f4b; color: #b9bfcb; }
+.ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
+.ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
+.ui-dark .ui-paused-hint { color: #a9b0bd; }
+.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #e3e6eb); }
+.ui-dark .ui-headline { color: #e3eaff; }
+.ui-dark .ui-hsub { color: #8fb2ff; }
+.ui-dark .ui-hstyle { color: #d5d9e0; }
+.ui-dark .ui-hsep { color: #949fb8; }
+.ui-dark .ui-mrow { background: #26324a; }
+.ui-dark .ui-mg { color: #9fbdff; }
+.ui-dark .ui-mrow.is-none { background: #272a31; color: #8d94a1; }
+.ui-dark .ui-mrow.is-none .ui-mg { color: #8d94a1; }
+.ui-dark .ui-mrow.is-more { background: transparent; color: #c3c8d2; }
+.ui-dark .ui-mrow.is-more .ui-mg { color: #a5b2cc; }
+.ui-dark .ui-search { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
+.ui-dark .ui-list { background: #262a32; border-color: #4a5060; }
+.ui-dark .ui-entry:hover { background: #30343e; }
+.ui-dark .ui-entry[aria-selected="true"] { background: #2c3d5e; }
+.ui-dark .ui-group-title, .ui-dark .ui-sub, .ui-dark .ui-emode, .ui-dark .ui-edesc, .ui-dark .ui-none { color: #a9b0bd; }
+.ui-dark .ui-stylebtn { background: #2f333d; color: #eef0f4; border-color: #4a5060; }
+.ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
+.ui-dark .ui-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--ui-pin-colour, #4a5060); }
+.ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
+
+/* The Settings dialog: one fieldset per group, one setting per row. */
+.ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }
+.ui-settings-group legend { padding: 0 8px 0 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b6656; }
+.ui-setting { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.ui-setting wa-select { min-width: 250px; }
+.ui-tag { padding: 2px 8px; border-radius: 999px; background: #e3ebfb; color: #2f5bb2; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.ui-tag[hidden] { display: none; }
+.ui-settings-note { color: #5f5b4c; font-size: 12px; }
+.ui-dark .ui-settings-group { border-top-color: #3a3f4b; }
+.ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note { color: #a9b0bd; }
+.ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }

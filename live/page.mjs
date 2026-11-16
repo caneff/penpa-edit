@@ -3,9 +3,13 @@ import assert from 'node:assert/strict'
 import { after, afterEach, before } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { chromium } from 'playwright'
+import { settle } from './settle.mjs'
 
 // Penpa+ served straight from this checkout, as Pages serves `docs/`.
 const PENPA_URL = new URL('../docs/index.html', import.meta.url).href
+
+// The ChinStrap solve page, served the same way.
+const SOLVE_URL = new URL('../docs/solve.html', import.meta.url).href
 
 // Where a test that needs cookies is served `docs/` from.
 const PENPA_ORIGIN = 'https://penpa.test'
@@ -53,10 +57,11 @@ export function jsRequest (file) {
 // Opens Penpa+ with `query` (such as `#m=solve&p=...`) in a context of its own and returns once `pu` exists.
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
-// `url` opens that address (plus `query`) instead of the checkout's page, and `setup(context)` runs before the page opens.
+// `url` opens that address (plus `query`) instead of the checkout's page, `solve: true` opens `solve.html` in place of the
+// default page, and `setup(context)` runs before the page opens.
 // `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
 // dismissed, and `errors` every page error and `console.error` so far.
-export async function openPenpa (browser, query = '', { cookies = [], served = false, url, setup, contextOptions } = {}) {
+export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, setup, contextOptions } = {}) {
   const context = await penpaContext(browser, { served, setup, contextOptions })
   if (cookies.length) await context.addCookies(cookies)
   const page = await context.newPage()
@@ -65,7 +70,7 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   onErrors(page, (e) => errors.push(e))
   const dialogs = []
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
-  await page.goto((url ?? penpaAddress(served)) + query)
+  await page.goto((url ?? penpaAddress(served, solve)) + query)
   await page.waitForFunction(() => typeof pu !== 'undefined')
   return { context, page, dialogs, errors }
 }
@@ -121,9 +126,10 @@ async function penpaContext (browser, { served, setup, contextOptions }) {
   return context
 }
 
-// Where Penpa+'s page is opened from.
-function penpaAddress (served) {
-  return served ? PENPA_ORIGIN + '/' : PENPA_URL
+// Where Penpa+'s page, or with `solve` the solve page, is opened from.
+function penpaAddress (served, solve = false) {
+  if (served) return PENPA_ORIGIN + (solve ? '/solve.html' : '/')
+  return solve ? SOLVE_URL : PENPA_URL
 }
 
 // Passes `add` every page error and `console.error` of `page` from now on.
@@ -201,3 +207,93 @@ export async function makeNumberSolveLink (browser) {
     await context.close()
   }
 }
+
+// Runs in the page. The board's canvas in the Board card: the drawn one, since Penpa+ keeps a hidden pause canvas beside it.
+export function boardCanvasInPage () {
+  const canvases = [...document.querySelectorAll('section[aria-label="Board"] canvas')]
+  return canvases.find((c) => c.getBoundingClientRect().width > 0)
+}
+
+// Reads where the board's canvas lies against the Board card's body, in CSS px.
+export async function boardAgainstCard (page) {
+  const boardCanvas = await page.evaluateHandle(boardCanvasInPage)
+  try {
+    return await boardCanvas.evaluate((canvasNode) => {
+      const card = document.querySelector('section[aria-label="Board"]').getBoundingClientRect()
+      const canvas = canvasNode.getBoundingClientRect()
+      return { cardW: card.width, cardH: card.height, w: canvas.width, h: canvas.height, inside: canvas.left >= card.left - 1 && canvas.right <= card.right + 1 && canvas.top >= card.top - 1 && canvas.bottom <= card.bottom + 1 }
+    })
+  } finally {
+    await boardCanvas.dispose()
+  }
+}
+
+// ---- solve.html ---------------------------------------------------------------------------------------------------
+
+// The window the tests lay solve.html's desk out in.
+export const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
+
+// Runs in the page. A 6x6 board's solve link `#` part: its Tab set is `names` (Penpa+'s own names for them), or with no
+// names it has none, so the link offers every mode.
+export function newBoardSolveLinkInPage (names) {
+  document.getElementById('nb_size1').value = 6
+  document.getElementById('nb_size2').value = 6
+  create_newboard()
+  if (names) UserSettings.tab_settings = names
+  const url = pu.maketext_solve()
+  return url.slice(url.indexOf('#'))
+}
+
+// One link per Tab set for a test file, since each costs a page of its own to build.
+const newBoardLinks = new Map()
+
+// `newBoardSolveLinkInPage`'s link for `names`, built once per test file.
+export function newBoardSolveLink (browser, names) {
+  const key = JSON.stringify(names ?? null)
+  if (!newBoardLinks.has(key)) newBoardLinks.set(key, linkFromNewBoard(browser, newBoardSolveLinkInPage, names))
+  return newBoardLinks.get(key)
+}
+
+// Waits until solve.html has built its desk round the loaded puzzle.
+export async function waitForDesk (page) {
+  await page.getByRole('region', { name: 'Board' }).waitFor()
+  await page.evaluate(() => engine.ready)
+}
+
+// Opens solve.html on `query` in a DESK_SIZE window and returns once the desk is built; `options` go to `openPenpa`.
+export async function openSolvePage (browser, query, options = {}) {
+  const opened = await openPenpa(browser, query, { solve: true, contextOptions: DESK_SIZE, ...options })
+  await waitForDesk(opened.page)
+  return opened
+}
+
+export const currentTool = (page) => page.evaluate(() => engine.getTool())
+export const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
+
+// Waits for the tool in use to be `want`, a `{ mode, submode }`, fails with `message` when it never is, and returns it.
+export async function waitForTool (page, want, message = 'the tool settles') {
+  const tool = await settle(async () => {
+    const { mode, submode } = await currentTool(page)
+    return { mode, submode }
+  }, want)
+  assert.deepEqual(tool, want, message)
+  return tool
+}
+
+// Two animation frames: the bridge's `change` fires in the first, and the UI has drawn it by the second.
+export const afterChange = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+
+// What the solver has entered, the selection and the mode, read as Penpa+ would save them (`readEngineState`, defined by
+// recorder.js): what a key could change on the board.
+export const board = (page) => page.evaluate(() => {
+  const state = readEngineState()
+  // The undo and replay logs carry the time between keys, which differs between runs.
+  const { command_undo: undo, command_redo: redo, command_replay: replay, ...entered } = state.pu_a
+  return { entered, selection: state.selection, mode: state.mode }
+})
+
+// What the page keeps in localStorage, whatever the UI calls its keys.
+export const storedEntries = (page) => page.evaluate(() => JSON.stringify(Object.entries(localStorage).sort()))
+
+// The text the solver has typed into Number mode cells, in cell order.
+export const typedDigits = async (page) => Object.values((await board(page)).entered.number ?? {}).map(([digit]) => digit)

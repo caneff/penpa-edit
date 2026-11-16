@@ -1,0 +1,345 @@
+// The tool catalog and the Mode and Mouse cards of `solve.html` (#95): the engine lists every tool a link offers and
+// applies a whole one, the Mode card's combobox picks any of them, and the Mouse card and the board's title bar say what
+// the current one does. The UI is found by role and accessible name or test id, the board by what Penpa+ would save
+// (`readEngineState`, defined by recorder.js).
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { after, before, describe, it } from 'node:test'
+import { AKARI_SOLVE, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { clickCell } from './replay.mjs'
+import { settle } from './settle.mjs'
+
+const browser = useBrowser()
+
+// The modes a solve link offers on a square grid: every Penpa+ mode but Box, which solve mode hides.
+const SOLVE_MODES = ['surface', 'multicolor', 'line', 'lineE', 'wall', 'number', 'symbol', 'special', 'cage', 'combi', 'sudoku', 'move']
+
+// Index in `pu.centerlist` of cells clear of the board's edges.
+const CELL = 12
+const OTHER_CELL = 18
+
+// With no query, a new board's link, which has no Tab set and so offers every mode.
+const openSolve = async (query) => openSolvePage(browser(), query ?? await newBoardSolveLink(browser()))
+
+// What the solver has shaded: cell index -> the style Penpa+ saved.
+const shaded = (page) => page.evaluate(() => Object.fromEntries(Object.entries(readEngineState().pu_a.surface).map(([cell, style]) => [cell, style])))
+
+const tools = (page) => page.evaluate(() => engine.listTools())
+
+describe('engine.listTools', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  it('lists every mode the link offers and not Box', async () => {
+    const modes = [...new Set((await tools(opened.page)).map((t) => t.mode))]
+    assert.deepEqual(modes, SOLVE_MODES)
+  })
+
+  it('lists sub-modes, Composite tools and Shapes, each tool once', async () => {
+    const list = await tools(opened.page)
+    const ids = list.map((t) => `${t.mode}/${t.submode}`)
+    assert.equal(new Set(ids).size, ids.length, 'no tool twice')
+    for (const id of ['line/2', 'lineE/6', 'number/7', 'sudoku/3', 'special/thermo', 'cage/2', 'move/3', 'combi/akari', 'combi/blpo', 'symbol/circle_L']) {
+      assert.ok(ids.includes(id), `${id} is listed`)
+    }
+    assert.deepEqual(list.find((t) => t.mode === 'surface').submode, null)
+  })
+
+  it('gives each tool a name, Penpa+\'s labels and its styles with a display name', async () => {
+    const list = await tools(opened.page)
+    for (const t of list) {
+      assert.equal(typeof t.name, 'string', `${t.mode}/${t.submode} has a name`)
+      assert.notEqual(t.name, '', `${t.mode}/${t.submode} has a name`)
+      assert.ok(Array.isArray(t.labels) && t.labels.length > 0, `${t.mode}/${t.submode} has Penpa+ labels`)
+      for (const s of t.styles) assert.ok(Number.isInteger(s.style) && s.name, `${t.mode}/${t.submode} style ${JSON.stringify(s)}`)
+    }
+    const surface = list.find((t) => t.mode === 'surface')
+    assert.deepEqual(surface.styles.find((s) => s.style === 2).name, 'green')
+    assert.match(surface.styles.find((s) => s.style === 2).swatch, /^rgb\(/)
+    const blpo = list.find((t) => t.submode === 'blpo')
+    assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa+\'s label')
+    assert.deepEqual(list.find((t) => t.submode === 'akari').styles, [], 'Akari has no style')
+  })
+})
+
+describe('engine.listTools on a link whose tab set is small', () => {
+  it('lists only the modes the link offers', async () => {
+    const opened = await openSolve(AKARI_SOLVE)
+    try {
+      assert.deepEqual([...new Set((await tools(opened.page)).map((t) => t.mode))], ['surface', 'combi'])
+    } finally {
+      await opened.context.close()
+    }
+  })
+})
+
+describe('engine.setTool and engine.getTool', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  it('applies a whole tool and reads it back', async () => {
+    for (const tool of [
+      { mode: 'line', submode: '2', style: 8 },
+      { mode: 'surface', submode: null, style: 5 },
+      { mode: 'sudoku', submode: '3', style: 2 },
+      { mode: 'combi', submode: 'akari', style: null },
+      { mode: 'symbol', submode: 'star', style: 1 },
+      { mode: 'lineE', submode: '4', style: 9 }
+    ]) {
+      await setTool(opened.page, tool)
+      assert.deepEqual(await currentTool(opened.page), tool)
+    }
+  })
+
+  it('keeps Penpa+\'s remembered sub-mode and style for a part it is not given', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '6', style: 8 })
+    await setTool(opened.page, { mode: 'line' })
+    await setTool(opened.page, { mode: 'number' })
+    assert.deepEqual(await currentTool(opened.page), { mode: 'number', submode: '6', style: 8 })
+  })
+
+  it('throws on a mode, sub-mode or style the catalog does not list', async () => {
+    const before = await currentTool(opened.page)
+    const results = await opened.page.evaluate(() => {
+      const throws = (tool) => { try { engine.setTool(tool); return false } catch { return true } }
+      return {
+        mode: throws({ mode: 'nonsense' }),
+        box: throws({ mode: 'board' }),
+        submode: throws({ mode: 'line', submode: '99' }),
+        submodeOfOtherMode: throws({ mode: 'line', submode: 'thermo' }),
+        submodeWhereNone: throws({ mode: 'surface', submode: '1' }),
+        style: throws({ mode: 'surface', style: 99 }),
+        styleWhereNone: throws({ mode: 'combi', submode: 'akari', style: 3 }),
+        notAnObject: throws('line'),
+        nothing: throws()
+      }
+    })
+    assert.deepEqual(results, Object.fromEntries(Object.keys(results).map((name) => [name, true])))
+    assert.deepEqual(await currentTool(opened.page), before, 'a refused tool changes nothing')
+  })
+
+  it('changes what a board click places', async () => {
+    await setTool(opened.page, { mode: 'surface', style: 2 })
+    await clickCell(opened.page, CELL)
+    await setTool(opened.page, { mode: 'surface', style: 5 })
+    await clickCell(opened.page, OTHER_CELL)
+    const cells = Object.values(await shaded(opened.page))
+    assert.deepEqual(cells.sort(), [2, 5])
+  })
+})
+
+describe('the Mode card', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const combobox = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('combobox', { name: 'Tool' })
+  const options = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('option')
+
+  it('lists every tool the engine lists when opened', async () => {
+    const list = await tools(opened.page)
+    await combobox().click()
+    assert.equal(await combobox().getAttribute('aria-expanded'), 'true')
+    assert.equal(await options().count(), list.length)
+    const modes = await opened.page.getByRole('region', { name: 'Mode' }).getByRole('option').evaluateAll((nodes) => [...new Set(nodes.map((n) => n.dataset.mode))])
+    assert.deepEqual(modes.sort(), [...SOLVE_MODES].sort())
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('finds a tool by the name Penpa+ gives it', async () => {
+    await combobox().click()
+    await combobox().fill('Black / dot')
+    assert.equal(await options().count(), 1)
+    await options().first().click()
+    assert.deepEqual((await currentTool(opened.page)).submode, 'blpo')
+    await combobox().click()
+    await combobox().fill('Helper (x)')
+    assert.deepEqual(await options().evaluateAll((nodes) => nodes.map((n) => `${n.dataset.mode}/${n.dataset.submode}`)), ['line/4', 'lineE/4'])
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('picks with the keyboard alone: arrows, Enter, and Escape to leave', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'surface' })
+    await combobox().focus()
+    await page.keyboard.press('ArrowDown')
+    assert.equal(await combobox().getAttribute('aria-expanded'), 'true')
+    await combobox().fill('Diagonal line')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Enter')
+    assert.deepEqual({ ...(await currentTool(page)), style: 0 }, { mode: 'line', submode: '2', style: 0 })
+    assert.equal(await combobox().getAttribute('aria-expanded'), 'false')
+
+    await combobox().focus()
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Escape')
+    assert.equal(await combobox().getAttribute('aria-expanded'), 'false')
+    assert.deepEqual((await currentTool(page)).submode, '2', 'Escape picks nothing')
+  })
+
+  it('moves the highlighted option with the arrows and names it in aria-activedescendant', async () => {
+    const { page } = opened
+    await combobox().focus()
+    await combobox().fill('Corner')
+    await page.keyboard.press('ArrowDown')
+    const id = await combobox().getAttribute('aria-activedescendant')
+    assert.equal(await page.locator(`[id="${id}"]`).getAttribute('role'), 'option')
+    assert.equal(await page.locator(`[id="${id}"]`).getAttribute('aria-selected'), 'true')
+    await page.keyboard.press('Escape')
+  })
+
+  it('returns focus to the board after a pick', async () => {
+    const { page } = opened
+    await combobox().click()
+    await options().first().click()
+    const focused = await page.evaluate(() => document.activeElement === document.body)
+    assert.equal(focused, true)
+  })
+
+  it('shows only style buttons after the picker, and a style button sets the style', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'surface', style: 1 })
+    const styles = page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
+    const green = styles.getByRole('button', { name: 'green' })
+    assert.equal(await settle(() => green.getAttribute('aria-pressed'), 'false'), 'false')
+    await green.click()
+    await settle(async () => (await currentTool(page)).style, 2)
+    assert.equal((await currentTool(page)).style, 2)
+    assert.equal(await settle(() => green.getAttribute('aria-pressed'), 'true'), 'true')
+    await setTool(page, { mode: 'combi', submode: 'akari' })
+    await settle(() => styles.count(), 0)
+    assert.equal(await styles.count(), 0, 'a tool without styles shows none')
+  })
+
+  it('follows a tool set from outside', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '7' })
+    const read = () => combobox().inputValue()
+    assert.equal(await settle(read, 'Candidates'), 'Candidates')
+  })
+})
+
+describe('the Mouse card and the title bar', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const headline = () => opened.page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
+  const titleBarTool = () => opened.page.getByTestId('board-tool-name')
+
+  it('names mode, sub-mode and style, in the card and in the title bar', async () => {
+    await setTool(opened.page, { mode: 'line', submode: '4', style: 3 })
+    assert.equal(await settle(() => headline().textContent(), 'Line · helper × · green'), 'Line · helper × · green')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Line · helper × · green'), 'Line · helper × · green')
+    await setTool(opened.page, { mode: 'combi', submode: 'akari' })
+    assert.equal(await settle(() => headline().textContent(), 'Composite · Bulbs + dots'), 'Composite · Bulbs + dots')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Composite · Bulbs + dots'), 'Composite · Bulbs + dots')
+  })
+
+  // The card's rows as [gesture, effect] pairs.
+  const rows = () => opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrow')
+    .evaluateAll((els) => els.map((el) => [...el.children].map((c) => c.textContent)))
+
+  // One tool of each mode family, with the rows its agreed wording gives (research/mouse-card-wording-2026-11.md).
+  const WORDING = [
+    [{ mode: 'surface', style: 2 }, 'Surface · green', [
+      ['Left click', 'paint the cell → clear'], ['Right click', 'paint the 2nd colour → clear'],
+      ['Drag', 'paint many cells; starting on a painted cell: clear many'],
+      ['Right drag', '2nd colour on many cells (starting on it: clear many)'],
+      ['Alt + drag', 'paint a rectangle (starting on the colour: clear it; square grids only)'],
+      ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
+    [{ mode: 'line', submode: '1' }, 'Line · Normal', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'line through cell centres; starting on it: erase']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge · helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', '—']]],
+    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag; starting on it: erase']]],
+    [{ mode: 'number', submode: '3' }, 'Number · quarter', [['Left click', 'cursor to the nearest cell corner spot'],
+      ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', '—'], ['Digit', 'number at the cursor']]],
+    [{ mode: 'combi', submode: 'blwh' }, 'Composite · Black + white circles', [['Left click', 'white ○ → black ● → clear'],
+      ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
+    [{ mode: 'special', submode: 'thermo' }, 'Special · Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
+      ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
+    [{ mode: 'cage', submode: '2' }, 'Cage · free lines', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
+    [{ mode: 'move', submode: '2' }, 'Move · numbers', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'move a number you entered to an empty cell']]],
+    [{ mode: 'symbol', submode: 'circle_L' }, 'Shape · Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
+      ['Right click', 'cursor to the cell'], ['Drag', '—'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
+    [{ mode: 'symbol', submode: 'cross' }, 'Shape · Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
+      ['Drag', '—'], ['Digit', 'add or remove part n of the shape at the cursor']]]
+  ]
+
+  for (const [tool, name, expected] of WORDING) {
+    it(`words ${tool.mode}/${tool.submode ?? ''} as agreed`, async () => {
+      await setTool(opened.page, tool)
+      await settle(() => headline().textContent(), name)
+      assert.deepEqual(await rows(), expected)
+    })
+  }
+
+  it('says Left click, Right click and Drag first for every tool, and has no row for the style', async () => {
+    await setTool(opened.page, { mode: 'surface', style: 2 })
+    await settle(() => headline().textContent(), 'Surface · green')
+    assert.deepEqual((await rows()).slice(0, 3).map(([gesture]) => gesture), ['Left click', 'Right click', 'Drag'])
+    assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
+  })
+
+  it('words Left click, Right click and Drag as the agreed table says, for every tool in it', async () => {
+    // `research/mouse-card-wording-2026-11.md`: rows `| mode/submode | name | Left click | Right click | Drag | ...`.
+    const agreed = readFileSync(new URL('../research/mouse-card-wording-2026-11.md', import.meta.url), 'utf8').split('\n')
+      .map((line) => line.split('|').map((cell) => cell.trim()))
+      .filter((cells) => /^[a-zA-Z]+\/[\w+]*$/.test(cells[1] ?? '') && cells.length > 6)
+      .map((cells) => [cells[1], cells.slice(3, 6)])
+    assert.ok(agreed.length > 40, `read ${agreed.length} agreed rows`)
+    const tools = await opened.page.evaluate(() => engine.listTools().map(({ mode, submode, styles }) => ({ mode, submode, style: styles[0]?.style ?? null })))
+    const offered = new Set(tools.map((t) => `${t.mode}/${t.submode ?? ''}`))
+    const differ = []
+    let checked = 0
+    for (const [key, words] of agreed) {
+      if (!offered.has(key)) continue
+      const tool = tools.find((t) => `${t.mode}/${t.submode ?? ''}` === key)
+      // The card draws on the engine's change, a frame or two after `setTool`.
+      const shown = await opened.page.evaluate(async (t) => {
+        engine.setTool(t)
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        return [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].slice(0, 3).map((r) => r.children[1].textContent)
+      }, tool)
+      checked++
+      if (shown.join(' | ') !== words.join(' | ')) differ.push(`${key}: card ${shown.join(' | ')} vs agreed ${words.join(' | ')}`)
+    }
+    assert.ok(checked > 40, `checked ${checked} tools against the table`)
+    assert.deepEqual(differ, [])
+  })
+
+  it('keeps the card\'s height the same for every tool', async () => {
+    const heights = await opened.page.evaluate(async () => {
+      const card = document.querySelector('section[aria-label="Mouse"]')
+      const seen = {}
+      for (const t of engine.listTools()) {
+        for (const style of t.styles.length ? [t.styles[0].style, t.styles.at(-1).style] : [null]) {
+          engine.setTool({ mode: t.mode, submode: t.submode, style })
+          await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+          const name = card.querySelector('h3').textContent
+          if (!name) throw new Error(`no headline for ${t.mode}/${t.submode}`)
+          seen[card.getBoundingClientRect().height] = (seen[card.getBoundingClientRect().height] ?? 0) + 1
+        }
+      }
+      return seen
+    })
+    assert.equal(Object.keys(heights).length, 1, `one height, saw ${JSON.stringify(heights)}`)
+  })
+})
+
+describe('a mode the link does not offer', () => {
+  it('is still the tool in use, and the cards draw it without an error', async () => {
+    const opened = await openSolve(AKARI_SOLVE)
+    try {
+      await opened.page.evaluate(() => pu.mode_set('sudoku'))
+      assert.deepEqual(await currentTool(opened.page), { mode: 'sudoku', submode: '1', style: null })
+      const headline = opened.page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
+      assert.equal(await settle(() => headline.textContent(), 'sudoku'), 'sudoku')
+    } finally {
+      await opened.context.close()
+    }
+  })
+})
