@@ -297,7 +297,9 @@ describe('deleting a saved preset', () => {
   before(async () => {
     opened = await openSolvePage(browser(), await link(['Line Normal']), {
       setup: (context) => context.addInitScript(() => {
-        if (localStorage.getItem('chinstrap.pinPresets') === null) {
+        // Once per tab, so a reload keeps what the test did to the saved presets.
+        if (sessionStorage.getItem('seeded') === null) {
+          sessionStorage.setItem('seeded', '1')
           localStorage.setItem('chinstrap.pinPresets', JSON.stringify([
             { name: 'First', tools: [{ mode: 'line', submode: '1' }] },
             { name: 'Second', tools: [{ mode: 'line', submode: '1' }] }
@@ -323,6 +325,7 @@ describe('deleting a saved preset', () => {
     await openList(page)
     assert.deepEqual(await optionsOfGroup(page, 'Your presets'), ['First', 'Second'], 'undo puts it back where it was')
     await deleteButton(page, 'Second').click()
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.name).join()), 'First')
     await page.keyboard.press('Escape')
     await closed(page)
   })
@@ -380,7 +383,9 @@ describe('undoing a delete', () => {
   before(async () => {
     opened = await openSolvePage(browser(), await link(['Line Normal', 'Sudoku Corner']), {
       setup: (context) => context.addInitScript(() => {
-        if (localStorage.getItem('chinstrap.pinPresets') === null) {
+        // Once per tab, so a reload keeps what the test did to the saved presets.
+        if (sessionStorage.getItem('seeded') === null) {
+          sessionStorage.setItem('seeded', '1')
           localStorage.setItem('chinstrap.pinPresets', JSON.stringify([{ name: 'A', tools: [{ mode: 'line', submode: '1' }] }]))
         }
       })
