@@ -167,6 +167,29 @@ describe('the upstream merge script', () => {
   })
 })
 
+// AGENTS.md § "Our files": a directory ends in "/", and a file in it is probed by a made-up name.
+const OWNED_PATHS = [
+  'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
+  'docs/js/header_text.js', 'docs/js/recorder.js',
+  'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
+  'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/redirect-urls.mjs',
+  '.github/workflows/', '.github/actions/', '.github/scripts/'
+]
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+describe("the repo's .gitattributes", () => {
+  for (const path of OWNED_PATHS) {
+    it(`marks ${path} merge=ours`, () => {
+      const probe = path.endsWith('/') ? `${path}sub/probe.txt` : path
+      assert.equal(git(REPO_ROOT, 'check-attr', 'merge', '--', probe), `${probe}: merge: ours`)
+    })
+  }
+
+  it('leaves an upstream file such as docs/js/class_p.js to the ordinary merge', () => {
+    assert.equal(git(REPO_ROOT, 'check-attr', 'merge', '--', 'docs/js/class_p.js'), 'docs/js/class_p.js: merge: unspecified')
+  })
+})
+
 // A stub `gh` on PATH answers `issue list` with `openIssues` ("<number>\t<title>" lines), or fails it when `listFails`.
 function runFileIssueOnce ({ title, body, openIssues = '', listFails = false }) {
   const dir = mkdtempSync(join(tmpdir(), 'file-issue-once-'))
