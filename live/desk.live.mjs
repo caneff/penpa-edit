@@ -116,7 +116,7 @@ describe('the desk', () => {
     assert.ok(once > start, `one click on bigger grows the text: ${start} then ${once}`)
     await bigger.click()
     const twice = await bodyFontSize('Rules')
-    assert.equal(twice - once, once - start, 'each click is the same step')
+    assert.deepEqual([start, once, twice], [12, 14, 16], 'each click is one 2 px step from the default')
     assert.equal(await bodyFontSize('Mouse'), mouseStart, 'no other card changes')
 
     for (let i = 0; i < 20 && await bigger.isEnabled(); i++) await bigger.click()
@@ -135,6 +135,19 @@ describe('the desk', () => {
     for (let i = 0; i < 20 && await smaller.isEnabled(); i++) await smaller.click()
     assert.equal(await smaller.isEnabled(), false, 'smaller is disabled at the bottom of the range')
     assert.equal(await bodyFontSize('Rules'), 10)
+  })
+
+  it('uses the default Rules text size for a kept size it did not write, and says so', async () => {
+    const start = await bodyFontSize('Rules')
+    const warnings = []
+    page.on('console', (m) => { if (m.type() === 'warning') warnings.push(m.text()) })
+    for (const bad of ['abc', '99', '9']) {
+      await page.evaluate((v) => localStorage.setItem('chinstrap-solve-rules-text-v1', v), bad)
+      await page.reload()
+      await card(page, 'Rules').waitFor()
+      assert.equal(await settle(() => bodyFontSize('Rules'), start), start, `a kept size of ${bad}`)
+    }
+    assert.equal(warnings.filter((w) => w.includes('chinstrap-solve-rules-text-v1')).length >= 3, true, `the console says each was unusable: ${warnings}`)
   })
 
   it('keeps every card inside the window after it shrinks', async () => {

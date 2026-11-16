@@ -103,7 +103,7 @@
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
         const rulesText = { smaller: symbolButton('\u2212', 'Smaller rules text'), bigger: symbolButton('+', 'Bigger rules text') };
-        cards.rules.head.append(el('span', { class: 'ui-zoom' }, [rulesText.smaller, rulesText.bigger]));
+        cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
@@ -336,18 +336,25 @@
             return;
         }
         const { min, max } = engine.CELL_SIZE_RANGE;
-        cellPx = Math.max(min, Math.min(max, cellPx + steps * ZOOM_STEP_PX));
+        cellPx = clamp(cellPx + steps * ZOOM_STEP_PX, min, max);
         engine.setCellSize(cellPx);
     }
 
     // ---- The Rules card's text size ---------------------------------------------------------------------------------
 
-    // Shows the kept size (the stylesheet's default when none is kept) and disables each button at its end of the range.
+    const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+    // The default size lives in the stylesheet, so the buttons read the size back from the page rather than from a
+    // constant. A kept size this code did not write is said in the console and the default is used.
     function showRulesText({ cards, rulesText }) {
         const { min, max } = RULES_TEXT_RANGE_PX;
-        const kept = Number(localStorage.getItem(RULES_TEXT_KEY));
-        const size = Number.isFinite(kept) && kept >= min && kept <= max ? kept : null;
-        cards.rules.body.style.fontSize = size === null ? '' : `${size}px`;
+        const raw = localStorage.getItem(RULES_TEXT_KEY);
+        const kept = raw === null ? null : Number(raw);
+        const isUsable = kept !== null && Number.isFinite(kept) && kept >= min && kept <= max;
+        if (raw !== null && !isUsable) {
+            console.warn(`${RULES_TEXT_KEY} is ${JSON.stringify(raw)}, not a size from ${min} to ${max}; the default size is used.`);
+        }
+        cards.rules.body.style.fontSize = isUsable ? `${kept}px` : '';
         const shown = parseFloat(getComputedStyle(cards.rules.body).fontSize);
         rulesText.smaller.disabled = shown <= min;
         rulesText.bigger.disabled = shown >= max;
@@ -356,7 +363,7 @@
     function stepRulesText(desk, steps) {
         const { min, max, step } = RULES_TEXT_RANGE_PX;
         const shown = parseFloat(getComputedStyle(desk.cards.rules.body).fontSize);
-        localStorage.setItem(RULES_TEXT_KEY, String(Math.max(min, Math.min(max, shown + steps * step))));
+        localStorage.setItem(RULES_TEXT_KEY, String(clamp(shown + steps * step, min, max)));
         showRulesText(desk);
     }
 
@@ -369,7 +376,7 @@
         const relayout = () => layout(desk);
         window.addEventListener('resize', relayout);
         makeMovable(desk.bar, desk.desk, desk.cards);
-        // Every card back to its default size and place.
+        // Every card back to its default size and place, and the Rules text to its default size.
         const resetLayout = () => {
             saved = {};
             localStorage.removeItem(LAYOUT_KEY);
