@@ -78,11 +78,12 @@
         'combi/arrowS': ['symbols', 'Arrows in cells', 'Places an arrow in a cell.']
     };
 
-    const key = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
+    // One tool's identity, for a lookup: its mode and sub-mode.
+    const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
 
     // The picker's entry for a tool: where it is filed, what it is called and what it does.
     function describeTool(tool) {
-        const known = ENTRIES[key(tool)];
+        const known = ENTRIES[toolKey(tool)];
         if (known) {
             return { group: known[0], name: known[1], description: known[2] };
         }
@@ -251,11 +252,8 @@
         if (tool.mode === 'symbol') {
             return ON_OFF_SHAPES.includes(tool.submode) ? SHAPE_ROWS.onOff : SHAPE_ROWS.variants;
         }
-        return ROWS[key(tool)] ?? { left: NOTHING, right: NOTHING, drag: NOTHING, more: [] };
+        return ROWS[toolKey(tool)] ?? { left: NOTHING, right: NOTHING, drag: NOTHING, more: [] };
     }
-
-    // One tool's identity, for a lookup: its mode and sub-mode.
-    const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
 
     // A sub-mode that names its tool on its own stands alone in a chip; a generic one ("Normal") gets its mode first.
     const SELF_NAMING_MODES = ['combi', 'special', 'symbol'];

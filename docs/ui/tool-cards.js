@@ -32,14 +32,20 @@
 
     function headline(tool, style, held) {
         const h3 = el('h3', { class: 'ui-headline' });
-        nameParts(tool, style).forEach((part, i) => {
+        const style_ = styleOf(tool, style);
+        // Each part carries its own class, so a missing sub-mode never shifts the style's class or swatch onto another part.
+        const parts = [
+            [tool.modeName, 'ui-hmode'],
+            [submodeLabel(tool), 'ui-hsub'],
+            [style_?.name, 'ui-hstyle']
+        ].filter(([text]) => text);
+        parts.forEach(([text, cls], i) => {
             if (i) {
                 h3.append(el('span', { class: 'ui-hsep' }, [SEPARATOR]));
             }
-            const span = el('span', { class: ['ui-hmode', 'ui-hsub', 'ui-hstyle'][i] }, [part]);
-            const swatch = i === 2 ? styleOf(tool, style).swatch : null;
-            if (swatch) {
-                span.prepend(el('i', { class: 'ui-dot', style: `background:${swatch}` }));
+            const span = el('span', { class: cls }, [text]);
+            if (cls === 'ui-hstyle' && style_.swatch) {
+                span.prepend(el('i', { class: 'ui-dot', style: `background:${style_.swatch}` }));
             }
             h3.append(span);
         });
@@ -176,10 +182,12 @@
 
         function renderList() {
             const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            shown = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
             list.replaceChildren();
+            // The options are numbered in the order they show, which is the groups' order, not the filter's.
+            const matching = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
+            shown = [];
             GROUPS.forEach(([id, title]) => {
-                const inGroup = shown.filter((e) => e.group === id);
+                const inGroup = matching.filter((e) => e.group === id);
                 if (!inGroup.length) {
                     return;
                 }
@@ -192,13 +200,11 @@
                     // The mouse press keeps the focus in the field, so the click that follows is a pick.
                     option.addEventListener('mousedown', (e) => e.preventDefault());
                     option.addEventListener('click', () => pick(entry));
+                    shown.push(entry);
                     group.append(option);
                 });
                 list.append(group);
             });
-            // The options are numbered in the order they show, which is the groups' order, not `shown`'s.
-            shown = [...list.querySelectorAll('[role=option]')].map((option) => entries.find((e) =>
-                e.tool.mode === option.dataset.mode && (e.tool.submode ?? '') === option.dataset.submode));
             list.querySelectorAll('[role=option]').forEach((option, i) => { option.id = `tool-option-${i}`; });
             if (!shown.length) {
                 list.append(el('div', { class: 'ui-none' }, ['No tool matches.']));
@@ -308,6 +314,13 @@
         relayout();
         render();
         engine.on('change', render);
-        window.addEventListener('resize', () => { sizeMouseCard(); relayout(); });
+        // The desk relays itself out on every resize; only a change in the Mouse card's height needs another pass.
+        window.addEventListener('resize', () => {
+            const before = cards.mouse.node.offsetHeight;
+            sizeMouseCard();
+            if (cards.mouse.node.offsetHeight !== before) {
+                relayout();
+            }
+        });
     });
 })();

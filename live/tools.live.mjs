@@ -3,6 +3,7 @@
 // the current one does. The UI is found by role and accessible name or test id, the board by what Penpa would save
 // (`readEngineState`, defined by recorder.js).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
 import { AKARI_SOLVE, linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
@@ -314,19 +315,31 @@ describe('the Mouse card and the title bar', () => {
     assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
   })
 
-  it('has an agreed row set for every tool the link offers', async () => {
-    const seen = await opened.page.evaluate(async () => {
-      const card = document.querySelector('section[aria-label="Mouse"]')
-      const bad = []
-      for (const t of engine.listTools()) {
-        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+  it('words Left click, Right click and Drag as the agreed table says, for every tool in it', async () => {
+    // `research/mouse-card-wording-2026-11.md`: rows `| mode/submode | name | Left click | Right click | Drag | ...`.
+    const agreed = readFileSync(new URL('../research/mouse-card-wording-2026-11.md', import.meta.url), 'utf8').split('\n')
+      .map((line) => line.split('|').map((cell) => cell.trim()))
+      .filter((cells) => /^[a-zA-Z]+\/[\w+]*$/.test(cells[1] ?? '') && cells.length > 6)
+      .map((cells) => [cells[1], cells.slice(3, 6)])
+    assert.ok(agreed.length > 40, `read ${agreed.length} agreed rows`)
+    const tools = await opened.page.evaluate(() => engine.listTools().map(({ mode, submode, styles }) => ({ mode, submode, style: styles[0]?.style ?? null })))
+    const offered = new Set(tools.map((t) => `${t.mode}/${t.submode ?? ''}`))
+    const differ = []
+    let checked = 0
+    for (const [key, words] of agreed) {
+      if (!offered.has(key)) continue
+      const tool = tools.find((t) => `${t.mode}/${t.submode ?? ''}` === key)
+      // The card draws on the engine's change, a frame or two after `setTool`.
+      const shown = await opened.page.evaluate(async (t) => {
+        engine.setTool(t)
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-        const rows = [...card.querySelectorAll('.ui-mrow')].map((r) => r.children[1].textContent)
-        if (rows.slice(0, 3).every((effect) => effect === '—')) bad.push(`${t.mode}/${t.submode}`)
-      }
-      return bad
-    })
-    assert.deepEqual(seen, [], 'every tool does something with a click or a drag')
+        return [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].slice(0, 3).map((r) => r.children[1].textContent)
+      }, tool)
+      checked++
+      if (shown.join(' | ') !== words.join(' | ')) differ.push(`${key}: card ${shown.join(' | ')} vs agreed ${words.join(' | ')}`)
+    }
+    assert.ok(checked > 40, `checked ${checked} tools against the table`)
+    assert.deepEqual(differ, [])
   })
 
   it('keeps the card\'s height the same for every tool', async () => {
