@@ -162,7 +162,7 @@
     // SweetAlert2's popups (1060).
     const chromeStyle = document.createElement('style');
     chromeStyle.textContent =
-        'body.engine-mounted #header, body.engine-mounted #app-container { visibility: hidden; height: 0; overflow: hidden; }\n' +
+        'body.engine-mounted #header, body.engine-mounted #app-container, body.engine-no-puzzle #header, body.engine-no-puzzle #app-container { visibility: hidden; height: 0; overflow: hidden; }\n' +
         'body.engine-mounted #app-container .modal { visibility: visible; z-index: 1000; }\n' +
         'body.engine-mounted #float-key { display: none !important; }\n';
     document.head.appendChild(chromeStyle);
@@ -199,7 +199,8 @@
     window.advancecontrol_off = function () {};
 
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
-    // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads.
+    // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads. A page with no link
+    // never resolves either.
     let resolveBoot;
     let rejectBoot;
     const ready = new Promise((resolve, reject) => {
@@ -207,7 +208,16 @@
         rejectBoot = reject;
     });
     const penpaBoot = window.boot;
+    // A copy of boot()'s own test for a link (general.js): a query with `p=`, else any `#` data. general.js is upstream's, so
+    // it is copied rather than edited to export it.
+    const hasPuzzleData = () => /(^|&)p=/.test(location.search.substring(1)) || location.hash.length > 1;
     window.boot = function () {
+        if (!hasPuzzleData()) {
+            document.body.classList.add('engine-no-puzzle');
+            // Penpa+'s own handlers (a click anywhere, saving on unload) need its blank board, so boot() makes it as usual
+            // and the CSS keeps it hidden. Nothing here waits on it: `ready` never settles.
+            return penpaBoot.apply(this, arguments);
+        }
         UserSettings.outline_text = getCookie(OUTLINE_COOKIE) !== '0';
         const savedShortcuts = getCookie(SHORTCUTS_COOKIE);
         if (savedShortcuts !== null) {
@@ -645,6 +655,9 @@
 
     const engine = {
         ready,
+
+        // False when the page opened with no link: `ready` then never settles and no puzzle is loaded.
+        hasPuzzle: hasPuzzleData(),
 
         // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
         // or Ctrl lends a tool, `solved` while the board matches the author's answer, and `cellSize` is the board's pixels
