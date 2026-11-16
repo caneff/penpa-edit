@@ -131,6 +131,13 @@ describe('a held Shift or Ctrl', () => {
     await settle(() => headlineText(page), 'Sudoku · corner · dark blue')
     assert.deepEqual(await waitForTool(page, CORNER), CORNER)
   })
+})
+
+// A page of its own: a pin's style is saved the first time the tool is on it, so an earlier visit would hide a hold doing it.
+describe('after a hold', () => {
+  let opened
+  before(async () => { opened = await openSolve(['Sudoku Normal', 'Sudoku Corner']) })
+  after(async () => { await opened?.context.close() })
 
   it('leaves the pins and what the page keeps unchanged', async () => {
     const { page } = opened
