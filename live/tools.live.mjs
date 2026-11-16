@@ -117,6 +117,79 @@ describe('the pen styles of line, edge line and wall (#158)', () => {
   }
 })
 
+// Runs in the page: puts a "1" in `style` into the cell at `cell` of Number mode's normal sub-mode, and returns the pixel
+// at `dx` cell-widths right of the cell's centre as [r, g, b, a] (inside the disc some styles draw, clear of the digit),
+// then takes the digit off again.
+function numberDiscPixelInPage ({ style, cell, dx }) {
+  const index = pu.centerlist[cell]
+  pu[pu.mode.qa].number[index] = ['1', style, '1']
+  pu.redraw()
+  const { x, y } = pu.point[index]
+  const { data } = pu.ctx.getImageData(Math.floor((x + dx * pu.size) * pu.resol), Math.floor(y * pu.resol), 1, 1)
+  delete pu[pu.mode.qa].number[index]
+  pu.redraw()
+  return [data[0], data[1], data[2]]
+}
+
+// A CSS colour as [r, g, b], read through a canvas.
+const rgbOfColour = (page, colour) => page.evaluate((c) => {
+  const ctx = document.createElement('canvas').getContext('2d')
+  ctx.fillStyle = c
+  ctx.fillRect(0, 0, 1, 1)
+  return [...ctx.getImageData(0, 0, 1, 1).data].slice(0, 3)
+}, colour)
+
+describe('the text styles of Number as samples (#166)', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const NUMBER_SUBMODES = ['1', '10', '6', '5', '7', '3', '9', '8']
+  const SAMPLE_STYLES = { 0: 'outline', 6: 'black on white circle', 7: 'white on black circle', 11: 'white on red circle' }
+  const styleButtons = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' }).getByRole('button')
+
+  for (const submode of NUMBER_SUBMODES) {
+    it(`labels no Style button of Number sub-mode ${submode} with a #n code, and names each in words`, async () => {
+      await setTool(opened.page, { mode: 'number', submode, style: 1 })
+      const buttons = styleButtons()
+      const count = await buttons.count()
+      assert.ok(count >= 10, `Number lists its styles, got ${count}`)
+      for (let i = 0; i < count; i++) {
+        const name = await buttons.nth(i).getAttribute('aria-label')
+        assert.doesNotMatch(await buttons.nth(i).innerText(), /#\d/, `button ${i} shows no code`)
+        assert.doesNotMatch(name, /#|\d/, `button ${i}'s name ${name} is words`)
+        assert.equal(await buttons.nth(i).getAttribute('title'), name, `button ${i}'s tooltip is its name`)
+      }
+      for (const name of Object.values(SAMPLE_STYLES)) {
+        const button = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' }).getByRole('button', { name, exact: true })
+        assert.equal(await button.count(), 1, `${name} button`)
+        assert.equal(await button.locator('svg text').textContent(), '1', `${name} shows a sample digit`)
+      }
+    })
+  }
+
+  it('draws each disc style\'s sample digit on the disc colour the board draws it on', async () => {
+    await setTool(opened.page, { mode: 'number', submode: '1', style: 1 })
+    const group = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
+    const tool = (await tools(opened.page)).find((t) => t.mode === 'number' && t.submode === '1')
+    for (const style of [6, 7, 11]) {
+      const name = SAMPLE_STYLES[style]
+      assert.equal(tool.styles.find((s) => s.style === style).name, name)
+      const pixel = await opened.page.evaluate(numberDiscPixelInPage, { style, cell: CELL, dx: 0.3 })
+      const fill = await group.getByRole('button', { name, exact: true }).locator('svg circle').getAttribute('fill')
+      assert.deepEqual(await rgbOfColour(opened.page, fill), pixel, `${name}: sample disc ${fill} against the board's pixel`)
+      const ink = await group.getByRole('button', { name, exact: true }).locator('svg text').getAttribute('fill')
+      assert.notDeepEqual(await rgbOfColour(opened.page, ink), pixel, `${name}: the digit contrasts with its disc`)
+    }
+  })
+
+  it('draws the outline sample hollow with a black stroke, as the board draws style 0', async () => {
+    const text = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' }).getByRole('button', { name: 'outline', exact: true }).locator('svg text')
+    assert.equal(await text.getAttribute('stroke'), '#000000')
+    assert.match(await text.getAttribute('fill'), /^rgba\(255, 255, 255, 0\)$/)
+  })
+})
+
 describe('engine.setTool and engine.getTool', () => {
   let opened
   before(async () => { opened = await openSolve() })

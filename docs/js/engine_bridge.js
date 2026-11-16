@@ -374,7 +374,12 @@
         3: 'green', 2: 'black', 5: 'grey', 8: 'red', 9: 'blue', 80: 'thin', 1: 'thin', 12: 'dotted',
         13: 'fat dots', 17: 'fat dots', 40: 'short', 30: 'double', 21: 'thicker', 14: 'grey dot'
     };
-    const VALUE_STYLE = { 1: 'black', 2: 'green', 8: 'blue', 3: 'grey', 9: 'dark blue', 10: 'red', 4: 'white', 5: 'white background' };
+    const VALUE_STYLE = {
+        1: 'black', 2: 'green', 8: 'blue', 3: 'grey', 9: 'dark blue', 10: 'red', 4: 'white', 5: 'white background',
+        0: 'outline', 6: 'black on white circle', 7: 'white on black circle', 11: 'white on red circle'
+    };
+    // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it with.
+    const TEXT_STYLE_DISC = { 6: 1, 7: 2, 11: 11 };
     const SURFACE_STYLE = Object.fromEntries(SURFACE_COLOURS);
     const STYLE_NAMES = {
         line: PATH_STYLE, lineE: PATH_STYLE, wall: PATH_STYLE, number: VALUE_STYLE, sudoku: VALUE_STYLE,
@@ -448,6 +453,21 @@
         return scratch.strokeStyle;
     }
 
+    // MVP gap: calls Penpa+'s `set_font_style` and `set_circle_style` on a scratch canvas to read how it draws a digit of text
+    // style `style` and the disc behind it (null for none), so the Mode card's sample is the board's own drawing.
+    function textSampleOf(style) {
+        const scratch = document.createElement('canvas').getContext('2d');
+        const paint = () => ({ fill: scratch.fillStyle, stroke: scratch.strokeStyle, lineWidth: scratch.lineWidth });
+        set_font_style(scratch, 10, style);
+        const text = paint();
+        const discStyle = TEXT_STYLE_DISC[style];
+        if (discStyle === undefined) {
+            return { text, disc: null };
+        }
+        set_circle_style(scratch, discStyle);
+        return { text, disc: paint() };
+    }
+
     function stylesOf(mode, submode) {
         const box = styleBoxOf(mode, submode);
         const container = box && document.getElementById(`style_${box}`);
@@ -466,7 +486,8 @@
             if (COLOUR_STYLE_NAMES.has(name)) {
                 swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
             }
-            return [{ style, name, swatch }];
+            const sample = (box === 'number' || box === 'sudoku') && (style === 0 || style in TEXT_STYLE_DISC) ? textSampleOf(style) : null;
+            return [{ style, name, swatch, sample }];
         });
     }
 
@@ -721,7 +742,8 @@
         },
 
         // Every tool the link offers, in the order of Penpa+'s mode list. `labels` are the names Penpa+'s own menus give it,
-        // `styles` its colours and line looks with a display name and the swatch colour (null where the style is no colour).
+        // `styles` its colours and line looks with a display name, the swatch colour (null where the style is no colour) and, for Number's text styles drawn as outline or on a disc,
+        // a `sample` of how Penpa+ paints the digit and its disc.
         listTools() {
             return toolCatalog().map((tool) => ({ ...tool, labels: [...tool.labels], styles: tool.styles.map((style) => ({ ...style })) }));
         },
