@@ -8,6 +8,7 @@ import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const path = (p) => fileURLToPath(new URL(`../${p}`, import.meta.url))
+const NIGHTLY = readFileSync(path('.github/workflows/upstream-merge.yml'), 'utf8')
 const ruleset = JSON.parse(execFileSync('bash', [path('.github/scripts/require-checks.sh'), '--dry-run'], { encoding: 'utf8' }))
 const required = ruleset.rules.find((r) => r.type === 'required_status_checks').parameters.required_status_checks.map((c) => c.context).sort()
 
@@ -26,7 +27,24 @@ describe('the master ruleset', () => {
   })
 
   it('is satisfied by the statuses the nightly upstream merge posts', () => {
-    const posted = [...readFileSync(path('.github/workflows/upstream-merge.yml'), 'utf8').matchAll(/-f context=([\w-]+)/g)].map((m) => m[1]).sort()
+    const posted = [...NIGHTLY.matchAll(/-f context=([\w-]+)/g)].map((m) => m[1]).sort()
     assert.deepEqual(posted, required)
+  })
+})
+
+// The text of the nightly's step with `id: <id>`, up to the next step.
+const step = (id) => NIGHTLY.match(new RegExp(`^ {6}- id: ${id}\n[\\s\\S]*?(?=^ {6}- |^ {6}#|(?![\\s\\S]))`, 'm'))?.[0] ?? ''
+
+describe('the nightly upstream merge', () => {
+  it('checks the merged tree against master for changed expected files', () => {
+    assert.match(step('expected'), /run: bash \.github\/scripts\/expected-unchanged\.sh HEAD\^1 "\$REPORT"$/m)
+  })
+
+  it("posts each status only when that status's own step passed on the merged commit", () => {
+    const push = step('push')
+    assert.match(push, /TESTS: \$\{\{ steps\.tests\.outcome \}\}/)
+    assert.match(push, /EXPECTED: \$\{\{ steps\.expected\.outcome \}\}/)
+    assert.match(push, /if \[\[ \$TESTS == success \]\]; then\n\s+gh api [^\n]*-f context=test /)
+    assert.match(push, /if \[\[ \$EXPECTED == success \]\]; then\n\s+gh api [^\n]*-f context=expected-files /)
   })
 })

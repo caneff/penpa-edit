@@ -65,9 +65,10 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 - **Expected-file changes** (#33): a ticket whose fix changes a recording's expected file lists each recording before the
   fix, under a `## Expected changes` heading, one bullet per id: a backticked id, a colon, the change in words. The
   controller approves only those ids, with the approve command (`npm run recordings:approve -- <id> ...`, no "update
-  all"), after reading the plain-words diff it prints; every other change, and every change an upstream merge brings,
-  goes to Chris. CI's `expected-files` job fails a PR that changes an expected file no ticket it closes listed before
-  the change, passes a new recording, and posts each change in plain words as a PR comment. Workers in
+  all"), which prints each file's change in plain words before it writes; every other change, and every change an
+  upstream merge brings, goes to Chris. CI's `expected-files` job fails a PR that changes an expected file no ticket it
+  closes listed before the fix started (the earliest author date of the PR's commits), passes a new recording, and posts
+  each change in plain words as a PR comment. A ticket edit starts no run: re-run the job after one. Workers in
   `.claude/worktrees/` are denied writes to `live/recordings/**` and the approve command
   (`.claude/hooks/deny-recording-writes.mjs`).
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser

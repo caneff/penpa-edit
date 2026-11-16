@@ -1,7 +1,5 @@
 // What changes between two versions of a recording's expected file, in plain words: one line per changed key of a
-// checkpoint, with the step that checkpoint follows. Printed by `npm run recordings:approve` before it writes, and
-// posted on a PR by the expected-file gate (`.github/scripts/expected-gate.mjs`). Not a check itself, so
-// `live/**/*.live.mjs` skips it.
+// checkpoint, with the step that checkpoint follows. Not a check itself, so `live/**/*.live.mjs` skips it.
 import { changedKeys, checkpointWords, entries } from './replay.mjs'
 
 // `before` and `after` are expected files as JSON reads them, either null for a file that does not exist.

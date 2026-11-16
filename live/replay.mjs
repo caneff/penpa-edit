@@ -28,8 +28,8 @@ import { jsRequest, linkFromNewBoard, openPenpa } from './page.mjs'
 import { settle } from './settle.mjs'
 
 export const RECORDINGS = new URL('./recordings/', import.meta.url)
-const STEPS_SUFFIX = '.steps.json'
-const EXPECTED_SUFFIX = '.expected.json'
+export const STEPS_SUFFIX = '.steps.json'
+export const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
@@ -123,12 +123,14 @@ export async function readExpected (id) {
   return file.checkpoints.map(({ step, state }) => ({ step, state: state.join('\n') + '\n' }))
 }
 
-// Each state written one line per array entry, so a changed line reads as one line of the file's diff. Returns the file
-// as `readExpectedFile` reads it back.
+// A replay's checkpoints as the expected file holds them: each state one line per array entry, so a changed line reads
+// as one line of the file's diff.
+export function expectedFile (checkpoints) {
+  return { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
+}
+
 export async function writeExpected (id, checkpoints) {
-  const file = { checkpoints: checkpoints.map(({ step, state }) => ({ step, state: state.trimEnd().split('\n') })) }
-  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(file, null, 1) + '\n')
-  return file
+  await writeFile(new URL(id + EXPECTED_SUFFIX, RECORDINGS), JSON.stringify(expectedFile(checkpoints), null, 1) + '\n')
 }
 
 // Runs in the page: makes the engine call the step's input made, with the pointer fields `main.js` sets before it.
