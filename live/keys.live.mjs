@@ -281,6 +281,8 @@ describe('focus returns to the board', () => {
       await dialog.waitFor()
       await page.keyboard.press('Escape')
       await dialog.waitFor({ state: 'hidden' })
+      // The UI blurs the control Web Awesome handed focus back to in a later timeout, so a key pressed at once can land first.
+      assert.equal(await settle(() => page.evaluate(() => document.activeElement === document.body), true), true)
       await page.keyboard.press('6')
       assert.deepEqual(await typedDigits(page), ['6'])
     } finally {
