@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { afterChange, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -15,7 +15,7 @@ const CELL = 12
 
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
-const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as preset)/ })
+const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins as preset)/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
 
 // The colour of the board's frame, as the Board card draws it.
@@ -66,7 +66,7 @@ describe('the pins', () => {
   it('survive a reload of a link the history copy rewrote', async () => {
     const { page } = opened
     await setTool(page, { mode: 'line', submode: '1' })
-    await page.getByRole('button', { name: 'Pin current tool' }).click()
+    await page.getByRole('region', { name: 'Mode' }).getByRole('button', { name: 'Pin Line > Normal' }).click()
     const pinned = ['Sudoku > Corner', 'Line > Normal']
     assert.deepEqual(await settle(() => chipNames(page), pinned), pinned)
     await page.evaluate(() => engine.setSetting('auto_save_history', true))
@@ -140,7 +140,7 @@ describe('Tab, Shift+Tab and Enter', () => {
     await setTool(page, { mode: 'line', submode: '1' })
     await page.keyboard.press('Enter')
     await waitForTool(page, { mode: 'surface', submode: null })
-    await page.getByRole('button', { name: 'Unpin Surface' }).focus()
+    await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: 'Unpin Surface' }).focus()
     await page.keyboard.press('Enter')
     // The focused button took the Enter: it unpinned, and the tool did not step.
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal']), ['Line > Normal'])
@@ -293,5 +293,74 @@ describe('the board frame', () => {
     const neutral = await frameOnce(page, [])
     assert.notEqual(neutral, first)
     assert.notEqual(neutral, second)
+  })
+})
+
+describe('the pin toggles', () => {
+  let opened
+  before(async () => {
+    opened = await openSolve(['Line Normal', 'Sudoku Corner', 'Surface', 'Wall'])
+    for (const name of ['Unpin Surface', 'Unpin Wall']) {
+      await opened.page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name }).click()
+    }
+  })
+  after(async () => { await opened?.context.close() })
+
+  const modeCard = (page) => page.getByRole('region', { name: 'Mode' })
+  const recentCard = (page) => page.getByRole('region', { name: 'Recent' })
+
+  it('has no Pin current tool button', async () => {
+    assert.equal(await opened.page.getByRole('button', { name: 'Pin current tool' }).count(), 0)
+  })
+
+  it('leaves the engine quiet while nobody touches the page', async () => {
+    const { page } = opened
+    await afterChange(page)
+    const changes = await page.evaluate(() => new Promise((resolve) => {
+      let count = 0
+      engine.on('change', () => { count += 1 })
+      setTimeout(() => resolve(count), 1000)
+    }))
+    assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+  })
+
+  it('shows the Mode card\'s pin pressed exactly when the current tool is pinned, and toggles it', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'line', submode: '1' })
+    await modeCard(page).getByRole('button', { name: 'Unpin Line > Normal' }).waitFor()
+    assert.equal(await modeCard(page).getByRole('button', { name: 'Unpin Line > Normal' }).getAttribute('aria-pressed'), 'true')
+    await setTool(page, { mode: 'surface', submode: null })
+    const pin = modeCard(page).getByRole('button', { name: 'Pin Surface' })
+    await pin.waitFor()
+    assert.equal(await pin.getAttribute('aria-pressed'), 'false')
+    await pin.click()
+    assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner', 'Surface']), ['Line > Normal', 'Sudoku > Corner', 'Surface'])
+    assert.equal(await modeCard(page).getByRole('button', { name: 'Unpin Surface' }).getAttribute('aria-pressed'), 'true')
+    // The Tab cycle follows: Surface is the last pin, so Tab from it wraps to the first.
+    await page.keyboard.press('Tab')
+    await waitForTool(page, { mode: 'line', submode: '1' })
+    await setTool(page, { mode: 'surface', submode: null })
+    await waitForTool(page, { mode: 'surface', submode: null })
+    await modeCard(page).getByRole('button', { name: 'Unpin Surface' }).click()
+    assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner']), ['Line > Normal', 'Sudoku > Corner'])
+    assert.equal(await modeCard(page).getByRole('button', { name: 'Pin Surface' }).getAttribute('aria-pressed'), 'false')
+  })
+
+  it('gives each Recent chip a pin that toggles its mode and leaves the current tool alone', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'wall', submode: null })
+    await afterChange(page)
+    await setTool(page, { mode: 'surface', submode: null })
+    await waitForTool(page, { mode: 'surface', submode: null })
+    const wall = recentCard(page).getByRole('button', { name: 'Pin Wall' })
+    await wall.waitFor()
+    assert.equal(await wall.getAttribute('aria-pressed'), 'false')
+    await wall.click()
+    assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner', 'Wall']), ['Line > Normal', 'Sudoku > Corner', 'Wall'])
+    assert.equal(await recentCard(page).getByRole('button', { name: 'Unpin Wall' }).getAttribute('aria-pressed'), 'true')
+    assert.equal((await currentTool(page)).mode, 'surface', 'the tool did not change')
+    await recentCard(page).getByRole('button', { name: 'Unpin Wall' }).click()
+    assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner']), ['Line > Normal', 'Sudoku > Corner'])
+    assert.equal((await currentTool(page)).mode, 'surface')
   })
 })

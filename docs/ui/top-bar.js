@@ -1,4 +1,4 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause and the light/dark toggle, and the cover a paused board wears.
+// The top bar's controls: undo, redo, Restart, the timer, Pause, the light/dark toggle and Open in Penpa+, and the cover a paused board wears.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -16,6 +16,7 @@
         pause: '<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>',
         resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>',
         darkTheme: '<path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="currentColor" stroke="none"/>',
+        openInPenpa: '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>',
         lightTheme: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'
     };
 
@@ -36,6 +37,24 @@
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
         const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()));
         const themeButton = iconButton(ICONS.darkTheme, 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
+
+        // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
+        // unload alone loses the race with the navigation, and with no save the progress would be gone from both pages.
+        const goToPenpa = () => { location.href = `index.html${location.search}${location.hash}`; };
+        const openInPenpa = iconButton(ICONS.openInPenpa, 'Open in Penpa+', async () => {
+            if (await engine.saveProgress()) {
+                goToPenpa();
+            } else {
+                notSavedDialog.open = true;
+            }
+        });
+
+        const notSavedDialog = document.createElement('wa-dialog');
+        notSavedDialog.setAttribute('label', 'Progress is not being saved');
+        notSavedDialog.innerHTML = 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.' +
+            '<wa-button slot="footer" appearance="plain" data-dialog="close">Stay here</wa-button>' +
+            '<wa-button slot="footer" variant="danger" data-dialog="close" data-open-anyway>Open anyway</wa-button>';
+        notSavedDialog.querySelector('[data-open-anyway]').addEventListener('click', goToPenpa);
 
         const clock = document.createElement('span');
         clock.className = 'ui-timer';
@@ -58,8 +77,8 @@
         cover.innerHTML = '<div>Paused</div><div class="ui-paused-hint">Press F4 or Resume to continue</div>';
         cards.board.node.append(cover);
 
-        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, themeButton.node);
-        bar.after(restartDialog);
+        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, themeButton.node, openInPenpa.node);
+        bar.after(restartDialog, notSavedDialog);
 
         function renderTimer() {
             // Only the solver's own pause covers the board: a solve stops the clock and leaves the board usable (#119).

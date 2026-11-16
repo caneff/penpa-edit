@@ -76,11 +76,23 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-head wa-button { cursor: pointer; }
 .ui-zoom, .ui-rules-text { order: 2; display: flex; gap: 4px; }
 
-/* The edges a card is resized by: inside the card, over its border. */
+/* The edges a card is resized by: inside the card, over its border. The top edge is a thin strip, so the rest of the
+   title bar still moves the card, and the top corners are narrower than the others so they stay clear of the title bar's
+   buttons (its padding). */
+.ui-card { --ui-corner: 14px; --ui-top-corner: 9px; }
 .ui-resize { position: absolute; z-index: 3; }
-.ui-resize-right { top: 0; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
-.ui-resize-bottom { left: 0; right: 14px; bottom: 0; height: 6px; cursor: ns-resize; }
-.ui-resize-corner { right: 0; bottom: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.ui-resize-top { top: 0; left: var(--ui-top-corner); right: var(--ui-top-corner); height: 5px; cursor: ns-resize; }
+.ui-resize-right { top: var(--ui-top-corner); right: 0; bottom: var(--ui-corner); width: 6px; cursor: ew-resize; }
+.ui-resize-bottom { left: var(--ui-corner); right: var(--ui-corner); bottom: 0; height: 6px; cursor: ns-resize; }
+.ui-resize-left { top: var(--ui-top-corner); left: 0; bottom: var(--ui-corner); width: 6px; cursor: ew-resize; }
+.ui-resize-top-left, .ui-resize-top-right { width: var(--ui-top-corner); height: var(--ui-top-corner); }
+.ui-resize-bottom-right, .ui-resize-bottom-left { width: var(--ui-corner); height: var(--ui-corner); }
+.ui-resize-top-left, .ui-resize-bottom-right { cursor: nwse-resize; }
+.ui-resize-top-right, .ui-resize-bottom-left { cursor: nesw-resize; }
+.ui-resize-top-left { top: 0; left: 0; }
+.ui-resize-top-right { top: 0; right: 0; }
+.ui-resize-bottom-right { right: 0; bottom: 0; }
+.ui-resize-bottom-left { left: 0; bottom: 0; }
 .ui-body { padding: 10px 12px; min-height: 48px; overflow: auto; }
 
 .ui-card-board .ui-body { flex: 1 1 auto; min-height: 0; padding: 8px; display: flex; }
@@ -94,8 +106,8 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 
 /* The board's title bar: the current tool's name, after the card's title. */
 .ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45);
-    /* A white outline, so a dark or light tool colour reads on either theme's title bar. */
-    -webkit-text-stroke: 4px #fff; paint-order: stroke fill; }
+    /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
+    padding: 2px 12px; border-radius: 999px; background: #f6f3ec; }
 
 /* The Mouse card. */
 .ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; }
@@ -178,7 +190,7 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
 .ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
 .ui-dark .ui-paused-hint { color: #a9b0bd; }
-.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #e3e6eb); }
+.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #23262c); background: #dfe3ea; }
 .ui-dark .ui-headline { color: #e3eaff; }
 .ui-dark .ui-hsub { color: #8fb2ff; }
 .ui-dark .ui-hstyle { color: #d5d9e0; }
@@ -210,3 +222,12 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-settings-group { border-top-color: #3a3f4b; }
 .ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note { color: #a9b0bd; }
 .ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }
+
+/* The pin toggles: beside the Mode card's picker and inside each Recent chip. */
+.ui-picker-row { display: flex; gap: 6px; align-items: flex-start; }
+.ui-picker-row > .ui-picker { flex: 1; min-width: 0; }
+.ui-chip .ui-pin-toggle, .ui-pin-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; border: 0; background: transparent; color: inherit; cursor: pointer; opacity: .6; }
+.ui-picker-row > .ui-pin-toggle { border: 1px solid #cfcabd; border-radius: 6px; background: #fff; }
+.ui-pin-toggle:hover, .ui-pin-toggle[aria-pressed="true"] { opacity: 1; }
+.ui-pin-toggle:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
+.ui-dark .ui-picker-row > .ui-pin-toggle { background: #1b1e24; border-color: #4a5060; color: #e3e6eb; }
