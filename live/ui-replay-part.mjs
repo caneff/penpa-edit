@@ -11,7 +11,7 @@ import { replayPartIds } from './engine-replay-part.mjs'
 import { compareDrivers, listRecordings, readRecording } from './replay.mjs'
 import { TIER_C_FAMILY } from './tier-c.mjs'
 
-export const UI_REPLAY_PARTS = 3
+export const UI_REPLAY_PARTS = 4
 
 // The pages the UI driver replays on, as `compareDrivers`'s `solve` option names them.
 export const TARGETS = [{ name: "Penpa+'s page", solve: false }, { name: 'solve.html', solve: true }]
