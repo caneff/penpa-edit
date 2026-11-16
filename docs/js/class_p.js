@@ -1607,9 +1607,13 @@ class Puzzle {
         return (this.gridtype == "square" || this.gridtype == "kakuro" || this.gridtype == "sudoku");
     }
 
-    mode_set(mode, loadtype = 'new', skipredraw = false) {
-        // Number's 1/4 sub-mode can leave a selection index that is not a point, which draw_selection cannot draw
+    // caneff: Number's 1/4 sub-mode can leave a selection index that is not a point, which draw_selection cannot draw
+    drop_stale_selection() {
         this.selection = this.selection.filter(k => this.point[k]);
+    }
+
+    mode_set(mode, loadtype = 'new', skipredraw = false) {
+        this.drop_stale_selection();
         this.mode[this.mode.qa].edit_mode = mode;
         this.submode_reset();
         if (document.getElementById('mode_' + mode)) {
@@ -1689,6 +1693,7 @@ class Puzzle {
     }
 
     submode_check(name, skipredraw = false) {
+        this.drop_stale_selection();
         if (document.getElementById(name)) {
             document.getElementById(name).checked = true;
             this.mode[this.mode.qa][this.mode[this.mode.qa].edit_mode][0] = document.getElementById(name).value;
@@ -13816,4 +13821,4 @@ class Puzzle {
         return !this.version_gt(major, minor, revision);
     }
 
-}
+}

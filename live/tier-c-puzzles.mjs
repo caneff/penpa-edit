@@ -11,7 +11,7 @@ import { settle } from './settle.mjs'
 export const TIER_C_PUZZLES = ['sudoku-9x9', 'sudoku-6x6', 'killer', 'starbattle', 'slitherlink', 'or-shading']
 
 // Upstream's puzz.link imports (`test/public/puzz_link_parser.js`) the puzzles start from.
-const IMPORTS = {
+export const IMPORTS = {
   'sudoku-9x9': 'https://puzz.link/p?sudoku/9/9/15i96l17i7g65i42k1g5368h2i7g2p3h5g48g2g9k3h7i6',
   'sudoku-6x6': 'https://puzz.link/p?sudoku/6/6/g3h2g5j6h1l4h6j3g5g6h',
   // Two stars in each row, column and region.
