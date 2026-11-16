@@ -5,7 +5,7 @@
     'use strict';
 
     const SEPARATOR = ' · ';
-    const { GROUPS, NOTHING, describeTool, mouseRows, toolKey } = window.toolGuide;
+    const { GROUPS, NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
     const MOUSE_BODY_SLACK_PX = 2;
@@ -25,7 +25,7 @@
 
     // Mode, sub-mode and style as the Mouse card's headline and the title bar show them.
     function nameParts(tool, style) {
-        return [tool.modeName, tool.submodeName, styleOf(tool, style)?.name].filter(Boolean);
+        return [tool.modeName, submodeLabel(tool), styleOf(tool, style)?.name].filter(Boolean);
     }
 
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
@@ -50,12 +50,12 @@
     }
 
     function renderMouse(target, tool, style, held = false) {
-        const rows = mouseRows(tool, styleOf(tool, style)?.name ?? '');
+        const rows = mouseRows(tool);
         const row = (gesture, effect, cls) => el('div', { class: `ui-mrow ${cls}` }, [
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
         ]);
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
-            ...[['Left', rows.left], ['Right', rows.right], ['Drag', rows.drag]]
+            ...[['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag]]
                 .map(([gesture, effect]) => row(gesture, effect, effect === NOTHING ? 'is-none' : '')),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));

@@ -267,12 +267,66 @@ describe('the Mouse card and the title bar', () => {
     assert.equal(await settle(() => titleBarTool().textContent(), 'Composite · Bulbs + dots'), 'Composite · Bulbs + dots')
   })
 
-  it('has Left, Right and Drag rows for the tool', async () => {
+  // The card's rows as [gesture, effect] pairs.
+  const rows = () => opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrow')
+    .evaluateAll((els) => els.map((el) => [...el.children].map((c) => c.textContent)))
+
+  // One tool of each mode family, with the rows its agreed wording gives (research/mouse-card-wording-2026-11.md).
+  const WORDING = [
+    [{ mode: 'surface', style: 2 }, 'Surface · green', [
+      ['Left click', 'paint the cell → clear'], ['Right click', 'paint the 2nd colour → clear'],
+      ['Drag', 'paint many cells; starting on a painted cell: clear many'],
+      ['Right drag', '2nd colour on many cells (starting on it: clear many)'],
+      ['Alt + drag', 'paint a rectangle (starting on the colour: clear it; square grids only)'],
+      ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
+    [{ mode: 'line', submode: '1' }, 'Line · Normal', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'line through cell centres; starting on it: erase']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge · helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', '—']]],
+    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag; starting on it: erase']]],
+    [{ mode: 'number', submode: '3' }, 'Number · quarter', [['Left click', 'cursor to the nearest cell corner spot'],
+      ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', '—'], ['Digit', 'number at the cursor']]],
+    [{ mode: 'combi', submode: 'blwh' }, 'Composite · Black + white circles', [['Left click', 'white ○ → black ● → clear'],
+      ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
+    [{ mode: 'special', submode: 'thermo' }, 'Special · Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
+      ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
+    [{ mode: 'cage', submode: '2' }, 'Cage · free lines', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
+    [{ mode: 'move', submode: '2' }, 'Move · numbers', [['Left click', '—'], ['Right click', '—'],
+      ['Drag', 'move a number you entered to an empty cell']]],
+    [{ mode: 'symbol', submode: 'circle_L' }, 'Shape · Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
+      ['Right click', 'cursor to the cell'], ['Drag', '—'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
+    [{ mode: 'symbol', submode: 'cross' }, 'Shape · Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
+      ['Drag', '—'], ['Digit', 'add or remove part n of the shape at the cursor']]]
+  ]
+
+  for (const [tool, name, expected] of WORDING) {
+    it(`words ${tool.mode}/${tool.submode ?? ''} as agreed`, async () => {
+      await setTool(opened.page, tool)
+      await settle(() => headline().textContent(), name)
+      assert.deepEqual(await rows(), expected)
+    })
+  }
+
+  it('says Left click, Right click and Drag first for every tool, and has no row for the style', async () => {
     await setTool(opened.page, { mode: 'surface', style: 2 })
-    const card = opened.page.getByRole('region', { name: 'Mouse' })
     await settle(() => headline().textContent(), 'Surface · green')
-    for (const row of ['Left', 'Right', 'Drag']) assert.equal(await card.getByText(row, { exact: true }).count(), 1, row)
-    assert.match(await card.textContent(), /paint green/)
+    assert.deepEqual((await rows()).slice(0, 3).map(([gesture]) => gesture), ['Left click', 'Right click', 'Drag'])
+    assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
+  })
+
+  it('has an agreed row set for every tool the link offers', async () => {
+    const seen = await opened.page.evaluate(async () => {
+      const card = document.querySelector('section[aria-label="Mouse"]')
+      const bad = []
+      for (const t of engine.listTools()) {
+        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const rows = [...card.querySelectorAll('.ui-mrow')].map((r) => r.children[1].textContent)
+        if (rows.slice(0, 3).every((effect) => effect === '—')) bad.push(`${t.mode}/${t.submode}`)
+      }
+      return bad
+    })
+    assert.deepEqual(seen, [], 'every tool does something with a click or a drag')
   })
 
   it('keeps the card\'s height the same for every tool', async () => {

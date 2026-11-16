@@ -1,6 +1,5 @@
 // What each tool is for, in words: the group the Mode card files it under, its picker name and description, and what the
-// mouse does with it. Read from the prototype's variant L (`a023d8a`), whose rows were checked against Penpa's mouse handlers
-// on 2026-11-13. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
+// mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, checked against Penpa's mouse handlers. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
 (function () {
     'use strict';
 
@@ -33,7 +32,7 @@
         'lineE/4': ['edges', 'Edge helper ×', 'Click a grid line: ×.'],
         'lineE/5': ['edges', 'Erase grid lines', 'Drag to erase grid lines.'],
         'wall/': ['edges', 'Wall', 'Drag a wall segment.'],
-        'number/1': ['numbers', 'Number', 'Cursor on a cell, then type.'],
+        'number/1': ['numbers', 'Number', 'Select cells, then type.'],
         'number/10': ['numbers', 'Large number', 'Type a large number.'],
         'number/6': ['numbers', 'Medium number', 'Type a medium number.'],
         'number/5': ['numbers', 'Small number', 'Type a small number.'],
@@ -49,14 +48,14 @@
         'special/arrows': ['objects', 'Arrow with circle', 'Drag an arrow from a circled cell.'],
         'special/direction': ['objects', 'Arrow', 'Drag an arrow.'],
         'special/squareframe': ['objects', 'Rectangle frame', 'Drag a rectangle frame.'],
-        'special/polygon': ['objects', 'Polygon', 'Drag a polygon outline.'],
+        'special/polygon': ['objects', 'Polygon', 'Click corner by corner to draw a polygon.'],
         'cage/1': ['objects', 'Cage', 'Drag a cage around cells.'],
         'cage/2': ['objects', 'Free cage lines', 'Drag cage lines along corners.'],
         'move/1': ['move', 'Move anything', 'Drag a number or shape elsewhere.'],
         'move/2': ['move', 'Move numbers', 'Drag a number elsewhere.'],
         'move/3': ['move', 'Move shapes', 'Drag a shape elsewhere.'],
         'combi/blpo': ['shade', 'Shade + dot', 'Left shades a cell, right puts a dot (unshaded).'],
-        'combi/shaka': ['shade', 'Corner triangles + dot', 'Click places a half-cell triangle; right a dot.'],
+        'combi/shaka': ['shade', 'Corner triangles + dot', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
         'combi/linex': ['lines', 'Loop + edge ×', 'Drag a loop through cell centres; right on an edge: ×.'],
         'combi/lineox': ['lines', 'Loop + cell ○ ×', 'Drag a loop; click a cell: ○, again ×.'],
         'combi/linedir': ['lines', 'Line + direction marks', 'Drag a line; marks its direction.'],
@@ -88,105 +87,171 @@
             return { group: known[0], name: known[1], description: known[2] };
         }
         if (tool.mode === 'symbol') {
-            const name = tool.submodeName.charAt(0).toUpperCase() + tool.submodeName.slice(1);
-            return { group: 'symbols', name, description: 'Shape at the cursor; digits pick its variant.' };
+            const name = capitalised(submodeLabel(tool));
+            const description = ON_OFF_SHAPES.includes(tool.submode) ? 'Shape at the cursor; digits switch its parts on and off.'
+                : 'Shape at the cursor; digits pick its variant.';
+            return { group: 'symbols', name, description };
         }
         return { group: 'symbols', name: tool.name, description: '' };
     }
 
-    const COMPOSITE_ROWS = {
-        blpo: ['shade (again: dot, again: clear)', 'dot = unshaded (again: shade)', 'shade many', [['Right drag', 'dot many']]],
-        blwh: ['white ○ (again: black ●, again: clear)', 'black ● (again: white ○)', NOTHING, [['Right drag', 'black ● many']]],
-        linex: [NOTHING, '× on the edge', 'loop through cell centres (again: erase)', []],
-        lineox: ['○ in the cell (again: ×, again: clear)', '× in the cell (again: ○)', 'loop through cell centres', []],
-        edgex: [NOTHING, '× on the edge', 'line along grid lines (again: erase)', []],
-        edgexoi: ['cell: inside, yellow (again: green)', 'edge: ×; cell: outside, green', 'line along grid lines', []],
-        yajilin: ['shade the cell (again: clear)', 'cell: dot; edge: ×', 'loop through cell centres', [['Right drag', 'dot many']]],
-        hashi: [NOTHING, NOTHING, 'bridge (again: double)', []],
-        star: ['star (again: clear)', 'cell: × ; corner: green dot', NOTHING, [['Right drag', '× many']]],
-        tents: ['tent', '×', 'link a tent to its tree', []],
-        mines: ['mine', '×', NOTHING, [['Right drag', '× many']]],
-        akari: ['bulb (again: clear)', 'cell: dot = no bulb; edge: ×', 'dotted helper line', [['Right drag', 'dot many']]],
-        battleship: ['ship cell ■ (again: ●, ·, clear)', 'water (again: clear)', 'ship end, pointing the way you drag',
-            [['Right drag', 'water many']]],
-        doublemines: ['1 mine (again: 2)', '×', NOTHING, [['Right drag', '× many']]]
+    // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
+    // `research/mouse-card-wording-2026-11.md`, every row read from Penpa's handlers; a click that cycles reads `A → B → clear`.
+    const CYCLE_END = 'clear';
+    const ERASE = 'starting on it: erase';
+    // Rows the number, digit and colour-selection tools share: they select cells, and a digit types into the selection.
+    const SQUARE_ONLY = 'square grids only';
+    const selectRows = (what, digit) => [
+        ['Ctrl / Shift + click', 'add or remove the cell'],
+        ['Alt + drag', `select a rectangle (${SQUARE_ONLY})`],
+        ['Double click', `select every cell with the same ${what}`],
+        ['Digit', digit]
+    ];
+    const selecting = (what, digit, extra = [], after = []) => ({
+        left: 'select the cell (drops the rest)', right: NOTHING, drag: 'select many cells', more: [...extra, ...selectRows(what, digit), ...after]
+    });
+    const line = (drag, more = []) => ({ left: NOTHING, right: NOTHING, drag: `${drag}; ${ERASE}`, more });
+    const clearMany = (mark) => `${mark} on many cells (starting on one: clear many)`;
+    const crossEdges = [['Right drag', '× on each edge crossed (starting on a ×: clear them)']];
+    const alsoClears = ', also clears dots on the cell\'s corners and edges';
+    const cornerOrEdgeDot = 'corner or edge: green dot → clear';
+    const mineRows = (left) => ({ left: `${left}${alsoClears}`, right: `cell: × → ${CYCLE_END}; ${cornerOrEdgeDot}`,
+        drag: 'starting on a marked cell: clear many', more: [['Right drag', clearMany('×')]] });
+    const thermoRows = (click, drag) => ({ left: click, right: NOTHING, drag: `${drag}; drag back to undo a step`, more: [] });
+    const move = (what) => ({ left: NOTHING, right: NOTHING, drag: `move ${what} you entered to an empty cell`, more: [] });
+    const flick = (centre, layout) => ({ left: `${centre} in the cell → ${CYCLE_END}`, right: NOTHING,
+        drag: `from a cell: ${layout[0]} by direction, ${layout[1]}`, more: [] });
+
+    const ROWS = {
+        'surface/': { left: `paint the cell → ${CYCLE_END}`, right: `paint the 2nd colour → ${CYCLE_END}`,
+            drag: 'paint many cells; starting on a painted cell: clear many',
+            more: [['Right drag', '2nd colour on many cells (starting on it: clear many)'],
+                ['Alt + drag', `paint a rectangle (starting on the colour: clear it; ${SQUARE_ONLY})`],
+                ['Alt + right drag', `rectangle in the 2nd colour (${SQUARE_ONLY})`], ['Digit', 'pick colour n']] },
+        'multicolor/': selecting('colour', 'add or remove colour n in the selected cells',
+            [['Ctrl / Shift + drag from a selected cell', 'remove cells']]),
+        'combi/blpo': { left: `shade → dot · → ${CYCLE_END}`, right: `dot · → shade → ${CYCLE_END}`,
+            drag: 'repeat the first cell\'s change on each cell (shade, dot or clear)', more: [] },
+        'combi/shaka': { left: `dot · → ${CYCLE_END}`, right: NOTHING,
+            drag: `from a cell toward a corner: black triangle filling that corner's half → ${CYCLE_END} (same way)`, more: [] },
+
+        'line/1': line('line through cell centres'),
+        'line/2': line('line through cell centres, diagonals too'),
+        'line/3': { left: NOTHING, right: NOTHING,
+            drag: 'straight line from one cell centre to another, any angle, drawn on release; over the same line: erase', more: [] },
+        'line/5': line('line in half steps, cell centre to edge middle, so it can stop at an edge'),
+        'line/4': { left: `× on the edge between two cells → ${CYCLE_END}`, right: NOTHING, drag: NOTHING, more: [] },
+        'combi/linex': { left: NOTHING, right: `× on the edge → ${CYCLE_END}`, drag: `loop through cell centres; ${ERASE}`, more: crossEdges },
+        'combi/lineox': { left: `○ in the cell → × → ${CYCLE_END}`, right: `× in the cell → ○ → ${CYCLE_END}`,
+            drag: `loop through cell centres; ${ERASE}`, more: [] },
+        'combi/linedir': { left: NOTHING, right: `edge: × → arrowhead one way → the other way → ${CYCLE_END}`,
+            drag: `line through cell centres; ${ERASE}`,
+            more: [['Right drag from a cell toward an edge', `arrowhead on that edge pointing that way → ${CYCLE_END} (same way)`],
+                ['Right drag from an edge', '× on each edge crossed (starting on a mark: clear them)']] },
+        'combi/yajilin': { left: `shade the cell → ${CYCLE_END}`, right: `cell: dot · → ${CYCLE_END}; edge: × → ${CYCLE_END}`,
+            drag: `loop through cell centres; ${ERASE}`, more: [['Right drag', clearMany('dot ·')]] },
+        'combi/hashi': { left: `× in the cell → ${CYCLE_END}`, right: `× in the cell → ${CYCLE_END}`,
+            drag: `bridge between cells → double → ${CYCLE_END}`, more: [] },
+        'combi/rassisillai': { left: `○ in the cell → ${CYCLE_END}`, right: `shade the cell → ${CYCLE_END}`,
+            drag: `line through cell centres; ${ERASE}`, more: [['Right drag', 'shade many cells (starting on a shaded cell: clear many)']] },
+
+        'lineE/1': line('line along grid lines'),
+        'lineE/2': line('line along grid lines, and across cells corner to corner'),
+        'lineE/3': { left: NOTHING, right: NOTHING,
+            drag: 'straight line from one corner to another, any angle, drawn on release; over the same line: erase', more: [] },
+        'lineE/6': line('line along grid lines in half steps, corner to edge middle, so it can stop mid-edge'),
+        'lineE/4': { left: `× on the grid line → ${CYCLE_END}`, right: NOTHING, drag: NOTHING, more: [] },
+        'lineE/5': { left: NOTHING, right: NOTHING,
+            drag: 'erase the grid lines it runs along; starting on an erased one: restore them', more: [] },
+        'wall/': line('straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag'),
+        'combi/edgex': { left: NOTHING, right: `× on the edge, if no edge line is there → ${CYCLE_END}`,
+            drag: `line along grid lines; ${ERASE}`, more: crossEdges },
+        'combi/edgexoi': { left: `cell: yellow → 2nd colour → ${CYCLE_END}`,
+            right: `edge: × → ${CYCLE_END}; cell: 2nd colour → yellow → ${CYCLE_END}`, drag: `line along grid lines; ${ERASE}`, more: [] },
+        'combi/edgesub': { left: NOTHING, right: NOTHING,
+            drag: 'from a corner: line along grid lines; from a cell: grey helper line through cell centres; starting on either: erase',
+            more: [] },
+
+        'number/1': selecting('number', 'write it in the selected cells'),
+        'number/10': selecting('number', 'large number in the selected cells'),
+        'number/6': selecting('number', 'medium number in the selected cells'),
+        'number/5': selecting('number', 'small number in the selected cells'),
+        'number/7': selecting('number', 'add or remove that candidate in the selected cells'),
+        'number/8': selecting('number', 'add it to the long number in the selected cells'),
+        'number/3': { left: 'cursor to the nearest cell corner spot', right: 'cursor to the nearest cell corner spot', drag: NOTHING,
+            more: [['Digit', 'number at the cursor']] },
+        'number/9': { left: 'cursor to the nearest cell side spot', right: 'cursor to the nearest cell side spot', drag: NOTHING,
+            more: [['Digit', 'number at the cursor']] },
+        'sudoku/1': selecting('digit', 'digit in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']], [
+            ['Shift held', `corner marks (${SQUARE_ONLY})`], ['Ctrl held', `centre marks (${SQUARE_ONLY})`]]),
+        'sudoku/2': selecting('digit', 'corner mark in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']]),
+        'sudoku/3': selecting('digit', 'centre mark in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']]),
+        'combi/numfl': flick('5', ['a digit', 'laid out like a phone keypad around 5 (↖1 ↑2 ↗3 ←4 →6 ↙7 ↓8 ↘9)']),
+        'combi/alfl': flick('E', ['a letter', 'around E (↖A ↑B ↗C ←D →F ↙G ↓H ↘ -)']),
+
+        'combi/blwh': { left: `white ○ → black ● → ${CYCLE_END}`, right: `black ● → white ○ → ${CYCLE_END}`,
+            drag: 'repeat the first cell\'s change on each cell', more: [['Given circles', 'left alone']] },
+        'combi/star': { left: `star ★ → ${CYCLE_END}${alsoClears}; on a ×: clear`, right: `cell: × → ${CYCLE_END}; ${cornerOrEdgeDot}`,
+            drag: 'starting on a marked cell: clear many', more: [['Right drag', clearMany('×')]] },
+        'combi/akari': { left: `bulb 💡 → ${CYCLE_END}; on a dot: bulb`, right: `cell: dot · → ${CYCLE_END}; on a bulb: dot; edge: × → ${CYCLE_END}`,
+            drag: `dashed helper line through cell centres; ${ERASE}`, more: [['Right drag', clearMany('dot ·')]] },
+        'combi/battleship': { left: `ship middle ■ → ● → · → water ≈ → ${CYCLE_END}; on a ship end: clear`, right: `water ≈ → ${CYCLE_END}`,
+            drag: 'from an empty cell: ship end, its body toward where you drag (round side away); starting on · or ≈: that mark on each cell',
+            more: [['Right drag', 'water on many cells (starting on water: clear many)'], ['Given ship pieces', 'left alone']] },
+        'combi/tents': { left: `tent ▲ → dot · → ${CYCLE_END}`, right: `cell: dot · → ▲ → ${CYCLE_END}; edge: × → ${CYCLE_END}`,
+            drag: `line between cell centres, to link a tent to its tree; ${ERASE}`, more: [] },
+        'combi/mines': mineRows(`mine 💣 → ${CYCLE_END}`),
+        'combi/doublemines': mineRows(`mine 💣 → two 💣💣 → ${CYCLE_END}`),
+        'combi/magnets': { left: `+ → − → shade → ${CYCLE_END}`, right: `shade → − → + → ${CYCLE_END}`, drag: NOTHING, more: [] },
+        'combi/arrowS': { left: 'on an arrow: clear it', right: NOTHING, drag: 'from a cell: arrow pointing the way you drag (8 directions)', more: [] },
+
+        'special/thermo': thermoRows('on a thermometer\'s bulb: erase it', 'thermometer from the bulb cell through cells, diagonals too'),
+        'special/nobulbthermo': thermoRows('on its first cell: erase it', 'thermometer through cells, diagonals too'),
+        'special/arrows': thermoRows('on its circle: erase it', 'arrow from the circled cell through cells, diagonals too'),
+        'special/direction': thermoRows('on its tail cell: erase it', 'arrow through cells, head at the last cell, diagonals too'),
+        'special/squareframe': thermoRows('on its first cell: erase it', 'grey band through the cells, following the path (an L stays an L)'),
+        'special/polygon': { left: 'first click starts at a grid corner; each click adds a corner; click the first or the last corner again to finish (closed, filled shape either way)',
+            right: NOTHING, drag: `${NOTHING} (the next corner follows the pointer until you finish)`, more: [] },
+        'cage/1': { left: `free cell: 1-cell cage → ${CYCLE_END}; caged cell: erase its whole cage (a cage in another style: restyle it to this one → erase)`,
+            right: NOTHING, drag: 'cage around the cells; nothing if any of them is already caged', more: [] },
+        'cage/2': line('cage line through points a quarter cell in from the corners'),
+        'move/1': move('a number or shape'),
+        'move/2': move('a number'),
+        'move/3': move('a shape')
     };
 
-    function compositeRows(submode) {
-        const row = COMPOSITE_ROWS[submode];
-        return row
-            ? { left: row[0], right: row[1], drag: row[2], more: row[3] }
-            : { left: 'the tool\'s main mark', right: 'its helper mark', drag: NOTHING, more: [] };
-    }
+    // The two row sets of the Shape tools. Which one a shape gets is Penpa's `onoff_symbolmode_list`.
+    const ON_OFF_SHAPES = ['cross', 'arrow_cross', 'arrow_fourtip', 'arrow_eight', 'arrow_fouredge_B', 'arrow_fouredge_G', 'arrow_fouredge_E',
+        'degital_B', 'degital_G', 'degital_E', 'degital_f', 'dice', 'polyomino', 'polyhex'];
+    const SHAPE_ROWS = {
+        variants: { left: `the shape's first variant → ${CYCLE_END}; on another variant: the first variant`, right: 'cursor to the cell',
+            drag: NOTHING, more: [['Digit', `shape variant n at the cursor → ${CYCLE_END} (same digit)`]] },
+        onOff: { left: 'cursor to the cell', right: 'cursor to the cell', drag: NOTHING,
+            more: [['Digit', 'add or remove part n of the shape at the cursor']] }
+    };
 
-    // What Left click, Right click and Drag do with the tool, plus extra rows as [gesture, effect]. `styleName` is the
-    // style's display name or ''.
-    function mouseRows(tool, styleName) {
-        const s = styleName;
-        const sub = tool.submode;
-        let rows = { left: NOTHING, right: NOTHING, drag: NOTHING, more: [] };
-        switch (tool.mode) {
-        case 'surface':
-            rows = { left: `paint ${s} (again: erase)`, right: 'paint the 2nd colour', drag: `paint ${s} on many cells`,
-                more: [['Alt + drag', 'paint a rectangle'], ['Digit', 'pick a colour']] };
-            break;
-        case 'multicolor':
-            rows = { left: 'select a cell', right: 'select a cell', drag: 'select many cells',
-                more: [['Digit', 'colour the selection'], ['Colour chip', `${s} now`]] };
-            break;
-        case 'line':
-            if (sub === '4') {
-                rows.left = '× on the edge between two cells (again: clear)';
-            } else {
-                rows.drag = `${s} line ${{ 1: 'through cell centres', 2: 'through centres, diagonals too', 3: 'freely, point to point',
-                    5: 'through edge midpoints' }[sub]} (over a line: erase)`;
-            }
-            break;
-        case 'lineE':
-            if (sub === '4') {
-                rows.left = '× on a grid line (again: clear)';
-            } else if (sub === '5') {
-                rows.drag = 'erase the grid lines it crosses';
-            } else {
-                rows.drag = `${s} line ${{ 1: 'along grid lines', 2: 'along grid lines and diagonals', 3: 'freely, corner to corner',
-                    6: 'through midpoints' }[sub]} (over a line: erase)`;
-            }
-            break;
-        case 'wall':
-            rows.drag = `${s} wall (again: erase)`;
-            break;
-        case 'number': {
-            const what = { 1: 'a number', 10: 'a large number', 6: 'a medium number', 5: 'a small number', 7: 'candidates',
-                3: 'a number in a quarter', 9: 'a number on a side', 8: 'a long number' }[sub] || 'a number';
-            const edge = sub === '3' || sub === '9';
-            rows = { left: `${edge ? 'cursor on a quarter / side of the cell' : 'cursor on the cell'}; type ${what} in ${s}`,
-                right: 'cursor on the cell', drag: edge ? NOTHING : 'select many cells', more: [['Alt + drag', 'select a rectangle']] };
-            break;
+    // Picker names for Shape tools whose Penpa name reads badly (`research/mouse-card-wording-2026-11.md`).
+    const SHAPE_NAMES = {
+        cross: 'Cross arms', arrow_cross: 'Arrow cross', arrow_Short: 'Arrow, short and fat', arrow_S: 'Arrow, small',
+        arrow_eight: 'Arrows, 8-way', arrow_fouredge_B: 'Edge arrows, black', arrow_fouredge_G: 'Edge arrows, grey',
+        arrow_fouredge_E: 'Edge arrows, green', arrow_GP: 'Arrow, graphic', arrow_GP_C: 'Arrow, graphic, in a circle',
+        degital_B: 'Segment digit, black', degital_G: 'Segment digit, grey', degital_E: 'Segment digit, green',
+        degital_f: 'Segment digit, outline', ox_B: '○ △ □ ×, black', ox_G: '○ △ □ ×, grey', ox_E: '○ △ □ ×, green',
+        math: 'Maths signs, black', math_G: 'Maths signs, green', inequality: 'Inequality signs', tri: 'Corner triangles',
+        dice: 'Dice pips', tents: 'Trees, tents, water, fish', star: 'Stars', sun_moon: 'Sun, moon, bulb, bomb', line: 'Lines in a cell',
+        frameline: 'Frame lines', kakuro: 'Kakuro clue box', 'battleship_B+': 'Ship, curvy, black', 'battleship_G+': 'Ship, curvy, grey',
+        'battleship_W+': 'Ship, curvy, white', slovak: 'Slovak sums', angleloop: 'Angle loop'
+    };
+
+    // The name a picker, chip and headline give the tool's sub-mode.
+    const submodeLabel = (tool) => (tool.mode === 'symbol' && SHAPE_NAMES[tool.submode]) || tool.submodeName;
+
+    // What Left click, Right click and Drag do with the tool, plus extra rows as [gesture, effect].
+    function mouseRows(tool) {
+        if (tool.mode === 'symbol') {
+            return ON_OFF_SHAPES.includes(tool.submode) ? SHAPE_ROWS.onOff : SHAPE_ROWS.variants;
         }
-        case 'sudoku':
-            rows = { left: `select a cell; type ${{ 1: 'a digit', 2: 'corner marks', 3: 'centre marks' }[sub]} in ${s}`,
-                right: 'select a cell', drag: 'select many cells',
-                more: [['Ctrl + click', 'add to the selection'], ['Double', 'select every cell like it'],
-                    ['Shift / Ctrl held', 'corner / centre while held']] };
-            break;
-        case 'symbol':
-            rows = { left: `cursor + ${tool.submodeName} ${s} (again: next variant)`, right: 'move the cursor', drag: NOTHING,
-                more: [['Digit', 'variant n at the cursor']] };
-            break;
-        case 'special':
-            rows.drag = `draw a ${tool.submodeName} through the cells`;
-            break;
-        case 'cage':
-            rows.drag = sub === '2' ? `${s} cage line along corners` : `${s} cage around the cells`;
-            break;
-        case 'move':
-            rows.drag = `move ${{ 1: 'any item', 2: 'a number', 3: 'a shape' }[sub] || 'an item'}`;
-            break;
-        case 'combi':
-            rows = compositeRows(sub);
-            break;
-        }
-        return rows;
+        return ROWS[key(tool)] ?? { left: NOTHING, right: NOTHING, drag: NOTHING, more: [] };
     }
 
     // One tool's identity, for a lookup: its mode and sub-mode.
@@ -202,8 +267,8 @@
         if (!tool.submodeName) {
             return tool.modeName;
         }
-        return SELF_NAMING_MODES.includes(tool.mode) ? tool.submodeName : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
+        return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel };
+    window.toolGuide = { GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel, submodeLabel };
 })();
