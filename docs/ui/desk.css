@@ -77,14 +77,18 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 .ui-zoom { order: 2; display: flex; gap: 4px; }
 
 /* The edges a card is resized by: inside the card, over its border. The top edge is a thin strip, so the rest of the
-   title bar still moves the card. */
+   title bar still moves the card, and the top corners are narrower than the others so they stay clear of the title bar's
+   buttons (its padding). */
+.ui-card { --ui-corner: 14px; --ui-top-corner: 9px; }
 .ui-resize { position: absolute; z-index: 3; }
-.ui-resize-top { top: 0; left: 14px; right: 14px; height: 5px; cursor: ns-resize; }
-.ui-resize-right { top: 14px; right: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
-.ui-resize-bottom { left: 14px; right: 14px; bottom: 0; height: 6px; cursor: ns-resize; }
-.ui-resize-left { top: 14px; left: 0; bottom: 14px; width: 6px; cursor: ew-resize; }
-.ui-resize-top-left, .ui-resize-bottom-right { width: 14px; height: 14px; cursor: nwse-resize; }
-.ui-resize-top-right, .ui-resize-bottom-left { width: 14px; height: 14px; cursor: nesw-resize; }
+.ui-resize-top { top: 0; left: var(--ui-top-corner); right: var(--ui-top-corner); height: 5px; cursor: ns-resize; }
+.ui-resize-right { top: var(--ui-top-corner); right: 0; bottom: var(--ui-corner); width: 6px; cursor: ew-resize; }
+.ui-resize-bottom { left: var(--ui-corner); right: var(--ui-corner); bottom: 0; height: 6px; cursor: ns-resize; }
+.ui-resize-left { top: var(--ui-top-corner); left: 0; bottom: var(--ui-corner); width: 6px; cursor: ew-resize; }
+.ui-resize-top-left, .ui-resize-top-right { width: var(--ui-top-corner); height: var(--ui-top-corner); }
+.ui-resize-bottom-right, .ui-resize-bottom-left { width: var(--ui-corner); height: var(--ui-corner); }
+.ui-resize-top-left, .ui-resize-bottom-right { cursor: nwse-resize; }
+.ui-resize-top-right, .ui-resize-bottom-left { cursor: nesw-resize; }
 .ui-resize-top-left { top: 0; left: 0; }
 .ui-resize-top-right { top: 0; right: 0; }
 .ui-resize-bottom-right { right: 0; bottom: 0; }

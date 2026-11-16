@@ -156,6 +156,11 @@
         writeLayout();
     }
 
+    // A card with a place of its own: the layout keeps where it sits, and a window resize keeps its gap to the desk's edges.
+    function keepPlace(id, node) {
+        saved[id] = { ...saved[id], x: node.offsetLeft, y: node.offsetTop };
+    }
+
     function setHeight(node, px) {
         node.style.height = `${px}px`;
         node.classList.add('is-sized');
@@ -285,7 +290,7 @@
                     node.style.top = `${Math.max(0, Math.min(desk.clientHeight - node.offsetHeight, from.y + dy))}px`;
                 }, (didMove) => {
                     if (didMove) {
-                        saved[id] = { ...saved[id], x: node.offsetLeft, y: node.offsetTop };
+                        keepPlace(id, node);
                         saveCard(desk, id, node);
                     }
                 });
@@ -319,7 +324,7 @@
                         if (didMove) {
                             // A card resized from its left or top edge has a place of its own, kept like a moved card's.
                             if (edges.includes('left') || edges.includes('top')) {
-                                saved[id] = { ...saved[id], x: node.offsetLeft, y: node.offsetTop };
+                                keepPlace(id, node);
                             }
                             saveCard(desk, id, node);
                         }

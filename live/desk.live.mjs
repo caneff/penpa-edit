@@ -99,6 +99,20 @@ describe('the desk', () => {
     })
   }
 
+  it('keeps the place of a card resized from its top edge that was never moved', async () => {
+    await drag(page, await handleCentre(page, 'Rules', 'top'), 0, -30)
+    const grown = await boxOf(page, 'Rules')
+    await page.reload()
+    await card(page, 'Rules').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Rules'), grown), grown)
+  })
+
+  it('leaves the Board card\'s Fit button clickable at its right end, under the top-right handle', async () => {
+    const fit = await card(page, 'Board').getByRole('button', { name: 'Fit' }).boundingBox()
+    const handle = await card(page, 'Board').getByTestId('resize-top-right').boundingBox()
+    assert.equal(handle.x >= fit.x + fit.width, true, `handle starts at ${handle.x}, the button ends at ${fit.x + fit.width}`)
+  })
+
   it('stops the top and left handles at the minimum size and at the desk edge', async () => {
     const start = await boxOf(page, 'Rules')
     await drag(page, await handleCentre(page, 'Rules', 'top-left'), 2000, 2000)
