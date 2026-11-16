@@ -19,6 +19,11 @@ function headerOf () {
 }
 
 describe('the Redirect script', () => {
+  it('has a version above 1.0.0', () => {
+    const [major, minor, patch] = headerOf().version.split('.').map(Number)
+    assert.ok(major > 1 || (major === 1 && (minor > 0 || patch > 0)), headerOf().version)
+  })
+
   it('matches upstream\'s pages, runs at document start and updates from the raw file on master', () => {
     const header = headerOf()
     assert.equal(header.match, UPSTREAM + '*')
@@ -27,23 +32,38 @@ describe('the Redirect script', () => {
     assert.equal(header.downloadURL, RAW_SCRIPT_URL)
   })
 
-  it('keeps the # data of a hash link', () => {
-    assert.equal(redirectOf(UPSTREAM + '#m=solve&p=abc%2Fdef'), FORK + '#m=solve&p=abc%2Fdef')
+  it('sends a solve link to solve.html, keeping its # data byte for byte', () => {
+    assert.equal(redirectOf(UPSTREAM + 'index.html#m=solve&p=abc%2Fdef'), FORK + 'solve.html#m=solve&p=abc%2Fdef')
   })
 
-  it('keeps the query of a ?-style link', () => {
-    assert.equal(redirectOf(UPSTREAM + '?m=solve&p=abc'), FORK + '?m=solve&p=abc')
+  it('sends a solve link on the bare page to solve.html', () => {
+    assert.equal(redirectOf(UPSTREAM + '#m=solve&p=abc%2Fdef'), FORK + 'solve.html#m=solve&p=abc%2Fdef')
+  })
+
+  it('sends a ?-style solve link to solve.html, keeping its query', () => {
+    assert.equal(redirectOf(UPSTREAM + '?m=solve&p=abc'), FORK + 'solve.html?m=solve&p=abc')
+  })
+
+  it('keeps an edit link on the fork\'s same path', () => {
+    assert.equal(redirectOf(UPSTREAM + '#m=edit&p=abc'), FORK + '#m=edit&p=abc')
+    assert.equal(redirectOf(UPSTREAM + 'index.html#m=edit&p=abc'), FORK + 'index.html#m=edit&p=abc')
+  })
+
+  it('keeps a link with no m= on the fork\'s same path, query and # data kept', () => {
+    assert.equal(redirectOf(UPSTREAM + 'index.html?x=1#p=abc'), FORK + 'index.html?x=1#p=abc')
   })
 
   it('sends the bare page to the bare fork page', () => {
     assert.equal(redirectOf(UPSTREAM), FORK)
   })
 
-  it('keeps a path tail with its query and # data', () => {
-    assert.equal(redirectOf(UPSTREAM + 'index.html?x=1#m=edit'), FORK + 'index.html?x=1#m=edit')
+  it('does not take m=solvex or a p= value containing m=solve for a solve link', () => {
+    assert.equal(redirectOf(UPSTREAM + '#m=solvex&p=abc'), FORK + '#m=solvex&p=abc')
+    assert.equal(redirectOf(UPSTREAM + '#m=edit&p=xm=solve'), FORK + '#m=edit&p=xm=solve')
   })
 
-  it('leaves the fork alone', () => {
-    assert.equal(redirectOf(FORK + '#m=solve&p=abc'), null)
+  it('leaves the fork alone, solve.html and index.html both', () => {
+    assert.equal(redirectOf(FORK + 'solve.html#m=solve&p=abc'), null)
+    assert.equal(redirectOf(FORK + 'index.html#m=solve&p=abc'), null)
   })
 })
