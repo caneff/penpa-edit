@@ -250,7 +250,8 @@
 
     // The Puzzle methods whose calls can change what the UI shows. Hooked on the prototype, so a `pu` that load() replaces
     // stays hooked, and a wrapper on the instance (recorder.js) calls through to the hook.
-    const HOOKED_PUZZLE_METHODS = ['redraw', 'mode_set', 'submode_check', 'stylemode_check', 'subcombimode', 'subsymbolmode'];
+    const HOOKED_PUZZLE_METHODS = ['redraw', 'mode_set', 'submode_check', 'stylemode_check', 'subcombimode', 'subsymbolmode',
+        'set_orientation'];
     const changeHandlers = new Set();
     let changeQueued = false;
     function queueChange() {
@@ -667,6 +668,33 @@
             // A key or a script can put Penpa+ in a mode the link's tab set leaves out; it is still the tool in use.
             const current = listed?.styles.find((s) => s.style === Number(style));
             return { mode, submode: rememberedSubmode(submode), style: current ? current.style : null };
+        },
+
+        // The directions Number mode writes in that the link's grid offers, in the order of Penpa+'s Orientation buttons: `R` is
+        // the usual left to right, and the rest turn the text (`U` up, `UL` up and left, `DL` down and left, and so on).
+        listOrientations() {
+            const offered = penpa_modes[pu.gridtype].rot;
+            return [...document.querySelectorAll('#orientation_button input[name=orientation_button]')]
+                .map((radio) => radio.value).filter((direction) => offered.includes(direction));
+        },
+
+        // The direction Number mode writes in, or null while the tool is not Number or the grid offers no direction. `R` is
+        // what Penpa+'s `mode_set` falls back to while none has been picked.
+        getOrientation() {
+            const mode = pu.mode[pu.mode.qa].edit_mode;
+            return mode === 'number' && engine.listOrientations().length ? pu.mode[pu.mode.qa].number[2] || 'R' : null;
+        },
+
+        // Sets the direction Number mode writes in, which only Number has: another tool, or a direction `listOrientations()`
+        // does not list, throws and changes nothing.
+        setOrientation(direction) {
+            if (pu.mode[pu.mode.qa].edit_mode !== 'number') {
+                throw new Error(`engine.setOrientation: the tool is ${pu.mode[pu.mode.qa].edit_mode}, not number`);
+            }
+            if (!engine.listOrientations().includes(direction)) {
+                throw new RangeError(`engine.setOrientation: no direction ${JSON.stringify(direction)}; the grid offers ${engine.listOrientations().join(', ')}`);
+            }
+            pu.set_orientation(direction);
         },
 
         // The link's Tab set, in the order the link gives it, as tools of `listTools()` without a style. Penpa+ names a mode

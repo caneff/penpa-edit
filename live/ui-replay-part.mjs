@@ -35,12 +35,9 @@ const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-
 // The recordings whose UI-driver replay on solve.html still differs from the engine driver's, each with the ticket for
 // its gap (controller, 2026-11-16); node reports each still-differing one as `todo`, failing nothing, and fails one that
 // agrees, so the entry goes when its ticket's fix lands. None is marked on Penpa+'s page.
-const ORIENTATION = '#136: solve.html\'s Mode card has no Number orientation control'
 const CAGE_KEY = '#137: a killer cage\'s solve-history key on this grid depends on the cell size'
 const HALF_PIXEL = '#138: a generated drag half a pixel off a point has no whole-pixel twin on solve.html'
 const SOLVE_TODO = {
-  ...Object.fromEntries(['candidates', 'l', 'long', 'm', 'normal', 's', 'sub-3', 'sub-9']
-    .map((name) => [`value/number-${name}`, ORIENTATION])),
   'grid/tri-cage': CAGE_KEY,
   'grid/uniform-cage': CAGE_KEY,
   ...Object.fromEntries(['genre-tool/combi-edgex', 'genre-tool/combi-edgexoi', 'genre/scrin', 'genre/slitherlink',

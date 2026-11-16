@@ -1,4 +1,4 @@
-// The Mode card (a searchable list of every tool, then the current tool's styles), the Mouse card (what the mouse does with
+// The Mode card (a searchable list of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
 // the current tool) and the board's title-bar tool name. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs
 // fails otherwise).
 (function () {
@@ -83,9 +83,10 @@
 
     const STYLE_ICON_PX = 20;
 
+    const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
+
     // A 20 px sample of a style for its button: a swatch for a colour, a tiny drawing for the rest.
     function styleSample(name, swatch) {
-        const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
@@ -113,6 +114,12 @@
         return text(String(name).replace(/^style /, '#'));
     }
 
+    // Number mode's directions as the degrees Penpa+'s Orientation buttons turn their "A" by.
+    const ORIENTATION_TURN = { R: 0, UR: -45, U: -90, UL: -135, L: 180, DL: 135, D: 90, DR: 45 };
+    const ORIENTATION_NAMES = {
+        R: 'right', UR: 'up and right', U: 'up', UL: 'up and left', L: 'left', DL: 'down and left', D: 'down', DR: 'down and right'
+    };
+
     // The picker's entries: every tool the engine lists, filed and named by the guide, with what to search them by.
     function pickerEntries(tools) {
         const toolGroups = new Map(TOOL_GROUPS);
@@ -123,8 +130,9 @@
         });
     }
 
-    // `applyTool(tool)` picks a tool; `colourSelection(style)` is a Multicolor swatch's press.
-    function buildModeCard(body, tools, applyTool, colourSelection) {
+    // `applyTool(tool)` picks a tool; `colourSelection(style)` is a Multicolor swatch's press; `orientations.list()` and
+    // `orientations.apply(direction)` are Number mode's directions and the pick of one.
+    function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
         const entries = pickerEntries(tools);
         const listId = 'tool-listbox';
         const input = el('input', {
@@ -132,8 +140,8 @@
             'aria-controls': listId, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
         const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
-        const styles = el('div', { class: 'ui-toolopts' });
-        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), styles);
+        const toolOptions = el('div', { class: 'ui-toolopts' });
+        body.replaceChildren(el('div', { class: 'ui-picker' }, [input, list]), toolOptions);
 
         let open = false;
         let shown = [];
@@ -242,12 +250,7 @@
             }
         });
 
-        function renderStyles(tool, style) {
-            styles.replaceChildren();
-            styles.hidden = tool.styles.length === 0;
-            if (!tool.styles.length) {
-                return;
-            }
+        function styleGroup(tool, style) {
             const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
             tool.styles.forEach((s) => {
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
@@ -263,15 +266,37 @@
                 });
                 group.append(button);
             });
-            styles.append(el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE ? 'Colour' : 'Style']), group);
+            return [el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE ? 'Colour' : 'Style']), group];
+        }
+
+        function orientationGroup(current) {
+            const group = el('div', { role: 'group', 'aria-label': 'Orientation', class: 'ui-styles' });
+            orientations.list().forEach((direction) => {
+                const name = ORIENTATION_NAMES[direction];
+                const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(direction === current), 'aria-label': name, title: name });
+                button.innerHTML = svg(`<text x="10" y="10" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="700" ` +
+                    `font-family="system-ui,sans-serif" fill="currentColor" transform="rotate(${ORIENTATION_TURN[direction]} 10 10)">A</text>`);
+                button.addEventListener('click', () => {
+                    orientations.apply(direction);
+                    button.blur();
+                });
+                group.append(button);
+            });
+            return [el('div', { class: 'ui-sub' }, ['Orientation']), group];
+        }
+
+        function renderToolOptions(tool, style, orientation) {
+            const parts = [...(tool.styles.length ? styleGroup(tool, style) : []), ...(orientation ? orientationGroup(orientation) : [])];
+            toolOptions.replaceChildren(...parts);
+            toolOptions.hidden = parts.length === 0;
         }
 
         return {
-            render(tool, style) {
+            render(tool, style, orientation) {
                 if (!open) {
                     showCurrent();
                 }
-                renderStyles(tool, style);
+                renderToolOptions(tool, style, orientation);
             }
         };
     }
@@ -287,7 +312,8 @@
         const titleBarName = el('span', { class: 'ui-tool-name', 'data-testid': 'board-tool-name' });
         cards.board.head.append(titleBarName);
 
-        const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style));
+        const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style),
+            { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
         function sizeMouseCard() {
             cards.mouse.body.style.height = '';
@@ -300,7 +326,8 @@
         function render() {
             const current = engine.getTool();
             const held = engine.getState().held;
-            const now = `${toolKey(current)}/${current.style}/${held}`;
+            const orientation = engine.getOrientation();
+            const now = `${toolKey(current)}/${current.style}/${orientation}/${held}`;
             if (now === drawn) {
                 return;
             }
@@ -308,7 +335,7 @@
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held);
             titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
-            mode.render(tool, current.style);
+            mode.render(tool, current.style, orientation);
         }
 
         sizeMouseCard();
