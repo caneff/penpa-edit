@@ -381,6 +381,8 @@
         surface: SURFACE_STYLE, symbol: { 1: 'behind lines', 2: 'in front of lines' },
         cage: { 10: 'dotted line', 7: 'grey line', 15: 'grey dots', 16: 'solid line' }
     };
+    // The modes whose colour styles are pen strokes, so their swatch is the stroke colour of Penpa+'s `set_line_style`.
+    const PEN_BOXES = new Set(['line', 'lineE', 'wall']);
     // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
@@ -438,6 +440,14 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
+    // MVP gap: calls Penpa+'s `set_line_style` on a scratch canvas to read the colour it strokes pen style `style` with.
+    // A legacy label's background is no source: a checked label has a ground of its own, and the greys differ.
+    function penColourOf(style) {
+        const scratch = document.createElement('canvas').getContext('2d');
+        set_line_style(scratch, style);
+        return scratch.strokeStyle;
+    }
+
     function stylesOf(mode, submode) {
         const box = styleBoxOf(mode, submode);
         const container = box && document.getElementById(`style_${box}`);
@@ -450,9 +460,13 @@
                 return [];
             }
             const name = STYLE_NAMES[box]?.[radio.value] ?? `style ${radio.value}`;
+            const style = parseInt(radio.value, 10);
             const background = getComputedStyle(label).backgroundColor;
-            const swatch = COLOUR_STYLE_NAMES.has(name) && background !== 'rgba(0, 0, 0, 0)' ? background : null;
-            return [{ style: parseInt(radio.value, 10), name, swatch }];
+            let swatch = null;
+            if (COLOUR_STYLE_NAMES.has(name)) {
+                swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
+            }
+            return [{ style, name, swatch }];
         });
     }
 
