@@ -100,6 +100,17 @@
                 focusBoard();
             }
         }, true);
+        // A dialog takes the keyboard, so a key held when it opens would never be seen let go.
+        document.addEventListener('wa-show', (e) => {
+            if (e.target.matches('wa-dialog')) {
+                engine.releaseHolds();
+            }
+        });
+        engine.on('change', () => {
+            if (engine.getState().penpaDialogOpen) {
+                engine.releaseHolds();
+            }
+        });
         document.addEventListener('wa-after-hide', (e) => {
             if (e.target.matches('wa-dialog')) {
                 focusBoardAfterWebAwesome();
