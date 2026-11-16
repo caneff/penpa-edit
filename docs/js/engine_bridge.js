@@ -213,6 +213,34 @@
         };
     });
 
+    // MVP gap: Penpa's first landing on Shape mode switches `UserSettings.panel_shown` on, and the solve page has no control
+    // for it, so picking a tool restores the setting as it was.
+    const penpaModeSet = Puzzle.prototype.mode_set;
+    Puzzle.prototype.mode_set = function () {
+        const panelShown = UserSettings.panel_shown;
+        try {
+            return penpaModeSet.apply(this, arguments);
+        } finally {
+            if (UserSettings.panel_shown !== panelShown) {
+                UserSettings.panel_shown = panelShown;
+            }
+        }
+    };
+
+    // MVP gap: Penpa's left click with a Shape tool places the panel's selected variant (the first, as the hidden panel
+    // is never clicked) only while `panel_shown` is on, and otherwise just moves the cursor. The raw field is set, not the
+    // setter, so no panel or toggle on the page changes.
+    const penpaMouseSymbol = Puzzle.prototype.mouse_symbol;
+    Puzzle.prototype.mouse_symbol = function () {
+        const panelShown = UserSettings._panel_shown;
+        UserSettings._panel_shown = true;
+        try {
+            return penpaMouseSymbol.apply(this, arguments);
+        } finally {
+            UserSettings._panel_shown = panelShown;
+        }
+    };
+
     // MVP gap: Penpa's popups are SweetAlert2's container (the Congratulations popup, its alerts) and its `.modal` elements,
     // shown by setting `style.display`. The watcher only wakes the `change` event; getState reads the live elements.
     function penpaDialogOpen() {
