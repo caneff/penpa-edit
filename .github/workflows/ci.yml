@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
 
+# Each job id is a check `.github/scripts/require-checks.sh` makes required on master.
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,7 +16,50 @@ jobs:
       - uses: actions/checkout@v6
       # AGENTS.md: a file we own may be marked merge=ours in .gitattributes, and git has no built-in driver of that name.
       - run: git config merge.ours.driver true
+      # The live tests that open Penpa+ as upstream ships it read the upstream/master ref.
+      - run: git fetch --no-tags --depth=1 https://github.com/swaroopg92/penpa-edit.git master:refs/remotes/upstream/master
       - uses: ./.github/actions/setup-tests
       - run: npm test
       - run: npm run test:live
         if: ${{ !cancelled() }}
+
+  # The expected-file gate (#33): a PR changes an expected file only when a ticket it closes listed the recording
+  # before the fix started. A push has no ticket to read, so the job is skipped there, which a required check accepts.
+  # An edit to a ticket starts no run: re-run this job after one.
+  expected-files:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - id: gate
+        name: Check expected files against the tickets' lists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          node .github/scripts/expected-gate.mjs ${{ github.event.pull_request.number }}
+          ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }} "$RUNNER_TEMP/gate-comment.md"
+      # A run with no expected-file change only updates an earlier gate comment, which may say this check fails; a PR
+      # that never changed one gets no comment.
+      - name: Post the plain-words diff on the PR
+        if: ${{ !cancelled() && steps.gate.outputs.changed != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHANGED: ${{ steps.gate.outputs.changed }}
+        run: |
+          comment=(gh pr comment ${{ github.event.pull_request.number }} --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/gate-comment.md")
+          if [[ $CHANGED == true ]]; then
+            "${comment[@]}" --edit-last --create-if-none
+          elif ! "${comment[@]}" --edit-last 2>"$RUNNER_TEMP/edit-last.err"; then
+            grep -q 'no comments found' "$RUNNER_TEMP/edit-last.err" || { cat "$RUNNER_TEMP/edit-last.err" >&2; exit 1; }
+          fi
