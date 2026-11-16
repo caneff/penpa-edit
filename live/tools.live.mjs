@@ -63,6 +63,58 @@ describe('engine.listTools', () => {
   })
 })
 
+// Runs in the page: draws one edge of the cell at `cell` in pen style `style` into `mode`'s layer and returns the pixel
+// beside the edge's middle as [r, g, b], then takes the edge off again. Penpa+ draws the grid line over a wall, so the
+// pixel is a little off the grid line, still inside the 3 px pen.
+function penPixelInPage ({ mode, style, cell }) {
+  const corners = pu.point[pu.centerlist[cell]].surround
+  const OFF_GRID = 0.9
+  const key = `${corners[0]},${corners[1]}`
+  const [a, b] = [pu.point[corners[0]], pu.point[corners[1]]]
+  pu[pu.mode.qa][mode][key] = style
+  pu.redraw()
+  const { data } = pu.ctx.getImageData(Math.floor(((a.x + b.x) / 2 + OFF_GRID) * pu.resol), Math.floor(((a.y + b.y) / 2 + OFF_GRID) * pu.resol), 1, 1)
+  delete pu[pu.mode.qa][mode][key]
+  pu.redraw()
+  return [data[0], data[1], data[2]]
+}
+
+// A swatch is `#rrggbb` (a canvas's own spelling of a pen colour) or `rgb(r, g, b)` (a label's computed background).
+const rgbOf = (swatch) => swatch.startsWith('#') ? swatch.slice(1).match(/../g).map((h) => parseInt(h, 16)) : swatch.match(/\d+/g).slice(0, 3).map(Number)
+
+describe('the pen styles of line, edge line and wall (#158)', () => {
+  let opened
+  before(async () => { opened = await openSolve() })
+  after(async () => { await opened?.context.close() })
+
+  const COLOUR_PENS = ['green', 'black', 'grey', 'red', 'blue']
+
+  for (const mode of ['line', 'lineE', 'wall']) {
+    it(`gives every colour style of ${mode} the colour Penpa+ draws it with`, async () => {
+      const tool = (await tools(opened.page)).find((t) => t.mode === mode)
+      const coloured = tool.styles.filter((s) => COLOUR_PENS.includes(s.name))
+      assert.deepEqual(coloured.map((s) => s.name).sort(), [...COLOUR_PENS].sort(), `${mode} lists its five colours`)
+      for (const s of coloured) {
+        assert.equal(typeof s.swatch, 'string', `${mode} ${s.name} has a swatch`)
+        const pixel = await opened.page.evaluate(penPixelInPage, { mode, style: s.style, cell: CELL })
+        assert.deepEqual(rgbOf(s.swatch), pixel, `${mode} ${s.name}: swatch ${s.swatch} against the drawn pixel`)
+      }
+    })
+  }
+
+  it('shows each as a colour chip with the colour as its accessible name, not as text', async () => {
+    await opened.page.evaluate(() => engine.setTool({ mode: 'line', submode: '2', style: 3 }))
+    const group = opened.page.getByRole('region', { name: 'Mode' }).getByRole('group', { name: 'Style' })
+    for (const name of COLOUR_PENS) {
+      const button = group.getByRole('button', { name, exact: true })
+      assert.equal(await button.count(), 1, `${name} button`)
+      assert.equal(await button.getAttribute('title'), name)
+      assert.equal(await button.innerText(), '', `${name} shows no text`)
+      assert.equal(await button.locator('svg rect').count(), 1, `${name} shows a colour chip`)
+    }
+  })
+})
+
 describe('engine.setTool and engine.getTool', () => {
   let opened
   before(async () => { opened = await openSolve() })

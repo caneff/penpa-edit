@@ -382,6 +382,8 @@
         cage: { 10: 'dotted line', 7: 'grey line', 15: 'grey dots', 16: 'solid line' }
     };
     // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
+    // The modes whose colour styles are strokes of Penpa+'s `set_line_style`.
+    const PEN_BOXES = new Set(['line', 'lineE', 'wall']);
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
     const SUBMODE_NAMES = {
@@ -438,6 +440,14 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
+    // The colour Penpa+ strokes pen style `style` with on the board, read from its own drawing style (`set_line_style`).
+    // A legacy label's background is no source: a checked label has a ground of its own, and the greys differ.
+    function penColourOf(style) {
+        const scratch = document.createElement('canvas').getContext('2d');
+        set_line_style(scratch, style);
+        return scratch.strokeStyle;
+    }
+
     function stylesOf(mode, submode) {
         const box = styleBoxOf(mode, submode);
         const container = box && document.getElementById(`style_${box}`);
@@ -451,7 +461,8 @@
             }
             const name = STYLE_NAMES[box]?.[radio.value] ?? `style ${radio.value}`;
             const background = getComputedStyle(label).backgroundColor;
-            const swatch = COLOUR_STYLE_NAMES.has(name) && background !== 'rgba(0, 0, 0, 0)' ? background : null;
+            const labelSwatch = COLOUR_STYLE_NAMES.has(name) && background !== 'rgba(0, 0, 0, 0)' ? background : null;
+            const swatch = PEN_BOXES.has(box) && COLOUR_STYLE_NAMES.has(name) ? penColourOf(parseInt(radio.value, 10)) : labelSwatch;
             return [{ style: parseInt(radio.value, 10), name, swatch }];
         });
     }
