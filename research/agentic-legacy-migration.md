@@ -439,9 +439,9 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
   ([BacheVid] for why coverage alone is not enough). Plants should include bugs taken from the audit, not only ones
   written by the harness's author (the caveat in `fuzz-planted-bugs.md`).
   - **Measured at #32 (2026-11-15)**: `npm run measure` (`live/measure.mjs`, plants in `live/plants.mjs`). Every
-    handler a solve mode reaches is called, after four `clear keys` recordings added Backspace, Delete and Ctrl+Space;
-    all 25 plants are caught, the five audit plants (C1, C4, C7, C13, C14) each at its own recording. The seam checks
-    that every plant still applies and that each audit plant is caught. Tables and method:
+    handler a solve mode reaches is called, after four `clear keys` recordings added Backspace, Delete and Ctrl+Space
+    and one opens a solve link saved in Number Arrow; all 26 plants are caught, the five audit plants (C1, C4, C7, C13,
+    C14) each at its own recording. The seam checks that each audit plant still applies and is caught. Tables and method:
     `research/safety-net-measure-2026-11.md`.
 - The independent reviewer in the lane reads the recordings' semantic diff, not only the code diff ([Cherny25]).
 
