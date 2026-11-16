@@ -14,6 +14,7 @@ import {
   ANSWER_CELLS, cellPixel, clickCell, compareDrivers, downloadRecording, listRecordings, makeSurfaceSolveLink,
   openRecordingPage, readExpected, readRecording, replay, uiDriver
 } from './replay.mjs'
+import { TIER_C_FAMILY } from './tier-c.mjs'
 
 const browser = useBrowser()
 
@@ -45,7 +46,7 @@ for (const id of ids) if (!(await readRecording(id)).header.tier) handMadeIds.pu
 // Tier C's sample for the UI driver on every PR (the map's rule, #6): the full solves whose board fits the replay's
 // viewport and that replay in seconds. The 10x10 star battle runs below the viewport, which the UI driver does not
 // scroll, and the 9x9 sudoku and the killer take tens of seconds each.
-const TIER_C_UI_SAMPLE = ['solve/or-shading', 'solve/slitherlink', 'solve/sudoku-6x6']
+const TIER_C_UI_SAMPLE = ['or-shading', 'slitherlink', 'sudoku-6x6'].map((name) => `${TIER_C_FAMILY}/${name}`)
 
 // Records `act(page)` on a `?record=1` page and returns the recording and the page's last canonical state.
 async function record (query, act) {

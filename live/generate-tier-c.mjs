@@ -6,25 +6,24 @@
 //   node live/generate-tier-c.mjs --history <name> <file>
 //     a solver's history: the Share > Replay link in `<file>` converted, as `solve/<name>-history`; the header's
 //     `history` is `<name>`.
-// The header's `tier` is `C`. A solve that fails its answer run, or a recording whose replay is refused, writes no
-// expected file and fails the command.
+// The header's `tier` is `C`. A solve that fails its answer run, or a recording whose replay is refused, leaves no
+// expected file, any earlier one removed, and fails the command.
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { chromium } from 'playwright'
 import { RECORDINGS, engineCommit, recordingText, replay, writeExpected } from './replay.mjs'
-import {
-  answerRun, buildPuzzle, convertReplayLink, generateSolve, RECORDING_SEED, TIER_C_PUZZLES
-} from './tier-c.mjs'
+import { answerRun, convertReplayLink, generateSolve, RECORDING_SEED, TIER_C_FAMILY } from './tier-c.mjs'
+import { buildPuzzle, TIER_C_PUZZLES } from './tier-c-puzzles.mjs'
 
-const FAMILY = 'solve'
+const removeExpected = (id) => rm(new URL(id + '.expected.json', RECORDINGS), { force: true })
 
 // Writes `recording` as `id` and its expected file, or removes any earlier expected file and returns the replay's
 // report when it is refused.
 async function write (browser, id, recording) {
-  await mkdir(new URL(FAMILY + '/', RECORDINGS), { recursive: true })
+  await mkdir(new URL(TIER_C_FAMILY + '/', RECORDINGS), { recursive: true })
   await writeFile(new URL(id + '.steps.json', RECORDINGS), recordingText(recording))
   const { checkpoints, report } = await replay(browser, recording, { id })
   if (report) {
-    await rm(new URL(id + '.expected.json', RECORDINGS), { force: true })
+    await removeExpected(id)
     return report
   }
   await writeExpected(id, checkpoints)
@@ -34,17 +33,21 @@ async function write (browser, id, recording) {
 
 async function generated (browser, name) {
   const puzzle = await buildPuzzle(browser, name)
-  const solve = generateSolve(puzzle, RECORDING_SEED)
-  const { failure, final, gridtype, genre } = await answerRun(browser, puzzle, solve)
-  if (failure) return failure
+  const id = `${TIER_C_FAMILY}/${name}`
+  const steps = generateSolve(puzzle, RECORDING_SEED)
+  const { failure, final, gridtype, genre } = await answerRun(browser, puzzle, steps)
+  if (failure) {
+    await removeExpected(id)
+    return failure
+  }
   const header = { source: puzzle.source, gridtype, genre, commit: engineCommit(), tier: 'C', generated: { puzzle: name, seed: RECORDING_SEED } }
-  return write(browser, `${FAMILY}/${name}`, { header, final, steps: solve.steps })
+  return write(browser, id, { header, final, steps })
 }
 
 async function history (browser, name, file) {
   const recording = await convertReplayLink(browser, (await readFile(file, 'utf8')).trim())
   recording.header = { ...recording.header, commit: engineCommit(), history: name }
-  return write(browser, `${FAMILY}/${name}-history`, recording)
+  return write(browser, `${TIER_C_FAMILY}/${name}-history`, recording)
 }
 
 const args = process.argv.slice(2)

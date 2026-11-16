@@ -359,7 +359,9 @@ Enter and Z/X/C/V are what the interaction contract will change, and their tests
     puzzle whose answer is the same cells shaded OR as black squares. The answer-aimed fuzz runs three seeds per puzzle
     on the seam; one seed per puzzle is kept under `live/recordings/solve/`. A Replay link converts by trying, for each
     change, the inputs of its natural mode (Composite star, Composite edgex, Surface) until one makes it; changes to
-    other layers or properties are refused until a link needs them. Found on the way: saved progress keeps
+    other layers or properties are refused until a link needs them. A Replay link carries no answer, so the solve's last
+    board becomes it once it checks as a solved star battle or slitherlink; an unfinished solve is refused, and a
+    converted history's puzzle is fuzzed like the generated ones (`live/tier-c-puzzles.mjs`). Found on the way: saved progress keeps
     `command_replay`, and its reload reads solved; #83 does not show on these boards with a running or a paused clock,
     so it is not marked on them. #64 is a `todo` test. The 10x10 star battle runs below the replay's 720-pixel
     viewport, which the UI driver does not scroll, so it is not in the UI driver's sample.

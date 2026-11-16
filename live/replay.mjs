@@ -25,7 +25,7 @@
 // solver's converted solve history); a converted step may carry `at`, the solver's timer reading in milliseconds when
 // the change it starts was made, which no driver reads.
 // Beside it, `<name>.expected.json` holds the canonical state at each checkpoint, written from a replay by
-// `live/write-expected.mjs` or `live/generate-recordings.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
+// `live/write-expected.mjs`, `live/generate-recordings.mjs` or `live/generate-tier-c.mjs`, never by hand. A fuzz recording has none until its bug is fixed, and its replay test fails until then.
 import { execFileSync } from 'node:child_process'
 import { readdir, readFile, writeFile } from 'node:fs/promises'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
@@ -38,6 +38,12 @@ const EXPECTED_SUFFIX = '.expected.json'
 // The replay page's clock is installed and paused at this instant before the page opens, so the timer and every
 // replay timestamp read 0 (`research/replay-determinism-2026-11.md` § Recommended setup).
 const CLOCK_START = new Date('2026-01-01T00:00:00Z')
+
+// Installs `context`'s clock paused at CLOCK_START, before its page opens.
+export async function pauseClock (context) {
+  await context.clock.install({ time: CLOCK_START })
+  await context.clock.pauseAt(CLOCK_START)
+}
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
 // Duplicate-link pages one replay has open at once.
 const ROUND_TRIP_LANES = 4
@@ -384,6 +390,28 @@ function startUiDriver (page) {
   }
 }
 
+// Steps built from board points, for a generator: `board.points` maps each point's index in `pu.point` to its board
+// units.
+function pointerStep (board, action, num, button) {
+  const { x, y } = board.points[num]
+  return { kind: 'pointer', action, button: action === 'down' ? button : null, ctrl: false, x, y, num }
+}
+
+// A press and release of `button` on point `num`.
+export function pressSteps (board, num, button = 'left') {
+  return [pointerStep(board, 'down', num, button), pointerStep(board, 'up', num)]
+}
+
+// A left drag through the points `nums`, in order.
+export function dragSteps (board, nums) {
+  return [pointerStep(board, 'down', nums[0], 'left'), ...nums.slice(1).map((n) => pointerStep(board, 'move', n)), pointerStep(board, 'up', nums.at(-1))]
+}
+
+// Each character of `text` typed as a content key.
+export function typedSteps (text) {
+  return [...text].map((ch) => ({ kind: 'key', call: 'key_number', args: [ch] }))
+}
+
 // A step in words, for a failure report.
 export function stepWords (step) {
   switch (step.kind) {
@@ -522,8 +550,7 @@ export async function replay (browser, recording, {
     served,
     contextOptions: CONTEXT_OPTIONS,
     setup: async (c) => {
-      await c.clock.install({ time: CLOCK_START })
-      await c.clock.pauseAt(CLOCK_START)
+      await pauseClock(c)
       await setup?.(c)
     }
   })
