@@ -105,6 +105,79 @@
         return { group: 'symbols', name: tool.name, description: '' };
     }
 
+    // ---- Where the tree files each tool -----------------------------------------------------------------------------
+
+    // Symbols and marks has a level of subgroups, and a symbol that comes in sizes or colours is one entry whose sizes or
+    // colours sit under it (Chris, 2026-11-16). A tool listed under no subgroup goes to the last one.
+    const SIZE_NAMES = { LL: 'XL', L: 'L', M: 'M', S: 'S', SS: 'XS' };
+    const sizes = (name, prefix, suffixes) => [name, suffixes.map((suffix) => [`symbol/${prefix}_${suffix}`, SIZE_NAMES[suffix]])];
+    const COLOURS = { B: 'Black', G: 'Grey', W: 'White', E: 'Green' };
+    const colours = (name, keys, ids) => [name, keys.map((key, i) => [key, COLOURS[ids[i]] ?? ids[i]])];
+    const symbols = (...ids) => ids.map((id) => [null, [[`symbol/${id}`, null]]]);
+    const combis = (...ids) => ids.map((id) => [null, [[`combi/${id}`, null]]]);
+    const SYMBOL_SUBGROUPS = [
+        ['Solving marks', combis('blwh', 'battleship', 'star', 'tents', 'magnets', 'mines', 'doublemines', 'akari')],
+        ['Shapes', [
+            sizes('Circle', 'circle', ['L', 'M', 'S', 'SS']), sizes('Square', 'square', ['LL', 'L', 'M', 'S', 'SS']),
+            sizes('Diamond', 'diamond', ['L', 'M', 'S', 'SS']), sizes('Triangle up', 'triup', ['L', 'M', 'S', 'SS']),
+            sizes('Triangle down', 'tridown', ['L', 'M', 'S', 'SS']), sizes('Triangle left', 'trileft', ['L', 'M', 'S', 'SS']),
+            sizes('Triangle right', 'triright', ['L', 'M', 'S', 'SS']), sizes('Hexagon, point up', 'hexpoint', ['LL', 'L', 'M', 'S', 'SS']),
+            sizes('Hexagon, flat', 'hexflat', ['LL', 'L', 'M', 'S', 'SS'])
+        ]],
+        ['Arrows', [
+            colours('Arrow', ['symbol/arrow_B_B', 'symbol/arrow_B_G', 'symbol/arrow_B_W'], ['B', 'G', 'W']),
+            colours('Arrow, notched', ['symbol/arrow_N_B', 'symbol/arrow_N_G', 'symbol/arrow_N_W'], ['B', 'G', 'W']),
+            colours('Arrow, triangle', ['symbol/arrow_tri_B', 'symbol/arrow_tri_G', 'symbol/arrow_tri_W'], ['B', 'G', 'W']),
+            colours('Edge arrows', ['symbol/arrow_fouredge_B', 'symbol/arrow_fouredge_G', 'symbol/arrow_fouredge_E'], ['B', 'G', 'E']),
+            ...symbols('arrow_GP', 'arrow_GP_C', 'arrow_Short', 'arrow_S', 'arrow_cross', 'arrow_eight', 'arrow_fourtip'), ...combis('arrowS')
+        ]],
+        ['Signs and small marks', [
+            colours('○ △ □ ×', ['symbol/ox_B', 'symbol/ox_E', 'symbol/ox_G'], ['B', 'E', 'G']),
+            ...symbols('cross', 'line', 'frameline'),
+            colours('Bars', ['symbol/bars_B', 'symbol/bars_G', 'symbol/bars_W'], ['B', 'G', 'W']),
+            ...symbols('tri'),
+            colours('Maths signs', ['symbol/math', 'symbol/math_G'], ['B', 'E']),
+            ...symbols('inequality'),
+            colours('Segment digit', ['symbol/degital_B', 'symbol/degital_E', 'symbol/degital_G', 'symbol/degital_f'], ['B', 'E', 'G', 'Outline'])
+        ]],
+        ['Genre symbols', [
+            colours('Ship', ['symbol/battleship_B', 'symbol/battleship_G', 'symbol/battleship_W', 'symbol/battleship_B+', 'symbol/battleship_G+',
+                'symbol/battleship_W+'], ['B', 'G', 'W', 'Curvy, black', 'Curvy, grey', 'Curvy, white']),
+            ...symbols('kakuro', 'tents', 'star', 'compass', 'sun_moon', 'dice', 'pills', 'polyomino', 'polyhex', 'firefly', 'pencils', 'slovak',
+                'arc', 'darts', 'spans', 'neighbors', 'angleloop', 'sudokuetc', 'sudokumore')
+        ]]
+    ];
+
+    // 'mode/sub-mode' -> where the tree puts a symbol: [subgroup, family (null: the tool stands alone), variant, rank].
+    const SYMBOL_PLACES = new Map();
+    SYMBOL_SUBGROUPS.forEach(([subgroup, entries]) => entries.forEach(([family, variants]) => variants.forEach(([key, variant]) => {
+        SYMBOL_PLACES.set(key, [subgroup, family, variant, SYMBOL_PLACES.size]);
+    })));
+    const LAST_SUBGROUP = SYMBOL_SUBGROUPS[SYMBOL_SUBGROUPS.length - 1][0];
+
+    // The tree's place for a tool: its group, the branches between the group and the tool (a mode, or a subgroup and a
+    // symbol), its own label, and a rank that orders tools within their group. Modes that name each tool on their own
+    // stand alone one level under their group, and so does a mode with no sub-modes.
+    function placeTool(tool) {
+        const { group, name, description } = describeTool(tool);
+        const place = SYMBOL_PLACES.get(toolKey(tool));
+        if (place) {
+            const [subgroup, family, variant, rank] = place;
+            return { group, trail: [subgroup, family].filter(Boolean), label: variant ?? name, name, description, rank };
+        }
+        if (group === 'symbols') {
+            return { group, trail: [LAST_SUBGROUP], label: name, name, description, rank: SYMBOL_PLACES.size };
+        }
+        if (SELF_NAMING_MODES.includes(tool.mode) || !tool.submodeName) {
+            return { group, trail: [], label: name, name, description, rank: 0 };
+        }
+        return { group, trail: [tool.modeName], label: capitalised(tool.submodeName), name, description, rank: 0 };
+    }
+
+    // The words a search box splits its text into, and whether a tool's lower-case search text holds every one.
+    const searchWords = (text) => text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const matchesSearch = (haystack, words) => words.every((word) => haystack.includes(word));
+
     // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
     // `research/mouse-card-wording-2026-11.md`, every row read from Penpa+'s handlers; a click that cycles reads `A → B → clear`.
     const CYCLE_END = 'clear';
@@ -277,5 +350,5 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, mouseRows, toolKey, chipLabel, submodeLabel };
+    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, placeTool, searchWords, matchesSearch, mouseRows, toolKey, chipLabel, submodeLabel };
 })();

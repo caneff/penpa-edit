@@ -1,5 +1,5 @@
 // The tool catalog and the Mode and Mouse cards of `solve.html` (#95): the engine lists every tool a link offers and
-// applies a whole one, the Mode card's combobox picks any of them, and the Mouse card and the board's title bar say what
+// applies a whole one, the Mode card's tree picks any of them, and the Mouse card and the board's title bar say what
 // the current one does. The UI is found by role and accessible name or test id, the board by what Penpa+ would save
 // (`readEngineState`, defined by recorder.js).
 import assert from 'node:assert/strict'
@@ -157,16 +157,18 @@ describe('a link with a Tab set', () => {
   })
 
   it('offers the same tools in the Mode card', async () => {
-    const optionNames = async ({ page }) => {
+    const leafNames = async ({ page }) => {
       const mode = page.getByRole('region', { name: 'Mode' })
       await mode.getByRole('combobox', { name: 'Tool' }).click()
-      const found = await mode.getByRole('option').allInnerTexts()
+      await mode.getByRole('button', { name: 'Everything', exact: true }).click()
+      const found = await mode.getByRole('treeitem').evaluateAll((rows) => rows.filter((row) => !row.hasAttribute('aria-expanded'))
+        .map((row) => `${row.dataset.mode}/${row.dataset.submode}`))
       await page.keyboard.press('Escape')
       return found
     }
-    const cardNames = await optionNames(withTabSet)
+    const cardNames = await leafNames(withTabSet)
     assert.equal(cardNames.length, (await tools(withTabSet.page)).length)
-    assert.deepEqual(cardNames, await optionNames(withoutTabSet))
+    assert.deepEqual(cardNames, await leafNames(withoutTabSet))
   })
 
   it('still leaves out a mode Penpa+ hides for another reason', async () => {
@@ -180,38 +182,27 @@ describe('the Mode card', () => {
   after(async () => { await opened?.context.close() })
 
   const combobox = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('combobox', { name: 'Tool' })
-  const options = () => opened.page.getByRole('region', { name: 'Mode' }).getByRole('option')
-
-  it('lists every tool the engine lists when opened', async () => {
-    const list = await tools(opened.page)
-    await combobox().click()
-    assert.equal(await combobox().getAttribute('aria-expanded'), 'true')
-    assert.equal(await options().count(), list.length)
-    const modes = await opened.page.getByRole('region', { name: 'Mode' }).getByRole('option').evaluateAll((nodes) => [...new Set(nodes.map((n) => n.dataset.mode))])
-    assert.deepEqual(modes.sort(), [...SOLVE_MODES].sort())
-    await opened.page.keyboard.press('Escape')
-  })
-
   it('finds a tool by the name Penpa+ gives it', async () => {
     await combobox().click()
     await combobox().fill('Black / dot')
-    assert.equal(await options().count(), 1)
-    await options().first().click()
+    await opened.page.getByRole('treeitem', { name: 'Shade + dot', exact: true }).click()
     assert.deepEqual((await currentTool(opened.page)).submode, 'blpo')
     await combobox().click()
     await combobox().fill('Helper (x)')
-    assert.deepEqual(await options().evaluateAll((nodes) => nodes.map((n) => `${n.dataset.mode}/${n.dataset.submode}`)), ['line/4', 'lineE/4'])
+    assert.deepEqual(await opened.page.getByRole('region', { name: 'Mode' }).locator('[role=treeitem][data-mode]:visible')
+      .evaluateAll((nodes) => nodes.map((n) => `${n.dataset.mode}/${n.dataset.submode}`)), ['line/4', 'lineE/4'])
     await opened.page.keyboard.press('Escape')
   })
 
-  it('picks with the keyboard alone: arrows, Enter, and Escape to leave', async () => {
+  it('picks with the keyboard alone: Enter picks the first match, and Escape leaves', async () => {
     const { page } = opened
     await setTool(page, { mode: 'surface' })
     await combobox().focus()
     await page.keyboard.press('ArrowDown')
     assert.equal(await combobox().getAttribute('aria-expanded'), 'true')
+    await page.keyboard.press('Escape')
+    await combobox().focus()
     await combobox().fill('Diagonal line')
-    await page.keyboard.press('ArrowDown')
     await page.keyboard.press('Enter')
     assert.deepEqual({ ...(await currentTool(page)), style: 0 }, { mode: 'line', submode: '2', style: 0 })
     assert.equal(await combobox().getAttribute('aria-expanded'), 'false')
@@ -221,25 +212,6 @@ describe('the Mode card', () => {
     await page.keyboard.press('Escape')
     assert.equal(await combobox().getAttribute('aria-expanded'), 'false')
     assert.deepEqual((await currentTool(page)).submode, '2', 'Escape picks nothing')
-  })
-
-  it('moves the highlighted option with the arrows and names it in aria-activedescendant', async () => {
-    const { page } = opened
-    await combobox().focus()
-    await combobox().fill('Corner')
-    await page.keyboard.press('ArrowDown')
-    const id = await combobox().getAttribute('aria-activedescendant')
-    assert.equal(await page.locator(`[id="${id}"]`).getAttribute('role'), 'option')
-    assert.equal(await page.locator(`[id="${id}"]`).getAttribute('aria-selected'), 'true')
-    await page.keyboard.press('Escape')
-  })
-
-  it('returns focus to the board after a pick', async () => {
-    const { page } = opened
-    await combobox().click()
-    await options().first().click()
-    const focused = await page.evaluate(() => document.activeElement === document.body)
-    assert.equal(focused, true)
   })
 
   it('shows only style buttons after the picker, and a style button sets the style', async () => {

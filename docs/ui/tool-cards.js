@@ -1,4 +1,4 @@
-// The Mode card (a searchable list of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
+// The Mode card (a searchable tree of every tool, then the current tool's styles and, for Number, its orientation), the Mouse card (what the mouse does with
 // the current tool) and the board's title-bar tool name. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs
 // fails otherwise).
 (function () {
@@ -6,7 +6,7 @@
 
     const SEPARATOR = ' · ';
     const MULTICOLOR_MODE = 'multicolor';
-    const { TOOL_GROUPS, NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const { NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -120,55 +120,29 @@
         R: 'right', UR: 'up and right', U: 'up', UL: 'up and left', L: 'left', DL: 'down and left', D: 'down', DR: 'down and right'
     };
 
-    // The picker's entries: every tool the engine lists, filed and named by the guide, with what to search them by.
-    function pickerEntries(tools) {
-        const toolGroups = new Map(TOOL_GROUPS);
-        return tools.map((tool) => {
-            const { group, name, description } = describeTool(tool);
-            const haystack = [name, description, tool.modeName, toolGroups.get(group), ...tool.labels].join(' ').toLowerCase();
-            return { tool, group, name, description, haystack };
-        });
-    }
-
     // `applyTool(tool)` picks a tool; `colourSelection(style)` is a Multicolor swatch's press; `orientations.list()` and
     // `orientations.apply(direction)` are Number mode's directions and the pick of one.
     function buildModeCard(body, tools, applyTool, colourSelection, orientations) {
-        const entries = pickerEntries(tools);
-        const listId = 'tool-listbox';
         const input = el('input', {
-            type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-expanded': 'false',
-            'aria-controls': listId, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
+            type: 'text', role: 'combobox', 'aria-label': 'Tool', 'aria-autocomplete': 'list', 'aria-haspopup': 'tree', 'aria-expanded': 'false',
+            'aria-controls': 'tool-tree', spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
-        const list = el('div', { role: 'listbox', id: listId, 'aria-label': 'Tools', class: 'ui-list', hidden: '' });
+        const none = el('div', { class: 'ui-none', hidden: '' }, ['No tool matches.']);
+        const toolTree = window.modeTree.createModeTree(tools, (tool) => pick(tool));
+        const list = el('div', { class: 'ui-list', hidden: '' }, [toolTree.levels, toolTree.tree, none]);
         const toolOptions = el('div', { class: 'ui-toolopts' });
+        const picker = el('div', { class: 'ui-picker' }, [input, list]);
         // pins.js adds the pin toggle to the row.
-        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [el('div', { class: 'ui-picker' }, [input, list])]), toolOptions);
+        body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker]), toolOptions);
 
         let open = false;
-        let shown = [];
-        let active = -1;
-
-        const entryFor = (tool) => entries.find((e) => toolKey(e.tool) === toolKey(tool));
 
         function showCurrent() {
-            input.value = entryFor(engine.getTool())?.name ?? '';
+            const current = tools.find((t) => toolKey(t) === toolKey(engine.getTool()));
+            input.value = current ? describeTool(current).name : '';
         }
 
-        function markActive() {
-            list.querySelectorAll('[role=option]').forEach((option, i) => {
-                option.setAttribute('aria-selected', String(i === active));
-                if (i === active) {
-                    option.scrollIntoView({ block: 'nearest' });
-                }
-            });
-            if (active >= 0) {
-                input.setAttribute('aria-activedescendant', `tool-option-${active}`);
-            } else {
-                input.removeAttribute('aria-activedescendant');
-            }
-        }
-
-        // The focus returns to the board by leaving the field: nothing else on the page takes keys.
+        // The focus returns to the board by leaving the picker: nothing else on the page takes keys.
         function close() {
             if (!open) {
                 return;
@@ -176,45 +150,16 @@
             open = false;
             list.hidden = true;
             input.setAttribute('aria-expanded', 'false');
-            input.removeAttribute('aria-activedescendant');
             showCurrent();
         }
 
-        function pick(entry) {
-            applyTool({ mode: entry.tool.mode, submode: entry.tool.submode });
-            input.blur();
+        function pick(tool) {
+            applyTool({ mode: tool.mode, submode: tool.submode });
+            document.activeElement?.blur();
         }
 
-        function renderList() {
-            const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-            list.replaceChildren();
-            // The options are numbered in the order they show, which is the groups' order, not the filter's.
-            const matching = entries.filter((e) => words.every((w) => e.haystack.includes(w)));
-            shown = [];
-            TOOL_GROUPS.forEach(([id, title]) => {
-                const inGroup = matching.filter((e) => e.group === id);
-                if (!inGroup.length) {
-                    return;
-                }
-                const group = el('div', { role: 'group', 'aria-label': title, class: 'ui-group' }, [el('div', { class: 'ui-group-title', 'aria-hidden': 'true' }, [title])]);
-                inGroup.forEach((entry) => {
-                    const option = el('div', { role: 'option', 'aria-selected': 'false', class: 'ui-entry', 'data-mode': entry.tool.mode, 'data-submode': entry.tool.submode ?? '' }, [
-                        el('div', { class: 'ui-ename' }, [entry.name, el('span', { class: 'ui-emode' }, [entry.tool.modeName])]),
-                        el('div', { class: 'ui-edesc' }, [entry.description])
-                    ]);
-                    // The mouse press keeps the focus in the field, so the click that follows is a pick.
-                    option.addEventListener('mousedown', (e) => e.preventDefault());
-                    option.addEventListener('click', () => pick(entry));
-                    shown.push(entry);
-                    group.append(option);
-                });
-                list.append(group);
-            });
-            list.querySelectorAll('[role=option]').forEach((option, i) => { option.id = `tool-option-${i}`; });
-            if (!shown.length) {
-                list.append(el('div', { class: 'ui-none' }, ['No tool matches.']));
-            }
-            markActive();
+        function filter() {
+            none.hidden = toolTree.search(input.value) > 0;
         }
 
         function openList() {
@@ -225,29 +170,31 @@
             list.hidden = false;
             input.setAttribute('aria-expanded', 'true');
             input.value = '';
-            active = -1;
-            renderList();
+            filter();
+            toolTree.openBranchOf(engine.getTool());
+            toolTree.scrollToSelected();
         }
 
         input.addEventListener('focus', openList);
-        input.addEventListener('mousedown', () => { if (document.activeElement === input) { openList(); } });
-        input.addEventListener('blur', close);
-        input.addEventListener('input', () => { openList(); active = -1; renderList(); });
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        input.addEventListener('input', filter);
+        picker.addEventListener('focusout', (e) => {
+            if (!picker.contains(e.relatedTarget)) {
+                close();
+            }
+        });
+        picker.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
                 e.preventDefault();
-                openList();
-                active = Math.max(0, Math.min(shown.length - 1, active + (e.key === 'ArrowDown' ? 1 : -1)));
-                markActive();
-            } else if (e.key === 'Enter') {
+                document.activeElement?.blur();
+            } else if (e.target === input && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                 e.preventDefault();
-                const entry = shown[Math.max(active, 0)];
-                if (entry) {
-                    pick(entry);
+                toolTree.focusSelected();
+            } else if (e.target === input && e.key === 'Enter') {
+                e.preventDefault();
+                const first = input.value.trim() ? toolTree.firstMatch() : null;
+                if (first) {
+                    pick(first);
                 }
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                input.blur();
             }
         });
 
@@ -294,6 +241,7 @@
 
         return {
             render(tool, style, orientation) {
+                toolTree.select(tool);
                 if (!open) {
                     showCurrent();
                 }
