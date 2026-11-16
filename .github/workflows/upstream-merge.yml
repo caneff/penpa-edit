@@ -3,7 +3,8 @@ name: Upstream merge
 # Merges upstream Penpa+ into master with a merge commit and pushes only when both test suites pass on the merged
 # tree and it changes no recording's expected file (each such change is Chris's to rule on, #33); master:/docs is what
 # Pages serves, so the push publishes. A conflict, a red run, a changed expected file or a refused push pushes nothing
-# and files one issue, or comments on it while it is open.
+# and files one issue, or comments on it while it is open. Each upstream commit that touched a file we own
+# (merge=ours) gets one needs-triage issue, filed before the tests, and even when the merge conflicts.
 on:
   schedule:
     - cron: '17 5 * * *'
@@ -18,6 +19,7 @@ concurrency: upstream-merge
 
 env:
   REPORT: ${{ github.workspace }}/../upstream-merge-report.md
+  OWNED_COMMITS: ${{ github.workspace }}/../upstream-owned-commits.tsv
   TEST_LOG: ${{ github.workspace }}/../upstream-merge-test.log
 
 jobs:
@@ -37,7 +39,15 @@ jobs:
       - id: merge
         name: Merge upstream/master
         shell: bash
-        run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT"
+        run: bash .github/scripts/upstream-merge.sh upstream/master "$REPORT" "$OWNED_COMMITS"
+      # Also after a conflicted merge: once someone merges it by hand, those commits are no longer upstream-only, so a
+      # later night would never list them.
+      - if: ${{ !cancelled() }}
+        name: File a triage issue per upstream commit to an owned file
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/file-upstream-triage.sh "$OWNED_COMMITS"
       - if: steps.merge.outputs.merged == 'true'
         uses: ./.github/actions/setup-tests
       - id: tests

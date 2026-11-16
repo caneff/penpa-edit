@@ -59,7 +59,8 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master` (job `test`), and the expected-file gate
   on every PR (job `expected-files`, below). `.github/workflows/upstream-merge.yml` merges upstream nightly and pushes
-  only when both pass on the merged tree and it changes no expected file. `.github/scripts/require-checks.sh` makes both
+  only when both pass on the merged tree and it changes no expected file; it also files one `needs-triage` issue per upstream
+  commit that touched an owned file (Chris, 2026-11-14). `.github/scripts/require-checks.sh` makes both
   jobs required on `master`, with the admin role able to bypass; the nightly posts their statuses on the commit it
   tested before it pushes.
 - **Expected-file changes** (#33): a ticket whose fix changes a recording's expected file lists each recording before the
