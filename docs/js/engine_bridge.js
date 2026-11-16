@@ -4,11 +4,46 @@
 (function () {
     'use strict';
 
-    // UserSettings.displaysize clamps to these and pops a message up when it does (settings.js), so a call outside throws.
-    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 90 });
+    // UserSettings.displaysize clamps to 12-90 and pops a message up when it does (settings.js). The solve page draws up to
+    // `max`, so a small board can fill a large Board card; a size over PENPA_CELL_SIZE_MAX is written past the setter and never
+    // leaves the page (see exportAtPenpaSize). A call outside the range throws.
+    const PENPA_CELL_SIZE_MAX = 90;
+    const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
+
+    // What index.html reads back is a puzzle link, the progress store and the `displaysize` cookie. Each is written as Penpa+
+    // would write it at PENPA_CELL_SIZE_MAX, since index.html clamps a larger size with its max-size message and sizes the
+    // board's canvas from `canvasx / size`.
+    // MVP gap: this assumes every link and the stored progress text come out of Puzzle.__export_text_shared and the cookie out of
+    // UserSettings.attemptSave; a new way out of the page would carry the large size.
+    function exportAtPenpaSize() {
+        const original = Puzzle.prototype.__export_text_shared;
+        Puzzle.prototype.__export_text_shared = function (...args) {
+            const real = { size: this.size, canvasx: this.canvasx, canvasy: this.canvasy };
+            const scale = Math.min(1, PENPA_CELL_SIZE_MAX / real.size);
+            this.size = real.size * scale;
+            this.canvasx = real.canvasx * scale;
+            this.canvasy = real.canvasy * scale;
+            try {
+                return original.apply(this, args);
+            } finally {
+                Object.assign(this, real);
+            }
+        };
+        const originalSave = UserSettings.attemptSave;
+        UserSettings.attemptSave = function (...args) {
+            const real = this._displaysize;
+            this._displaysize = Math.min(real, PENPA_CELL_SIZE_MAX);
+            try {
+                return originalSave.apply(this, args);
+            } finally {
+                this._displaysize = real;
+            }
+        };
+    }
+    exportAtPenpaSize();
 
     // Surface's colours as [style, name], in the order of Penpa+'s palette; `secondcolor` takes the same values.
     const SURFACE_COLOURS = Object.freeze([
@@ -842,19 +877,11 @@
             }
         },
 
-        // Writes the open puzzle's progress to the store where Penpa+ reads it back at boot, the way PenpaProgress.save does,
-        // and resolves true once the write has finished. Resolves false, writing nothing, when Penpa+ would not save it: the
-        // setting is off, progress was cleared, the page is not in solve mode or replaying, or the store is unavailable.
-        // MVP gap: PenpaProgress.save does not wait for its write, so this repeats its conditions and its stored text
-        // (the duplicate link with `&l=solvedup`) and awaits the write itself. A failed write rejects.
+        // Writes the open puzzle's progress to the store where Penpa+ reads it back at boot, and resolves true once the write
+        // has finished, or false, writing nothing, when Penpa+ would not save it (`saveProgressNow`, progress_autosave.js).
         async saveProgress() {
             boardCanvas();
-            if (!pu.url || !UserSettings.save_current_puzzle || pu.mmode !== 'solve' || pu.replay ||
-                !(await PenpaProgress.canSaveProgress())) {
-                return false;
-            }
-            await localforage.setItem(PenpaProgress.getHash(pu.url), pu.maketext_duplicate() + '&l=solvedup');
-            return true;
+            return saveProgressNow();
         },
 
         // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this
@@ -957,7 +984,14 @@
                 throw new RangeError(`engine.setCellSize: px must be a whole number from ${CELL_SIZE_RANGE.min} to ${CELL_SIZE_RANGE.max}, got ${String(px)}`);
             }
             boardCanvas();
-            UserSettings.displaysize = px;
+            if (px <= PENPA_CELL_SIZE_MAX) {
+                UserSettings.displaysize = px;
+            } else {
+                // MVP gap: the setter clamps with a message, so a larger size is stored in its `_displaysize` and the grid redrawn as
+                // the setter does. The setter's other step, copying the size into the hidden `nb_size3` inputs, is skipped.
+                UserSettings._displaysize = px;
+                redraw_grid();
+            }
         },
 
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.
