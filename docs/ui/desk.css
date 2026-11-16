@@ -94,8 +94,8 @@ body.engine-mounted { overflow: hidden; background: #e7e4dc; }
 
 /* The board's title bar: the current tool's name, after the card's title. */
 .ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45);
-    /* A white outline, so a dark or light tool colour reads on either theme's title bar. */
-    -webkit-text-stroke: 4px #fff; paint-order: stroke fill; }
+    /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
+    padding: 2px 12px; border-radius: 999px; background: #f6f3ec; }
 
 /* The Mouse card. */
 .ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; }
@@ -178,7 +178,7 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
 .ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
 .ui-dark .ui-paused-hint { color: #a9b0bd; }
-.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #e3e6eb); }
+.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #23262c); background: #dfe3ea; }
 .ui-dark .ui-headline { color: #e3eaff; }
 .ui-dark .ui-hsub { color: #8fb2ff; }
 .ui-dark .ui-hstyle { color: #d5d9e0; }
