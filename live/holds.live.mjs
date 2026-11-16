@@ -1,7 +1,7 @@
 // The Shift and Ctrl holds of `solve.html` (#99): a held Shift borrows Sudoku's Corner tool and a held Ctrl its Centre tool,
-// the Mouse card says so, and the hold always ends: on key-up, on a lost window, on a hidden tab, on a dialog opening and on
-// Tab, whose later key-up then changes nothing. The UI is found by role and accessible name, the tool through `engine`; the
-// keys are real key presses, and a lost window is the `blur` event Chromium fires on it.
+// the Mouse card says so, and the hold always ends: on key-up wherever focus is, on a lost window, on a hidden tab, on a dialog
+// opening, on Tab and on any tool picked, whose later key-up then changes nothing. The UI is found by role and accessible
+// name, the tool through `engine`; the keys are real key presses, and a lost window is the `blur` event Chromium fires on it.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
 import { linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
@@ -141,6 +141,67 @@ describe('a held Shift or Ctrl', () => {
     assert.equal(await page.evaluate(() => engine.getState().held), false)
     await settle(() => headlineText(page), 'Sudoku · corner · dark blue')
     assert.deepEqual(await waitForTool(page, CORNER), CORNER)
+  })
+})
+
+// A page of its own, as below. Penpa resets its hold counters only on a key-up in Sudoku, so a tool picked away from Sudoku
+// mid-hold must end the hold first, or the next hold starts nothing.
+describe('a tool picked while Shift is held', () => {
+  const LINE = { mode: 'line', submode: '1' }
+  let opened
+  before(async () => { opened = await openSolve(['Sudoku Normal', 'Sudoku Corner', 'Line Normal']) })
+  after(async () => { await opened?.context.close() })
+
+  it('ends the hold, and the next Shift hold in Sudoku still lends Corner', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    await waitForTool(page, CORNER)
+    await setTool(page, LINE)
+    assert.equal(await page.evaluate(() => engine.getState().held), false, 'the pick ends the hold')
+    await page.keyboard.up('Shift')
+    assert.deepEqual(await waitForTool(page, LINE), LINE, 'the key-up after it changes nothing')
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    assert.deepEqual(await waitForTool(page, CORNER), CORNER, 'the next hold lends Corner')
+    await page.keyboard.up('Shift')
+    await waitForTool(page, NORMAL)
+  })
+
+  it('gives Sudoku back the sub-mode from before the hold when the pick names none', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    await waitForTool(page, CORNER)
+    await setTool(page, { mode: 'sudoku' })
+    await page.keyboard.up('Shift')
+    assert.deepEqual(await waitForTool(page, NORMAL), NORMAL)
+  })
+})
+
+// A page of its own, as below. The UI answers a key-up for itself while focus is in a text field, and Penpa ignores one
+// aimed at a field, yet the hold ends.
+describe('a Shift let go while focus is in a text field', () => {
+  let opened
+  before(async () => { opened = await openSolve(['Sudoku Normal', 'Sudoku Corner']) })
+  after(async () => { await opened?.context.close() })
+
+  it('ends the hold, and the next Shift hold on the board still lends Corner', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    await waitForTool(page, CORNER)
+    const search = page.getByRole('combobox', { name: 'Tool' })
+    await search.focus()
+    await page.keyboard.up('Shift')
+    assert.deepEqual(await waitForTool(page, NORMAL), NORMAL, 'the key-up gives Normal back')
+    assert.equal(await page.evaluate(() => engine.getState().held), false, 'no hold is on')
+    await search.blur()
+    await page.getByRole('region', { name: 'Board' }).click()
+    await page.keyboard.down('Shift')
+    assert.deepEqual(await waitForTool(page, CORNER), CORNER, 'the next hold lends Corner')
+    await page.keyboard.up('Shift')
+    await waitForTool(page, NORMAL)
   })
 })
 

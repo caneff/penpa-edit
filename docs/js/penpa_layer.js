@@ -6,9 +6,9 @@
 (function () {
     'use strict';
 
-    const PENPA_STYLE_LINK_IDS = ['font_awesome_css', 'color_theme', 'base_structure', 'tab_setting_css', 'custom_color_css',
-        'constraints_settings_css'];
     const THEME_LINK_ID = 'color_theme';
+    const PENPA_STYLE_LINK_IDS = ['font_awesome_css', THEME_LINK_ID, 'base_structure', 'tab_setting_css', 'custom_color_css',
+        'constraints_settings_css'];
     const UI_ROOT = '.ui-root';
 
     const links = PENPA_STYLE_LINK_IDS.map((id) => document.getElementById(id));

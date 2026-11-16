@@ -79,6 +79,21 @@
         'body.engine-mounted #float-key { display: none !important; }\n';
     document.head.appendChild(chromeStyle);
 
+    // The theme is the UI's own choice, kept in localStorage: 'light' (the default) or 'dark'.
+    const THEME_KEY = 'chinstrap-solve-theme-v1';
+    const THEMES = { light: THEME_LIGHT, dark: THEME_DARK };
+    function savedTheme() {
+        return localStorage.getItem(THEME_KEY) === 'dark' ? 'dark' : 'light';
+    }
+
+    // MVP gap: Penpa keeps its theme in its `color_theme` cookie, which Penpa+'s own page shares. Taken off the list of
+    // settings Penpa reads from and writes to its cookies, the solve page neither follows nor changes Penpa+'s theme;
+    // Penpa's setter still swaps its stylesheet and redraws the board.
+    UserSettings.can_save = UserSettings.can_save.filter((name) => name !== 'color_theme');
+    function applyTheme(theme) {
+        UserSettings.color_theme = THEMES[theme];
+    }
+
     // MVP gap: Penpa decides the mode from the link's `m`, and an edit link's data does not load as a solve link. So an
     // edit link opens as Penpa opens it, then the page reopens on the solve link made from it.
     function reopenInSolveMode() {
@@ -91,7 +106,7 @@
     }
 
     // Resolves when boot() has loaded the link's puzzle in solve mode; rejects with boot()'s error, which main.js already
-    // shows. An edit link never resolves: the page reloads.
+    // shows, or with reopenInSolveMode's, shown here. An edit link never resolves: the page reloads.
     let resolveBoot;
     let rejectBoot;
     const ready = new Promise((resolve, reject) => {
@@ -104,8 +119,19 @@
         if (savedShortcuts !== null) {
             UserSettings.shortcuts_enabled = savedShortcuts === '1';
         }
+        // Before the link loads, so a dark choice does not open light; after, since a link's own view setting can set dark.
+        applyTheme(savedTheme());
         const booting = penpaBoot.apply(this, arguments);
-        booting.then(() => (pu.mmode === 'solve' ? resolveBoot() : reopenInSolveMode()), rejectBoot);
+        booting.then(() => {
+            if (pu.mmode !== 'solve') {
+                return reopenInSolveMode();
+            }
+            applyTheme(savedTheme());
+            resolveBoot();
+        }, rejectBoot).catch((error) => {
+            errorMsg(DOMPurify.sanitize(String(error)));
+            rejectBoot(error);
+        });
         return booting;
     };
 
@@ -160,6 +186,11 @@
     const PENPA_KEY_HANDLERS = { keydown: 'onKeyDown', keyup: 'onKeyUp' };
     const gatedKeyTypes = new Set();
     let keyHandler = null;
+    // A hold ends on its key's key-up wherever focus is: the UI may answer for that key-up, and Penpa ignores one aimed
+    // at a text field.
+    function endsHold(e) {
+        return e.type === 'keyup' && holds.has(e.key);
+    }
     // Runs Penpa's handler for a key the gate let through, keeping the holds' record.
     function passToPenpa(penpaListener, self, e) {
         if (e.type === 'keyup') {
@@ -175,11 +206,11 @@
                 return;
             }
         }
-        if (e.type === 'keydown' && startsHold(e) && !lendsListedTool(e.key)) {
-            releasedKeys.add(e.key);
-            return;
-        }
         if (e.type === 'keydown' && startsHold(e)) {
+            if (!lendsListedTool(e.key)) {
+                releasedKeys.add(e.key);
+                return;
+            }
             holds.set(e.key, engine.getTool());
         }
         return penpaListener.call(self, e);
@@ -189,7 +220,10 @@
             const penpaListener = listener;
             gatedKeyTypes.add(type);
             listener = function (e) {
-                if (releasing || !keyHandler || !keyHandler(e)) {
+                const caught = !releasing && keyHandler !== null && keyHandler(e);
+                if (endsHold(e)) {
+                    endHolds();
+                } else if (!caught) {
                     return passToPenpa(penpaListener, this, e);
                 }
             };
@@ -471,17 +505,21 @@
         return [...holds.values()].some((before) => before.mode !== now.mode || before.submode !== now.submode);
     }
 
-    const THEMES = { light: THEME_LIGHT, dark: THEME_DARK };
-
     const engine = {
         ready,
 
-        // The state the UI draws from. Read it when `change` fires. `held` is true while a held Shift or Ctrl lends a tool.
+        // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
+        // or Ctrl lends a tool, `solved` while the board matches the author's answer, and `cellSize` is the board's pixels
+        // per cell.
         getState() {
             boardCanvas();
             // MVP gap: the solver's undo and redo stacks, where Penpa keeps them.
             const entries = pu[pu.mode.qa];
             return {
+                tool: engine.getTool(),
+                // MVP gap: Penpa's answer check keeps its verdict in `sol_flag`.
+                solved: pu.sol_flag === 1,
+                cellSize: UserSettings.displaysize,
                 penpaDialogOpen: penpaDialogOpen(),
                 held: isHeld(),
                 canUndo: entries.command_undo.__a.length > 0,
@@ -554,6 +592,7 @@
             return {
                 seconds: sw_timer.getTotalTimeValues().secondTenths / 10,
                 paused: sw_timer.isPaused(),
+                // MVP gap: read from Penpa's pause layer, which its Pause and Start buttons show and hide.
                 covered: document.getElementById('pause_canvas').style.display !== 'none'
             };
         },
@@ -572,13 +611,14 @@
             pressTimerButton('sw_start');
         },
 
-        // 'light' or 'dark': the page's theme and the board's. Penpa remembers it in its settings cookie.
+        // 'light' or 'dark': the page's theme and the board's, kept in localStorage for the next visit.
         setTheme(theme) {
-            if (!(theme in THEMES)) {
+            if (!Object.hasOwn(THEMES, theme)) {
                 throw new RangeError(`engine.setTheme: theme must be one of ${Object.keys(THEMES).join(', ')}, got ${String(theme)}`);
             }
             boardCanvas();
-            UserSettings.color_theme = THEMES[theme];
+            localStorage.setItem(THEME_KEY, theme);
+            applyTheme(theme);
         },
 
         // The front door for keys. `handler(event)` runs for every keydown and keyup before Penpa's handlers and answers
@@ -683,15 +723,18 @@
         },
 
         // Applies a tool. A sub-mode or style left out stays as Penpa remembers it for the mode; one given must be in
-        // `listTools()` (`submode: null` for a mode with none), or the call throws and changes nothing.
+        // `listTools()` (`submode: null` for a mode with none), or the call throws and changes nothing. A held Shift or Ctrl
+        // ends first, and a style only picks the colour: it never colours a cell (`colourSelection` does).
         setTool(tool) {
             if (typeof tool !== 'object' || tool === null) {
                 throw new TypeError('engine.setTool: tool must be an object like { mode, submode, style }');
             }
             const { mode, style } = tool;
-            const remembered = pu.mode[pu.mode.qa][mode];
-            const submode = tool.submode !== undefined ? tool.submode
-                : rememberedSubmode(remembered?.[0]);
+            // A hold has lent Penpa's remembered sub-mode; the one before it is what the hold gives back.
+            const beforeHold = holds.values().next().value;
+            const remembered = beforeHold?.mode === mode ? beforeHold.submode
+                : rememberedSubmode(pu.mode[pu.mode.qa][mode]?.[0]);
+            const submode = tool.submode !== undefined ? tool.submode : remembered;
             const entry = requireTool(mode, submode);
             if (style !== undefined && style !== null && !entry.styles.some((s) => s.style === style)) {
                 throw new RangeError(`engine.setTool: ${entry.name} has no style ${JSON.stringify(style)}`);
@@ -699,6 +742,8 @@
             if (style === null && tool.style !== undefined && entry.styles.length) {
                 throw new RangeError(`engine.setTool: ${entry.name} needs one of its styles, not null`);
             }
+            // While still in Sudoku, the only mode whose key-up Penpa resets its hold counters in.
+            endHolds();
             if (pu.mode[pu.mode.qa].edit_mode !== mode) {
                 pu.mode_set(mode);
             }
@@ -714,11 +759,23 @@
             if (typeof style === 'number') {
                 const box = styleBoxOf(mode, submode);
                 pu.stylemode_check(`st_${box}${style}`);
-                if (mode === 'multicolor') {
-                    // Penpa colours the selected cells when a Multicolor swatch is chosen.
-                    pu.key_number(String(style));
-                }
             }
+        },
+
+        // Multicolor's swatch press: adds colour `style` to the selected cells, or takes it off when they all have it, and
+        // makes it the colour in use. Throws when the tool is not Multicolor or the style is not one of its colours.
+        colourSelection(style) {
+            boardCanvas();
+            const tool = engine.getTool();
+            if (tool.mode !== 'multicolor') {
+                throw new Error(`engine.colourSelection: the tool is ${tool.mode}, not multicolor`);
+            }
+            const colours = stylesOf('multicolor', null);
+            if (!colours.some((s) => s.style === style)) {
+                throw new RangeError(`engine.colourSelection: Multicolor has no colour ${JSON.stringify(style)}`);
+            }
+            pu.stylemode_check(`st_surface${style}`);
+            pu.key_number(String(style));
         },
 
         // Moves the board into `container`, fixes click hit-testing and hides Penpa's own chrome.

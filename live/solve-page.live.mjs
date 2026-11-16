@@ -1,8 +1,14 @@
-// `solve.html` opens a Penpa+ link on the dark desk: the board fits its card, and the title, author and rules show in the UI.
-// The UI is read by role and accessible name, never through `pu` or Penpa's DOM.
+// `solve.html` opens a Penpa+ link on the desk: the board fits its card, and the title, author and rules show in the UI.
+// The engine API holds what it promises: its state, its theme kept apart from Penpa+'s, its key gate and its boot.
+// The UI is read by role and accessible name and the state through `engine`; Penpa's own state and DOM are read only
+// where the check is about Penpa (the mode a link opened in, its hidden toolbar, its theme cookie).
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { AKARI_SOLVE, boardAgainstCard, boardCanvasInPage, linkFromNewBoard, openPenpa, useBrowser } from './page.mjs'
+import {
+  AKARI_SOLVE, ANSWER_CELL, boardAgainstCard, boardCanvasInPage, jsRequest, linkFromNewBoard, makeNumberSolveLink, openPenpa,
+  takePageErrors, typeDigitInPage, useBrowser
+} from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -52,7 +58,7 @@ describe('solve.html on a solve link', () => {
     assert.equal(await rules.locator('b').count(), 0, 'no element is made from the text')
   })
 
-  it('has the empty Mode, Mouse, Pinned and Recent cards on the desk', async () => {
+  it('has a Mode, Mouse, Pinned and Recent card on the desk', async () => {
     for (const name of ['Mode', 'Mouse', 'Pinned', 'Recent']) {
       assert.equal(await opened.page.getByRole('region', { name }).count(), 1, name)
     }
@@ -80,7 +86,7 @@ describe('solve.html on an edit link', () => {
       const read = async () => (await boardAgainstCard(page)).inside
       assert.equal(await settle(read, true), true)
       assert.equal(await page.evaluate(() => engine.getInfo().title), TITLE)
-      // The engine API is what the UI sees: solve mode shows the answer-check dialog on a solved board, edit mode would not.
+      // The engine API does not say which mode Penpa opened the link in, so Penpa is asked.
       assert.equal(await page.evaluate(() => pu.mmode), 'solve')
     } finally {
       await context.close()
@@ -136,6 +142,149 @@ describe('the engine', () => {
     assert.ok(sizes.big > sizes.small * 1.5, `setCellSize 40 draws a bigger board than 20 (${sizes.small} -> ${sizes.big})`)
     assert.equal(sizes.fits, true)
     assert.ok(Number.isInteger(sizes.fitted) && sizes.fitted >= 12 && sizes.fitted <= 90)
+  })
+  it('reports the tool, the cell size and whether the board is solved in getState', async () => {
+    const state = await opened.page.evaluate(async () => {
+      await engine.ready
+      engine.setCellSize(20)
+      const { tool, cellSize, solved } = engine.getState()
+      return { tool, cellSize, solved, current: engine.getTool() }
+    })
+    assert.deepEqual(state.tool, state.current)
+    assert.equal(state.cellSize, 20)
+    assert.equal(state.solved, false)
+  })
+})
+
+describe('getState on a solved board', () => {
+  it('says solved', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openPenpa(browser(), link, { solve: true })
+    try {
+      await page.evaluate(() => engine.ready)
+      await page.evaluate(typeDigitInPage, { index: ANSWER_CELL, digit: '2' })
+      assert.equal(await settle(() => page.evaluate(() => engine.getState().solved), true), true)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('Multicolor', () => {
+  const CELL = 12
+  let opened
+  before(async () => {
+    const links = await linkFromNewBoard(browser(), linksInPage, { title: TITLE, author: AUTHOR, rules: RULES })
+    opened = await openPenpa(browser(), links.solve, { solve: true })
+    await opened.page.evaluate((index) => engine.ready.then(() => {
+      engine.setTool({ mode: 'sudoku', submode: '1' })
+      pu.selection = [pu.centerlist[index]]
+      pu.cursol = pu.centerlist[index]
+    }), CELL)
+  })
+  after(async () => { await opened?.context.close() })
+
+  // The selected cell's colours (Penpa saves one colour bare and several as a list), and whether there is anything to undo.
+  const cellAndUndo = () => opened.page.evaluate((index) => ({
+    colours: [].concat(pu[pu.mode.qa].surface[pu.centerlist[index]] ?? []),
+    canUndo: engine.getState().canUndo
+  }), CELL)
+
+  it('landed on with a colour picks the colour and leaves the selected cells alone', async () => {
+    await opened.page.evaluate(() => engine.setTool({ mode: 'multicolor', submode: null, style: 5 }))
+    assert.equal((await opened.page.evaluate(() => engine.getTool())).style, 5)
+    assert.deepEqual(await cellAndUndo(), { colours: [], canUndo: false })
+  })
+
+  it('colours the selected cells on colourSelection, and takes the colour off on the next', async () => {
+    await opened.page.evaluate(() => engine.colourSelection(5))
+    assert.deepEqual(await cellAndUndo(), { colours: [5], canUndo: true })
+    await opened.page.evaluate(() => engine.colourSelection(5))
+    assert.deepEqual((await cellAndUndo()).colours, [])
+  })
+})
+
+// Penpa+'s own page keeps its theme in the `color_theme` cookie; solve.html keeps the UI's own choice, light by default.
+describe('the theme', () => {
+  const PENPA_DARK = { name: 'color_theme', value: '2', url: 'https://penpa.test/' }
+  const themeCookie = async (context) => (await context.cookies()).find((c) => c.name === 'color_theme')?.value ?? null
+  const theme = (page) => page.evaluate(() => engine.ready.then(() => engine.getSettings().theme))
+
+  it('opens light whatever Penpa+\'s own theme is', async () => {
+    const { context, page } = await openPenpa(browser(), AKARI_SOLVE, { solve: true, served: true, cookies: [PENPA_DARK] })
+    try {
+      assert.equal(await theme(page), 'light')
+      assert.equal(await themeCookie(context), '2', 'Penpa+\'s theme is left as it was')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('keeps a dark choice for the next visit without touching Penpa+\'s theme', async () => {
+    const { context, page } = await openPenpa(browser(), AKARI_SOLVE, { solve: true, served: true })
+    try {
+      await page.evaluate(() => engine.ready.then(() => {
+        engine.setTheme('dark')
+        // Any setting makes Penpa save every setting on its cookie list.
+        engine.setSetting('outline_text', !engine.getSettings().outline_text)
+      }))
+      assert.equal(await themeCookie(context), null, 'no theme cookie is written')
+      await page.reload()
+      assert.equal(await theme(page), 'dark')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+// An upstream rename of main.js's key handler would leave the gate unable to wrap it; onKey refuses then, so the UI
+// fails loudly instead of leaving every key ungated.
+describe('the key gate with one of Penpa\'s key handlers renamed', () => {
+  it('makes engine.onKey throw', async () => {
+    const renamed = readFileSync(new URL('../docs/js/main.js', import.meta.url), 'utf8').replaceAll('onKeyUp', 'onKeyRelease')
+    const setup = (context) => context.route(jsRequest('main.js'), (route) => route.fulfill({ contentType: 'text/javascript', body: renamed }))
+    const { context, page, errors } = await openPenpa(browser(), AKARI_SOLVE, { solve: true, setup })
+    try {
+      const message = await page.evaluate(() => engine.ready.then(() => {
+        try {
+          engine.onKey(() => {})
+          return null
+        } catch (e) {
+          return e.message
+        }
+      }))
+      assert.match(String(message), /missed main\.js's key handlers/)
+      // keys.js made the same call at boot, and its throw is a page error.
+      assert.equal(await settle(() => errors.length > 0, true), true, 'a page error')
+      const raised = takePageErrors()
+      assert.ok(raised.every((e) => /missed main\.js's key handlers/.test(e)), raised.join('\n'))
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+// A link that should have opened in solve mode but did not would reload forever; the bridge stops and says so.
+describe('a solve link that opens in another mode', () => {
+  it('rejects engine.ready and shows the error', async () => {
+    const general = readFileSync(new URL('../docs/js/general.js', import.meta.url), 'utf8')
+    const forced = general.replace('await load(urlParam);', 'await load(urlParam); pu.mmode = \'edit\';')
+    assert.notEqual(forced, general, 'the planted line found its place')
+    const setup = (context) => context.route(jsRequest('general.js'), (route) => route.fulfill({ contentType: 'text/javascript', body: forced }))
+    const { context, page } = await openPenpa(browser(), AKARI_SOLVE, { solve: true, setup })
+    try {
+      // The popup first: a `ready` that never settles would hang the test, and Playwright's wait for the popup ends.
+      assert.match(await page.locator('.swal2-html-container').textContent({ timeout: 10000 }), /did not open in solve mode/)
+      // The popup came with the rejection, so `ready` has settled by the next task unless the rejection never came.
+      const outcome = await page.evaluate(() => Promise.race([
+        engine.ready.then(() => 'resolved', (e) => e.message),
+        new Promise((resolve) => setTimeout(() => resolve('pending'), 0))
+      ]))
+      assert.match(outcome, /did not open in solve mode/)
+      takePageErrors()
+    } finally {
+      await context.close()
+    }
   })
 })
 
