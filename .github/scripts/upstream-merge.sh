@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # A failed merge exits non-zero with no merge left in progress; the report says whether it conflicted.
-# Usage: upstream-merge.sh <upstream-ref> <report-file>
+# <owned-commits-file> gets one line per upstream commit that touched a merge=ours file: sha, subject and those files, tab-separated.
+# Usage: upstream-merge.sh <upstream-ref> <report-file> <owned-commits-file>
 set -euo pipefail
 upstream=$1
 report=$2
+owned_commits=$3
 : >"$report"
+: >"$owned_commits"
 
 if git merge-base --is-ancestor "$upstream" HEAD; then
   echo "merged=false" >>"$GITHUB_OUTPUT"
@@ -33,6 +36,10 @@ $(git log --full-history --no-merges --format='- %h %s' "HEAD..$upstream" -- "${
 EOF
 )
   printf '%s\n\n' "$owned_section" >>"$report"
+  while read -r sha subject; do
+    files=$(git diff-tree --no-commit-id --name-only -r -z "$sha" -- "${owned_files[@]}" | tr '\0' ',' | sed 's/,$//')
+    printf '%s\t%s\t%s\n' "$sha" "$subject" "$files" >>"$owned_commits"
+  done < <(git log --full-history --no-merges --format='%H %s' "HEAD..$upstream" -- "${owned_files[@]}")
 fi
 
 if ! git merge --no-ff --no-commit "$upstream"; then

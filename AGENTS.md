@@ -58,7 +58,8 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `console.error` on a page `openPenpa` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master`. `.github/workflows/upstream-merge.yml`
-  merges upstream nightly and pushes only when both pass on the merged tree.
+  merges upstream nightly and pushes only when both pass on the merged tree; it files one `needs-triage` issue per upstream commit
+  that touched an owned file (Chris, 2026-11-14).
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
   Mocha page stays as `npm run test:browser`; it is not part of the seam. Nor is `npm run measure` (`live/measure.mjs`,
   #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
