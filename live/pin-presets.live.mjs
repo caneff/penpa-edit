@@ -66,6 +66,13 @@ async function walkPins (page, count) {
   return keys
 }
 
+// Stores saved presets as an earlier visit would have, then reloads so the page starts from them.
+const seedSavedPresets = async (page, presets) => {
+  await page.evaluate((value) => localStorage.setItem('chinstrap.pinPresets', JSON.stringify(value)), presets)
+  await page.reload()
+  await waitForDesk(page)
+}
+
 const chipCount = (page) => pinnedCard(page).getByRole('button', { name: /^Unpin / }).count()
 
 // A pick hands the keyboard back to the puzzle (#157): focus is off the Pinned card, the preset's pins are loaded, and Tab lands on
@@ -295,18 +302,11 @@ describe('saving a preset', () => {
 describe('deleting a saved preset', () => {
   let opened
   before(async () => {
-    opened = await openSolvePage(browser(), await link(['Line Normal']), {
-      setup: (context) => context.addInitScript(() => {
-        // Once per tab, so a reload keeps what the test did to the saved presets.
-        if (sessionStorage.getItem('seeded') === null) {
-          sessionStorage.setItem('seeded', '1')
-          localStorage.setItem('chinstrap.pinPresets', JSON.stringify([
-            { name: 'First', tools: [{ mode: 'line', submode: '1' }] },
-            { name: 'Second', tools: [{ mode: 'line', submode: '1' }] }
-          ]))
-        }
-      })
-    })
+    opened = await openSolve(await link(['Line Normal']))
+    await seedSavedPresets(opened.page, [
+      { name: 'First', tools: [{ mode: 'line', submode: '1' }] },
+      { name: 'Second', tools: [{ mode: 'line', submode: '1' }] }
+    ])
   })
   after(async () => { await opened?.context.close() })
 
@@ -381,15 +381,8 @@ describe('a preset naming a tool the link lacks', () => {
 describe('undoing a delete', () => {
   let opened
   before(async () => {
-    opened = await openSolvePage(browser(), await link(['Line Normal', 'Sudoku Corner']), {
-      setup: (context) => context.addInitScript(() => {
-        // Once per tab, so a reload keeps what the test did to the saved presets.
-        if (sessionStorage.getItem('seeded') === null) {
-          sessionStorage.setItem('seeded', '1')
-          localStorage.setItem('chinstrap.pinPresets', JSON.stringify([{ name: 'A', tools: [{ mode: 'line', submode: '1' }] }]))
-        }
-      })
-    })
+    opened = await openSolve(await link(['Line Normal', 'Sudoku Corner']))
+    await seedSavedPresets(opened.page, [{ name: 'A', tools: [{ mode: 'line', submode: '1' }] }])
   })
   after(async () => { await opened?.context.close() })
 
