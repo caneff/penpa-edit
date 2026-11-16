@@ -41,6 +41,12 @@ What this predicts for CI is not settled here. Scaling the four-at-once time by 
 over #126's 30 s bar. The four copies are all fuzz runs and keep both cores busy for their whole length, so that is an
 upper estimate. The CI log of the PR is the measurement that counts.
 
+It came in under the bar. On PR #127's CI run 43806909347 (at `5e7d3a2`, 4 lanes per test file), akari seed 3 took
+16.5 s and the slowest fuzz test took 16.5 s. Seeds 1 and 2 of akari took 14.8 and 12.9 s, and the 4x4 puzzles 7.9
+to 9.3 s. `npm run test:live` took 583 s. On master's push run 43805298745 (at `4a8153d`, the same tests less this
+change), akari seed 3 timed out at 60 s and `test:live` took 897 s. So the lanes did not slow the runner down. Its
+core count is not in the log.
+
 ## Why the reused page is a fresh boot
 
 Penpa+ keeps a puzzle's progress in localforage's IndexedDB database and saves it on `beforeunload`. At boot,
