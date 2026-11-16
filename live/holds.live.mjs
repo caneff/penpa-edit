@@ -185,3 +185,71 @@ describe('after a hold', () => {
     assert.deepEqual(await chips(), chipsBefore)
   })
 })
+
+// Runs in the page. A hex board's solve link as the `#` part, with Digits in its Tab set.
+function hexSolveLinkInPage (names) {
+  UserSettings.gridtype = 'hex'
+  document.getElementById('nb_size1').value = 3
+  document.getElementById('nb_size2').value = 3
+  document.getElementById('nb_size3').value = 3
+  create_newboard()
+  UserSettings.tab_settings = names
+  const url = pu.maketext_solve()
+  return url.slice(url.indexOf('#'))
+}
+
+// A page of its own, as above: Penpa treats a key pressed within 15 ms of a Shift release as a Shift press.
+describe('a held Shift or Ctrl on a hex grid, which has centre marks but no corner marks', () => {
+  let opened
+  before(async () => {
+    const link = await linkFromNewBoard(browser(), hexSolveLinkInPage, ['Sudoku Normal'])
+    opened = await openPenpa(browser(), link, { solve: true, contextOptions: DESK_SIZE })
+    await opened.page.getByRole('region', { name: 'Board' }).waitFor()
+    await opened.page.evaluate(() => engine.ready)
+  })
+  after(async () => { await opened?.context.close() })
+
+  // The tool in use and whether `listTools()` lists it, read in one call.
+  const toolAndListed = (page) => page.evaluate(() => {
+    const { mode, submode } = engine.getTool()
+    return { mode, submode, listed: engine.listTools().some((t) => t.mode === mode && t.submode === submode) }
+  })
+
+  it('offers centre marks and not corner marks', async () => {
+    const tools = await opened.page.evaluate(() => engine.listTools().map((t) => `${t.mode}/${t.submode}`))
+    assert.equal(tools.includes('sudoku/1'), true, 'Digits is listed')
+    assert.equal(tools.includes('sudoku/2'), false, 'corner marks are not')
+    assert.equal(tools.includes('sudoku/3'), true, 'centre marks are')
+  })
+
+  it('leaves the tool on Digits while Shift is held, repeats and after it is let go', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Shift')
+    assert.deepEqual(await toolAndListed(page), { ...NORMAL, listed: true }, 'held')
+    await page.keyboard.down('Shift') // auto-repeat
+    assert.deepEqual(await toolAndListed(page), { ...NORMAL, listed: true }, 'repeating')
+    await page.keyboard.up('Shift')
+    assert.deepEqual(await toolAndListed(page), { ...NORMAL, listed: true }, 'released')
+    assert.equal(await page.evaluate(() => engine.getState().held), false, 'no hold is on')
+  })
+
+  it('still lends centre marks to a held Ctrl, which the grid lists', async () => {
+    const { page } = opened
+    await setTool(page, NORMAL)
+    await page.keyboard.down('Control')
+    await waitForTool(page, CENTRE)
+    assert.equal((await toolAndListed(page)).listed, true)
+    await page.keyboard.up('Control')
+    await waitForTool(page, NORMAL)
+  })
+
+  it('has the next Shift hold start nothing as well', async () => {
+    const { page } = opened
+    await page.keyboard.down('Shift')
+    await page.keyboard.up('Shift')
+    await page.keyboard.down('Shift')
+    assert.deepEqual(await toolAndListed(page), { ...NORMAL, listed: true })
+    await page.keyboard.up('Shift')
+  })
+})

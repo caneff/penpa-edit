@@ -125,6 +125,15 @@
         return HOLD_KEYS.includes(e.key) && !e.repeat && !otherModifier && pu.mode[pu.mode.qa].edit_mode === 'sudoku';
     }
 
+    // The sub-mode of Sudoku each hold key lends: Shift Corner, Ctrl and Cmd Centre.
+    const HOLD_SUBMODES = { Shift: '2', Control: '3', Meta: '3' };
+
+    // A grid without the tool a key would lend (hex has no Corner) gets no hold from it: Penpa would put itself on a tool
+    // `listTools()` does not list.
+    function lendsListedTool(key) {
+        return toolCatalog().some((t) => t.mode === 'sudoku' && t.submode === HOLD_SUBMODES[key]);
+    }
+
     // MVP gap: main.js's onKeyUp is the only way to end a hold, so the end is a synthetic key-up straight to it.
     function endHolds() {
         for (const key of [...holds.keys()]) {
@@ -165,6 +174,10 @@
             } else {
                 return;
             }
+        }
+        if (e.type === 'keydown' && startsHold(e) && !lendsListedTool(e.key)) {
+            releasedKeys.add(e.key);
+            return;
         }
         if (e.type === 'keydown' && startsHold(e)) {
             holds.set(e.key, engine.getTool());
