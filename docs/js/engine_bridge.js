@@ -795,15 +795,19 @@
             }
         },
 
-        // Saves the open puzzle's progress as Penpa+ does when the page unloads, and resolves once the store holds it.
-        // MVP gap: PenpaProgress.save does not wait for localforage's write, so this reads the key back: localforage runs its
-        // calls in order, and the read answers after the write.
+        // Writes the open puzzle's progress to the store where Penpa+ reads it back at boot, the way PenpaProgress.save does,
+        // and resolves true once the write has finished. Resolves false, writing nothing, when Penpa+ would not save it: the
+        // setting is off, progress was cleared, the page is not in solve mode or replaying, or the store is unavailable.
+        // MVP gap: PenpaProgress.save does not wait for its write, so this repeats its conditions and its stored text
+        // (the duplicate link with `&l=solvedup`) and awaits the write itself. A failed write rejects.
         async saveProgress() {
             boardCanvas();
-            await PenpaProgress.save();
-            if (pu.url && await PenpaProgress.canSaveProgress()) {
-                await localforage.getItem(PenpaProgress.getHash(pu.url));
+            if (!pu.url || !UserSettings.save_current_puzzle || pu.mmode !== 'solve' || pu.replay ||
+                !(await PenpaProgress.canSaveProgress())) {
+                return false;
             }
+            await localforage.setItem(PenpaProgress.getHash(pu.url), pu.maketext_duplicate() + '&l=solvedup');
+            return true;
         },
 
         // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this

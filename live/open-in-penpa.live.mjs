@@ -1,47 +1,75 @@
 // "Open in Penpa+" (#148): the top bar's escape hatch to `index.html` on the same puzzle, keeping the solver's progress both
 // ways through the progress store the two pages share. Served over one origin so the store is shared; the buttons are found
-// by role and accessible name and the board is read as Penpa+ would save it (`board`).
+// by role and accessible name and the board is read as Penpa+ would save it (`board`). The timer is not checked: it is a
+// running clock, and nothing here reads it.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { board, makeNumberSolveLink, openSolvePage, setTool, shadeInPage, typeDigitInPage, typedDigits, useBrowser, waitForDesk } from './page.mjs'
+import { board, makeNumberSolveLink, openSolvePage, setTool, shadeInPage, typeDigitInPage, useBrowser, waitForDesk } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-// Cells of the center list the test types into, apart from the given and the author's answer cell.
-const SOLVER_CELL = 12
-const PENPA_CELL = 13
+// Indices in the page's `pu.centerlist` of the cells the test fills, clear of the given and the author's answer.
+const DIGIT_CELL = 12
+const MARK_CELL = 13
 const SHADED_CELL = 14
+const PENPA_CELL = 15
 
-const shadedCells = async (page) => Object.keys((await board(page)).entered.surface ?? {})
-
+const entered = async (page) => (await board(page)).entered
+const open = (page) => page.getByRole('button', { name: 'Open in Penpa+', exact: true })
 const waitForPenpa = (page) => page.waitForFunction(() => typeof pu !== 'undefined' && !document.querySelector('section[aria-label="Board"]'))
 
-describe('Open in Penpa+', () => {
-  it('opens index.html on the same puzzle with the solver\'s entries, and the way back keeps what was entered there', async () => {
-    const link = await makeNumberSolveLink(browser())
-    const { context, page } = await openSolvePage(browser(), link, { served: true })
-    await setTool(page, { mode: 'number', submode: '1' })
-    await clickCell(page, SOLVER_CELL)
-    await page.keyboard.press('7')
-    assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit is on the solve page')
-    await page.evaluate(shadeInPage, SHADED_CELL)
-    const shaded = await shadedCells(page)
-    assert.equal(shaded.length, 1, 'the cell is shaded on the solve page')
+async function openWithEntries () {
+  const link = await makeNumberSolveLink(browser())
+  const opened = await openSolvePage(browser(), link, { served: true })
+  const { page } = opened
+  await setTool(page, { mode: 'number', submode: '1' })
+  await clickCell(page, DIGIT_CELL)
+  await page.keyboard.press('7')
+  await setTool(page, { mode: 'sudoku', submode: '2' })
+  await clickCell(page, MARK_CELL)
+  await page.keyboard.press('3')
+  await page.evaluate(shadeInPage, SHADED_CELL)
+  const made = await entered(page)
+  assert.equal(Object.keys(made.number).length, 1, 'a digit is on the solve page')
+  assert.equal(Object.keys(made.numberS).length, 1, 'a corner mark is on the solve page')
+  assert.equal(Object.keys(made.surface).length, 1, 'a cell is shaded on the solve page')
+  return { ...opened, made }
+}
 
-    await page.getByRole('button', { name: 'Open in Penpa+', exact: true }).click()
-    await page.waitForURL(/\/(index\.html)?(\?|#)/)
+describe('Open in Penpa+', () => {
+  it('opens index.html with every entry made on the solve page, and the way back keeps what was entered there', async () => {
+    const { context, page, made } = await openWithEntries()
+    await open(page).click()
     await waitForPenpa(page)
-    assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'index.html shows the solve page\'s entry')
-    assert.deepEqual(await shadedCells(page), shaded, 'index.html shows the solve page\'s shading')
+    assert.deepEqual(await settle(() => entered(page), made), made, 'index.html shows what the solve page had')
 
     await page.evaluate(typeDigitInPage, { index: PENPA_CELL, digit: '5' })
+    await page.evaluate(shadeInPage, DIGIT_CELL)
+    const madeThere = await entered(page)
+    // Penpa+'s own save as the page unloads is not under test here, and it is not awaited, so the save is run to completion.
+    await page.evaluate(() => PenpaProgress.save().then(() => localforage.getItem(PenpaProgress.getHash(pu.url))))
     await page.goBack()
     await waitForDesk(page)
-    const expected = ['7', '5']
-    assert.deepEqual(await settle(() => typedDigits(page), expected), expected, 'the solve page shows the entry made on index.html')
-    assert.deepEqual(await shadedCells(page), shaded, 'the solve page keeps the shading')
+    assert.deepEqual(await settle(() => entered(page), madeThere), madeThere, 'the solve page shows what index.html had')
+    await context.close()
+  })
+
+  it('asks first when the progress is not being saved, and opens index.html only on "Open anyway"', async () => {
+    const { context, page } = await openWithEntries()
+    await page.evaluate(() => engine.setSetting('local_storage', false))
+    await open(page).click()
+    const dialog = page.getByRole('dialog', { name: 'Progress is not being saved' })
+    await dialog.waitFor()
+    assert.equal(new URL(page.url()).pathname, '/solve.html', 'the page stays on the solve page')
+    await page.getByRole('button', { name: 'Stay here', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(new URL(page.url()).pathname, '/solve.html', 'Stay here stays')
+
+    await open(page).click()
+    await page.getByRole('button', { name: 'Open anyway', exact: true }).click()
+    await page.waitForURL(/\/index\.html/)
     await context.close()
   })
 })

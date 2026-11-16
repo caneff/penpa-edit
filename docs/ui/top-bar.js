@@ -39,11 +39,22 @@
         const themeButton = iconButton(ICONS.darkTheme, 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
 
         // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
-        // unload alone loses the race with the navigation.
+        // unload alone loses the race with the navigation, and with no save the progress would be gone from both pages.
+        const goToPenpa = () => { location.href = `index.html${location.search}${location.hash}`; };
         const openInPenpa = iconButton(ICONS.openInPenpa, 'Open in Penpa+', async () => {
-            await engine.saveProgress();
-            location.href = `index.html${location.search}${location.hash}`;
+            if (await engine.saveProgress()) {
+                goToPenpa();
+            } else {
+                notSavedDialog.open = true;
+            }
         });
+
+        const notSavedDialog = document.createElement('wa-dialog');
+        notSavedDialog.setAttribute('label', 'Progress is not being saved');
+        notSavedDialog.innerHTML = 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.' +
+            '<wa-button slot="footer" appearance="plain" data-dialog="close">Stay here</wa-button>' +
+            '<wa-button slot="footer" variant="danger" data-dialog="close" data-open-anyway>Open anyway</wa-button>';
+        notSavedDialog.querySelector('[data-open-anyway]').addEventListener('click', goToPenpa);
 
         const clock = document.createElement('span');
         clock.className = 'ui-timer';
@@ -67,7 +78,7 @@
         cards.board.node.append(cover);
 
         bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, themeButton.node, openInPenpa.node);
-        bar.after(restartDialog);
+        bar.after(restartDialog, notSavedDialog);
 
         function renderTimer() {
             // Only the solver's own pause covers the board: a solve stops the clock and leaves the board usable (#119).
