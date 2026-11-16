@@ -153,7 +153,7 @@ describe('tier C', () => {
     })
   })
 
-  it('reads unsolved once a solved sudoku has a conflict', { todo: '#64: the solved flag stays set after a conflict' }, async () => {
+  it('reads unsolved once a solved sudoku has a conflict', async () => {
     const puzzle = puzzles['sudoku-9x9']
     // A digit of another cell of its row, typed into a solved cell.
     const [cell] = puzzle.answer

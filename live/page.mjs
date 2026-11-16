@@ -141,9 +141,11 @@ export function shadeInPage (index) {
   pu.redraw()
 }
 
-// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle and of the cell its answer fills.
+// Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle, of the cell its answer fills and of an
+// empty cell in the given's row.
 export const GIVEN_CELL = 0
 export const ANSWER_CELL = 1
+export const SAME_ROW_CELL = 2
 
 // Runs `inPage(arg)` on a fresh page of its own and returns what it returns: a puzzle link built on a new board.
 export async function linkFromNewBoard (browser, inPage, arg) {
