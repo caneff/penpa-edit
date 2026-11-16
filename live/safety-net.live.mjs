@@ -41,6 +41,11 @@ describe('the planted bugs', () => {
     assert.throws(() => plantIn(`    mouse_lineE(x) {\n    }\n    mouse_line(x) {\n        ${plant.find}\n    }\n`, plant), /its line is not in mouse_lineE/)
   })
 
+  it('refuses a plant that leaves its file unparsed', () => {
+    const plant = { id: 'braceless-if', file: 'x.js', find: 'go();', replace: '' }
+    assert.throws(() => plantIn('if (ready)\n    go();\n', plant), /^Error: braceless-if: x\.js does not parse with it in: /)
+  })
+
   for (const plant of PLANTS.filter((p) => p.audit)) {
     it(`${plant.id} (audit ${plant.audit}) is caught by a recording made for ${plant.audit}`, async () => {
       const own = auditRecordings(plant, ids)

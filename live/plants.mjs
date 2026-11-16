@@ -6,6 +6,7 @@
 // text. `handler`, when given, names the method of `class_p.js` the change is in, and `find` is searched for in that
 // method alone. `audit` names the finding of `research/fork-audit-2026-11.md` whose fix the plant undoes.
 import { readFile } from 'node:fs/promises'
+import { Script } from 'node:vm'
 import { readExpected, readRecording, replay } from './replay.mjs'
 
 const JS = new URL('../docs/js/', import.meta.url)
@@ -14,7 +15,7 @@ const JS = new URL('../docs/js/', import.meta.url)
 const auditPrefix = (audit) => `audit-${audit.toLowerCase()}-`
 
 export const PLANTS = [
-  // One per handler a solve mode can reach.
+  // One per handler a solve mode can reach, and a second in `key_number`, whose modes take digits in different ways.
   {
     id: 'surface-right-click-paints-left',
     bug: 'a right click in Surface paints the left button\'s colour',
@@ -80,14 +81,6 @@ export const PLANTS = [
     replace: ''
   },
   {
-    id: 'number-cursor-off-by-one',
-    bug: 'a left click in Number puts the cursor on the next point',
-    file: 'class_p.js',
-    handler: 'mouse_number',
-    find: 'this.lasty = y;\n            this.cursol = num;',
-    replace: 'this.lasty = y;\n            this.cursol = num + 1;'
-  },
-  {
     id: 'number-corner-cursor-off-by-one',
     bug: 'a left click in Number 1/4 or Side puts the cursor on the next corner or side',
     file: 'class_p.js',
@@ -144,12 +137,12 @@ export const PLANTS = [
     replace: 'case "blpo":\n                    this.re_combi_blwh(num);'
   },
   {
-    id: 'multicolor-digit-keeps-colour',
-    bug: 'a digit in Multicolor does not switch the colour it picks',
+    id: 'multicolor-digit-paints-nothing',
+    bug: 'a digit in Multicolor adds its colour to no cell',
     file: 'class_p.js',
     handler: 'key_number',
-    find: 'this.mode[this.mode.qa].multicolor[1] = key;',
-    replace: ''
+    find: 'if (!remove)',
+    replace: 'if (remove)'
   },
   {
     id: 'number-nine-takes-no-second-digit',
@@ -164,8 +157,8 @@ export const PLANTS = [
     bug: 'Delete in Multicolor leaves the selection\'s colour',
     file: 'class_p.js',
     handler: 'key_space',
-    find: 'this.remove_value("surface", k);',
-    replace: ''
+    find: 'if (this[this.mode.qa].surface[k])',
+    replace: 'if (false)'
   },
   {
     id: 'ctrl-space-keeps-number',
@@ -238,7 +231,8 @@ function scopeOf (source, plant) {
 }
 
 // `source`, the text of `plant.file`, with the plant's change made. Throws unless `find` occurs exactly once in its
-// scope, so a plant whose line upstream changed is refused rather than run as a plant that changes nothing.
+// scope, so a plant whose line upstream changed is refused rather than run as a plant that changes nothing, and unless
+// the planted file still parses, since a file that does not parse fails every replay whatever the plant meant.
 export function plantIn (source, plant) {
   const { start, end } = scopeOf(source, plant)
   const scope = source.slice(start, end)
@@ -248,7 +242,13 @@ export function plantIn (source, plant) {
   const at = scope.indexOf(find)
   if (at === -1) throw new Error(`${plant.id}: its line is not in ${plant.handler ?? plant.file}`)
   if (scope.indexOf(find, at + 1) !== -1) throw new Error(`${plant.id}: its line is in ${plant.handler ?? plant.file} more than once`)
-  return source.slice(0, start + at) + replace + source.slice(start + at + find.length)
+  const planted = source.slice(0, start + at) + replace + source.slice(start + at + find.length)
+  try {
+    new Script(planted, { filename: plant.file })
+  } catch (e) {
+    throw new Error(`${plant.id}: ${plant.file} does not parse with it in: ${e.message}`)
+  }
+  return planted
 }
 
 // The `setup` that serves `plant.file` with the plant in it, for `replay` with `served: true`.
