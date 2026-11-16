@@ -52,7 +52,7 @@ const LEAVES_CANVAS = 0.1
 const OUT_STEP = { kind: 'pointer', action: 'out', button: null, ctrl: false, x: 0, y: 0, num: 0 }
 
 // mulberry32: a small seeded generator, so a seed gives the same run every time.
-function random (seed) {
+export function random (seed) {
   let a = seed >>> 0
   return () => {
     a = (a + 0x6d2b79f5) >>> 0
