@@ -1,0 +1,26 @@
+# Files we own (AGENTS.md § "Our files"): the nightly upstream merge keeps our side. A directory needs "/**", since a
+# trailing-slash pattern sets no attribute on the files inside it. A root file takes a leading "/", or a file of that
+# name in any directory (and, with core.ignorecase, docs/agents.md for AGENTS.md) would match too.
+/.gitattributes merge=ours
+/AGENTS.md merge=ours
+/CLAUDE.md merge=ours
+/CODING_STANDARDS.md merge=ours
+/GLOSSARY.md merge=ours
+.agents/** merge=ours
+research/** merge=ours
+adr/** merge=ours
+userscript/** merge=ours
+live/** merge=ours
+docs/js/header_text.js merge=ours
+docs/js/recorder.js merge=ours
+test/snapshots.test.mjs merge=ours
+test/constraints.test.mjs merge=ours
+test/header-text.test.mjs merge=ours
+test/canonical-state.test.mjs merge=ours
+test/userscript.test.mjs merge=ours
+test/upstream-merge.test.mjs merge=ours
+test/package-scripts.test.mjs merge=ours
+test/redirect-urls.mjs merge=ours
+.github/workflows/** merge=ours
+.github/actions/** merge=ours
+.github/scripts/** merge=ours

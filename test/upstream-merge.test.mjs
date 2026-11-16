@@ -2,7 +2,7 @@
 // stub `gh`. The workflow's own wiring (permissions, step order, the push) is proven only by a workflow_dispatch run.
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -11,8 +11,11 @@ import { describe, it } from 'node:test'
 const script = (name) => fileURLToPath(new URL(`../.github/scripts/${name}`, import.meta.url))
 const MERGE_SCRIPT = script('upstream-merge.sh')
 const FILE_ISSUE_SCRIPT = script('file-issue-once.sh')
+const FILE_TRIAGE_SCRIPT = script('file-upstream-triage.sh')
 const FAILING_TESTS_SCRIPT = script('failing-tests.sh')
+const EXPECTED_UNCHANGED_SCRIPT = script('expected-unchanged.sh')
 const UPSTREAM = 'upstream-master'
+const SEP = '\x1f'
 
 // No global or system git config, so a merge driver configured on this box cannot help the script.
 const GIT_ENV = {
@@ -28,7 +31,10 @@ const GIT_ENV = {
 const git = (dir, ...args) => execFileSync('git', args, { cwd: dir, env: GIT_ENV, encoding: 'utf8' }).trim()
 
 function commit (dir, files, message) {
-  for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
+  for (const [name, text] of Object.entries(files)) {
+    mkdirSync(join(dir, name, '..'), { recursive: true })
+    writeFileSync(join(dir, name), text)
+  }
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', message)
   return git(dir, 'rev-parse', 'HEAD')
@@ -50,12 +56,16 @@ function scratchRepo ({ base, ours, theirs = [] }) {
 
 function runMerge (dir) {
   const report = `${dir}-report.md`
+  const owned = `${dir}-owned-commits.tsv`
   const output = `${dir}-output`
   writeFileSync(output, '')
-  const { status, stderr } = spawnSync('bash', [MERGE_SCRIPT, UPSTREAM, report], {
+  const { status, stderr } = spawnSync('bash', [MERGE_SCRIPT, UPSTREAM, report, owned], {
     cwd: dir, env: { ...GIT_ENV, GITHUB_OUTPUT: output }, encoding: 'utf8'
   })
-  return { status, stderr, report: readFileSync(report, 'utf8'), output: readFileSync(output, 'utf8') }
+  return {
+    status, stderr, report: readFileSync(report, 'utf8'), output: readFileSync(output, 'utf8'),
+    ownedCommits: readFileSync(owned, 'utf8')
+  }
 }
 
 // The sha listed on the line `- <sha> <subject>` of `text`, or null.
@@ -165,26 +175,96 @@ describe('the upstream merge script', () => {
       assert.ok(sha && tip.startsWith(sha), `the report does not list upstream change ${i + 1}:\n${report}`)
     })
   })
+
+  it('lists each upstream commit that touched a merge=ours file as sha, subject and the owned files it touched', () => {
+    const { dir, theirsTips } = scratchRepo({
+      base: { ...OWNED_BASE, 'other.js': 'other\n' },
+      theirs: [
+        { 'ui.js': 'their ui\n', 'engine.js': 'engine 1\n' },
+        { 'engine.js': 'engine 2\n' },
+        { 'ui.js': 'ui again\n', 'other.js': 'other 3\n' }
+      ]
+    })
+    const { status, stderr, ownedCommits } = runMerge(dir)
+    assert.equal(status, 0, stderr)
+    assert.deepEqual(ownedCommits.trim().split('\n').sort(), [
+      `${theirsTips[0]}${SEP}upstream change 1${SEP}ui.js`,
+      `${theirsTips[2]}${SEP}upstream change 3${SEP}ui.js`
+    ].sort())
+  })
+
+  it('writes an empty owned-commit list when upstream touched no merge=ours file, and when it has nothing new', () => {
+    const touched = scratchRepo({ base: OWNED_BASE, theirs: { 'engine.js': 'new engine\n' } })
+    assert.equal(runMerge(touched.dir).ownedCommits, '')
+    const idle = scratchRepo({ base: OWNED_BASE })
+    assert.equal(runMerge(idle.dir).ownedCommits, '')
+  })
+
+  it('lists the owned commits even when the merge then conflicts', () => {
+    const { dir, theirsTip } = scratchRepo({
+      base: { ...OWNED_BASE },
+      ours: { 'engine.js': 'our engine\n' },
+      theirs: { 'ui.js': 'their ui\n', 'engine.js': 'their engine\n' }
+    })
+    const { status, ownedCommits } = runMerge(dir)
+    assert.notEqual(status, 0)
+    assert.equal(ownedCommits, `${theirsTip}${SEP}upstream change${SEP}ui.js\n`)
+  })
 })
 
-// A stub `gh` on PATH answers `issue list` with `openIssues` ("<number>\t<title>" lines), or fails it when `listFails`.
-function runFileIssueOnce ({ title, body, openIssues = '', listFails = false }) {
-  const dir = mkdtempSync(join(tmpdir(), 'file-issue-once-'))
+// AGENTS.md § "Our files": a directory ends in "/", and a file in it is probed by a made-up name.
+const OWNED_PATHS = [
+  '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
+  'docs/js/header_text.js', 'docs/js/recorder.js',
+  'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
+  'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/redirect-urls.mjs',
+  '.github/workflows/', '.github/actions/', '.github/scripts/'
+]
+const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
+
+describe("the repo's .gitattributes", () => {
+  for (const path of OWNED_PATHS) {
+    it(`marks ${path} merge=ours`, () => {
+      const probe = path.endsWith('/') ? `${path}sub/probe.txt` : path
+      assert.equal(git(REPO_ROOT, 'check-attr', 'merge', '--', probe), `${probe}: merge: ours`)
+    })
+  }
+
+  it('marks no tracked file that is not an owned path, so upstream\'s files still merge', () => {
+    const tracked = git(REPO_ROOT, 'ls-files')
+    const marked = execFileSync('git', ['check-attr', '--stdin', 'merge'], { cwd: REPO_ROOT, input: tracked, encoding: 'utf8' })
+      .split('\n').filter((line) => line.endsWith(': merge: ours')).map((line) => line.slice(0, -': merge: ours'.length))
+    const stray = marked.filter((file) => !OWNED_PATHS.some((path) => (path.endsWith('/') ? file.startsWith(path) : file === path)))
+    assert.deepEqual(stray, [])
+  })
+
+  it('does not mark a same-named file in another directory, even on a case-insensitive clone', () => {
+    const attr = (file) => execFileSync('git', ['-c', 'core.ignorecase=true', 'check-attr', 'merge', '--', file], { cwd: REPO_ROOT, encoding: 'utf8' }).trim()
+    for (const file of ['docs/AGENTS.md', 'docs/agents.md', 'docs/GLOSSARY.md']) assert.equal(attr(file), `${file}: merge: unspecified`)
+  })
+})
+
+// A stub `gh` on PATH prints `listOutput` for `issue list`, whatever its flags, or fails it when `listFails`.
+function stubGh ({ listOutput = '', listFails = false }) {
+  const dir = mkdtempSync(join(tmpdir(), 'stub-gh-'))
   const log = join(dir, 'calls.jsonl')
-  const bodyFile = join(dir, 'body.md')
-  writeFileSync(bodyFile, body)
   writeFileSync(log, '')
-  writeFileSync(join(dir, 'open-issues'), openIssues)
+  writeFileSync(join(dir, 'open-issues'), listOutput)
   writeFileSync(join(dir, 'gh'), `#!/usr/bin/env bash
 node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)) + "\\n")' -- "$@" >>"${log}"
 if [[ $1 == issue && $2 == list ]]; then ${listFails ? 'exit 1' : `cat "${join(dir, 'open-issues')}"`}; fi
 `, { mode: 0o755 })
-  const { status, stderr } = spawnSync('bash', [FILE_ISSUE_SCRIPT, title, bodyFile], {
-    env: { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: 'owner/repo' },
-    encoding: 'utf8'
-  })
-  const calls = readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
-  return { status, stderr, writes: calls.filter(([, verb]) => verb !== 'list') }
+  const env = { ...process.env, PATH: `${dir}:${process.env.PATH}`, GITHUB_REPOSITORY: 'owner/repo' }
+  const calls = () => readFileSync(log, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line))
+  return { dir, env, calls }
+}
+
+function runFileIssueOnce ({ title, body, ...stub }) {
+  const { dir, env, calls } = stubGh(stub)
+  const bodyFile = join(dir, 'body.md')
+  writeFileSync(bodyFile, body)
+  const { status, stderr } = spawnSync('bash', [FILE_ISSUE_SCRIPT, title, bodyFile], { env, encoding: 'utf8' })
+  return { status, stderr, writes: calls().filter(([, verb]) => verb !== 'list') }
 }
 
 const TITLE = 'Nightly upstream merge failed'
@@ -192,13 +272,13 @@ const BODY = 'The merge conflicted in `a.js`.'
 
 describe('file-issue-once', () => {
   it('files a bug, needs-info issue when none with the title is open', () => {
-    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n` })
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listOutput: `7\t${TITLE} again\n` })
     assert.equal(status, 0, stderr)
     assert.deepEqual(writes, [['issue', 'create', '--repo', 'owner/repo', '--label', 'bug,needs-info', '--title', TITLE, '--body', BODY]])
   })
 
   it('comments on the open issue with exactly the title instead of filing another', () => {
-    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, openIssues: `7\t${TITLE} again\n42\t${TITLE}\n` })
+    const { status, stderr, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listOutput: `7\t${TITLE} again\n42\t${TITLE}\n` })
     assert.equal(status, 0, stderr)
     assert.deepEqual(writes, [['issue', 'comment', '42', '--repo', 'owner/repo', '--body', BODY]])
   })
@@ -207,6 +287,82 @@ describe('file-issue-once', () => {
     const { status, writes } = runFileIssueOnce({ title: TITLE, body: BODY, listFails: true })
     assert.notEqual(status, 0)
     assert.deepEqual(writes, [])
+  })
+})
+
+const SHA_A = 'a'.repeat(40)
+const SHA_B = 'b'.repeat(40)
+
+function runFileTriage ({ lines, ...stub }) {
+  const { dir, env, calls } = stubGh(stub)
+  const file = join(dir, 'owned-commits.tsv')
+  writeFileSync(file, lines.map((line) => `${line}\n`).join(''))
+  const { status, stderr } = spawnSync('bash', [FILE_TRIAGE_SCRIPT, file], { env, encoding: 'utf8' })
+  const all = calls()
+  return { status, stderr, lists: all.filter(([, verb]) => verb === 'list'), writes: all.filter(([, verb]) => verb !== 'list') }
+}
+
+describe('file-upstream-triage', () => {
+  it('files one needs-triage issue per upstream commit, naming the commit, its subject and the owned files', () => {
+    const { status, stderr, writes } = runFileTriage({
+      lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`, `${SHA_B}${SEP}Add a button${SEP}docs/js/class_p.js,docs/index.html`]
+    })
+    assert.equal(status, 0, stderr)
+    assert.equal(writes.length, 2)
+    const [first, second] = writes
+    assert.deepEqual(first.slice(0, 7), ['issue', 'create', '--repo', 'owner/repo', '--label', 'needs-triage', '--title'])
+    assert.equal(first[7], `Upstream ${SHA_A.slice(0, 10)}: Fix the grid`)
+    assert.equal(first[8], '--body')
+    assert.match(first[9], new RegExp(`https://github\\.com/swaroopg92/penpa-edit/commit/${SHA_A}`))
+    assert.match(first[9], /^- `docs\/js\/class_p\.js`$/m)
+    assert.equal(second[7], `Upstream ${SHA_B.slice(0, 10)}: Add a button`)
+    assert.match(second[9], /^- `docs\/js\/class_p\.js`$/m)
+    assert.match(second[9], /^- `docs\/index\.html`$/m)
+  })
+
+  it('files nothing for a commit whose title is already on an issue of any state, but files the others', () => {
+    const { status, stderr, lists, writes } = runFileTriage({
+      lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`, `${SHA_B}${SEP}Add a button${SEP}docs/js/class_p.js`],
+      listOutput: `Upstream ${SHA_A.slice(0, 10)}: Fix the grid\n`
+    })
+    assert.equal(status, 0, stderr)
+    const flagValue = (call, flag) => call[call.indexOf(flag) + 1]
+    assert.deepEqual(lists.map((call) => flagValue(call, '--search')), [`${SHA_A.slice(0, 10)} in:title`, `${SHA_B.slice(0, 10)} in:title`])
+    assert.ok(lists.every((call) => flagValue(call, '--state') === 'all'), 'a closed issue must count as filed')
+    assert.deepEqual(writes.map((call) => call[7]), [`Upstream ${SHA_B.slice(0, 10)}: Add a button`])
+  })
+
+  it('caps a long subject so the title stays under GitHub\'s 256 characters, and still finds it by its sha', () => {
+    const { status, stderr, writes } = runFileTriage({ lines: [`${SHA_A}${SEP}${'x'.repeat(379)}${SEP}docs/js/class_p.js`] })
+    assert.equal(status, 0, stderr)
+    assert.ok(writes[0][7].length <= 256, `title is ${writes[0][7].length} characters`)
+    assert.ok(writes[0][7].startsWith(`Upstream ${SHA_A.slice(0, 10)}: xxx`))
+  })
+
+  it('keeps the owned files of a commit with an empty subject', () => {
+    const { status, stderr, writes } = runFileTriage({ lines: [`${SHA_A}${SEP}${SEP}docs/js/class_p.js`] })
+    assert.equal(status, 0, stderr)
+    assert.equal(writes[0][7], `Upstream ${SHA_A.slice(0, 10)}: `)
+    assert.match(writes[0][9], /^- `docs\/js\/class_p\.js`$/m)
+  })
+
+  it('files nothing for an empty list, and fails with no write when the issues cannot be listed', () => {
+    const empty = runFileTriage({ lines: [] })
+    assert.equal(empty.status, 0, empty.stderr)
+    assert.deepEqual(empty.lists, [])
+    assert.deepEqual(empty.writes, [])
+    const blind = runFileTriage({ lines: [`${SHA_A}${SEP}Fix the grid${SEP}docs/js/class_p.js`], listFails: true })
+    assert.notEqual(blind.status, 0)
+    assert.deepEqual(blind.writes, [])
+  })
+})
+
+describe('the upstream-merge workflow', () => {
+  const workflow = readFileSync(fileURLToPath(new URL('../.github/workflows/upstream-merge.yml', import.meta.url)), 'utf8')
+
+  it('hands the merge script the owned-commit file and runs the triage script on it, whether or not the merge succeeded', () => {
+    assert.match(workflow, /upstream-merge\.sh upstream\/master "\$REPORT" "\$OWNED_COMMITS"/)
+    assert.match(workflow, /- if: \$\{\{ !cancelled\(\) \}\}\n\s+name: File a triage issue[^\n]*\n(?:\s+[^\n]*\n)*?\s+run: bash \.github\/scripts\/file-upstream-triage\.sh "\$OWNED_COMMITS"/)
   })
 })
 
@@ -241,5 +397,36 @@ describe('the failing-test extractor', () => {
 
   it('says it found no failing test rather than printing nothing', () => {
     assert.equal(failingTests('npm error code ERESOLVE\n'), '- No failing test is named in the log; read the run.\n')
+  })
+})
+
+// Every expected-file change an upstream merge brings goes to Chris (#33), so the nightly pushes no merge that has one.
+function runExpectedUnchanged (dir) {
+  const report = `${dir}-report.md`
+  writeFileSync(report, '')
+  const { status, stderr } = spawnSync('bash', [EXPECTED_UNCHANGED_SCRIPT, 'HEAD^1', report], { cwd: dir, env: GIT_ENV, encoding: 'utf8' })
+  return { status, stderr, report: readFileSync(report, 'utf8') }
+}
+
+function mergedRepo (theirs) {
+  const { dir } = scratchRepo({ base: { 'engine.js': 'engine\n', [EXPECTED]: '{"checkpoints":[]}\n' }, theirs })
+  git(dir, 'merge', '-q', '--no-ff', '-m', 'merge', UPSTREAM)
+  return dir
+}
+
+const EXPECTED = 'live/recordings/genre/box.expected.json'
+
+describe('expected-unchanged', () => {
+  it('passes a merge that changes no expected file', () => {
+    const { status, stderr, report } = runExpectedUnchanged(mergedRepo({ 'engine.js': 'new engine\n' }))
+    assert.equal(status, 0, stderr)
+    assert.equal(report, '')
+  })
+
+  it('fails a merge that changes an expected file, and names it in the report', () => {
+    const { status, report } = runExpectedUnchanged(mergedRepo({ [EXPECTED]: '{"checkpoints":[1]}\n' }))
+    assert.notEqual(status, 0)
+    assert.match(report, /^## The merge changes expected files$/m)
+    assert.match(report, new RegExp(`^- \`${EXPECTED}\`$`, 'm'))
   })
 })
