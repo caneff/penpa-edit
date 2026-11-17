@@ -4,6 +4,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 
 .ui-root {
     --ui-bar-height: 60px;
+    --ui-bar-z: 950;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -23,7 +24,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     background: #2b2f38;
     color: #eef0f4;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
-    z-index: 950;
+    z-index: var(--ui-bar-z);
 }
 /* Title and author sit at the bar's centre, whatever the controls on either side. */
 .ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; max-width: 46%; min-width: 0; pointer-events: none; }
@@ -105,15 +106,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 
 /* The board's title bar: the current tool's name, after the card's title. */
-.ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-tool-colour, #3b3e45);
+.ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
     /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
-    padding: 2px 12px; border-radius: 999px; background: #f6f3ec; }
+    padding: 2px 12px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
 
 /* The Mouse card. */
-.ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; }
-.ui-hsep { color: #9aa7c2; font-weight: 400; }
-.ui-hsub { color: #2f5bb2; }
-.ui-hstyle { color: #444; white-space: nowrap; }
+.ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
 .ui-mrows { display: grid; gap: 4px; }
@@ -128,8 +126,10 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-picker { position: relative; }
 .ui-search { box-sizing: border-box; width: 100%; font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: inherit; }
 .ui-search:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
-.ui-list { margin-top: 4px; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
+.ui-list { position: fixed; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
 .ui-list[hidden] { display: none; }
+/* A card's stacking context holds its floating list, so the card with an open list stacks above every card, even a raised one (desk.js stops raising one below this). */
+.ui-card:has(.ui-list:not([hidden])) { z-index: calc(var(--ui-bar-z) - 1) !important; }
 .ui-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; margin: 8px 4px 3px; }
 .ui-entry { padding: 4px 8px; border-radius: 5px; cursor: pointer; }
 .ui-entry:hover { background: #f0ede4; }
@@ -160,8 +160,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
 
-/* The board's frame: --ui-tool-colour, the current tool's colour (a pin's own, or the neutral one off the pins). */
-.ui-card-board { outline: 5px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
+/* The board's frame: the selected style's colour, else the current tool's (a pin's own, or the neutral one off the pins). */
+.ui-card-board { outline: 5px solid var(--ui-style-colour, var(--ui-tool-colour, transparent)); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
 .ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -218,11 +218,8 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
 .ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
 .ui-dark .ui-paused-hint { color: #a9b0bd; }
-.ui-dark .ui-tool-name { color: var(--ui-tool-colour, #23262c); background: #dfe3ea; }
+.ui-dark .ui-tool-name { color: var(--ui-style-colour, var(--ui-tool-colour, #23262c)); background: var(--ui-style-pill, #dfe3ea); }
 .ui-dark .ui-headline { color: #e3eaff; }
-.ui-dark .ui-hsub { color: #8fb2ff; }
-.ui-dark .ui-hstyle { color: #d5d9e0; }
-.ui-dark .ui-hsep { color: #949fb8; }
 .ui-dark .ui-mrow { background: #26324a; }
 .ui-dark .ui-mg { color: #9fbdff; }
 .ui-dark .ui-mrow.is-none { background: #272a31; color: #8d94a1; }

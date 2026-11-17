@@ -31,7 +31,7 @@
 
         function chip(entry, current) {
             const main = el('button', {
-                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), title: toolOf(entry).name, ...OUT_OF_TAB_ORDER
+                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), ...OUT_OF_TAB_ORDER
             }, [chipLabel(toolOf(entry))]);
             main.addEventListener('click', () => {
                 engine.setTool({ mode: entry.mode, submode: entry.submode, ...(entry.style === null ? {} : { style: entry.style }) });

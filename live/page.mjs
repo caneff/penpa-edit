@@ -278,6 +278,9 @@ export async function openSolvePage (browser, query, options = {}) {
   return opened
 }
 
+// A chip's text without the number a Pinned chip starts with.
+export const chipName = (text) => text.replace(/^\d+\s*/, '').trim()
+
 export const currentTool = (page) => page.evaluate(() => engine.getTool())
 export const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
 
