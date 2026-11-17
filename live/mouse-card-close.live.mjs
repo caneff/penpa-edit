@@ -36,6 +36,21 @@ describe('The Mouse card closes and reopens', () => {
   }
   const settingsSwitch = (page) => page.locator('wa-switch').filter({ has: page.getByRole('switch', { name: 'Show Mouse card' }) })
 
+  const assertSameSplit = (now, was) => {
+    for (const name of ['Mouse', 'Rules']) {
+      for (const edge of ['x', 'y', 'w', 'h']) {
+        assert.equal(Math.abs(now.cards[name][edge] - was.cards[name][edge]) <= ROUNDING_PX, true,
+          `${name} is back in the fitted split: ${JSON.stringify(now.cards)} against ${JSON.stringify(was.cards)}`)
+      }
+    }
+  }
+
+  const reopenFromSettings = async (page) => {
+    await openDialog(page)
+    await settingsSwitch(page).click()
+    await settle(async () => (await read(page)).cards.Mouse !== null, true)
+  }
+
   async function openDialog (page) {
     await page.getByRole('button', { name: 'Settings' }).click()
     await page.getByRole('dialog', { name: 'Settings' }).waitFor()
@@ -62,8 +77,7 @@ describe('The Mouse card closes and reopens', () => {
     const reopened = await settle(async () => (await read(page)).cards.Mouse !== null, true)
     assert.equal(reopened, true, 'the switch shows Mouse')
     const after = await read(page)
-    assert.equal(after.cards.Mouse.h > 0 && after.cards.Rules.h < after.desk.h - 2 * TOP_MARGIN_PX - ROUNDING_PX, true,
-      `Rules gives Mouse its room back: ${JSON.stringify(after.cards)}`)
+    assertSameSplit(after, before)
 
     await settingsSwitch(page).click()
     assert.equal(await settle(async () => (await read(page)).cards.Mouse === null, true), true, 'the switch hides Mouse again')
@@ -75,5 +89,41 @@ describe('The Mouse card closes and reopens', () => {
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
     await page.getByRole('button', { name: 'Reset layout' }).click()
     assert.equal((await read(page)).cards.Mouse, null)
+  })
+
+  it('gives Mouse its place back under Rules after a card was moved while Mouse was closed', async () => {
+    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    const { page } = opened
+    const before = await read(page)
+    await page.getByRole('button', { name: 'Close Mouse card' }).click()
+    await settle(() => fillsColumn(page), true)
+    const head = await page.locator('section[aria-label="Board"] .ui-head h2').boundingBox()
+    await page.mouse.move(head.x + 5, head.y + 5)
+    await page.mouse.down()
+    await page.mouse.move(head.x + 35, head.y + 25, { steps: 4 })
+    await page.mouse.up()
+    await reopenFromSettings(page)
+    assertSameSplit(await read(page), before)
+  })
+
+  it('sizes Mouse again for a window that was resized while it was closed', async () => {
+    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    const { page } = opened
+    await page.getByRole('button', { name: 'Close Mouse card' }).click()
+    await page.setViewportSize({ width: 1500, height: 900 })
+    await settle(() => fillsColumn(page), true)
+    await reopenFromSettings(page)
+    const { cards } = await read(page)
+    const mouseBody = await page.locator('section[aria-label="Mouse"] .ui-body').evaluate((body) => ({ over: body.scrollHeight - body.clientHeight, h: body.clientHeight }))
+    assert.equal(cards.Mouse.y >= cards.Rules.y + cards.Rules.h - 1 && mouseBody.h > 0 && mouseBody.over <= 0, true,
+      `Mouse sits under Rules and shows its rows: ${JSON.stringify({ cards, mouseBody })}`)
+  })
+
+  it('leaves focus on a control when the x is pressed from the keyboard', async () => {
+    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    const { page } = opened
+    await page.getByRole('button', { name: 'Close Mouse card' }).focus()
+    await page.keyboard.press('Enter')
+    assert.equal(await settle(() => page.evaluate(() => document.activeElement.closest('section[aria-label="Rules"]') !== null), true), true)
   })
 })

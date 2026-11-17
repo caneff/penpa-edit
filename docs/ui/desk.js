@@ -207,8 +207,8 @@
 
     // ---- Placing the cards ------------------------------------------------------------------------------------------
 
-    // The Mouse card's whole height that fits every tool's rows at a card width, set by whoever knows its content. Until it
-    // is set the desk keeps variant L's fixed layout.
+    // `mouseCardHeight`: the Mouse card's whole height that fits every tool's rows at a card width. `sizeMouseBody`: sizes its body
+    // again, for when it opens. Both set by whoever knows its content. Until `mouseCardHeight` is set the desk keeps variant L's fixed layout.
     const fit = { mouseCardHeight: null, sizeMouseBody: null };
     // True until the fit pass has run for the desk as it was opened or last reset.
     let fitPending = Object.keys(saved).length === 0;
@@ -226,11 +226,12 @@
     };
 
     const isShown = (cards, id) => !cards[id].node.hidden;
+    const shownIds = (cards, ids = Object.keys(cards)) => ids.filter((id) => isShown(cards, id));
 
     // The cards from the top of the column down, each CARD_GAP_PX below the one above it. A closed card takes no room.
     function stack(cards, ids, x, width) {
         let y = TOP_MARGIN_PX;
-        ids.filter((id) => isShown(cards, id)).forEach((id) => {
+        shownIds(cards, ids).forEach((id) => {
             position(cards, id, x, y, width);
             y += cards[id].node.offsetHeight + CARD_GAP_PX;
         });
@@ -243,7 +244,8 @@
         const width = desk.clientWidth;
         const height = desk.clientHeight;
         // Heights first, so a card the solver made taller pushes the ones below it in its column.
-        Object.entries(cards).filter(([id]) => isShown(cards, id)).forEach(([id, { node }]) => {
+        shownIds(cards).forEach((id) => {
+            const { node } = cards[id];
             node.style.height = '';
             node.classList.remove('is-sized');
             if (saved[id]?.h) {
@@ -269,7 +271,7 @@
     }
 
     function keepShownInside(cards, width, height) {
-        Object.entries(cards).filter(([id]) => isShown(cards, id)).forEach(([id, { node }]) => keepInside(id, node, width, height));
+        shownIds(cards).forEach((id) => keepInside(id, cards[id].node, width, height));
     }
 
     const columnMinWidth = (ids) => Math.max(MIN_COLUMN_WIDTH_PX, ...ids.map((id) => MIN_SIZE[id][0]));
@@ -284,6 +286,34 @@
         const needed = probe.offsetHeight + node.offsetHeight - body.offsetHeight;
         probe.remove();
         return needed;
+    }
+
+    // Unlike `position`, which gives a card its kept width, this sets every size itself.
+    function place(cards, id, x, y, w, h) {
+        Object.assign(cards[id].node.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
+        setHeight(cards[id].node, h);
+    }
+
+    // Rules over Mouse in the left column, Mouse taking what Rules leaves; Rules alone takes the whole column.
+    function placeLeftColumn(cards, x, width, rulesHeight, columnHeight) {
+        place(cards, 'rules', x, TOP_MARGIN_PX, width, rulesHeight);
+        if (isShown(cards, 'mouse')) {
+            place(cards, 'mouse', x, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, width, columnHeight - CARD_GAP_PX - rulesHeight);
+        }
+    }
+
+    // Closing or opening Mouse after the solver changed another card: Rules and Mouse, if neither was moved or resized
+    // themselves, share the left column again, at the fitted layout's width and place.
+    function refitLeftColumn(desk, cards) {
+        const rules = saved.rules;
+        if (!rules?.fitted || (saved.mouse && !saved.mouse.fitted)) {
+            return;
+        }
+        const columnHeight = desk.clientHeight - 2 * TOP_MARGIN_PX;
+        const rulesHeight = isShown(cards, 'mouse') ?
+            clamp(rulesCardHeight(cards.rules, rules.w), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
+        placeLeftColumn(cards, rules.x, rules.w, rulesHeight, columnHeight);
+        keepFitted(desk, cards, shownIds(cards, LEFT_COLUMN));
     }
 
     // The layout that suits the puzzle on screen (#156). The cap on the Board card leaves the left column its minimum and the
@@ -333,18 +363,10 @@
         const boardX = leftWidth + gapsUpTo(2);
         const rightX = leftWidth + boardWidth + gapsUpTo(3);
         stack(cards, RIGHT_COLUMN, rightX, rightWidth);
-        // Unlike `position`, which gives a card its kept width, the fit sets every size itself.
-        const place = (id, x, y, w, h) => {
-            Object.assign(cards[id].node.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
-            setHeight(cards[id].node, h);
-        };
-        place('board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
-        place('rules', leftX, TOP_MARGIN_PX, leftWidth, rulesHeight);
-        if (hasMouse) {
-            place('mouse', leftX, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
-        }
+        place(cards, 'board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
+        placeLeftColumn(cards, leftX, leftWidth, rulesHeight, columnHeight);
         keepShownInside(cards, width, height);
-        keepFitted(desk, cards, Object.keys(cards).filter((id) => isShown(cards, id)));
+        keepFitted(desk, cards, shownIds(cards));
     }
 
     // Records the cards `ids` where the fitted layout has them, as places of their own marked `fitted`, which the solver's
@@ -645,10 +667,18 @@
                 isFitted = false;
                 saved = {};
                 fitPending = true;
+            } else {
+                refitLeftColumn(desk.desk, desk.cards);
             }
             relayout();
         };
-        desk.closeMouse.addEventListener('click', () => setMouseClosed(true));
+        desk.closeMouse.addEventListener('click', (e) => {
+            setMouseClosed(true);
+            // A key press closed it, so the keyboard user keeps a control to stand on; a mouse click hands the keyboard back (keys.js).
+            if (e.detail === 0) {
+                (desk.rulesText.smaller.disabled ? desk.rulesText.bigger : desk.rulesText.smaller).focus();
+            }
+        });
         const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', resetLayout).node;
         resetButton.classList.add('ui-reset');
         desk.bar.append(resetButton);
