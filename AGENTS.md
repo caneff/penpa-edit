@@ -50,14 +50,16 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   (Playwright) over `file://`, upstream's puzz.link import snapshots (`test/snapshots.test.mjs`, the puzzle list read from upstream's
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
-  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/pin-card.mjs`, `live/settle.mjs`, `live/upstream-docs.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/ui-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs`, `live/tier-c.mjs` and `live/tier-c-puzzles.mjs`), replays every
+  `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/pin-card.mjs`, `live/settle.mjs`, `live/upstream-docs.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/ui-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs`, `live/tier-c.mjs`, `live/tier-c-puzzles.mjs` and the UI fuzz's `live/ui-fuzz/*.mjs`), replays every
   recording under `live/recordings/` on the engine driver against its expected file (one with none fails), replays the
   hand-made recordings and a sample of the generated ones on the UI driver against the engine driver, on Penpa+'s page
   and on `solve.html` (`live/replay.mjs`, `live/ui-replay-part.mjs`), and fuzzes a few puzzles with fixed seeds against the solving
   invariants, saving a failing run as a recording under `live/recordings/fuzz/`. Tier C (`live/tier-c.live.mjs`) runs the
   answer-aimed fuzz on each of its puzzles and turns a Replay link into a recording; its kept recordings under
   `live/recordings/solve/` are written by `node live/generate-tier-c.mjs`, a solver's history by its `--history`. It also opens the Penpa links the fork writes (the save dialog's, the progress store's; not the .pp and .gmp file texts) on `upstream/master`'s own files and checks the board matches the fork's (`live/upstream-links.live.mjs`; it needs the `upstream/master` ref, which CI fetches). It also checks that each plant undoing an
-  audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
+  audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). It also runs the solve page's UI fuzz on a scripted
+  action list on each of its puzzles, and a seeded run on a page that throws on one action, whose printed replay must fail
+  again on the same step (`live/ui-fuzz.live.mjs`, #195). In both commands, a page error or
   `console.error` on a page `openPenpa` or `openReloader` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master` (job `test`), and the expected-file gate
@@ -79,7 +81,9 @@ Before you write or review code: read `CODING_STANDARDS.md`.
 - **Blind to**: phones and tablets, and anything `TESTING.md`'s links exercise that no test opens. Upstream's in-browser
   Mocha page stays as `npm run test:browser`; it is not part of the seam. Nor is `npm run measure` (`live/measure.mjs`,
   #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
-  enforces when; its last tables are in `research/safety-net-measure-2026-11.md`.
+  enforces when; its last tables are in `research/safety-net-measure-2026-11.md`. Nor is `npm run fuzz:ui -- [--seed <n>] [--minutes <m>]
+  [--path <printed path>]` (`live/ui-fuzz/run.mjs`, #195): random fast-check action lists on `solve.html`, 2 minutes by
+  default, a crash shrunk and printed with the command that replays it.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
 - **fast-check** is an approved dev dependency, for the solve.html UI fuzz (#195) (Chris, 2026-11-16).
 - **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and

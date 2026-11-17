@@ -3,6 +3,7 @@
   "scripts": {
     "test": "node --test --test-concurrency=4 --test-timeout=60000 \"test/**/*.test.mjs\"",
     "test:live": "node --test --test-concurrency=4 --test-timeout=60000 \"live/**/*.live.mjs\"",
+    "fuzz:ui": "node live/ui-fuzz/run.mjs",
     "measure": "node live/measure.mjs",
     "recordings:approve": "node live/approve-recordings.mjs",
     "test:browser": "nodemon --watch test/test_server.js test/test_server.js",
@@ -12,6 +13,7 @@
     "browser-sync": "^2.29.3",
     "chai": "^4.5.0",
     "express": "^4.21.2",
+    "fast-check": "^4.10.2",
     "mocha": "^10.8.2",
     "nodemon": "^2.0.22",
     "playwright": "^1.64.1"
