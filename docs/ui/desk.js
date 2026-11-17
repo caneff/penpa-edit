@@ -30,7 +30,7 @@
     const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 100], recent: [240, 80], rules: [200, 80] };
     // The Rules card's own text size, kept beside the layout and cleared with it. Pixels; the - and + buttons step it.
     const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1';
-    const RULES_TEXT_RANGE_PX = { min: 10, max: 28, step: 2 };
+    const RULES_TEXT_RANGE_PX = { min: 10, max: 20, step: 2 };
     // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
     const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
     const MOUSE_CLOSED = '1';
@@ -53,6 +53,73 @@
         Object.entries(attrs).forEach(([name, value]) => node.setAttribute(name, value));
         node.append(...children);
         return node;
+    }
+
+    // A rules line that starts a list item: its marker, then the text. The marker is its own flex item so a wrapped line
+    // hangs under the text and not under the marker, whatever the marker's width.
+    const RULES_MARKER = /^(\s*(?:[-\u2022*]|\d{1,2}[.)])\s+)([\s\S]*)$/;
+    const RULES_URL = /https?:\/\/[^\s<>"]+/g;
+    // Sentence punctuation that ends a URL's surrounding text and not the URL.
+    const URL_TRAILING = /[.,;:!?\]'"]+$/;
+    const countOf = (text, char) => text.split(char).length - 1;
+
+    // The URL without the punctuation after it; a closing ")" stays when the URL opened one.
+    function trimUrl(url) {
+        let trimmed = url;
+        for (let previous = ''; previous !== trimmed;) {
+            previous = trimmed;
+            trimmed = trimmed.replace(URL_TRAILING, '');
+            if (trimmed.endsWith(')') && countOf(trimmed, ')') > countOf(trimmed, '(')) {
+                trimmed = trimmed.slice(0, -1);
+            }
+        }
+        return trimmed;
+    }
+
+    // Appends `text` to `parent` with each http(s) URL as a link that opens in a new tab. Every node is made with
+    // textContent and setAttribute, so the rules never become HTML.
+    function appendWithLinks(parent, text) {
+        let last = 0;
+        for (const match of text.matchAll(RULES_URL)) {
+            const url = trimUrl(match[0]);
+            parent.append(text.slice(last, match.index));
+            const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer' });
+            link.textContent = url;
+            parent.append(link);
+            last = match.index + url.length;
+        }
+        parent.append(text.slice(last));
+    }
+
+    const isRulesEmpty = (rulesCard) => rulesCard.querySelector('.ui-body').classList.contains('ui-rules-empty');
+
+    // A card's height is kept when the solver sized it, except the Rules card of a link with no rules: its one-line height
+    // belongs to that link, and the layout is shared by every puzzle.
+    const keepsHeight = (id, node) => node.classList.contains('is-sized') && !(id === 'rules' && isRulesEmpty(node));
+
+    // The Rules card's body: one block per line, and a note when the link carries no rules.
+    function showRules(body, rules) {
+        const isEmpty = !rules?.trim();
+        body.classList.toggle('ui-rules-empty', isEmpty);
+        if (isEmpty) {
+            body.textContent = 'No rules in this link.';
+            return;
+        }
+        body.replaceChildren(...rules.split('\n').map((text) => {
+            const line = el('div', { class: 'ui-rules-line' });
+            const [, marker, rest] = text.match(RULES_MARKER) || [];
+            if (marker === undefined) {
+                appendWithLinks(line, text);
+            } else {
+                line.classList.add('ui-rules-item');
+                const markerNode = el('span', { class: 'ui-rules-marker' });
+                markerNode.textContent = marker;
+                const textNode = el('span', { class: 'ui-rules-item-text' });
+                appendWithLinks(textNode, rest);
+                line.append(markerNode, textNode);
+            }
+            return line;
+        }));
     }
 
     let tooltipCount = 0;
@@ -156,8 +223,7 @@
         closeMouse.classList.add('ui-close');
         cards.mouse.head.append(closeMouse);
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
-        // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
-        cards.rules.body.textContent = info.rules || 'No rules in this link.';
+        showRules(cards.rules.body, info.rules);
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
         return { bar, desk, cards, zoom, rulesText, closeMouse };
@@ -201,7 +267,7 @@
     function saveCard(desk, id, node) {
         isFitted = false;
         const entry = { w: node.offsetWidth };
-        if (node.classList.contains('is-sized')) {
+        if (keepsHeight(id, node)) {
             entry.h = node.offsetHeight;
         }
         if (isMoved(id)) {
@@ -264,7 +330,7 @@
             const { node } = cards[id];
             node.style.height = '';
             node.classList.remove('is-sized');
-            if (saved[id]?.h) {
+            if (saved[id]?.h && !(id === 'rules' && isRulesEmpty(node))) {
                 setHeight(node, saved[id].h);
             }
         });
@@ -294,8 +360,8 @@
 
     // The height the Rules card needs to show its whole text at `cardWidth`, measured in a hidden copy of its body.
     function rulesCardHeight({ node, body }, cardWidth) {
-        const probe = el('div', { class: 'ui-body' });
-        probe.textContent = body.textContent;
+        const probe = el('div', { class: body.className });
+        probe.append(...[...body.childNodes].map((child) => child.cloneNode(true)));
         probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;box-sizing:border-box;height:auto;max-height:none;` +
             `width:${cardWidth - (node.offsetWidth - body.offsetWidth)}px;font-size:${getComputedStyle(body).fontSize};`;
         node.append(probe);
@@ -368,9 +434,10 @@
             leftWidth = neededHeight(low) <= columnHeight ? low : high;
         }
         // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
-        // With Mouse closed, Rules takes the whole column.
-        const rulesHeight = hasMouse ?
-            clamp(rulesCardHeight(cards.rules, leftWidth), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
+        // A link with no rules leaves Rules one line tall. Otherwise, with Mouse closed, Rules takes the whole column.
+        const rulesNeed = rulesCardHeight(cards.rules, leftWidth);
+        const rulesHeight = isRulesEmpty(cards.rules.node) ? rulesNeed : hasMouse ?
+            clamp(rulesNeed, MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
 
         // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
         const spare = width - boardWidth - leftWidth - rightWidth;
@@ -391,7 +458,7 @@
         ids.forEach((id) => {
             const node = cards[id].node;
             saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight, fitted: 1 };
-            if (node.classList.contains('is-sized')) {
+            if (keepsHeight(id, node)) {
                 saved[id].h = node.offsetHeight;
             }
         });
@@ -677,6 +744,9 @@
         }
         cards.rules.body.style.fontSize = isUsable ? `${kept}px` : '';
         const shown = parseFloat(getComputedStyle(cards.rules.body).fontSize);
+        const hasNoRules = isRulesEmpty(cards.rules.node);
+        // Hidden, not just disabled: a link with no rules has no text to size, and a disabled button fails the contrast check.
+        rulesText.smaller.parentElement.hidden = hasNoRules;
         rulesText.smaller.disabled = shown <= min;
         rulesText.bigger.disabled = shown >= max;
     }
