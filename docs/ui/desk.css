@@ -212,7 +212,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-entry-star[aria-pressed="true"] { color: #b8860b; }
 .ui-entry-star[aria-pressed="true"] svg { fill: currentColor; }
 /* Above the open preset list, which floats over this line, so a delete can still be undone while the list is open. */
-.ui-preset-undo { position: relative; z-index: 1; margin-top: 6px; padding: 2px 6px; border-radius: 6px; background: #f3f0e6; font-size: 12px; }
+.ui-preset-undo { position: relative; z-index: 5; margin-top: 6px; padding: 2px 6px; border-radius: 6px; background: #f3f0e6; font-size: 12px; }
 .ui-preset-undo:empty { display: none; }
 .ui-preset-undo-btn { margin-left: 6px; border: 0; background: transparent; color: #3b6fd4; text-decoration: underline; cursor: pointer; font: inherit; }
 /* The negative margin grows the click target without growing the chip. */
