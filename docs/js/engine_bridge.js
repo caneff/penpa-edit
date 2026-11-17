@@ -780,7 +780,9 @@
 
         // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
         // or Ctrl lends a tool, `solved` while the board matches the author's answer, and `cellSize` is the board's pixels
-        // per cell.
+        // per cell. `historyLength` is how many entries the undo history holds: it grows with an entry, falls with an undo,
+        // rises with a redo and is 0 after `restart()`. One undo can take back several entries (one move's group), so compare
+        // two readings; never count undos with it.
         getState() {
             boardCanvas();
             // MVP gap: the solver's undo and redo stacks, where Penpa+ keeps them.
@@ -793,7 +795,8 @@
                 penpaDialogOpen: penpaDialogOpen(),
                 held: isHeld(),
                 canUndo: entries.command_undo.__a.length > 0,
-                canRedo: entries.command_redo.__a.length > 0
+                canRedo: entries.command_redo.__a.length > 0,
+                historyLength: entries.command_undo.__a.length
             };
         },
 
