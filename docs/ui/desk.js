@@ -213,7 +213,15 @@
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     }
 
-    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark, luminance };
+    // The part of a scrolling box that shows: its padding box, in viewport coordinates.
+    function visibleBox(node) {
+        const box = node.getBoundingClientRect();
+        const left = box.left + node.clientLeft;
+        const top = box.top + node.clientTop;
+        return { left, top, right: left + node.clientWidth, bottom: top + node.clientHeight };
+    }
+
+    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark, luminance, visibleBox };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
@@ -1074,10 +1082,7 @@
         if (!focus) {
             return;
         }
-        const box = boardBody.getBoundingClientRect();
-        const left = box.left + boardBody.clientLeft;
-        const top = box.top + boardBody.clientTop;
-        const visible = { left, top, right: left + boardBody.clientWidth, bottom: top + boardBody.clientHeight };
+        const visible = window.uiKit.visibleBox(boardBody);
         const isInside = focus.left >= visible.left && focus.right <= visible.right && focus.top >= visible.top && focus.bottom <= visible.bottom;
         if (isInside && !centre) {
             return;
