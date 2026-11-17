@@ -72,7 +72,7 @@ describe('the Rules card', () => {
   it('counts rules made only of spaces and line breaks as none', async () => {
     const page = await open(' \n  \n')
     assert.equal(await body(page).textContent(), 'No rules in this link.')
-    assert.equal(await page.getByRole('button', { name: 'Bigger rules text' }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Bigger rules text' }).isHidden(), true)
   })
 
   // A layout is kept for every puzzle, so a Rules height from one link must not follow the solver to another.
@@ -107,7 +107,7 @@ describe('the Rules card', () => {
     }
   })
 
-  it('is one line tall, with − and + disabled, when the link has no rules', async () => {
+  it('is one line tall, with − and + hidden, when the link has no rules', async () => {
     const page = await open('')
     const note = body(page)
     assert.equal(await note.textContent(), 'No rules in this link.')
@@ -120,7 +120,7 @@ describe('the Rules card', () => {
     })
     assert.equal(await settle(isOneLine, true), true, `the card's body is one line: ${(await note.boundingBox()).height} px`)
     assert.equal((await card.boundingBox()).height < 70, true, `and the card is its title bar and that line: ${(await card.boundingBox()).height} px`)
-    assert.equal(await page.getByRole('button', { name: 'Smaller rules text' }).isDisabled(), true)
-    assert.equal(await page.getByRole('button', { name: 'Bigger rules text' }).isDisabled(), true)
+    assert.equal(await page.getByRole('button', { name: 'Smaller rules text' }).isHidden(), true)
+    assert.equal(await page.getByRole('button', { name: 'Bigger rules text' }).isHidden(), true)
   })
 })

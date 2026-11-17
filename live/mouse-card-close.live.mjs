@@ -6,7 +6,7 @@ import { afterEach, describe, it } from 'node:test'
 import { newBoardSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
-// The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a focusable control.
+// The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a control to focus.
 const SOME_RULES = 'Put a digit from 1 to 9 in every cell.'
 
 const browser = useBrowser()

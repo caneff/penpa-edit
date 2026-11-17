@@ -10,7 +10,7 @@ const browser = useBrowser()
 
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 
-// The desk's link carries rules: with none the Rules card stays one line tall, its - and + disabled and its height unkept.
+// The desk's link carries rules: with none the Rules card stays one line tall, its - and + hidden and its height unkept.
 const SOME_RULES = 'Put a digit from 1 to 9 in every cell.'
 
 const card = (page, name) => page.getByRole('region', { name })

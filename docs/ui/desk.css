@@ -90,6 +90,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-head wa-button { cursor: pointer; font-size: 12px; --wa-form-control-height: 22px; --wa-form-control-padding-inline: .65em; }
 /* Board's - / + / Fit and Rules's - / +: one joined group each. */
 .ui-zoom, .ui-rules-text { order: 2; display: flex; flex: none; }
+.ui-rules-text[hidden] { display: none; }
 :is(.ui-zoom, .ui-rules-text) wa-button:not(:first-child)::part(base) { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgba(0, 0, 0, .12); }
 :is(.ui-zoom, .ui-rules-text) wa-button:not(:last-child)::part(base) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 
@@ -125,7 +126,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-rules-item-text { min-width: 0; }
 .ui-rules-line a { color: #2f5bb2; }
 /* A link with no rules: a note on one line. */
-.ui-card-rules .ui-body.ui-rules-empty { min-height: 0; padding: 6px 12px; font-style: italic; color: #7a7d85; }
+.ui-card-rules .ui-body.ui-rules-empty { min-height: 0; padding: 6px 12px; font-style: italic; color: #5a5d66; }
 .ui-card-mouse { border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
 .ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 

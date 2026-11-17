@@ -739,8 +739,10 @@
         cards.rules.body.style.fontSize = isUsable ? `${kept}px` : '';
         const shown = parseFloat(getComputedStyle(cards.rules.body).fontSize);
         const hasNoRules = isRulesEmpty(cards.rules.node);
-        rulesText.smaller.disabled = hasNoRules || shown <= min;
-        rulesText.bigger.disabled = hasNoRules || shown >= max;
+        // Hidden, not just disabled: a link with no rules has no text to size, and a disabled button fails the contrast check.
+        rulesText.smaller.parentElement.hidden = hasNoRules;
+        rulesText.smaller.disabled = shown <= min;
+        rulesText.bigger.disabled = shown >= max;
     }
 
     function stepRulesText(desk, steps) {
