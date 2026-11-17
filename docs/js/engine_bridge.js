@@ -72,6 +72,17 @@
         shortcuts_enabled: BOOLEAN
     };
 
+    // The settings that only some puzzles use, by the genre tags that make them apply. Sudoku's tags are Penpa+'s own "Sudoku"
+    // group of genre tags, and a Sudoku grid applies whatever its tags.
+    // A puzzle with no genre tag shows them all: its genre is not known, and a tag a setter left off must not hide a setting it uses.
+    const untagged = () => pu.user_tags.length === 0;
+    const isSudoku = () => untagged() || pu.gridtype === 'sudoku' || pu.user_tags.some((tag) => penpa_tags.options.Sudoku.includes(tag));
+    const SETTING_GENRES = {
+        sudoku_centre_size: isSudoku,
+        sudoku_normal_size: isSudoku,
+        starbattle_dots: () => untagged() || pu.user_tags.includes('starbattle')
+    };
+
     // MVP gap: most setters save their own cookie, but custom_colors_on's does not, and shortcuts_enabled is in no cookie
     // list at all. Its cookie is read back before boot() runs, so a link's own override (an `alphabet` puzzle turns the
     // shortcuts off) still wins.
@@ -966,6 +977,12 @@
             const listed = Object.fromEntries(Object.entries(SETTINGS).map(([name, allowed]) =>
                 [name, allowed === BOOLEAN ? Boolean(UserSettings[name]) : UserSettings[name]]));
             return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
+        },
+
+        // The settings of the fixed list the open puzzle uses: every one, less the genre ones its genre tags rule out.
+        getPuzzleSettings() {
+            boardCanvas();
+            return Object.keys(SETTINGS).filter((name) => SETTING_GENRES[name]?.() ?? true);
         },
 
         // Changes one setting and saves it where Penpa+ saves it. An unknown name or a value the setting does not take throws and
