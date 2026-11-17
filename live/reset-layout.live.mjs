@@ -22,6 +22,7 @@ const FIT_SLACK_PX = 12
 const WIDE_BOARD_SLACK_PX = 50
 // How far apart the equal gaps may be, for rounding.
 const GAP_SLACK_PX = 2
+const SHORT_RULES = 'Put a digit from 1 to 9 in every cell.'
 const RULES = Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: put a digit from 1 to 9 in every cell so no row, column or box repeats one, and the clues around the grid hold.`).join('\n\n')
 
 // Runs in the page. A new board of `cols` x `rows` cells with the rules `rules`; returns its solve link's `#` part.
@@ -67,7 +68,7 @@ describe('Reset layout fits the desk to the puzzle', () => {
   afterEach(async () => { await opened?.context.close() })
 
   async function open (puzzle, contextOptions = FULL_HD) {
-    const link = await linkFromNewBoard(browser(), solveLinkInPage, { ...puzzle, rules: RULES })
+    const link = await linkFromNewBoard(browser(), solveLinkInPage, { rules: RULES, ...puzzle })
     opened = await openSolvePage(browser(), link, { contextOptions })
     await settle(() => boardFills(opened.page), true)
     return opened.page
@@ -130,7 +131,8 @@ describe('Reset layout fits the desk to the puzzle', () => {
   })
 
   it('gives the width the board leaves to both side columns alike, with no gap past the margin', async () => {
-    const page = await open({ cols: 9, rows: 9 })
+    // Rules that fit, so the left column starts at its narrowest rather than taking the width for long rules.
+    const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
     const { cards, desk } = await reset(page)
     const gaps = [
       cards.Mouse.x - desk.x,
@@ -159,7 +161,8 @@ describe('Reset layout fits the desk to the puzzle', () => {
   })
 
   it('shows every tool\'s Mouse rows without a scrollbar after Reset layout', async () => {
-    const page = await open({ cols: 9, rows: 9 })
+    // Rules that fit: long ones take 55% of the column, and Mouse then scrolls for its tallest tools.
+    const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
     await reset(page)
     const scrolling = await page.evaluate(async () => {
       const body = document.querySelector('section[aria-label="Mouse"] .ui-body')

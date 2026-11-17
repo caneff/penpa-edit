@@ -3,12 +3,15 @@
 // accessible name or test id; the board's size is what its canvas draws.
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, boardAgainstCard, openSolvePage, useBrowser } from './page.mjs'
+import { boardAgainstCard, newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
+
+// The desk's link carries rules: with none the Rules card stays one line tall, its - and + hidden and its height unkept.
+const SOME_RULES = 'Put a digit from 1 to 9 in every cell.'
 
 const card = (page, name) => page.getByRole('region', { name })
 
@@ -49,7 +52,7 @@ describe('the desk', () => {
   let opened
   let page
   beforeEach(async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE)
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES))
     page = opened.page
     await settle(async () => (await boardAgainstCard(page)).inside, true)
   })
@@ -181,17 +184,17 @@ describe('the desk', () => {
     assert.ok(once > start, `one click on bigger grows the text: ${start} then ${once}`)
     await bigger.click()
     const twice = await bodyFontSize('Rules')
-    assert.deepEqual([start, once, twice], [12, 14, 16], 'each click is one 2 px step from the default')
+    assert.deepEqual([start, once, twice], [14, 16, 18], 'each click is one 2 px step from the default')
     assert.equal(await bodyFontSize('Mouse'), mouseStart, 'no other card changes')
 
     for (let i = 0; i < 20 && await bigger.isEnabled(); i++) await bigger.click()
     assert.equal(await bigger.isEnabled(), false, 'bigger is disabled at the top of the range')
     const top = await bodyFontSize('Rules')
-    assert.equal(top, 28)
+    assert.equal(top, 20)
 
     await page.reload()
     await card(page, 'Rules').waitFor()
-    assert.equal(await settle(() => bodyFontSize('Rules'), 28), 28, 'the size survives a reload')
+    assert.equal(await settle(() => bodyFontSize('Rules'), 20), 20, 'the size survives a reload')
 
     await page.getByRole('button', { name: 'Reset layout' }).click()
     assert.equal(await settle(() => bodyFontSize('Rules'), start), start, 'Reset layout restores the default')
