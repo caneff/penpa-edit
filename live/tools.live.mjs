@@ -553,7 +553,7 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'sudoku', submode: '1' }, 'Sudoku > Normal', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
       ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
       ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit'],
-      ['Digit', 'digit in the selected cells'], ['Shift held', 'corner marks (square grids only)'], ['Ctrl + digit', '— (the browser keeps it)']]],
+      ['Digit', 'digit in the selected cells'], ['Shift held', 'corner marks (square grids only)'], ['Ctrl + digit', 'centre marks']]],
     [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
       ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
       ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit; on corner marks only: clear the selection'],

@@ -67,10 +67,10 @@ describe('browser keys', () => {
     })
   }
 
-  it('Ctrl+D, Ctrl+digit, PageDown, Home and a bare Alt are not prevented', async () => {
+  it('Ctrl+D, Ctrl+digit outside Sudoku, PageDown, Home and a bare Alt are not prevented', async () => {
     const { context, page } = await openSolve()
     try {
-      await setMode(page, 'sudoku')
+      await setMode(page, 'number')
       await clickCell(page, CELL)
       const before = await board(page)
       await page.evaluate(recordPreventionInPage)
@@ -81,6 +81,20 @@ describe('browser keys', () => {
       const prevented = await page.evaluate((names) => names.filter((k) => window.preventedKeys[k] !== false), keys)
       assert.deepEqual(prevented, [], 'each key was seen and left alone')
       assert.deepEqual(await board(page), before, 'none of them touched the board')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('Ctrl+digit in Sudoku writes a centre mark and is prevented, so Chrome does not switch tabs', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await setMode(page, 'sudoku')
+      await clickCell(page, CELL)
+      await page.evaluate(recordPreventionInPage)
+      await page.keyboard.press('Control+5')
+      assert.equal(await page.evaluate(() => window.preventedKeys['Ctrl+5']), true, 'the key is the board\'s')
+      assert.deepEqual(Object.values((await board(page)).entered.number ?? {}), [['5', 9, '6']], 'one centre mark was written')
     } finally {
       await context.close()
     }
