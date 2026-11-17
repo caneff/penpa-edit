@@ -188,6 +188,34 @@ export const solveLinkOfImport = (browser, url) => linkFromNewBoard(browser, asy
   return solve.slice(solve.indexOf('#'))
 }, url)
 
+// The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
+export const ICEBREAKER = {
+  title: 'Icebreaker (Nurikabe + Icelom)',
+  author: 'Agent',
+  rules: 'Shade some cells so that the shaded cells form one connected area. Each number is part of an unshaded region of ' +
+    'that size, and every unshaded region holds exactly one number. No 2x2 area is all shaded.\n\nIcelom: draw a path ' +
+    'from the entrance to the exit that follows every arrow it passes and visits every ice cell; on ice it goes straight ' +
+    'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
+  tabs: ['Surface', 'Line Normal', 'Composite']
+}
+
+// Runs in the page: a new board, 10x10 unless `size` says otherwise, with `puzzle`'s title, author, rules and Tab set; returns
+// its solve link's `#` part. `outsideClues` (numbers) give the board a one-cell margin all round and fill its first margin
+// cells with them.
+export function puzzleSolveLinkInPage ({ title, author, rules, tabs, size = 10, outsideClues = [] }) {
+  document.getElementById('nb_size1').value = size
+  document.getElementById('nb_size2').value = size
+  for (const side of [1, 2, 3, 4]) document.getElementById(`nb_space${side}`).value = outsideClues.length ? 1 : 0
+  create_newboard()
+  outsideClues.forEach((clue, i) => { pu.pu_q.number[pu.centerlist[i]] = [String(clue), 1, '1'] })
+  document.getElementById('saveinfotitle').value = title
+  document.getElementById('saveinfoauthor').value = author
+  document.getElementById('saveinforules').value = rules
+  UserSettings.tab_settings = tabs
+  const url = pu.maketext_solve()
+  return url.slice(url.indexOf('#'))
+}
+
 // Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
 // answer is a 2 in the cell at `answer`.
 export function buildNumberBoardInPage ({ given, answer }) {

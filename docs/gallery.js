@@ -61,7 +61,7 @@
     history.replaceState(null, '', `?puzzle=${GALLERY_PUZZLES[current].id}&size=${size}`)
   }
 
-  // Moves the selection by `step` and keeps focus on the entry chosen.
+  // Moves the selection one entry along (`by` is 1 or -1) and keeps focus on the entry chosen.
   function step (by) {
     const index = current + by
     if (index < 0 || index >= GALLERY_PUZZLES.length) return

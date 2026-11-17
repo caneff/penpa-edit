@@ -1,32 +1,10 @@
-// The puzzles the review page (`docs/gallery.html`, #256) lists: one place, read by the generator that writes
-// `docs/gallery-puzzles.js` and by the tests that check it. A puzzle with a recording takes its link from that
+// The puzzles the review page (`docs/gallery.html`, #256) lists, and where each one's link comes from. A puzzle with a recording takes its link from that
 // recording's `header.source`; the rest are built on a new board. Not a check itself, so `live/**/*.live.mjs` skips it.
 import { readFileSync } from 'node:fs'
-import { linkFromNewBoard, newBoardSolveLinkInPage } from './page.mjs'
+import { ICEBREAKER, linkFromNewBoard, newBoardSolveLinkInPage, puzzleSolveLinkInPage } from './page.mjs'
 
-// The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
-export const ICEBREAKER = {
-  title: 'Icebreaker (Nurikabe + Icelom)',
-  author: 'Agent',
-  rules: 'Shade some cells so that the shaded cells form one connected area. Each number is part of an unshaded region of ' +
-    'that size, and every unshaded region holds exactly one number. No 2x2 area is all shaded.\n\nIcelom: draw a path ' +
-    'from the entrance to the exit that follows every arrow it passes and visits every ice cell; on ice it goes straight ' +
-    'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
-  tabs: ['Surface', 'Line Normal', 'Composite']
-}
-
-// Runs in the page: a new board, 10x10 unless `size` says otherwise, with `puzzle`'s title, author, rules and Tab set; returns its solve link's `#` part.
-export function solveLinkInPage ({ title, author, rules, tabs, size = 10 }) {
-  document.getElementById('nb_size1').value = size
-  document.getElementById('nb_size2').value = size
-  create_newboard()
-  document.getElementById('saveinfotitle').value = title
-  document.getElementById('saveinfoauthor').value = author
-  document.getElementById('saveinforules').value = rules
-  UserSettings.tab_settings = tabs
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
+// The Icebreaker rules four times over, with clues outside the board: the long rules and outside clues the page is reviewed with.
+const ICEBREAKER_REVIEWED = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n'), outsideClues: [1, 2, 3, 4, 5, 6, 7, 8] }
 
 // Each puzzle: its id (the review page's address names it), the name, genre and grid shape the list shows, and where its
 // link comes from: a recording under `live/recordings/`, whose header also gives the engine's `gridtype` the page must open
@@ -38,7 +16,7 @@ const SPEC = [
   { id: 'starbattle', name: 'Star Battle', genre: 'Star Battle', shape: '10x10', recording: 'solve/starbattle' },
   { id: 'slitherlink', name: 'Slitherlink', genre: 'Slitherlink', shape: '5x5', recording: 'solve/slitherlink' },
   { id: 'or-shading', name: 'Or-shading', genre: 'Shading', shape: '5x5', recording: 'solve/or-shading' },
-  { id: 'icebreaker', name: 'Icebreaker', genre: 'Nurikabe + Icelom, long rules', shape: '10x10', gridtype: 'square', build: (browser) => linkFromNewBoard(browser, solveLinkInPage, ICEBREAKER) },
+  { id: 'icebreaker', name: 'Icebreaker', genre: 'Nurikabe + Icelom, long rules, outside clues', shape: '10x10', gridtype: 'square', build: (browser) => linkFromNewBoard(browser, puzzleSolveLinkInPage, ICEBREAKER_REVIEWED) },
   { id: 'rectangle', name: 'Arukone 14x9', genre: 'Arukone', shape: '14x9, not square', recording: 'genre/arukone' },
   { id: 'hex', name: 'Hex grid', genre: 'Sudoku', shape: 'hexagonal', recording: 'grid/hex-sudoku' },
   { id: 'triangle', name: 'Triangle grid', genre: 'Sudoku', shape: 'triangular', recording: 'grid/tri-sudoku' },

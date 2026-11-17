@@ -4,8 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
-import { ICEBREAKER, solveLinkInPage } from './gallery-puzzles.mjs'
-import { afterChange, linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
+import { afterChange, ICEBREAKER, linkFromNewBoard, openSolvePage, puzzleSolveLinkInPage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -99,7 +98,7 @@ const barButton = (page, name) => page.locator('.ui-bar wa-button')
 const links = new Map()
 function linkFor (puzzle) {
   const key = JSON.stringify(puzzle)
-  if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), solveLinkInPage, puzzle))
+  if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), puzzleSolveLinkInPage, puzzle))
   return links.get(key)
 }
 

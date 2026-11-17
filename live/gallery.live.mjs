@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { galleryEntries, renderGalleryFile } from './gallery-puzzles.mjs'
-import { openPenpa, useBrowser } from './page.mjs'
+import { openPenpa, openSolvePage, useBrowser } from './page.mjs'
 
 const browser = useBrowser()
 
@@ -15,6 +15,8 @@ const GALLERY_URL = new URL('../docs/gallery.html', import.meta.url).href
 // The puzzles the ticket lists, by id, in the order the list shows them.
 const IDS = ['sudoku-9x9', 'sudoku-6x6', 'killer', 'starbattle', 'slitherlink', 'or-shading', 'icebreaker', 'rectangle', 'hex', 'triangle', 'no-rules']
 const SIZES = { '1366x768': { width: 1366, height: 768 }, '1920x1080': { width: 1920, height: 1080 } }
+// Longer than a board takes to draw on a loaded box.
+const BOARD_MS = 15000
 const WINDOW = { viewport: { width: 1600, height: 900 } }
 
 // The entries the page lists, read from the file it loads.
@@ -29,12 +31,30 @@ const open = (query = '') => openPenpa(browser(), query, {
   ready: () => document.querySelectorAll('#puzzle-list [data-id]').length > 0
 })
 
-// The solve page the iframe holds, once its board is up.
-async function boardFrame (page) {
+// The solve page the iframe holds, once its board is up; a board that does not come up fails naming `id`.
+async function boardFrame (page, id) {
   const frame = await (await page.locator('#stage iframe').elementHandle()).contentFrame()
-  await page.frameLocator('#stage iframe').getByRole('region', { name: 'Board' }).waitFor()
-  await frame.evaluate(() => engine.ready)
+  try {
+    await page.frameLocator('#stage iframe').getByRole('region', { name: 'Board' }).waitFor({ timeout: BOARD_MS })
+    await frame.evaluate(() => engine.ready)
+  } catch (e) {
+    throw new Error(`${id}: its board did not load: ${e.message}`, { cause: e })
+  }
   return frame
+}
+
+// The puzzle a solve page holds: its size and everything the setter put on it.
+const puzzleOf = (frame) => frame.evaluate(() => ({ nx: pu.nx, ny: pu.ny, setter: JSON.stringify(pu.pu_q) }))
+
+// The puzzle `entry`'s link opens on `solve.html` by itself, outside the review page, so a puzzle of the same grid type
+// opened in its place does not pass.
+async function directPuzzle (entry) {
+  const { context, page } = await openSolvePage(browser(), entry.link)
+  try {
+    return await puzzleOf(page)
+  } finally {
+    await context.close()
+  }
 }
 
 const selectedId = (page) => page.locator('#puzzle-list [aria-current="true"]').getAttribute('data-id')
@@ -49,7 +69,7 @@ describe('the review page', () => {
   it('opens the first puzzle and puts the puzzle and size in the address', async () => {
     const { page } = await open()
     assert.equal(await selectedId(page), IDS[0])
-    assert.equal((await boardFrame(page)).url().includes('solve.html'), true)
+    assert.match((await boardFrame(page, IDS[0])).url(), /\/solve\.html#/)
     const params = new URL(page.url()).searchParams
     assert.deepEqual([params.get('puzzle'), params.get('size')], [IDS[0], 'fill'])
   })
@@ -62,14 +82,16 @@ describe('the review page', () => {
     assert.equal(await previous.isDisabled(), true, 'nothing before the first')
     for (const [i, entry] of entries.entries()) {
       assert.equal(await selectedId(page), entry.id)
-      assert.equal(await (await boardFrame(page)).evaluate(() => pu.gridtype), entry.gridtype, `${entry.id} loads its board`)
+      const frame = await boardFrame(page, entry.id)
+      assert.equal(await frame.evaluate(() => pu.gridtype), entry.gridtype, `${entry.id} loads a ${entry.gridtype} board`)
+      assert.deepEqual(await puzzleOf(frame), await directPuzzle(entry), `${entry.id} loads its own board`)
       if (i < entries.length - 1) await next.click()
     }
     assert.equal(await next.isDisabled(), true, 'nothing after the last')
     for (const entry of entries.slice(0, -1).reverse()) {
       await previous.click()
       assert.equal(await selectedId(page), entry.id)
-      await boardFrame(page)
+      await boardFrame(page, entry.id)
     }
     assert.equal(await previous.isDisabled(), true)
   })
@@ -84,7 +106,7 @@ describe('the review page', () => {
     assert.equal(await selectedId(page), IDS[1])
     await page.locator(`#puzzle-list [data-id="killer"]`).click()
     assert.equal(await selectedId(page), 'killer')
-    await boardFrame(page)
+    await boardFrame(page, 'killer')
   })
 
   it('lays the solve page out at the size picked', async () => {
@@ -92,7 +114,7 @@ describe('the review page', () => {
     for (const [name, want] of Object.entries(SIZES)) {
       await page.getByRole('combobox', { name: 'Size' }).selectOption(name)
       assert.deepEqual(await frameBox(page), want, `${name} sets the iframe's size`)
-      assert.equal(await (await boardFrame(page)).evaluate(() => innerWidth), want.width, `${name} is the solve page's window`)
+      assert.equal(await (await boardFrame(page, name)).evaluate(() => innerWidth), want.width, `${name} is the solve page's window`)
       assert.equal(new URL(page.url()).searchParams.get('size'), name)
     }
     await page.getByRole('combobox', { name: 'Size' }).selectOption('fill')
@@ -108,7 +130,7 @@ describe('the review page', () => {
     await page.reload()
     assert.equal(await selectedId(page), 'killer')
     assert.deepEqual(await frameBox(page), SIZES['1920x1080'])
-    await boardFrame(page)
+    await boardFrame(page, 'killer')
   })
 
   it('falls back to the first puzzle and fill for an address it does not know', async () => {
