@@ -21,6 +21,9 @@
     // The row that holds the Clear saved progress button, in the group its rows are listed in.
     const CLEAR_PROGRESS_ROW = ['clear saved progress'];
 
+    // The row that holds the Keyboard shortcuts button, in the group its rows are listed in.
+    const SHEET_ROW = ['keyboard shortcuts'];
+
     // One line under a setting whose name is Penpa+'s own jargon.
     const HELP = {
         secondcolor: 'The colour Surface uses for its second shading style.',
@@ -54,7 +57,8 @@
             CLEAR_PROGRESS_ROW
         ]],
         ['Keys', [
-            ['shortcuts_enabled', 'Z, X, C and V shortcuts']
+            ['shortcuts_enabled', 'Z, X, C and V shortcuts'],
+            SHEET_ROW
         ]]
     ];
 
@@ -125,7 +129,15 @@
         });
         clear.addEventListener('click', () => { clearDialog.open = true; });
 
+        const sheetButton = el('wa-button', { size: 's' }, ['Keyboard shortcuts']);
+        sheetButton.addEventListener('click', () => {
+            dialog.open = false;
+            window.shortcutSheet.open();
+        });
+        const sheetRow = el('div', { class: 'ui-setting' }, [sheetButton]);
+
         const clearRow = el('div', { class: 'ui-setting' }, [clear, cleared]);
+        const specialRows = new Map([[CLEAR_PROGRESS_ROW, clearRow], [SHEET_ROW, sheetRow]]);
 
         // ---- The desk's own settings, kept by the UI in localStorage --------------------------------------------------
 
@@ -176,7 +188,7 @@
                 el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), pageGroup, pinsGroup, aboutGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (specialRows.get(row) ?? control(row)))])), pageGroup, pinsGroup, aboutGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
