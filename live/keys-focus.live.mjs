@@ -95,9 +95,11 @@ describe('with Settings open', () => {
     const { page } = opened
     await page.evaluate(() => { let f = document.activeElement; while (f?.shadowRoot?.activeElement) f = f.shadowRoot.activeElement; f.blur() })
     assert.equal(await boardHasFocus(page), true, 'the body has focus')
+    // Z picks the first pin and X the second: pressing the one the current tool is not changes the tool if the key leaks.
+    const wrongKey = (await toolMode(page)) === 'line' ? 'x' : 'z'
     const before = JSON.stringify([await board(page), await currentTool(page)])
     await page.keyboard.press('5')
-    await page.keyboard.press('x')
+    await page.keyboard.press(wrongKey)
     assert.equal(JSON.stringify([await board(page), await currentTool(page)]), before)
   })
 
