@@ -21,7 +21,7 @@
     const PLAIN_CONTROL = 'button, wa-button, .ui-card';
     const BOARD = '.ui-card-board canvas';
     const HAND_BACK_BUTTON = '.ui-bar wa-button, .ui-head wa-button';
-    const DIALOG_CONTROL = 'wa-button, wa-input, wa-select, wa-switch, wa-checkbox, button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const DIALOG_CONTROL = 'a[href], wa-button, wa-input, wa-select, wa-switch, wa-checkbox, button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
     function elementsOf(path) {
         return path.filter((node) => node instanceof Element);
