@@ -346,7 +346,7 @@ describe('the pin toggles', () => {
     assert.equal(await modeCard(page).getByRole('button', { name: 'Pin Surface' }).getAttribute('aria-pressed'), 'false')
   })
 
-  it('gives each Recent chip a pin that toggles its mode and leaves the current tool alone', async () => {
+  it('gives each Recent chip a pin that pins its tool and leaves the current tool alone', async () => {
     const { page } = opened
     await setTool(page, { mode: 'wall', submode: null })
     await afterChange(page)

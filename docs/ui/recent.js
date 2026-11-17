@@ -48,6 +48,7 @@
         function render() {
             noteCurrentTool();
             const currentKey = toolKey(engine.getTool());
+            // Pinned by `isPinned`'s identity, the mode and sub-mode, so a pin on `Surface` hides it whatever style it was used with.
             const shown = entries.filter((entry) => !window.pinBoard.isPinned(entry)).slice(0, MAX_ENTRIES);
             const signature = JSON.stringify([shown, currentKey]);
             if (signature !== drawn) {
