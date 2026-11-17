@@ -8,7 +8,7 @@
     const SWATCHES_IN_TWO_ROWS = 12;
     const TWO_ROWS = 2;
     const { NOTHING, SECOND_COLOUR_DOT, mouseRows, toolKey, chipLabel } = window.toolGuide;
-    const { el, onDeskReady } = window.uiKit;
+    const { el, luminance, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
     const MOUSE_BODY_SLACK_PX = 2;
@@ -21,14 +21,12 @@
 
     // White or black, whichever reads better on `colour`: no one ink holds a mid tone at 4.5:1, and the better of these two never falls
     // under it. The canvas reads any CSS colour back as #rrggbb.
-    const channelLinear = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
     function pillFor(colour) {
         const ctx = document.createElement('canvas').getContext('2d');
         ctx.fillStyle = colour;
-        const [r, g, b] = [1, 3, 5].map((i) => channelLinear(parseInt(ctx.fillStyle.slice(i, i + 2), 16)));
-        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        const lum = luminance([1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16)));
         // Contrast with white is 1.05 / (L + .05); with black, (L + .05) / .05.
-        return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05 ? '#ffffff' : '#000000';
+        return 1.05 / (lum + 0.05) >= (lum + 0.05) / 0.05 ? '#ffffff' : '#000000';
     }
 
     // The colour a tool's selected style paints, or null for a tool with no colour style.

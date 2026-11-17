@@ -1,5 +1,5 @@
 // One name per tool across the Mode card, the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
-// (#190), the tool-change banner and the Board card's colour cue. The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
+// (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
 import { afterChange, chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
