@@ -1,5 +1,5 @@
 // The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the desk's own
-// (theme, layout, pins and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// (theme, layout and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
 // Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';

@@ -19,7 +19,6 @@
     const THIS_PUZZLE = 'This puzzle';
     const PUZZLE_DEFAULTS = 'Puzzle defaults';
     const PUZZLE_DEFAULTS_NOTE = 'the pins this puzzle\'s link opens with';
-    const PUZZLE_DEFAULTS_KEY = 'puzzle-defaults';
     // How long the line offering an Undo stays, when nothing else clears it.
     const UNDO_VISIBLE_MS = 8000;
 
@@ -256,11 +255,11 @@
             picker.redraw();
         }
 
-        // The entry that resets the pins to the link's own set; the words after the name are what a search for "reset" finds.
+        // The entry that resets the pins to the Tab set; its description stays out of the haystack, or a partial genre name ("pen", "li") would match it and Enter would load it.
         const puzzleDefaults = {
-            key: PUZZLE_DEFAULTS_KEY,
+            key: 'puzzle-defaults',
             preset: { name: PUZZLE_DEFAULTS, isPuzzleDefaults: true },
-            haystack: `${PUZZLE_DEFAULTS} ${PUZZLE_DEFAULTS_NOTE} default reset`.toLowerCase()
+            haystack: `${PUZZLE_DEFAULTS} reset`.toLowerCase()
         };
 
         function groups() {

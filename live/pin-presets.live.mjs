@@ -206,12 +206,25 @@ describe('typing in the preset field', () => {
       await presetField(page).fill(word)
       assert.equal((await offered(page)).some((t) => t.startsWith('Puzzle defaults')), true, `${word} finds it`)
     }
+    await presetField(page).fill('')
+    await star(page, 'Masyu').click()
     await presetField(page).fill('default')
     await page.keyboard.press('ArrowDown')
+    assert.equal(await presetList(page).locator('[role=option][aria-selected=true]').innerText().then((t) => t.startsWith('Puzzle defaults')), true, 'it is highlighted')
     await page.keyboard.press('Shift+Enter')
-    assert.equal(await presetList(page).getByRole('group', { name: 'Favourites' }).count(), 0, 'Shift+Enter stars nothing')
+    await presetField(page).fill('')
+    assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'], 'Shift+Enter starred nothing, and the stars survive')
+    await star(page, 'Masyu').click()
     await page.keyboard.press('Escape')
     await closed(page)
+  })
+
+  it('a partial genre name and Enter load the genre, not Puzzle defaults', async () => {
+    const { page } = opened
+    await presetField(page).click()
+    await presetField(page).fill('pen')
+    await page.keyboard.press('Enter')
+    await pinnedCard(page).locator('.ui-preset-undo').getByText('Loaded “Pentominous”.').waitFor()
   })
 
   it('Puzzle defaults replaces the pins and shows the Undo line', async () => {

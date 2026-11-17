@@ -140,6 +140,8 @@ describe('pin colours', () => {
     await loadPreset(page, 'Slitherlink')
     await undoLine(page).getByRole('button', { name: /^Undo/ }).click()
     assert.deepEqual(await settle(() => chipColours(page), before), before)
+    await loadPreset(page, 'Slitherlink')
+    assert.notDeepEqual(await settle(() => chipTexts(page), names), names, 'other pins are showing')
     await loadPreset(page, 'Puzzle defaults')
     assert.deepEqual(await settle(() => chipTexts(page), names), names)
     assert.deepEqual(await chipColours(page), before)
@@ -199,7 +201,7 @@ describe('the chips', () => {
 })
 
 describe('Settings', () => {
-  it('no longer holds a pin reset: the preset picker offers it', withPage(async (page) => {
+  it('has no Reset pins button', withPage(async (page) => {
     await page.getByRole('button', { name: 'Settings' }).click()
     await page.getByRole('button', { name: 'Reset layout' }).first().waitFor()
     assert.equal(await page.getByRole('button', { name: /Reset pins/ }).count(), 0)
