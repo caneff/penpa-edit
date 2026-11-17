@@ -90,7 +90,7 @@ describe('the keyboard on the solve page', () => {
 
   it('Escape in the pin-name field closes the form, empties the field and gives the board the focus', async () => {
     const { page } = opened
-    const open = () => page.getByRole('button', { name: 'Save pins as a preset' }).click()
+    const open = () => page.getByRole('button', { name: 'Save pins…' }).click()
     const field = page.getByRole('textbox', { name: 'Preset name' })
     await open()
     await page.keyboard.type('abc')

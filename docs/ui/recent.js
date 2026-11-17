@@ -1,4 +1,4 @@
-// The Recent card: the last five tools the solver used that are not pinned, newest first, as pin chips without number or ×, each with a pin toggle from `window.pinBoard` (pins.js). Kept for this visit
+// The Recent card: the last five tools the solver used that are not pinned, newest first, as pin chips without a shortcut key or ×, each with a pin toggle from `window.pinBoard` (pins.js). Kept for this visit
 // only, and outside the Tab cycle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';

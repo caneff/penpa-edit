@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { currentTool, newBoardSolveLink, openPenpa, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { choosePreset, closed, nameField, openList, pinnedCard, presetField, presetList, saveButton, savePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -27,20 +28,6 @@ const openSolve = (hash) => openSolvePage(browser(), hash)
 
 const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
 
-const pinnedCard = (page) => page.getByRole('region', { name: 'Pinned' })
-const presetField = (page) => pinnedCard(page).getByRole('combobox', { name: 'Pin presets' })
-const presetList = (page) => pinnedCard(page).getByRole('listbox', { name: 'Presets' })
-const closed = (page) => presetList(page).waitFor({ state: 'hidden' })
-const openList = async (page) => {
-  await closed(page)
-  await presetField(page).click()
-  await presetList(page).waitFor()
-}
-const choosePreset = async (page, name) => {
-  await openList(page)
-  await presetList(page).getByRole('option', { name, exact: true }).click()
-  await closed(page)
-}
 const offered = (page) => presetList(page).getByRole('option').allInnerTexts()
 const groupTitles = (page) => presetList(page).getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')))
 const optionsOfGroup = (page, title) => presetList(page).getByRole('group', { name: title }).getByRole('option').allInnerTexts()
@@ -58,7 +45,7 @@ async function tabToNextTool (page) {
 // The tools the pins hold, in order: starts on the first pin and Tabs round once.
 async function walkPins (page, count) {
   const keys = []
-  await pinnedCard(page).getByRole('button', { name: /^1/ }).click()
+  await pinnedCard(page).getByRole('button', { name: /^Z/ }).click()
   keys.push(toolKeyOf(await currentTool(page)))
   for (let i = 1; i < count; i++) {
     keys.push(await tabToNextTool(page))
@@ -73,15 +60,6 @@ const seedSavedPresets = async (page, presets) => {
   await waitForDesk(page)
 }
 
-const nameField = (page) => pinnedCard(page).getByRole('textbox', { name: 'Preset name' })
-const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save pins as a preset', exact: true })
-
-// Saves the pins as `name` through the save icon's inline form.
-const savePreset = async (page, name) => {
-  await saveButton(page).click()
-  await nameField(page).fill(name)
-  await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).click()
-}
 
 const chipCount = (page) => pinnedCard(page).getByRole('button', { name: /^Unpin / }).count()
 
@@ -358,15 +336,16 @@ describe('saving a preset', () => {
   before(async () => { opened = await openSolve(await link(['Line Normal', 'Sudoku Corner'])) })
   after(async () => { await opened?.context.close() })
 
-  it('is an icon button with a tooltip, which opens a field that says what it is for', async () => {
+  it('is a button that says "Save pins…" in visible text, apart from the load field, and opens a field that says what it is for', async () => {
     const { page } = opened
-    assert.equal(await saveButton(page).getAttribute('title'), 'Save pins as a preset')
+    // The role finds the button inside the web component, whose text is a slot; the host holds the text the solver reads.
+    const host = pinnedCard(page).locator('wa-button.ui-preset-save')
+    assert.equal(await settle(async () => (await host.innerText()).trim(), 'Save pins…'), 'Save pins…')
+    const [button, field] = await Promise.all([saveButton(page).boundingBox(), presetField(page).boundingBox()])
+    assert.ok(button.x >= field.x + field.width + 6, `the button starts ${button.x - (field.x + field.width)} px clear of the load field`)
     await saveButton(page).click()
     assert.equal(await nameField(page).getAttribute('placeholder'), 'Name this pin set')
     await page.keyboard.press('Escape')
-    const host = pinnedCard(page).locator('wa-button[title="Save pins as a preset"]')
-    assert.equal(await host.locator('svg').count(), 1, 'it shows an icon')
-    assert.equal(await host.evaluate((node) => [...node.childNodes].filter((n) => n.nodeType === 3 || (n.nodeType === 1 && !n.matches('svg, .ui-sr-only'))).length), 0, 'and no text')
   })
 
   it('survives a reload, is listed under Your presets and appears on another puzzle', async () => {
@@ -415,9 +394,7 @@ describe('deleting a saved preset', () => {
     await deleteButton(page, 'First').click()
     assert.deepEqual(await optionsOfGroup(page, 'Your presets'), ['Second'])
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.name).join()), 'Second')
-    await page.keyboard.press('Escape')
     await pinnedCard(page).getByRole('button', { name: 'Undo delete of First' }).click()
-    await openList(page)
     assert.deepEqual(await optionsOfGroup(page, 'Your presets'), ['First', 'Second'], 'undo puts it back where it was')
     await deleteButton(page, 'Second').click()
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.name).join()), 'First')
@@ -442,9 +419,7 @@ describe('deleting a saved preset', () => {
     await deleteButton(page, 'First').click()
     assert.equal(await hasFavourites(page), false)
     assert.equal(await page.evaluate(() => localStorage.getItem('chinstrap.pinPresetStars')), '[]', 'the deleted preset is no longer starred in storage')
-    await page.keyboard.press('Escape')
     await pinnedCard(page).getByRole('button', { name: 'Undo delete of First' }).click()
-    await openList(page)
     assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['First'])
     await star(page, 'First').click()
     await page.keyboard.press('Escape')
