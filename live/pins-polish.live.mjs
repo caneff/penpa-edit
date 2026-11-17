@@ -206,8 +206,8 @@ describe('swatches', () => {
     await setTool(page, { mode: 'multicolor', submode: null })
     await waitForTool(page, { mode: 'multicolor', submode: null })
     await swatchGroup(page).first().waitFor()
-    const texts = await swatchGroup(page).allInnerTexts()
-    assert.deepEqual(texts.map((t) => t.trim()), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '11', '12'])
+    const texts = await swatchGroup(page).evaluateAll((nodes) => nodes.map((n) => n.textContent.trim()))
+    assert.deepEqual(texts, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '11', '12'])
     // The card lays out after the swatches appear, so the rows are read until they settle at six and six.
     const rowCounts = () => swatchGroup(page).evaluateAll((nodes) => {
       const rows = {}
