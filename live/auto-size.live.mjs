@@ -75,6 +75,22 @@ describe('the Mode card while stepping through the pins', () => {
     assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: { ...reads[0].mode, overflow: 0 }, recentTop: reads[0].recentTop })), JSON.stringify(reads))
   })
 
+  it('is as tall as its tallest pin needs, though fitted while a shorter pin was current', async () => {
+    const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
+    opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
+    const { page } = opened
+    // Line > Normal, and the tool with the most styles, whose rows need more than the card's smallest height.
+    await page.evaluate(() => {
+      const line = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === 'Line > Normal')
+      const most = [...engine.listTools()].sort((a, b) => b.styles.length - a.styles.length)[0]
+      window.pinBoard.replace([line, most])
+      engine.setTool(line)
+    })
+    await page.getByRole('button', { name: 'Reset layout' }).click()
+    const reads = await stepThroughPins(page)
+    assert.deepEqual(reads.map(({ mode }) => mode), reads.map(() => ({ ...reads[0].mode, overflow: 0 })), JSON.stringify(reads))
+  })
+
   it('keeps one height, and Recent one top, with the Classic sudoku preset', async () => {
     opened = await openSolvePage(browser(), await solveLinkOfImport(browser(), IMPORTS['sudoku-9x9']), { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
