@@ -3,10 +3,12 @@
 (function () {
     'use strict';
 
-    // Keys the browser keeps in every mode. Penpa+'s own Ctrl+D (clone) and Ctrl+digit are dropped for the same reason.
+    // Keys the browser keeps in every mode. Penpa+'s own Ctrl+D (clone) is dropped for the same reason.
     const BROWSER_KEYS = ['F1', 'F2', 'F3', 'F5', 'F11', 'F12', 'PageDown', 'Home', 'Alt'];
     const BROWSER_ALT_KEYS = ['ArrowLeft', 'ArrowRight'];
+    // The browser's tab switch, kept except where the Centre tool is in use: Ctrl lends it in Sudoku and Ctrl + digit then writes a mark.
     const BROWSER_CTRL_DIGIT = /^Digit[1-9]$/;
+    const CENTRE_TOOL = { mode: 'sudoku', submode: '3' };
     // Penpa+'s pause toggle, the one key a paused board answers.
     const RESUME_KEY = 'F4';
 
@@ -30,7 +32,12 @@
         return BROWSER_KEYS.includes(e.key) ||
             (e.altKey && BROWSER_ALT_KEYS.includes(e.key)) ||
             (ctrl && e.key.toLowerCase() === 'd') ||
-            (ctrl && BROWSER_CTRL_DIGIT.test(e.code));
+            (ctrl && BROWSER_CTRL_DIGIT.test(e.code) && !centreToolInUse());
+    }
+
+    function centreToolInUse() {
+        const { mode, submode } = engine.getTool();
+        return mode === CENTRE_TOOL.mode && submode === CENTRE_TOOL.submode;
     }
 
     // Walks the event's path, so it sees inside Web Awesome's shadow DOM.
