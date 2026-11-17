@@ -2,7 +2,7 @@
 // the safety net's, any other change runs them all, and the parts CI spreads them over hold each file once.
 import assert from 'node:assert/strict'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -16,15 +16,13 @@ describe('chooseLiveFiles', () => {
   it('runs every live file but the safety net when each changed file is on the skip list', () => {
     const changed = ['docs/ui/pins.js', 'docs/ui/desk.css', 'research/notes.md', 'adr/0001-x.md', 'docs/agents.md',
       'GLOSSARY.md', 'live/pins.live.mjs']
-    const { full, files, reason } = chooseLiveFiles(changed, ALL)
-    assert.equal(full, false)
+    const { files, reason } = chooseLiveFiles(changed, ALL)
     assert.deepEqual(files, [...SOLVE_UI_FILES].sort())
     assert.match(reason, /7 changed files are all on the skip list/)
   })
 
   it('runs the full set when a change mixes skip-list paths with one off it, and names that path', () => {
-    const { full, files, reason } = chooseLiveFiles(['docs/ui/pins.js', 'docs/js/class_p.js'], ALL)
-    assert.equal(full, true)
+    const { files, reason } = chooseLiveFiles(['docs/ui/pins.js', 'docs/js/class_p.js'], ALL)
     assert.deepEqual(files, ALL)
     assert.match(reason, /docs\/js\/class_p\.js is off the skip list/)
   })
@@ -34,15 +32,12 @@ describe('chooseLiveFiles', () => {
     'live/engine-replay-0.live.mjs', 'live/fuzz.live.mjs', 'package.json', 'package-lock.json',
     '.github/workflows/ci.yml', 'test/run-live.test.mjs']) {
     it(`runs the full set for a change to ${path}`, () => {
-      const { full, files } = chooseLiveFiles([path], ALL)
-      assert.equal(full, true)
-      assert.deepEqual(files, ALL)
+      assert.deepEqual(chooseLiveFiles([path], ALL).files, ALL)
     })
   }
 
   it('runs the full set for an empty change', () => {
-    const { full, files, reason } = chooseLiveFiles([], ALL)
-    assert.equal(full, true)
+    const { files, reason } = chooseLiveFiles([], ALL)
     assert.deepEqual(files, ALL)
     assert.match(reason, /no changed file/)
   })
@@ -80,8 +75,11 @@ function scratchRepo () {
 }
 
 const RUN_LIVE = fileURLToPath(new URL('../live/run-live.mjs', import.meta.url))
+// Without NODE_TEST_CONTEXT, which makes a child runner report to this one instead.
+const { NODE_TEST_CONTEXT, ...ENV } = process.env
+const runLive = (dir, ...args) => spawnSync(process.execPath, [RUN_LIVE, ...args], { cwd: dir, env: ENV, encoding: 'utf8' })
 const list = (dir, ...args) => {
-  const out = spawnSync(process.execPath, [RUN_LIVE, '--list', ...args], { cwd: dir, encoding: 'utf8' })
+  const out = runLive(dir, '--list', ...args)
   assert.equal(out.status, 0, out.stderr)
   return { files: out.stdout.split('\n').filter(Boolean), said: out.stderr }
 }
@@ -117,11 +115,41 @@ describe('node live/run-live.mjs', () => {
     assert.match(said, /no --base/)
   })
 
+  it('does not count a workspace\'s symlinked node_modules as changed', () => {
+    const { dir } = scratchRepo()
+    symlinkSync(tmpdir(), join(dir, 'node_modules'))
+    writeFileSync(join(dir, 'docs/ui/pins.js'), '// two\n')
+    assert.deepEqual(list(dir, '--base', 'master').files, ['live/pins.live.mjs'])
+  })
+
   it('fails, running nothing, when the base cannot be read', () => {
     const { dir } = scratchRepo()
-    const out = spawnSync(process.execPath, [RUN_LIVE, '--list', '--base', 'no-such-ref'], { cwd: dir, encoding: 'utf8' })
+    const out = runLive(dir, '--list', '--base', 'no-such-ref')
     assert.notEqual(out.status, 0)
     assert.equal(out.stdout, '')
+  })
+
+  it('fails when no live file is found, rather than passing having run none', () => {
+    const { dir } = scratchRepo()
+    rmSync(join(dir, 'live'), { recursive: true })
+    assert.notEqual(runLive(dir, '--list').status, 0)
+  })
+
+  for (const part of ['0/4', '5/4', '4']) {
+    it(`fails on --part ${part}, rather than passing having run nothing`, () => {
+      assert.notEqual(runLive(scratchRepo().dir, '--list', '--part', part).status, 0)
+    })
+  }
+
+  // node --test given no file runs its default glob, which here holds a failing test.
+  it('runs nothing for an empty part', () => {
+    const { dir } = scratchRepo()
+    rmSync(join(dir, 'live/engine-replay-0.live.mjs'))
+    mkdirSync(join(dir, 'test'))
+    writeFileSync(join(dir, 'test/fails.test.mjs'), "import { it } from 'node:test'\nit('fails', () => { throw new Error('ran') })\n")
+    const out = runLive(dir, '--part', '2/2')
+    assert.equal(out.status, 0, out.stdout + out.stderr)
+    assert.match(out.stderr, /part 2 of 2: 0 files/)
   })
 
   it('lists only its own part with --part', () => {

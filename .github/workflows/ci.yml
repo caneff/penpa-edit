@@ -4,7 +4,6 @@ on:
   push:
     branches: [master]
   pull_request:
-  # The nightly full seam (`nightly.yml`).
   workflow_call:
 
 permissions:
@@ -48,7 +47,7 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '' }}
         run: |
           mkdir -p "$RUNNER_TEMP/logs"
-          node live/run-live.mjs $BASE --part ${{ matrix.part }}/4 2>&1 | tee "$RUNNER_TEMP/logs/live-${{ matrix.part }}.log"
+          node live/run-live.mjs $BASE --part ${{ matrix.part }}/${{ strategy.job-total }} 2>&1 | tee "$RUNNER_TEMP/logs/live-${{ matrix.part }}.log"
       - if: failure()
         uses: actions/upload-artifact@v7
         with:

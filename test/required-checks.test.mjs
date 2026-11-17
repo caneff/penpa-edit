@@ -20,6 +20,9 @@ function checkIds (file) {
   return [...jobs.matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]).filter((id) => !parts.includes(id)).sort()
 }
 
+// The text of ci.yml's job `<id>`, up to the next job.
+const ciJob = (id) => readFileSync(path('.github/workflows/ci.yml'), 'utf8').match(new RegExp(`^ {2}${id}:\n[\\s\\S]*?(?=^ {2}[\\w#-]|(?![\\s\\S]))`, 'm'))?.[0] ?? ''
+
 describe('the master ruleset', () => {
   it('targets master alone, with only the admin role able to bypass it', () => {
     assert.equal(ruleset.target, 'branch')
@@ -34,6 +37,16 @@ describe('the master ruleset', () => {
 
   it("requires exactly ci.yml's checks, and not the parts `test` waits on", () => {
     assert.deepEqual(required, checkIds('.github/workflows/ci.yml'))
+  })
+
+  // A required check that is skipped counts as passed, so `test` must run when a part fails, and fail then.
+  it('has `test` run whatever its parts did, and pass only when each of them passed (#268)', () => {
+    const test = ciJob('test')
+    assert.match(test, /^ {4}needs: \[unit, live\]$/m)
+    assert.match(test, /^ {4}if: always\(\)$/m)
+    assert.match(test, /UNIT: \$\{\{ needs\.unit\.result \}\}/)
+    assert.match(test, /LIVE: \$\{\{ needs\.live\.result \}\}/)
+    assert.match(test, /^ {10}\[\[ \$UNIT == success && \$LIVE == success \]\]$/m)
   })
 
   it('is satisfied by the statuses the nightly upstream merge posts', () => {

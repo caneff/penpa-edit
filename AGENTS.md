@@ -55,7 +55,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   safety net's (the engine and UI drivers' replays `live/engine-replay-*.live.mjs`, `live/ui-replay-*.live.mjs` and
   `live/replay.live.mjs`, the fuzz, Tier C, the plants' `live/safety-net.live.mjs` and `live/upstream-links.live.mjs`); any
   other changed file, or none, runs the full set, and it prints which set it chose and why. `npm run test:live` is the full
-  set: it runs
+  set: it runs, through the same script,
   `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/pin-card.mjs`, `live/settle.mjs`, `live/upstream-docs.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/ui-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs`, `live/tier-c.mjs` and `live/tier-c-puzzles.mjs`), replays every
   recording under `live/recordings/` on the engine driver against its expected file (one with none fails), replays the
   hand-made recordings and a sample of the generated ones on the UI driver against the engine driver, on Penpa+'s page
@@ -65,10 +65,10 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `live/recordings/solve/` are written by `node live/generate-tier-c.mjs`, a solver's history by its `--history`. It also opens the Penpa links the fork writes (the save dialog's, the progress store's; not the .pp and .gmp file texts) on `upstream/master`'s own files and checks the board matches the fork's (`live/upstream-links.live.mjs`; it needs the `upstream/master` ref, which CI fetches). It also checks that each plant undoing an
   audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). In both commands, a page error or
   `console.error` on a page `openPenpa` or `openReloader` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
-  waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box; `live/run-live.mjs`
-  runs `npm run test:live`'s own flags.
+  waits use `settle`, never a sleep. Both cap node at `--test-concurrency=4` (`live/run-live.mjs` holds the live files' flags), so at most 4 test files run at
+  once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs `npm test` (job `unit`) and the live files spread over four runners (job `live`,
-  `node live/run-live.mjs --part <k>/4`) on every PR and push to `master`, behind job `test`, which fails unless both
+  `node live/run-live.mjs --part <k>/<n>`) on every PR and push to `master`, behind job `test`, which fails unless both
   passed; a PR runs the live files its change needs, by the rule above, and a push the full set. It also runs the
   expected-file gate on every PR (job `expected-files`, below). `.github/workflows/nightly.yml` runs CI's jobs on
   `master` every night with the full set and files one issue on a failure, or comments on the open one (#268). `.github/workflows/ui-corpus.yml` replays every recording on the UI driver
