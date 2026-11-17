@@ -75,7 +75,9 @@ describe('the keyboard on the solve page', () => {
     await page.keyboard.press('Enter')
     // The toggled theme shows the click has happened; a hand-back would run as a timeout after it.
     await settle(() => page.evaluate(() => engine.getSettings().theme), was === 'dark' ? 'light' : 'dark')
-    assert.equal(await settle(() => page.evaluate(() => /theme/i.test(document.activeElement.textContent)), true), true)
+    // A "nothing happened" check, so a wait: a hand-back would run as a timeout queued by the click.
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)))
+    assert.equal(await page.evaluate(() => /theme/i.test(document.activeElement.textContent)), true)
   })
 
   it('Escape in the pin-name field empties it and the board has focus', async () => {
@@ -128,7 +130,9 @@ describe('with Settings open', () => {
     // The first press reaches the dialog's own close button, the second leaves the dialog.
     await page.keyboard.press('Shift+Tab')
     await page.keyboard.press('Shift+Tab')
-    assert.equal(await settle(() => focusIsInDialog(page), true), true)
+    // Until focus is on a control of the dialog, not on the dialog itself (its close button) or the body.
+    const onAControl = () => page.evaluate(() => document.activeElement.tagName !== 'WA-DIALOG' && document.querySelector('wa-dialog[open]').contains(document.activeElement))
+    assert.equal(await settle(onAControl, true), true)
     assert.equal(await first.evaluate((node) => node === document.activeElement), false)
   })
 })
