@@ -1,8 +1,8 @@
 // One name per tool across the Mode card, the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
-// (#190), and the Board card's colour cue. The UI is found by role and accessible name; the tool is set through `engine`.
+// (#190), the tool-change banner and the Board card's colour cue. The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -11,7 +11,7 @@ const region = (page, name) => page.getByRole('region', { name })
 const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
-const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
+const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map(chipName)
 
 // Every tool the link lists, as `{ mode, submode }`.
 const listed = (page) => page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode })))
@@ -53,10 +53,22 @@ describe('one name per tool', () => {
     assert.deepEqual(unequal, [])
   })
 
-  it('uses one separator and no "·" in any name', async () => {
+  it('gives a chip no tooltip with a second name', async () => {
     const { page } = opened
-    const names = await page.evaluate(() => engine.listTools().map((t) => window.toolGuide.chipLabel(t)))
-    assert.deepEqual(names.filter((name) => name.includes(' · ')), [])
+    await pin(page, [{ mode: 'sudoku', submode: '1', style: null }])
+    await setTool(page, { mode: 'line', submode: '1' })
+    await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
+    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
+    assert.equal(await page.locator('.ui-chip-main[title]').count(), 0)
+  })
+
+  it('shows the same name in the tool-change banner', async () => {
+    const { page } = opened
+    await pin(page, [])
+    await setTool(page, { mode: 'line', submode: '1' })
+    await setTool(page, { mode: 'sudoku', submode: '2' })
+    const banner = await settle(() => page.locator('.ui-flash').textContent(), 'Sudoku > Corner')
+    assert.equal(banner, 'Sudoku > Corner')
   })
 
   it('keeps a name\'s × apart from the chip\'s remove button', async () => {
@@ -97,6 +109,16 @@ describe('the Board card\'s colour cue', () => {
       assert.deepEqual(await settle(() => colours(page), { text: want, border: want }), { text: want, border: want })
     })
   }
+
+  it('puts a pale style colour on a dark pill so the label can be read', async () => {
+    const { page } = opened
+    const yellow = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'surface').styles.find((s) => s.name === 'yellow').style)
+    await setTool(page, { mode: 'surface', style: yellow })
+    const pill = () => boardLabel(page).evaluate((label) => getComputedStyle(label).backgroundColor)
+    assert.equal(await settle(pill, 'rgb(43, 47, 56)'), 'rgb(43, 47, 56)')
+    await setTool(page, { mode: 'number', submode: '1', style: 1 })
+    assert.notEqual(await settle(pill, 'rgb(246, 243, 236)'), 'rgb(43, 47, 56)')
+  })
 })
 
 describe('the Mouse headline at 1366x768', () => {
@@ -104,7 +126,7 @@ describe('the Mouse headline at 1366x768', () => {
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })
   after(async () => { await opened?.context.close() })
 
-  it('stays on one line for the longest tool name', async () => {
+  it('stays on one line for the longest tool name, and when the card is narrow', async () => {
     const { page } = opened
     await page.setViewportSize({ width: 1366, height: 768 })
     const longest = await page.evaluate(() => {
@@ -113,7 +135,11 @@ describe('the Mouse headline at 1366x768', () => {
     })
     await setTool(page, { mode: longest.mode, submode: longest.submode })
     const heading = region(page, 'Mouse').getByRole('heading', { level: 3 })
-    const lines = await settle(() => heading.evaluate((h) => Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight))), 1)
-    assert.equal(lines, 1)
+    const lines = () => heading.evaluate((h) => Math.round(h.getBoundingClientRect().height / parseFloat(getComputedStyle(h).lineHeight)))
+    assert.equal(await settle(lines, 1), 1)
+    // A card narrower than the name cuts it short, with the whole name as the tooltip.
+    await heading.evaluate((h) => { h.style.maxWidth = '60px' })
+    assert.equal(await lines(), 1, 'a narrow headline stays on one line')
+    assert.equal(await heading.getAttribute('title'), await heading.locator('.ui-hname').textContent())
   })
 })

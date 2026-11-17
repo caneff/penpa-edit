@@ -142,7 +142,7 @@
         function chip(pin, number, current) {
             const label = chipLabel(toolOf(pin));
             const main = el('button', {
-                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), title: toolOf(pin).name
+                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current)
             }, [el('span', { class: 'ui-chip-num' }, [String(number)]), label]);
             const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}` });
             unpin.innerHTML = REMOVE_ICON;

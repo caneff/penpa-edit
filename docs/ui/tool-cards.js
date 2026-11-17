@@ -17,6 +17,17 @@
         return tool.styles.find((s) => s.style === style) ?? null;
     }
 
+    // A pale style colour disappears on the title bar's light pill, so the pill goes dark behind it. The canvas reads any CSS colour
+    // back as #rrggbb.
+    const PALE_LUMINANCE = 0.55;
+    const PILL_ON_PALE = '#2b2f38';
+    function pillFor(colour) {
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.fillStyle = colour;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16));
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > PALE_LUMINANCE ? PILL_ON_PALE : null;
+    }
+
     // The colour a tool's selected style paints, or null for a tool with no colour style.
     const styleColour = (tool, style) => styleOf(tool, style)?.swatch ?? null;
 
@@ -48,23 +59,19 @@
         ]));
     }
 
-    // The contents that can set the Mouse card's height, as markup: of the contents sharing one set of rows, only the one
-    // with the longest headline, since the headline's wrapping is all that tells them apart. Found once, so measuring at
-    // a new width costs one layout per set of rows, not one render per tool and style.
+    // The contents that can set the Mouse card's height, as markup: one per distinct set of rows, since the headline is one
+    // line whatever the tool. Found once, so measuring at a new width costs one layout per set of rows, not one render per tool and style.
     let mouseContents = null;
     function allMouseContents(probe, tools) {
-        const longest = new Map();
+        const bySetOfRows = new Map();
         tools.forEach((tool) => {
-            (tool.styles.length ? tool.styles : [{ style: null }]).forEach(({ style }) => {
-                renderMouse(probe, tool, style, true);
-                const rows = probe.querySelector('.ui-mrows').innerHTML;
-                const headlineLength = probe.querySelector('.ui-headline').textContent.length;
-                if (headlineLength > (longest.get(rows)?.headlineLength ?? -1)) {
-                    longest.set(rows, { headlineLength, html: probe.innerHTML });
-                }
-            });
+            renderMouse(probe, tool, tool.styles[0]?.style ?? null, true);
+            const rows = probe.querySelector('.ui-mrows').innerHTML;
+            if (!bySetOfRows.has(rows)) {
+                bySetOfRows.set(rows, probe.innerHTML);
+            }
         });
-        return [...longest.values()].map(({ html }) => html);
+        return [...bySetOfRows.values()];
     }
 
     // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
@@ -299,8 +306,11 @@
             const colour = styleColour(tool, current.style);
             if (colour) {
                 cards.board.node.style.setProperty('--ui-style-colour', colour);
+                const pill = pillFor(colour);
+                cards.board.node.style[pill ? 'setProperty' : 'removeProperty']('--ui-style-pill', pill);
             } else {
                 cards.board.node.style.removeProperty('--ui-style-colour');
+                cards.board.node.style.removeProperty('--ui-style-pill');
             }
             mode.render(tool, current.style, orientation);
         }

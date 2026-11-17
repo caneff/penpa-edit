@@ -107,7 +107,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* The board's title bar: the current tool's name, after the card's title. */
 .ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
     /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
-    padding: 2px 12px; border-radius: 999px; background: #f6f3ec; }
+    padding: 2px 12px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
 
 /* The Mouse card. */
 .ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -155,7 +155,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
 
-/* The board's frame: --ui-style-colour, the selected style's colour, else --ui-tool-colour, the current tool's colour (a pin's own, or the neutral one off the pins). */
+/* The board's frame: the selected style's colour, else the current tool's (a pin's own, or the neutral one off the pins). */
 .ui-card-board { outline: 5px solid var(--ui-style-colour, var(--ui-tool-colour, transparent)); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
@@ -208,7 +208,7 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-card-rules .ui-body { color: #d3d7de; }
 .ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
 .ui-dark .ui-paused-hint { color: #a9b0bd; }
-.ui-dark .ui-tool-name { color: var(--ui-style-colour, var(--ui-tool-colour, #23262c)); background: #dfe3ea; }
+.ui-dark .ui-tool-name { color: var(--ui-style-colour, var(--ui-tool-colour, #23262c)); background: var(--ui-style-pill, #dfe3ea); }
 .ui-dark .ui-headline { color: #e3eaff; }
 .ui-dark .ui-mrow { background: #26324a; }
 .ui-dark .ui-mg { color: #9fbdff; }
