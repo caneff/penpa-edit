@@ -38,7 +38,7 @@ describe('Unpin all', () => {
     await waitForDesk(page)
     assert.deepEqual(await pinChipTexts(page), [], 'still empty after the reload')
     await choosePreset(page, 'Puzzle defaults')
-    // The engine's Tab set lists the same tools in another order once the page has reloaded, so the set is compared, not the order.
+    // The engine's Tab set lists the same tools in another order once the page has reloaded, so the set is compared, not the order (#281).
     const sortedChips = async () => (await pinChipTexts(page)).sort()
     assert.deepEqual(await settle(sortedChips, defaults), defaults)
     assert.equal(await unpinAll(page).isDisabled(), false, 'enabled again once the defaults are back')
