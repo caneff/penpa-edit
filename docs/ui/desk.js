@@ -763,6 +763,8 @@
                 const clear = above && above.offsetTop + above.offsetHeight + CARD_GAP_PX;
                 if (saved[id]?.fitted && clear && node.offsetTop < clear) {
                     node.style.top = `${clear}px`;
+                    // Moved down, the card keeps its height only as far as the window's bottom.
+                    keepInside(id, node, desk.clientWidth, desk.clientHeight);
                     keepFitted(desk, cards, [id]);
                 }
                 above = node;
