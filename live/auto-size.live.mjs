@@ -80,8 +80,11 @@ describe('the Mode card while stepping through the pins', () => {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
-    // No Reset layout: the change of pins alone resizes the card.
+    // No Reset layout, and a Pinned card that keeps its height: the change of pins alone resizes Mode.
+    await page.evaluate(pinByNameInPage, { names: ['Line > Normal', 'Surface'], current: 'Line > Normal' })
+    const pinnedBefore = (await steady(page, readCardsInPage, CARDS)).Pinned.h
     await page.evaluate(pinByNameInPage, { names: TALL_PINS, current: 'Line > Normal' })
+    assert.equal((await steady(page, readCardsInPage, CARDS)).Pinned.h, pinnedBefore, 'Pinned keeps its height')
     const reads = await stepThroughPins(page)
     assert.equal(reads[0].mode.h > MODE_MIN_HEIGHT_PX, true, `Mode is ${reads[0].mode.h}px, more than its smallest height`)
     assert.deepEqual(reads.map(({ mode }) => mode), reads.map(() => ({ ...reads[0].mode, overflow: 0 })), JSON.stringify(reads))
@@ -311,11 +314,15 @@ describe('a layout the solver changed', () => {
 
   it('sizes a Mode card placed on another puzzle for this puzzle\'s pins', async () => {
     opened = await openSolvePage(browser(), await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER), { contextOptions: { viewport: LAPTOP } })
-    await dragFrom(opened.page, await headPoint(opened.page, 'Mode'), -20, 20)
+    // Up, into the room between Pinned and Mode, where it lies over no other card on either puzzle.
+    await dragFrom(opened.page, await headPoint(opened.page, 'Mode'), 0, -20)
     // Another puzzle in the same browser, which keeps the Mode card's place.
     const page = await opened.context.newPage()
     await page.goto(opened.page.url().replace(/#.*/, '') + await linkFromNewBoard(browser(), solveLinkInPage, { ...ICEBREAKER, size: 8 }))
     await waitForDesk(page)
+    const opening = await steady(page, readCardsInPage, CARDS)
+    const columnMiddle = (opening.Pinned.y + opening.Recent.bottom) / 2
+    assert.equal(columnMiddle - (opening.Mode.y + opening.Mode.h / 2) > CARD_GAP_PX, true, `Mode kept above the column's middle: ${JSON.stringify(opening.Mode)}`)
     await page.evaluate(pinByNameInPage, { names: TALL_PINS, current: 'Number > Normal' })
     const read = await steady(page, readCardsInPage, CARDS)
     assert.deepEqual({ taller: read.Mode.h > MODE_MIN_HEIGHT_PX, overflow: read.Mode.overflow }, { taller: true, overflow: 0 }, JSON.stringify(read.Mode))
