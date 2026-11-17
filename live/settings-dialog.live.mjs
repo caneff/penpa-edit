@@ -234,7 +234,7 @@ describe('the Settings dialog shows what the open puzzle uses', () => {
   })
 
   it('shows every genre setting on a puzzle with no genre tag', async () => {
-    assert.deepEqual(await shown(AKARI_SOLVE), GENRE_CONTROLS)
+    assert.deepEqual(await shown(await makeNumberSolveLink(browser())), GENRE_CONTROLS)
   })
 
   it('shows the Sudoku settings on a Sudoku and no Star Battle one', async () => {
