@@ -839,6 +839,15 @@
             endHolds();
         },
 
+        // The tool each key lends while held in Sudoku, as `{ key: 'Shift' | 'Ctrl', tool }` with `tool` from `listTools()`: Shift
+        // Corner, Ctrl Centre. A grid without that tool gets no row, as it gets no hold.
+        holdTools() {
+            const tools = toolCatalog();
+            return [['Shift', 'Shift'], ['Ctrl', 'Control']].filter(([, key]) => lendsListedTool(key)).map(([label, key]) => ({
+                key: label, tool: tools.find((t) => t.mode === 'sudoku' && t.submode === HOLD_SUBMODES[key])
+            }));
+        },
+
         // Undoes the solver's last entry; false when there is none.
         undo() {
             boardCanvas();

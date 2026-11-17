@@ -237,7 +237,7 @@ describe('Penpa+\'s own modal dialogs', () => {
 
 describe('?', () => {
   for (const mode of ['number', 'surface']) {
-    it(`changes nothing in ${mode} mode`, async () => {
+    it(`changes no cell and opens no Penpa+ dialog in ${mode} mode`, async () => {
       const { context, page } = await openSolve()
       try {
         await setMode(page, mode)
@@ -245,7 +245,7 @@ describe('?', () => {
         const before = await board(page)
         await page.keyboard.press('?')
         assert.deepEqual(await board(page), before)
-        assert.equal(await page.evaluate(() => engine.getState().penpaDialogOpen), false, 'no shortcuts sheet opens')
+        assert.equal(await page.evaluate(() => engine.getState().penpaDialogOpen), false, 'Penpa+\'s own shortcuts dialog stays shut')
       } finally {
         await context.close()
       }
