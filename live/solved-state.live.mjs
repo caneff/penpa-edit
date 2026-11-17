@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, it } from 'node:test'
-import { ANSWER_CELL, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser } from './page.mjs'
+import { ANSWER_CELL, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -26,6 +26,8 @@ async function openSolve () {
 const timer = (page) => page.evaluate(() => engine.getTimer())
 const clockText = (page) => page.getByRole('timer').textContent()
 const button = (page, name) => page.getByRole('button', { name, exact: true })
+// True when the card's body is switched off (inert) by a pause.
+const cardIsInert = (page, card) => page.getByRole('region', { name: card }).evaluate((node) => node.querySelector('.ui-body').closest('[inert]') !== null)
 const solvedDialog = (page) => page.getByRole('dialog', { name: 'Puzzle solved' })
 // Penpa+'s popup is SweetAlert2's container.
 const swalCount = (page) => page.locator('.swal2-container').count()
@@ -60,6 +62,7 @@ describe('the solved message', () => {
     try {
       await enterAnswer(page)
       await solvedDialog(page).waitFor()
+      assert.notEqual((await page.locator('.ui-solved-message').textContent()).trim(), '', 'the dialog says something')
       assert.equal(await swalCount(page), 0, 'no Swal element')
       await button(page, 'Close').first().click()
       await solvedDialog(page).waitFor({ state: 'hidden' })
@@ -81,7 +84,7 @@ describe('the solved message', () => {
       await sleep(HOLD_WATCH_MS)
       assert.equal(await solvedDialog(page).isVisible(), false, 'no second dialog')
       assert.equal(await solvedDialogsShown(page), 1, 'one dialog in total')
-      assert.deepEqual(await timer(page), { ...stopped, covered: false }, 'the clock never moved')
+      assert.deepEqual(await timer(page), stopped, 'the clock never moved')
     } finally {
       await context.close()
     }
@@ -155,13 +158,42 @@ describe('a solved puzzle reloaded', () => {
       await sleep(HOLD_WATCH_MS)
       assert.equal(await swalCount(page), 0, 'no Swal element')
       assert.equal(await solvedDialog(page).isVisible(), false, 'no dialog')
-      assert.equal(await page.locator('canvas:visible').first().isVisible(), true, 'the board is visible')
       const after = await timer(page)
       assert.equal(after.paused, true, 'the clock is stopped')
+      assert.equal(after.covered, false, 'the board is not covered')
+      assert.equal(await page.getByRole('region', { name: 'Paused' }).isVisible(), false, 'no pause cover')
       assert.equal(Math.floor(after.seconds), Math.floor(stopped.seconds), 'at its solve time')
       assert.match(await clockText(page), /✓/, 'and looks solved')
       await sleep(HOLD_WATCH_MS)
       assert.deepEqual(await timer(page), after, 'it holds')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('a solved puzzle that was undone and reloaded', () => {
+  it('keeps the clock stopped and shows no dialog when it is solved again', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await page.waitForFunction(() => engine.getTimer().seconds >= 1)
+      const stopped = await solve(page)
+      await button(page, 'Undo').click()
+      assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the undo took the answer out')
+      await page.reload()
+      await page.getByRole('region', { name: 'Board' }).waitFor()
+      await page.evaluate(() => engine.ready)
+      await countSolvedDialogs(page)
+      const after = await timer(page)
+      assert.equal(after.paused, true, 'the clock is stopped')
+      assert.equal(Math.floor(after.seconds), Math.floor(stopped.seconds), 'at the first solve time')
+      await setTool(page, { mode: 'number', submode: '1' })
+      await waitForTool(page, { mode: 'number', submode: '1' })
+      await enterAnswer(page)
+      assert.deepEqual(await settle(() => typedDigits(page), ['2']), ['2'], 'solved again')
+      await sleep(HOLD_WATCH_MS)
+      assert.equal(await solvedDialogsShown(page), 0, 'no dialog')
+      assert.deepEqual(await timer(page), after, 'the clock held')
     } finally {
       await context.close()
     }
@@ -178,16 +210,14 @@ describe('a paused board', () => {
       await cover.waitFor()
       assert.equal(await settle(() => button(page, 'Restart').isDisabled(), true), true, 'Restart is disabled')
       for (const card of ['Pinned', 'Mode', 'Recent']) {
-        const inert = await page.getByRole('region', { name: card }).evaluate((node) => node.querySelector('.ui-body').closest('[inert]') !== null)
-        assert.equal(inert, true, `${card} is disabled`)
+        assert.equal(await cardIsInert(page, card), true, `${card} is disabled`)
       }
       assert.equal(await button(page, 'Open in Penpa+').isDisabled(), false, 'Open in Penpa+ works')
       await cover.getByRole('button', { name: 'Resume' }).click()
       await cover.waitFor({ state: 'hidden' })
       assert.equal((await timer(page)).paused, false, 'the clock runs')
       assert.equal(await button(page, 'Restart').isDisabled(), false, 'Restart works again')
-      const inert = await page.getByRole('region', { name: 'Mode' }).evaluate((node) => node.querySelector('.ui-body').closest('[inert]') !== null)
-      assert.equal(inert, false, 'and so does Mode')
+      assert.equal(await cardIsInert(page, 'Mode'), false, 'and so does Mode')
     } finally {
       await context.close()
     }

@@ -233,7 +233,8 @@
             }
             applyTheme(savedTheme());
             bootDone = true;
-            if (solvedWhileBooting) {
+            // The clock was started by the restore of the saved progress, with a time that is the solve time.
+            if (solvedWhileBooting || localStorage.getItem(solvedKey())) {
                 latchSolved();
                 sw_timer.pause();
             }
@@ -258,9 +259,19 @@
     let announce = false;
     const solvedHandlers = new Set();
 
+    // Kept per puzzle, so a reload of a board that was solved and then undone still opens with the clock stopped.
+    const solvedKey = () => `chinstrap-solved-v1-${engine.getPuzzleId()}`;
+
     function latchSolved() {
         latched = true;
-        timerHandlers.forEach((handler) => handler());
+        localStorage.setItem(solvedKey(), '1');
+        wakeTimerHandlers();
+    }
+
+    function unlatchSolved() {
+        latched = false;
+        localStorage.removeItem(solvedKey());
+        wakeTimerHandlers();
     }
 
     const penpaCheckSolution = Puzzle.prototype.check_solution;
@@ -296,13 +307,23 @@
         return penpaFire.apply(this, arguments);
     };
 
+    // Penpa+ covers the board whenever it redraws the grid with a paused clock (general.js redraw_grid, which the desk's fit and
+    // zoom call), and a solved clock is paused: so a solved board would be covered by its first resize. Only the solver's own
+    // Pause covers a solved board.
+    let solverPausing = false;
+    const penpaShowPauseLayer = Puzzle.prototype.show_pause_layer;
+    Puzzle.prototype.show_pause_layer = function () {
+        if (!latched || solverPausing) {
+            return penpaShowPauseLayer.apply(this, arguments);
+        }
+    };
+
     function holdClockWhenSolved() {
         const penpaStart = sw_timer.start;
         sw_timer.start = function () {
             return latched ? undefined : penpaStart.apply(this, arguments);
         };
     }
-
 
     // ---- Holds: in Sudoku mode Penpa+ lends Corner to a held Shift and Centre to a held Ctrl, and gives the sub-mode back on
     // the key's key-up. Penpa+ keeps no record the bridge can read, and a key-up that never comes (the window lost focus)
@@ -702,8 +723,11 @@
     // easytimer's events that change the clock's reading or whether it runs. `secondsUpdated` is Penpa+'s own once-a-second tick.
     const TIMER_EVENTS = ['secondsUpdated', 'started', 'paused', 'stopped', 'reset'];
     const timerHandlers = new Set();
+    function wakeTimerHandlers() {
+        timerHandlers.forEach((handler) => handler());
+    }
     function watchTimer() {
-        TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, () => timerHandlers.forEach((handler) => handler())));
+        TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, wakeTimerHandlers));
     }
 
     // MVP gap: Penpa+'s pause and start closures live in main.js's onload and are reached only through their buttons, which
@@ -745,8 +769,8 @@
 
         // `change` runs `handler()` at most once per frame after the state may have changed; `timer` runs it on every tick of
         // the clock and whenever it starts, pauses, resets or becomes solved. Read `getTimer()` then; `solved` runs
-        // `handler({ title, message })` (the setter's words, as text) the first time the puzzle is solved, never for a puzzle
-        // that opened solved or a redo back into the solved state.
+        // `handler({ title, message })` (the setter's words, as text) when the puzzle is solved and was not solved since it
+        // was last restarted or its progress cleared: not for a puzzle that opened solved, nor a redo back into the solved state.
         on(event, handler) {
             if (!ENGINE_EVENTS.includes(event)) {
                 throw new RangeError(`engine.on: no event "${String(event)}"; the events are ${ENGINE_EVENTS.join(', ')}`);
@@ -801,10 +825,9 @@
             pu.reset_board();
             pu.selection = [];
             pu.redraw();
-            latched = false;
+            unlatchSolved();
             sw_timer.reset();
             pressTimerButton('sw_start');
-            timerHandlers.forEach((handler) => handler());
         },
 
         // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`. `covered` is true while the solver's
@@ -825,7 +848,12 @@
         pauseTimer() {
             boardCanvas();
             if (!engine.getTimer().covered) {
-                pressTimerButton('sw_pause');
+                solverPausing = true;
+                try {
+                    pressTimerButton('sw_pause');
+                } finally {
+                    solverPausing = false;
+                }
             }
         },
 
@@ -834,7 +862,7 @@
         startTimer() {
             boardCanvas();
             pressTimerButton('sw_start');
-            timerHandlers.forEach((handler) => handler());
+            wakeTimerHandlers();
         },
 
         // 'light' or 'dark': the page's theme and the board's, kept in localStorage for the next visit.
@@ -981,6 +1009,7 @@
                 return;
             }
             UserSettings.save_current_puzzle = false;
+            localStorage.removeItem(solvedKey());
             const hash = PenpaProgress.getHash(pu.url);
             await PenpaProgress.clearPuzzle(hash);
             if (await PenpaProgress.canSaveProgress()) {

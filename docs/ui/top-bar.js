@@ -1,4 +1,5 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause, the light/dark toggle and Open in Penpa+, and the cover a paused board wears.
+// The top bar's controls: undo, redo, Restart, the timer, Pause, the light/dark toggle and Open in Penpa+, the cover a paused board wears
+// (and what it switches off), and the dialog that says the puzzle is solved.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
