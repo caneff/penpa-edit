@@ -12,6 +12,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Pin**: a mode and one of its sub-modes the solver keeps for Tab in the new solve UI; its style is the last one used
   on it. The same mode can be pinned with different sub-modes.
 - **Tab cycle**: Tab and Shift+Tab stepping through the pins in the new solve UI. Not the Tab set, which only seeds them.
+- **Review page**: `docs/gallery.html` (the file keeps the name "gallery"): a list of representative puzzles, each opened in `solve.html` inside an iframe at a size the reviewer picks, for going through the solve page by hand.
 - **Upstream**: `swaroopg92/penpa-edit`, the Penpa+ this repo forks.
 - **The fork**: this repo, served at `https://caneff.github.io/penpa-edit/`.
 - **Redirect script**: `userscript/penpa-redirect.user.js`, which sends upstream's links to the fork.
@@ -65,7 +66,9 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
-- **Safety net**: the recordings, the tests and the CI checks the migration runs under.
+- **Safety net**: the recordings, the tests and the CI checks the migration runs under. Its live files (`SAFETY_NET_FILES` in
+  `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
+  cannot reach them skips them (#268).
 - **Plant**: a one-line bug served in place of a file of `docs/js/` while recordings replay, to measure whether the
   safety net catches it (`live/plants.mjs`). Caught when a replay with it differs from its expected file, fails its
   duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
