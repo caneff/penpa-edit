@@ -11,7 +11,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
-import { openPenpa } from './page.mjs'
+import { jsRequest, openPenpa } from './page.mjs'
 import { changedKeys, endsGroup, engineDriver, entries, recordingText, roundTrips, stepWords } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -209,10 +209,16 @@ async function saveRecording (dir, { puzzle, seed, page, final, steps }) {
 // Fuzzes `puzzle` ({ name, source }, `source` its link's query and `#` part) with `seed` for `count` steps. `failure` is
 // the first broken invariant in words and `saved` the path of its run's recording, both null when none broke. `served`
 // and `setup` go to `openPenpa` for the run's page and to `roundTrips` for its save/load round trips' pages.
-export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup }) {
+export async function fuzz (browser, puzzle, { seed, count, saveDir = FUZZ_RECORDINGS, served = false, setup: pageSetup }) {
+  // The page's progress autosave (progress_autosave.js) makes a Clone link after each edit and tool change, boot's included; the
+  // fuzz makes its own at each check, and a planted bug in `maketext_duplicate` must fire only there. So the autosave is a stub.
+  const setup = async (context) => {
+    await context.route(jsRequest('progress_autosave.js'), (route) => route.fulfill({
+      contentType: 'text/javascript', body: 'async function saveProgressNow() { return false }'
+    }))
+    await pageSetup?.(context)
+  }
   const { context, page, errors } = await openPenpa(browser, puzzle.source, { served, setup })
-  // index.html's autosave (progress_autosave.js) makes a Clone link after each edit; the fuzz makes its own at each check,
-  // and a planted bug in `maketext_duplicate` must fire only there.
   await page.evaluate(() => { UserSettings.save_current_puzzle = false })
   const trips = roundTrips(browser, { served, setup })
   const readRaw = () => page.evaluate(readEngineState)
