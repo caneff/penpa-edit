@@ -199,8 +199,12 @@ describe('the Mode card tree', () => {
       await search().fill(typed)
       assert.equal(await item('Loop + edge ×').count(), 1, `"${typed}" finds the Line x composite tool`)
     }
-    assert.equal(await hint('Loop + edge ×').textContent(), 'Penpa+: Line x', 'the row says which old name matched')
+    assert.equal(await hint('Loop + edge ×').textContent(), 'Penpa+: linex', 'the row says which old name matched')
     assert.equal(await hint('Loop + edge ×').isVisible(), true)
+    await search().fill('line x')
+    assert.equal(await hint('Loop + edge ×').textContent(), 'Penpa+: Line x')
+    await search().fill('edgeauxline')
+    assert.equal(await tree().locator('[role=treeitem][data-submode=edgesub]:visible .ui-tmatch').textContent(), 'Penpa+: Edge/Aux line', 'a loose match names the label it matched')
     await search().fill('c(o)m-bi')
     assert.equal(await item('Loop + edge ×').count(), 1, 'punctuation inside a typed word is ignored')
     await search().fill('combi')

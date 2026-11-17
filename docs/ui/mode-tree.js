@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { TOOL_GROUPS, placeTool, squash, searchText, searchWords, matchesSearch, toolKey } = window.toolGuide;
+    const { TOOL_GROUPS, placeTool, looseText, searchWords, looseWords, matchesSearch, toolKey } = window.toolGuide;
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
@@ -32,7 +32,9 @@
                     ancestors.push(at.label);
                 }
                 made.oldNames = [...tool.labels, tool.mode, /^\d*$/.test(tool.submode ?? '') ? null : tool.submode].filter(Boolean);
-                made.text = searchText([...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames]);
+                const fields = [...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames];
+                made.text = fields.join(' ').toLowerCase();
+                made.looseText = looseText(fields);
             }
             parent?.children.push(made);
             return made;
@@ -51,6 +53,7 @@
         const all = [];
         const open = new Set();
         let words = [];
+        let loose = false;
         let selectedKey = null;
         let focusable = null;
         const selectedRow = () => visibleRows().find((n) => n.tool && toolKey(n.tool) === selectedKey);
@@ -88,8 +91,8 @@
         // old name that holds the whole search, so it appears only when the row's own label does not.
         function showOldName(node, matched) {
             const hint = node.row.querySelector('.ui-tmatch');
-            const name = matched && !matchesSearch(searchText([node.label]), words)
-                ? node.oldNames.find((old) => matchesSearch(searchText([old]), words)) : undefined;
+            const holds = (name) => matchesSearch(loose ? looseText([name]) : name.toLowerCase(), words);
+            const name = matched && !holds(node.label) ? node.oldNames.find(holds) : undefined;
             hint.textContent = name ? `Penpa+: ${name}` : '';
             hint.hidden = !name;
         }
@@ -100,7 +103,7 @@
             const searching = words.length > 0;
             let shown = 0;
             const count = (node) => {
-                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(leaf.text, words)) : node.children.flatMap(count);
+                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(loose ? leaf.looseText : leaf.text, words)) : node.children.flatMap(count);
                 if (node.tool) {
                     showOldName(node, matching.length > 0 && searching);
                 }
@@ -210,9 +213,16 @@
         return {
             tree,
             levels,
-            // Filters to the tools whose search text holds every word of `text`; returns how many match.
+            // Filters to the tools whose search text holds every word of `text`, loosely when none does; returns how many match.
             search(text) {
+                loose = false;
                 words = searchWords(text);
+                const shown = refresh();
+                if (shown > 0 || !words.length) {
+                    return shown;
+                }
+                loose = true;
+                words = looseWords(text);
                 return refresh();
             },
             // Opens the branch holding `tool`, and keeps the rest of the open state.
