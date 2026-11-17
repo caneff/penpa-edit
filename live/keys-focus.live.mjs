@@ -4,7 +4,7 @@
 // the board by what Penpa+ would save.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { board, currentTool, newBoardSolveLink, openSolvePage, solveLinkOfImport, setTool, useBrowser } from './page.mjs'
+import { board, currentTool, newBoardSolveLink, NURIKABE_IMPORT, openSolvePage, solveLinkOfImport, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -160,7 +160,7 @@ describe('with Settings open', () => {
 describe('with Settings open on a puzzle that hides its first Sudoku control', () => {
   let opened
   before(async () => {
-    opened = await openSolve()
+    opened = await openSolve(await solveLinkOfImport(browser(), NURIKABE_IMPORT))
     await opened.page.getByRole('button', { name: 'Settings' }).click()
     await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
   })

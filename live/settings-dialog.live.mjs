@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
-  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, openSolvePage, solveLinkOfImport, setTool, typedDigits, useBrowser, waitForDesk
+  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, NURIKABE_IMPORT, openSolvePage, solveLinkOfImport, setTool, typedDigits, useBrowser, waitForDesk
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -71,13 +71,12 @@ const otherLink = async () => (otherPuzzle ??= await makeNumberSolveLink(browser
 // The solve link of the puzzle `name` of `IMPORTS`, or of Nurikabe, whose genre tag is neither Sudoku nor Star Battle.
 const importedLinks = new Map()
 const importLink = (name) => {
-  if (!importedLinks.has(name)) importedLinks.set(name, solveLinkOfImport(browser(), name === 'nurikabe' ? NURIKABE : IMPORTS[name]))
+  if (!importedLinks.has(name)) importedLinks.set(name, solveLinkOfImport(browser(), name === 'nurikabe' ? NURIKABE_IMPORT : IMPORTS[name]))
   return importedLinks.get(name)
 }
 
 const CLEAR_BUTTON = 'Clear this puzzle\'s saved progress'
 const CONFIRM_CLEAR = 'Clear progress'
-const NURIKABE = 'https://puzz.link/p?nurikabe/v:/6/6/4j4p6h4p6j6'
 
 const desk = (dialog) => dialog.getByRole('group', { name: 'Desk' })
 const settings = (page) => page.evaluate(() => engine.getSettings())

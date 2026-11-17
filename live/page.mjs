@@ -174,6 +174,9 @@ export async function linkFromNewBoard (browser, inPage, arg) {
   }
 }
 
+// A Nurikabe, whose genre tag is neither Sudoku nor Star Battle.
+export const NURIKABE_IMPORT = 'https://puzz.link/p?nurikabe/v:/6/6/4j4p6h4p6j6'
+
 // The solve link `#` part of the puzz.link puzzle at `url`, which carries its genre tag.
 export const solveLinkOfImport = (browser, url) => linkFromNewBoard(browser, async (u) => {
   await import_url(u)
