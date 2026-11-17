@@ -205,6 +205,35 @@ describe('a solved puzzle that was undone and reloaded', () => {
   })
 })
 
+describe('a shared link to a solved board', () => {
+  it('opens in a fresh browser with the board uncovered, the clock stopped, no popup and the timer solved', async () => {
+    const solver = await openSolve()
+    let link
+    try {
+      await solve(solver.page)
+      // The link Penpa+'s Clone button writes: the board as entered, marked `l=solvedup`.
+      link = await solver.page.evaluate(() => { const url = pu.maketext_duplicate(); return url.slice(url.indexOf('#')) + '&l=solvedup' })
+    } finally {
+      await solver.context.close()
+    }
+    // A new context has no saved progress and no solved mark, so only the link says the board is solved.
+    const { context, page } = await openSolvePage(browser(), link)
+    try {
+      await sleep(HOLD_WATCH_MS)
+      const after = await timer(page)
+      assert.equal(after.paused, true, 'the clock is stopped')
+      assert.equal(after.covered, false, 'the board is not covered')
+      assert.equal(await swalCount(page), 0, 'no Swal element')
+      assert.equal(await solvedDialog(page).isVisible(), false, 'no dialog')
+      assert.match(await clockText(page), /✓/, 'the timer looks solved')
+      await sleep(HOLD_WATCH_MS)
+      assert.deepEqual(await timer(page), after, 'the clock holds')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
 describe('a paused board', () => {
   it('disables Restart, the pins, Mode and Recent; the cover\'s Resume button resumes', async () => {
     const { context, page } = await openSolve()

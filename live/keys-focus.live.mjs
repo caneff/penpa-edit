@@ -71,7 +71,7 @@ describe('the keyboard on the solve page', () => {
       await page.getByRole('button', { name }).click()
       assert.equal(await settle(() => pageBodyHasFocus(page), true), true, `${name} hands focus back`)
     }
-    await page.getByRole('button', { name: 'Resume' }).click()
+    await page.getByRole('button', { name: 'Resume' }).first().click()
   })
 
   it('a key press that clicks a bar button leaves focus on it', async () => {
@@ -83,7 +83,7 @@ describe('the keyboard on the solve page', () => {
     // A "nothing happened" check, so a wait: a hand-back would run as a timeout queued by the click.
     await afterTimeouts(page)
     assert.equal(await page.evaluate(() => document.activeElement.matches('.ui-bar wa-button') && document.activeElement.textContent.trim() === 'Resume'), true)
-    await page.getByRole('button', { name: 'Resume' }).click()
+    await page.getByRole('button', { name: 'Resume' }).first().click()
   })
 
   it('Escape in the pin-name field closes the form, empties the field and gives the board the focus', async () => {
