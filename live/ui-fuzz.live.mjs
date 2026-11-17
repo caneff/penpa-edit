@@ -68,9 +68,9 @@ const SCRIPT = [
   ['resize', 0]
 ]
 
-// The seed and puzzle the in-page plants are hunted with, as `npm run fuzz:ui` arguments, and the focus most of them are
+// The seed and puzzle the in-page plants are hunted with (seed 1 reaches #288's card overlap before the plants, since #295), as `npm run fuzz:ui` arguments, and the focus most of them are
 // hunted with.
-const PLANT_HUNT = ['--seed', '1', '--puzzle', 'akari']
+const PLANT_HUNT = ['--seed', '4', '--puzzle', 'akari']
 // The same for a UI_PLANTS plant: a seed whose lists reach the plant before any other failure, on short lists, so the
 // hunt, its shrink and the clean rerun of its lists take about a minute.
 const UI_PLANT_HUNT = ['--seed', '3', '--puzzle', 'akari', '--max-steps', '6']
