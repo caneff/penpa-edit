@@ -23,6 +23,7 @@
     ];
 
     // The tree's nodes: a branch has `children`, a leaf has its `tool`, the Penpa+ names it also answers to (`oldNames`) and the text it is searched by.
+    // `labelText` holds only the names on the leaf's path, so a search matching it ranks above one that needs a description.
     function buildNodes(tools) {
         const node = (parent, label, level, tool = null, place = null) => {
             const made = { key: parent ? `${parent.key}/${label}` : label, label, level, parent, children: [], tool, description: place?.description };
@@ -35,6 +36,8 @@
                 const fields = [...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames];
                 made.text = fields.join(' ').toLowerCase();
                 made.looseText = looseText(fields);
+                made.labelText = [...ancestors, label].join(' ').toLowerCase();
+                made.looseLabelText = looseText([...ancestors, label]);
             }
             parent?.children.push(made);
             return made;
@@ -48,7 +51,8 @@
         return roots.filter((root) => root.children.length);
     }
 
-    function createModeTree(tools, onPick) {
+    // `onBest(id)` hears the id of the row Enter would pick, or null.
+    function createModeTree(tools, onPick, onBest) {
         const roots = buildNodes(tools);
         const all = [];
         const open = new Set();
@@ -56,6 +60,7 @@
         let loose = false;
         let selectedKey = null;
         let focusable = null;
+        let best = null;
         const selectedRow = () => visibleRows().find((n) => n.tool && toolKey(n.tool) === selectedKey);
 
         const tree = el('div', { role: 'tree', 'aria-label': 'Tools', id: TREE_ID, class: 'ui-tree' });
@@ -80,6 +85,9 @@
                 row.setAttribute('aria-owns', id);
                 node.wrap.append(node.group);
             }
+            if (isLeaf) {
+                row.id = `tool-tree-leaf-${all.length}`;
+            }
             row.addEventListener('click', () => (isLeaf ? onPick(node.tool) : toggle(node)));
             return node.wrap;
         }
@@ -102,10 +110,12 @@
         function refresh() {
             const searching = words.length > 0;
             let shown = 0;
+            const matches = [];
             const count = (node) => {
-                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(loose ? leaf.looseText : leaf.text, words)) : node.children.flatMap(count);
+                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(searched(leaf, 'text'), words)) : node.children.flatMap(count);
                 if (node.tool) {
                     showOldName(node, matching.length > 0 && searching);
+                    matches.push(...matching);
                 }
                 const expanded = searching || open.has(node.key);
                 node.wrap.hidden = matching.length === 0;
@@ -117,7 +127,9 @@
                 return matching;
             };
             roots.forEach((root) => { shown += count(root).length; });
-            levelButtons.forEach((button) => { button.disabled = searching; });
+            levels.hidden = searching;
+            tree.classList.toggle('ui-searching', searching);
+            markBest(searching ? matches : []);
             if (focusable?.row.closest('[hidden]')) {
                 setFocusable(null);
             }
@@ -126,6 +138,16 @@
             }
             return shown;
         }
+
+        function markBest(matches) {
+            const labelled = matches.find((leaf) => matchesSearch(searched(leaf, 'labelText'), words));
+            best = labelled ?? matches[0] ?? null;
+            all.filter((n) => n.tool).forEach((n) => n.row.classList.toggle('ui-tbest', n === best));
+            onBest(best?.row.id ?? null);
+        }
+
+        // A leaf's `text` or `labelText`, in the spelling the search is matched in.
+        const searched = (leaf, field) => (loose ? leaf[field === 'text' ? 'looseText' : 'looseLabelText'] : leaf[field]);
 
         const visibleRows = () => all.filter((node) => !node.row.closest('[hidden]'));
 
@@ -205,7 +227,6 @@
                 return button;
             }))
         ]);
-        const levelButtons = levels.querySelectorAll('button');
         levels.addEventListener('mousedown', (e) => e.preventDefault());
 
         refresh();
@@ -237,8 +258,8 @@
                 selectedKey = toolKey(tool);
                 all.filter((n) => n.tool).forEach((n) => n.row.setAttribute('aria-selected', String(toolKey(n.tool) === selectedKey)));
             },
-            firstMatch() {
-                return visibleRows().find((n) => n.tool)?.tool ?? null;
+            bestMatch() {
+                return best?.tool ?? null;
             },
             focusSelected() {
                 focusNode(selectedRow() ?? visibleRows()[0]);
