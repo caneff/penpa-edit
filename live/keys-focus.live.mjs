@@ -81,7 +81,7 @@ describe('the keyboard on the solve page', () => {
     await settle(() => page.evaluate(() => engine.getSettings().theme), was === 'dark' ? 'light' : 'dark')
     // A "nothing happened" check, so a wait: a hand-back would run as a timeout queued by the click.
     await afterTimeouts(page)
-    assert.equal(await page.evaluate(() => /theme/i.test(document.activeElement.textContent)), true)
+    assert.equal(await page.evaluate(() => document.activeElement.matches('.ui-bar wa-button') && /theme/i.test(document.activeElement.textContent)), true)
   })
 
   it('Escape in the pin-name field empties it and the board has focus', async () => {
