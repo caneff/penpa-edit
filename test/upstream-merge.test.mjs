@@ -257,7 +257,7 @@ describe('the upstream merge script', () => {
 // AGENTS.md § "Our files": a directory ends in "/", and a file in it is probed by a made-up name.
 const OWNED_PATHS = [
   '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
-  'docs/js/header_text.js', 'docs/js/recorder.js', 'docs/js/engine_bridge.js', 'docs/js/penpa_layer.js', 'docs/js/progress_autosave.js', 'docs/solve.html', 'docs/ui/',
+  'docs/js/header_text.js', 'docs/js/recorder.js', 'docs/js/engine_bridge.js', 'docs/js/penpa_layer.js', 'docs/js/progress_autosave.js', 'docs/solve.html', 'docs/gallery.html', 'docs/gallery.js', 'docs/gallery-puzzles.js', 'docs/ui/',
   'test/ui-boundary.test.mjs',
   'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
   'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/stub-gh.mjs', 'test/run-live.test.mjs',
