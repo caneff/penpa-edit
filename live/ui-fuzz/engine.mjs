@@ -1,10 +1,11 @@
 // The UI fuzz's engine (#195), modelled on `sudokupad-scripts/live/fuzz/engine.mjs`: fast-check generates action lists
-// (`actions.mjs`), each list runs on a page of its own, the crash signals (`signals.mjs`) are read after every action and
-// once more after the last, and a failing list is shrunk and reported with the path that replays it. It knows no browser:
+// (`actions.mjs`), each list runs on a page of its own, the crash signals (`signals.mjs`) and the rules (`rules.mjs`) are
+// read after every action and once more after the last, and a failing list is shrunk and reported with the path that replays it. It knows no browser:
 // the page comes from `openTarget(puzzle)` (`target.mjs`). Not a check itself.
 import { setTimeout as sleep } from 'node:timers/promises'
 import fc from 'fast-check'
 import { actionList, REPLAY_PATH } from './actions.mjs'
+import { ruleViolations } from './rules.mjs'
 import { crashSignals } from './signals.mjs'
 
 // After the last action the run reads the page once more after this long: a "nothing happened in N ms" check for an error
@@ -23,9 +24,12 @@ function failure (message, step) {
   return Object.assign(new Error(message), { step })
 }
 
-function assertClean (snapshot, when, step) {
+// Fails on a crash signal first, then on a broken rule; `rules` is the rules' context (`rules.mjs`) less `now`.
+function assertClean (snapshot, rules, when, step) {
   const signals = crashSignals(snapshot)
   if (signals.length) throw failure(`${signals.length === 1 ? 'crash signal' : 'crash signals'} ${when}: ${signals.join('; ')}`, step)
+  const broken = ruleViolations({ now: snapshot, ...rules })
+  if (broken.length) throw failure(`${broken.length === 1 ? 'rule broken' : 'rules broken'} ${when}: ${broken.join('; ')}`, step)
 }
 
 // Runs `actions` on a page of `puzzle` of its own: a page is never reused between lists, so a list's run depends on no
@@ -34,6 +38,11 @@ async function runList (openTarget, puzzle, actions) {
   const target = await openTarget(puzzle)
   try {
     let ran = 0
+    // The snapshot before the first step, which the undo-to-start rule compares with until a reload; and the last one read.
+    let opened = await target.snapshot()
+    let before = opened
+    // The kinds of the steps run so far, for a rule that reads what came before the last step.
+    const history = []
     const checked = actions.map((action) => ({
       check: () => true,
       toString: () => String(action),
@@ -46,12 +55,18 @@ async function runList (openTarget, puzzle, actions) {
         }
         ran = step
         await target.drawn()
-        assertClean(await target.snapshot(), `after step ${step} (${action})`, step)
+        const now = await target.snapshot()
+        // fast-check hands a hunted list's steps out wrapped, the step itself as `cmd`; a scripted list's come bare.
+        const { kind, arg } = action.cmd ?? action
+        if (kind === 'reload') opened = null
+        history.push(kind)
+        assertClean(now, { before, action: { kind, arg }, opened, history: [...history] }, `after step ${step} (${action})`, step)
+        before = now
       }
     }))
     await fc.asyncModelRun(() => ({ model: {}, real: { page: target.page } }), checked)
     await sleep(ERRORS_LAND_MS)
-    assertClean(await target.snapshot(), 'after the last step', ran)
+    assertClean(await target.snapshot(), { before, action: null, opened, history }, 'after the last step', ran)
   } finally {
     await target.close()
   }

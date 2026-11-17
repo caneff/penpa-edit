@@ -516,12 +516,14 @@ export const KINDS = [
   }
 ]
 
-// One step of kind `k` with `arg`, in the shape fast-check runs a command in; `real.page` is the page it runs on.
+// One step of kind `k` with `arg`, in the shape fast-check runs a command in; `real.page` is the page it runs on. `kind` and
+// `arg` are what the rules read of the step (`rules.mjs`).
 function commandOf (k, arg) {
   let picked = null
   return {
     kind: k.kind,
     area: k.area,
+    arg,
     check: () => true,
     run: async (model, real) => { picked = (await k.run(real.page, arg)) ?? null },
     toString: () => k.label(arg) + (picked ? ` (${picked.replaceAll(',', ' ')})` : '')

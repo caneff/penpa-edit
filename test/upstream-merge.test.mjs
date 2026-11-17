@@ -258,7 +258,7 @@ const OWNED_PATHS = [
   '.gitattributes', 'AGENTS.md', 'CLAUDE.md', 'CODING_STANDARDS.md', 'GLOSSARY.md', '.agents/', 'research/', 'adr/', 'userscript/', 'live/',
   'docs/js/header_text.js', 'docs/js/recorder.js', 'docs/js/engine_bridge.js', 'docs/js/penpa_layer.js', 'docs/js/progress_autosave.js', 'docs/solve.html', 'docs/ui/',
   'test/ui-boundary.test.mjs',
-  'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs',
+  'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs', 'test/ui-fuzz-rules.test.mjs',
   'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/redirect-urls.mjs',
   '.github/workflows/', '.github/actions/', '.github/scripts/'
 ]
