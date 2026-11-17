@@ -189,7 +189,9 @@ export const RULES = [
           y: was.rect.y + above(was.rect).reduce((sum, c) => sum + grew(c.name), 0),
           height: was.rect.height + grew(was.name)
         }
-        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - expected[side]) > SLACK_PX)
+        // A card whose rectangle is as it was never moved, whatever the column above it did.
+        const differs = (want) => ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - want[side]) > SLACK_PX)
+        const moved = differs(expected) && differs(was.rect)
         return was.shown && moved ? [`the reload moved ${was.name} from ${box(was.rect)} to ${box(is.rect)}`] : []
       })
       const pins = (page) => page.pins.map((p) => p.label).join(', ')
