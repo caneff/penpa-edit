@@ -261,7 +261,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-timer { font: 700 15px ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #fff; min-width: 3.4em; text-align: center; }
 .ui-timer.is-solved { color: #7bd88f; }
 
-/* Trial mode's controls (#258): the depth reads as the timer's text does, and the controls hide with no trial on. */
+/* Trial mode's controls (#258): the depth is bold white text on the bar, as the timer is, and the controls hide with no trial on. */
 .ui-trial, .ui-trial-all { display: inline-flex; align-items: center; gap: 6px; }
 .ui-trial[hidden], .ui-trial-all[hidden] { display: none; }
 .ui-trial-depth { font: 700 13px system-ui, sans-serif; color: #fff; white-space: nowrap; }

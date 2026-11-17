@@ -34,6 +34,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   the desk opens fresh, when Reset layout is pressed, and when the window changes size while no card has been moved or
   resized. The places the solver gives cards hold for every puzzle; the cards' sizes hold only for the puzzle they were set on.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
+- **Trial**: the solve page's way to guess (#258): Try marks the undo history, and Keep or Discard later keeps or undoes
+  everything entered since. Trials nest; puzz.link calls it trial mode.
+- **Stage**: one Try's mark in a trial, ended by Keep, Discard, Restart, or an undo by hand to before it; the top bar
+  shows how many are on as "Trial <n>".
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool

@@ -45,25 +45,40 @@
             renderHistory();
         });
         const trialDepth = el('span', { class: 'ui-trial-depth' });
-        const keep = textButton('Keep', 'End this trial and keep what you entered in it', () => endStages(1, false));
-        const discard = textButton('Discard', 'Undo everything entered since this trial began, and end it', () => endStages(1, true));
-        const keepAll = textButton('Keep all', 'End every trial and keep everything', () => endStages(stages.length, false));
+        const keep = textButton('Keep', 'End this trial and keep what you entered in it', () => keepStages(1));
+        const discard = textButton('Discard', 'Undo everything entered since this trial began, and end it', () => discardStages(1));
+        const keepAll = textButton('Keep all', 'End every trial and keep everything', () => keepStages(stages.length));
         const discardAll = textButton('Discard all', 'Undo everything entered since the first trial began, and end every trial',
-            () => endStages(stages.length, true));
+            () => discardStages(stages.length));
         // Keep all and Discard all would repeat Keep and Discard with one stage on.
         const allButtons = el('span', { class: 'ui-trial-all' }, [keepAll.node, discardAll.node]);
         const trial = el('span', { class: 'ui-trial' }, [trialDepth, keep.node, discard.node, allButtons]);
         const trialButtons = [tryButton, keep, discard, keepAll, discardAll];
 
-        // Ends the `count` innermost stages. With `undo`, takes the history back to where the outermost of them began, through
-        // the engine's own undo, so what it takes back goes to the redo stack as a plain undo's would.
-        function endStages(count, undo) {
-            const start = stages[stages.length - count];
+        // Ends the `count` innermost stages, keeping their entries.
+        function keepStages(count) {
             stages.length -= count;
-            while (undo && engine.getState().historyLength > start && engine.undo()) {
-                // Each undo takes back one move.
-            }
             renderHistory();
+        }
+
+        // Takes the history back to where the outermost of the `count` innermost stages began, then ends them. It undoes through
+        // the engine's own undo, so what it takes back goes to the redo stack as a plain undo's would.
+        function discardStages(count) {
+            const start = stages[stages.length - count];
+            while (engine.getState().historyLength > start) {
+                if (!engine.undo()) {
+                    break;
+                }
+            }
+            keepStages(count);
+        }
+
+        // An undo by hand past a stage's start, to before its Try, ends that stage.
+        function endStagesUndone() {
+            const { historyLength } = engine.getState();
+            while (stages.length && stages.at(-1) > historyLength) {
+                stages.pop();
+            }
         }
 
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
@@ -164,14 +179,10 @@
 
         // The board cannot change while paused, so neither can the history nor the trials.
         function renderHistory() {
-            const { canUndo, canRedo, historyLength } = engine.getState();
+            const { canUndo, canRedo } = engine.getState();
             const { covered } = engine.getTimer();
             undo.node.toggleAttribute('disabled', !canUndo || covered);
             redo.node.toggleAttribute('disabled', !canRedo || covered);
-            // An undo by hand past a stage's start, to before its Try, ends that stage.
-            while (stages.length && stages.at(-1) > historyLength) {
-                stages.pop();
-            }
             trial.hidden = !stages.length;
             allButtons.hidden = stages.length < 2;
             trialDepth.textContent = `Trial ${stages.length}`;
@@ -179,6 +190,7 @@
         }
 
         function renderState() {
+            endStagesUndone();
             renderHistory();
             const dark = engine.getSettings().theme === 'dark';
             setDark(bar.parentElement, dark);

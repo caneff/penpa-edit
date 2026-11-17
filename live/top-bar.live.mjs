@@ -1,6 +1,6 @@
-// The top bar of `solve.html` (#94): undo, redo, Restart, Pause, the timer, and the theme it applies. The UI is found by role
-// and accessible name and the state by `engine.getState()`; what the solver has entered is read as Penpa+ would save it
-// (`readEngineState`, defined by recorder.js); the keys and clicks are real.
+// The top bar of `solve.html` (#94): undo, redo, trial mode (#258), Restart, Pause, the timer, and the theme it applies.
+// The UI is found by role and accessible name and the state by `engine.getState()`; what the solver has entered is read
+// as Penpa+ would save it (`readEngineState`, defined by recorder.js); the keys and clicks are real.
 import assert from 'node:assert/strict'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, it } from 'node:test'
@@ -301,9 +301,15 @@ describe('trial mode', () => {
     const { context, page } = await openSolve()
     try {
       await press(page, 'Try')
+      for (const name of ['Keep all', 'Discard all']) {
+        assert.equal(await button(page, name).isVisible(), false, `${name} is hidden with one trial on`)
+      }
       await enterDigit(page, '1', CELL)
       await press(page, 'Try')
       await expectTrial(page, 'Trial 2', 'a Try inside a trial nests')
+      for (const name of ['Keep all', 'Discard all']) {
+        assert.equal(await button(page, name).isVisible(), true, `${name} shows with two trials on`)
+      }
       await enterDigit(page, '2', CELL + 1)
       await press(page, 'Discard')
       await expectDigits(page, ['1'], 'only the inner entry is gone')
@@ -351,6 +357,22 @@ describe('trial mode', () => {
       await expectTrial(page, 'Trial 2', 'an undo back to the stage\'s start keeps it')
       await press(page, 'Undo')
       await expectTrial(page, 'Trial 1', 'an undo past it ends it')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('turns every trial button off while the board is paused', async () => {
+    const { context, page } = await openSolve()
+    const names = ['Try', 'Keep', 'Discard', 'Keep all', 'Discard all']
+    try {
+      await press(page, 'Try')
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await button(page, 'Pause').click()
+      for (const name of names) await assertDisabled(page, name, true, `${name} while paused`)
+      await button(page, 'Resume').first().click() // the top bar's; the cover has one too
+      for (const name of names) await assertDisabled(page, name, false, `${name} after Resume`)
     } finally {
       await context.close()
     }
