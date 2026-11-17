@@ -19,15 +19,16 @@
         return tool.styles.find((s) => s.style === style) ?? null;
     }
 
-    // A pale style colour disappears on the title bar's light pill, so the pill goes dark behind it. The canvas reads any CSS colour
-    // back as #rrggbb.
-    const PALE_LUMINANCE = 0.55;
-    const PILL_ON_PALE = '#2b2f38';
+    // The label's text is the style's colour, so its pill is white or black, whichever shows that colour better: no one pill holds a mid
+    // tone at 4.5:1, and the better of these two never falls under it. The canvas reads any CSS colour back as #rrggbb.
+    const channelLinear = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
     function pillFor(colour) {
         const ctx = document.createElement('canvas').getContext('2d');
         ctx.fillStyle = colour;
-        const [r, g, b] = [1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16));
-        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > PALE_LUMINANCE ? PILL_ON_PALE : null;
+        const [r, g, b] = [1, 3, 5].map((i) => channelLinear(parseInt(ctx.fillStyle.slice(i, i + 2), 16)));
+        const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        // Contrast with white is 1.05 / (L + .05); with black, (L + .05) / .05.
+        return 1.05 / (luminance + 0.05) >= (luminance + 0.05) / 0.05 ? '#ffffff' : '#000000';
     }
 
     // The colour a tool's selected style paints, or null for a tool with no colour style.
@@ -104,7 +105,7 @@
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
-            return svg(`<rect x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>` +
+            return svg(`<rect class="ui-swatch" x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>` +
                 (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" ` +
                     `paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" fill="#23262c">${digit}</text>`));
         }
@@ -337,8 +338,7 @@
             const colour = styleColour(tool, current.style);
             if (colour) {
                 cards.board.node.style.setProperty('--ui-style-colour', colour);
-                const pill = pillFor(colour);
-                cards.board.node.style[pill ? 'setProperty' : 'removeProperty']('--ui-style-pill', pill);
+                cards.board.node.style.setProperty('--ui-style-pill', pillFor(colour));
             } else {
                 cards.board.node.style.removeProperty('--ui-style-colour');
                 cards.board.node.style.removeProperty('--ui-style-pill');

@@ -16,12 +16,12 @@
     const NUMBER_MODE = 'number';
     const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
     // Colour number `n` is the golden angle times `n` around the hue wheel, so each new colour lands in the widest gap left and no
-    // count of pins runs out; the lightness keeps white text readable on it.
+    // count of pins runs out; the lightness keeps white text on it, and the colour as text on the dark theme's #dfe3ea label pill, at 4.5:1 for every hue.
     const GOLDEN_ANGLE_DEG = 137.508;
     const PIN_HUE_OFFSET_DEG = 220;
     const PIN_SATURATION_PERCENT = 62;
-    const PIN_LIGHTNESS_PERCENT = 38;
-    const NEUTRAL_COLOUR = '#7d828c';
+    const PIN_LIGHTNESS_PERCENT = 24;
+    const NEUTRAL_COLOUR = '#585d68';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
