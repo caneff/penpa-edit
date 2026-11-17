@@ -74,27 +74,53 @@ describe('the review page', () => {
     assert.deepEqual([params.get('puzzle'), params.get('size')], [IDS[0], 'fill'])
   })
 
-  it('steps through every puzzle with Next, each loading its board, and back with Previous', async () => {
-    const { page } = await open()
-    const entries = listed()
-    const next = page.getByRole('button', { name: 'Next', exact: true })
-    const previous = page.getByRole('button', { name: 'Previous', exact: true })
-    assert.equal(await previous.isDisabled(), true, 'nothing before the first')
-    for (const [i, entry] of entries.entries()) {
-      assert.equal(await selectedId(page), entry.id)
-      const frame = await boardFrame(page, entry.id)
-      assert.equal(await frame.evaluate(() => pu.gridtype), entry.gridtype, `${entry.id} loads a ${entry.gridtype} board`)
-      assert.deepEqual(await puzzleOf(frame), await directPuzzle(entry), `${entry.id} loads its own board`)
-      if (i < entries.length - 1) await next.click()
-    }
-    assert.equal(await next.isDisabled(), true, 'nothing after the last')
-    for (const entry of entries.slice(0, -1).reverse()) {
-      await previous.click()
-      assert.equal(await selectedId(page), entry.id)
-      await boardFrame(page, entry.id)
-    }
-    assert.equal(await previous.isDisabled(), true)
+  // The page's own open puzzle must be `entry`: selected in the list and loading its board, not a puzzle of the same grid
+  // type opened in its place.
+  async function assertOpensEntry (page, entry) {
+    assert.equal(await selectedId(page), entry.id)
+    const frame = await boardFrame(page, entry.id)
+    assert.equal(await frame.evaluate(() => pu.gridtype), entry.gridtype, `${entry.id} loads a ${entry.gridtype} board`)
+    assert.deepEqual(await puzzleOf(frame), await directPuzzle(entry), `${entry.id} loads its own board`)
+  }
+
+  const nextButton = (page) => page.getByRole('button', { name: 'Next', exact: true })
+  const previousButton = (page) => page.getByRole('button', { name: 'Previous', exact: true })
+
+  it('opens the first puzzle with nothing before it, and the last with nothing after it', async () => {
+    const first = await open()
+    assert.equal(await previousButton(first.page).isDisabled(), true, 'nothing before the first')
+    assert.equal(await nextButton(first.page).isDisabled(), false)
+    const last = await open(`?puzzle=${IDS.at(-1)}`)
+    assert.equal(await selectedId(last.page), IDS.at(-1))
+    assert.equal(await nextButton(last.page).isDisabled(), true, 'nothing after the last')
+    assert.equal(await previousButton(last.page).isDisabled(), false)
   })
+
+  // One test per puzzle, so each gets its own 60 s `--test-timeout` and a failure names its puzzle (#284).
+  for (const [i, id] of IDS.entries()) {
+    if (i === 0) {
+      it(`loads the first puzzle's own board (${id})`, async () => {
+        const { page } = await open()
+        await assertOpensEntry(page, listed()[0])
+      })
+      continue
+    }
+    it(`steps to ${id} with Next from ${IDS[i - 1]}, loading its board`, async () => {
+      const { page } = await open(`?puzzle=${IDS[i - 1]}`)
+      assert.equal(await selectedId(page), IDS[i - 1])
+      await boardFrame(page, IDS[i - 1])
+      await nextButton(page).click()
+      await assertOpensEntry(page, listed()[i])
+    })
+    it(`steps back to ${IDS[i - 1]} with Previous from ${id}`, async () => {
+      const { page } = await open(`?puzzle=${id}`)
+      assert.equal(await selectedId(page), id)
+      await boardFrame(page, id)
+      await previousButton(page).click()
+      assert.equal(await selectedId(page), IDS[i - 1])
+      await boardFrame(page, IDS[i - 1])
+    })
+  }
 
   it('steps with the arrow keys while focus is in the list, and opens a clicked entry', async () => {
     const { page } = await open()

@@ -3,7 +3,7 @@
 // Read through the cards' bounding boxes, the board canvas's drawn size and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
+import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, shareOf, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -22,6 +22,8 @@ const FIT_SLACK_PX = 12
 const WIDE_BOARD_SLACK_PX = 50
 // How far apart the equal gaps may be, for rounding.
 const GAP_SLACK_PX = 2
+// How many tests the loop over every tool splits into.
+const MOUSE_SHARES = 8
 const SHORT_RULES = 'Put a digit from 1 to 9 in every cell.'
 const RULES = Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: put a digit from 1 to 9 in every cell so no row, column or box repeats one, and the clues around the grid hold.`).join('\n\n')
 
@@ -160,23 +162,29 @@ describe('Reset layout fits the desk to the puzzle', () => {
     assert.equal(await settle(clear, true), true)
   })
 
-  it('shows every tool\'s Mouse rows without a scrollbar after Reset layout', async () => {
-    // Rules that fit: long ones take 55% of the column, and Mouse then scrolls for its tallest tools.
-    const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
-    await reset(page)
-    const scrolling = await page.evaluate(async () => {
-      const body = document.querySelector('section[aria-label="Mouse"] .ui-body')
-      const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      const found = []
-      for (const tool of engine.listTools()) {
-        for (const { style } of tool.styles.length ? tool.styles : [{ style: undefined }]) {
-          engine.setTool({ mode: tool.mode, submode: tool.submode, ...(style === undefined ? {} : { style }) })
-          await frames()
-          if (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth) found.push(`${tool.name} ${style ?? ''}`)
+  // Each share of the tools is its own test, so the loop over every tool and style never nears the 60 s `--test-timeout` (#284).
+  for (let share = 0; share < MOUSE_SHARES; share++) {
+    it(`shows every tool's Mouse rows without a scrollbar after Reset layout (share ${share + 1} of ${MOUSE_SHARES})`, async () => {
+      // Rules that fit: long ones take 55% of the column, and Mouse then scrolls for its tallest tools.
+      const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
+      await reset(page)
+      const tools = shareOf(await page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode }))), share, MOUSE_SHARES)
+      assert.ok(tools.length > 0, 'the share holds tools')
+      const scrolling = await page.evaluate(async (mine) => {
+        const body = document.querySelector('section[aria-label="Mouse"] .ui-body')
+        const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        const found = []
+        for (const { mode, submode } of mine) {
+          const tool = engine.listTools().find((t) => t.mode === mode && t.submode === submode)
+          for (const { style } of tool.styles.length ? tool.styles : [{ style: undefined }]) {
+            engine.setTool({ mode, submode, ...(style === undefined ? {} : { style }) })
+            await frames()
+            if (body.scrollHeight > body.clientHeight || body.scrollWidth > body.clientWidth) found.push(`${tool.name} ${style ?? ''}`)
+          }
         }
-      }
-      return found
+        return found
+      }, tools)
+      assert.deepEqual(scrolling, [])
     })
-    assert.deepEqual(scrolling, [])
-  })
+  }
 })
