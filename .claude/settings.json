@@ -1,10 +1,19 @@
 {
+  "permissions": {
+    "allow": ["Bash(npm ci)"]
+  },
   "hooks": {
     "PreToolUse": [
       {
         "matcher": "Write|Edit|MultiEdit|NotebookEdit|Bash",
         "hooks": [
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/deny-recording-writes.mjs\"" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/deny-npm-ci-symlink.mjs\"" }
         ]
       }
     ]

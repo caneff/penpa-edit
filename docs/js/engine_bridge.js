@@ -542,7 +542,7 @@
 
     const SUBMODE_NAMES = {
         line: { 1: 'normal', 2: 'diagonal', 3: 'free', 5: 'middle', 4: 'helper ×' },
-        lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'erase' },
+        lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'clear' },
         number: { 1: 'normal', 10: 'large', 6: 'medium', 5: 'small', 7: 'candidates', 3: 'quarter', 9: 'side', 8: 'long' },
         sudoku: { 1: 'normal', 2: 'corner', 3: 'centre' },
         cage: { 1: 'killer', 2: 'free' },
@@ -767,6 +767,9 @@
 
         // False when the page opened with no link: `ready` then never settles and no puzzle is loaded.
         hasPuzzle: hasPuzzleData(),
+
+        // The theme the page opens in, 'light' or 'dark': read without a puzzle open, which `getSettings` needs.
+        savedTheme: savedTheme(),
 
         // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
         // or Ctrl lends a tool, `solved` while the board matches the author's answer, and `cellSize` is the board's pixels

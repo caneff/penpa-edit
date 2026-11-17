@@ -322,3 +322,22 @@ export const storedEntries = (page) => page.evaluate(() => JSON.stringify(Object
 
 // The text the solver has typed into Number mode cells, in cell order.
 export const typedDigits = async (page) => Object.values((await board(page)).entered.number ?? {}).map(([digit]) => digit)
+
+// Runs in the page: WCAG's contrast ratio of two [r, g, b, a] colours, the second under the first's own alpha.
+export function contrastHelpersInPage () {
+  const channel = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
+  const luminance = ([r, g, b]) => 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
+  const parse = (css) => {
+    const c = document.createElement('canvas').getContext('2d')
+    c.clearRect(0, 0, 1, 1)
+    c.fillStyle = css
+    c.fillRect(0, 0, 1, 1)
+    return [...c.getImageData(0, 0, 1, 1).data]
+  }
+  const over = (top, under) => {
+    const a = top[3] / 255
+    return [0, 1, 2].map((i) => top[i] * a + under[i] * (1 - a)).concat(255)
+  }
+  const ratio = (a, b) => { const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x); return (hi + 0.05) / (lo + 0.05) }
+  return { luminance, parse, over, ratio }
+}

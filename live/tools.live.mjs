@@ -64,8 +64,8 @@ describe('engine.listTools', () => {
 
   it('says "line", not "loop", for the Composite tools that draw one; only the Angle loop shape keeps the word (#186)', async () => {
     const loops = await opened.page.evaluate(() => engine.listTools().filter((t) => t.submode !== 'angleloop').flatMap((t) => {
-      const { left, right, drag, more } = toolGuide.mouseRows(t)
-      const words = [t.submodeName, toolGuide.placeTool(t).name, toolGuide.placeTool(t).description, left, right, drag, ...more.flat()]
+      const { left, right, drag, digit, more } = toolGuide.mouseRows(t)
+      const words = [t.submodeName, toolGuide.placeTool(t).name, toolGuide.placeTool(t).description, left, right, drag, digit, ...more.flat()]
       return words.filter((w) => /loop/i.test(w ?? '')).map((w) => `${t.mode}/${t.submode}: ${w}`)
     }))
     assert.deepEqual(loops, [])
@@ -517,43 +517,45 @@ describe('the Mouse card and the title bar', () => {
   // One tool of each mode family, with the rows its agreed wording gives (research/mouse-card-wording-2026-11.md).
   const WORDING = [
     [{ mode: 'surface', style: 2 }, 'Surface', [
-      ['Left click', 'paint the cell → clear'], ['Right click', 'paint the 2nd colour → clear'],
-      ['Drag', 'paint many cells; starting on a painted cell: clear many'],
-      ['Right drag', '2nd colour on many cells (starting on it: clear many)'],
-      ['Alt + drag', 'paint a rectangle (starting on the colour: clear it; square grids only)'],
-      ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
-    [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Drag', 'line through cell centres; starting on it: erase']]],
+      ['Left click', 'colour in the cell → clear'], ['Right click', '2nd colour in the cell → clear'],
+      ['Drag', 'colour on many cells; starting on a coloured cell: clear many'], ['Digit', 'pick that colour (0–9)'],
+      ['Right drag', '2nd colour on many cells; starting on one: clear many'],
+      ['Alt + drag', 'colour in a rectangle; starting on the colour: clear it (square grids only)'],
+      ['Alt + right drag', '2nd colour in a rectangle (square grids only)']]],
+    [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Drag', 'line through cell centres; starting on a line: clear it']]],
     [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Drag', 'as a click where it starts']]],
-    [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on it: erase']]],
-    [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor to the nearest cell corner spot; selects the cell'],
-      ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
+    [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on a wall: clear it']]],
+    [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor on the nearest cell corner spot; cell selected'],
+      ['Right click', 'cursor on the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
     [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],
-      ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
-    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'],
+      ['Right click', 'black ● → white ○ → clear'], ['Drag', 'the first cell\'s change repeated on each cell'], ['Given circles', 'left alone']]],
+    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on the bulb: clear the thermometer'],
       ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
-    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
-    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'move a number you entered to an empty cell']]],
+    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on a cage line: clear it']]],
+    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'a number you entered, moved to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
-      ['Right click', 'cursor to the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
-    [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
-      ['Drag', 'as a click where it starts'], ['Digit', 'add or remove part n of the shape at the cursor']]],
+      ['Right click', 'cursor on the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'that variant (1–9) at the cursor → clear (same digit)']]],
+    [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor on the cell'], ['Right click', 'cursor on the cell'],
+      ['Drag', 'as a click where it starts'], ['Digit', 'that part (1–9) of the shape added at the cursor, again: removed']]],
     // The rows past Left click, Right click and Drag that #186 corrected, which the agreed table's check does not read.
     [{ mode: 'combi', submode: 'linex' }, 'Line + edge ×', [['Right click', '× on the edge → clear'],
-      ['Drag', 'line through cell centres; starting on it: erase'], ['Right drag from an edge', '× on each edge it passes (starting on a ×: clear them)']]],
-    [{ mode: 'combi', submode: 'linedir' }, 'Line + direction marks', [['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on it: erase'],
-      ['Right drag from a cell toward an edge', 'arrowhead on that edge pointing that way → clear (same way)'],
-      ['Right drag from an edge', '× on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes)']]],
-    [{ mode: 'number', submode: '7' }, 'Number > Candidates', [['Left click', 'select the cell (drops the rest)'],
-      ['Drag', 'select many cells'], ['Ctrl / Shift + click', 'add or remove the cell'], ['Alt + drag', 'select a rectangle (square grids only)'],
-      ['Double click', 'select every cell with the same number; on candidates: just that cell'], ['Digit', 'add or remove that candidate in the selected cells']]],
-    [{ mode: 'sudoku', submode: '1' }, 'Sudoku > Normal', [['Left click', 'select the cell (drops the rest)'],
-      ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
-      ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit'],
-      ['Digit', 'digit in the selected cells'], ['Shift held', 'corner marks (square grids only)'], ['Ctrl + digit', 'centre marks']]],
-    [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'select the cell (drops the rest)'],
-      ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
-      ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit; on corner marks only: clear the selection'],
-      ['Digit', 'corner mark in the selected cells']]]
+      ['Drag', 'line through cell centres; starting on a line: clear it'], ['Right drag', 'from an edge: × on each edge it passes; starting on a ×: clear them']]],
+    [{ mode: 'combi', submode: 'linedir' }, 'Line + direction marks', [['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on a line: clear it'],
+      ['Right drag', 'from a cell toward an edge: arrowhead on that edge pointing that way → clear (same way); '
+        + 'from an edge: × on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes)']]],
+    [{ mode: 'number', submode: '7' }, 'Number > Candidates', [['Left click', 'only that cell selected'],
+      ['Drag', 'many cells selected'], ['Digit', 'candidate in the selected cells, again: removed'], ['Ctrl/Shift + click', 'cell added to the selection, again: removed'],
+      ['Alt + drag', 'rectangle of cells selected (square grids only)'],
+      ['Double click', 'every cell with the same number selected; on candidates: only that cell selected']]],
+    [{ mode: 'sudoku', submode: '1' }, 'Sudoku > Normal', [['Left click', 'only that cell selected'],
+      ['Drag', 'many cells selected'], ['Digit', 'digit in the selected cells'], ['Ctrl/Shift + click', 'cell added to the selection, again: removed'],
+      ['Ctrl/Shift + drag', 'from a selected cell: those cells leave the selection'],
+      ['Alt + drag', 'rectangle of cells selected (square grids only)'], ['Double click', 'every cell with the same digit selected'],
+      ['Shift + digit', 'corner mark in the selected cells (square grids only)'], ['Ctrl + digit', 'centre mark in the selected cells']]],
+    [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'only that cell selected'],
+      ['Drag', 'many cells selected'], ['Digit', 'corner mark in the selected cells'], ['Ctrl/Shift + click', 'cell added to the selection, again: removed'],
+      ['Ctrl/Shift + drag', 'from a selected cell: those cells leave the selection'],
+      ['Alt + drag', 'rectangle of cells selected (square grids only)'], ['Double click', 'every cell with the same digit selected; on corner marks only: selection cleared']]]
   ]
 
   for (const [tool, name, expected] of WORDING) {
@@ -605,7 +607,9 @@ describe('the Mouse card and the title bar', () => {
         engine.setTool(t)
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         // A row that does nothing is not drawn: the agreed table's `—` is a missing row.
-        const shown = Object.fromEntries([...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].map((r) => [r.children[0].textContent, r.children[1].textContent]))
+        // The flick tools' keypad is the drag row's extra, not its words.
+        const wordsOf = (cell) => { const copy = cell.cloneNode(true); copy.querySelector('.ui-keypad')?.remove(); return copy.textContent }
+        const shown = Object.fromEntries([...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].map((r) => [r.children[0].textContent, wordsOf(r.children[1])]))
         return ['Left click', 'Right click', 'Drag'].map((gesture) => shown[gesture] ?? '—')
       }, tool)
       checked++
@@ -631,6 +635,105 @@ describe('the Mouse card and the title bar', () => {
       return seen
     })
     assert.equal(Object.keys(heights).length, 1, `one height, saw ${JSON.stringify(heights)}`)
+  })
+})
+
+// The Mouse card's wording over every tool (#203), on a laptop screen.
+describe('the Mouse card reads at a glance (#203)', () => {
+  let opened
+  before(async () => {
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser()), { contextOptions: { viewport: { width: 1366, height: 768 } } })
+  })
+  after(async () => { await opened?.context.close() })
+
+  // Every tool's card: headline, then each row as { gesture, effect, isMore, gestureLines, keypad }.
+  const sweep = () => opened.page.evaluate(async () => {
+    const card = document.querySelector('section[aria-label="Mouse"]')
+    const seen = {}
+    for (const t of engine.listTools()) {
+      engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      seen[`${t.mode}/${t.submode ?? ''}`] = {
+        headline: card.querySelector('h3').textContent,
+        rows: [...card.querySelectorAll('.ui-mrow')].map((row) => {
+          const gesture = row.children[0]
+          return {
+            gesture: gesture.textContent, effect: row.children[1].textContent, isMore: row.classList.contains('is-more'),
+            gestureLines: Math.round(gesture.getBoundingClientRect().height / parseFloat(getComputedStyle(gesture).lineHeight === 'normal'
+              ? parseFloat(getComputedStyle(gesture).fontSize) * 1.2 : getComputedStyle(gesture).lineHeight)),
+            keypad: [...row.querySelectorAll('.ui-keypad > *')].map((k) => k.textContent)
+          }
+        })
+      }
+    }
+    return seen
+  })
+  let cards
+  before(async () => { cards = await sweep() })
+
+  it('words no tool with "erase" or a bare "n"', () => {
+    const bad = Object.entries(cards).flatMap(([key, { headline, rows }]) => [headline, ...rows.flatMap((r) => [r.gesture, r.effect])]
+      .filter((text) => /erase/i.test(text) || /\bn\b/.test(text)).map((text) => `${key}: ${text}`))
+    assert.deepEqual(bad, [])
+  })
+
+  it('makes Digit a main row for every tool that has one, Sudoku Normal included', () => {
+    assert.equal(cards['sudoku/1'].rows.find((r) => r.gesture === 'Digit')?.isMore, false)
+    const bad = Object.entries(cards).filter(([, { rows }]) => rows.some((r) => r.gesture === 'Digit' && r.isMore)).map(([key]) => key)
+    assert.deepEqual(bad, [])
+  })
+
+  it('puts the main rows before the extra rows', () => {
+    const bad = Object.entries(cards).filter(([, { rows }]) => rows.some((r, i) => !r.isMore && rows.slice(0, i).some((p) => p.isMore))).map(([key]) => key)
+    assert.deepEqual(bad, [])
+  })
+
+  it('keeps every gesture name to 2 lines', () => {
+    const bad = Object.entries(cards).flatMap(([key, { rows }]) => rows.filter((r) => r.gestureLines > 2).map((r) => `${key}: ${r.gesture} (${r.gestureLines})`))
+    assert.deepEqual(bad, [])
+  })
+
+  it('shows the flick tools\' keys as a 3×3 grid, the 9th saying what it gives', () => {
+    assert.deepEqual(cards['combi/numfl'].rows.find((r) => r.gesture === 'Drag').keypad, ['↖1', '↑2', '↗3', '←4', '5', '→6', '↙7', '↓8', '↘9'])
+    assert.deepEqual(cards['combi/alfl'].rows.find((r) => r.gesture === 'Drag').keypad, ['↖A', '↑B', '↗C', '←D', 'E', '→F', '↙G', '↓H', '↘dash'])
+  })
+
+  it('splits the Polygon\'s Left click from its closing click, and words its Drag as a click', () => {
+    const polygon = Object.fromEntries(cards['special/polygon'].rows.map((r) => [r.gesture, r.effect]))
+    assert.deepEqual(Object.keys(polygon), ['Left click', 'Drag', 'Closing click'])
+    assert.doesNotMatch(polygon['Left click'], /finish/)
+    assert.match(polygon['Closing click'], /finishes the polygon/)
+    assert.equal(polygon.Drag, 'as a click where it starts')
+  })
+
+  // The dots in the card's rows as [gesture, background colour]; `swatchOf` is Surface's style `style` colour as the browser writes it.
+  const dotsOf = () => opened.page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].filter((r) => r.querySelector('.ui-dot'))
+      .map((r) => [r.children[0].textContent, getComputedStyle(r.querySelector('.ui-dot')).backgroundColor])
+  })
+  const swatchOf = (style) => opened.page.evaluate((style) => {
+    const colour = engine.listTools().find((t) => t.mode === 'surface').styles.find((s) => s.style === style).swatch
+    const ctx = document.createElement('canvas').getContext('2d')
+    ctx.fillStyle = colour
+    return [1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16))
+  }, style).then((rgb) => `rgb(${rgb.join(', ')})`)
+
+  it('names the 2nd colour with a dot in its own colour, and redraws it when the setting changes', async () => {
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    for (const style of [2, 5]) {
+      await opened.page.evaluate((style) => engine.setSetting('secondcolor', style), style)
+      const colour = await swatchOf(style)
+      const expected = [['Right click', colour], ['Right drag', colour], ['Alt + right drag', colour]]
+      assert.deepEqual(await settle(dotsOf, expected), expected)
+    }
+  })
+
+  it('draws the 2nd colour dot for Edges + inside / outside too', async () => {
+    await opened.page.evaluate(() => engine.setSetting('secondcolor', 5))
+    await setTool(opened.page, { mode: 'combi', submode: 'edgexoi' })
+    const expected = await swatchOf(5)
+    assert.deepEqual(await settle(dotsOf, [['Left click', expected], ['Right click', expected]]), [['Left click', expected], ['Right click', expected]])
   })
 })
 
