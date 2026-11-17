@@ -3,7 +3,7 @@
 // page's computed styles and the board's pixels, so a CSS change that looks wrong fails here.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { boardCanvasInPage, makeNumberSolveLink, openSolvePage, useBrowser } from './page.mjs'
+import { boardCanvasInPage, makeNumberSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -176,6 +176,30 @@ describe('top-bar buttons', () => {
       await context.close()
     })
   }
+})
+
+describe('pin colours', () => {
+  it('hold white text at 4.5:1 for 24 pins, so a current chip reads', async () => {
+    const { context, page } = await openIn('light')
+    // The saved pin set the Pinned card reads on load: pin ids 0..23 run round the hue wheel on the golden angle.
+    await page.evaluate(() => {
+      const keys = Object.keys(localStorage).filter((key) => localStorage.getItem(key).includes('"pins"'))
+      if (keys.length !== 1) throw new Error(`expected one saved pin set, found ${keys.length}`)
+      const pins = Array.from({ length: 24 }, (_, id) => ({ id, mode: 'surface', submode: null, style: null }))
+      localStorage.setItem(keys[0], JSON.stringify({ nextId: pins.length, pins }))
+    })
+    await page.reload()
+    await waitForDesk(page)
+    await page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}` })
+    const ratios = await page.evaluate(() => {
+      const { parse, ratio } = window.__helpers()
+      return [...document.querySelectorAll('.ui-chip')].map((chip) =>
+        ratio([255, 255, 255, 255], parse(getComputedStyle(chip).getPropertyValue('--ui-pin-colour'))))
+    })
+    assert.equal(ratios.length, 24, 'every pin has a chip')
+    assert.deepEqual(ratios.filter((r) => r < WCAG_AA_TEXT), [], 'white against each pin colour')
+    await context.close()
+  })
 })
 
 describe('the dark theme elsewhere', () => {
