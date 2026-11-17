@@ -1009,8 +1009,6 @@
             if (REDRAWN_SETTINGS.includes(name)) {
                 pu.redraw();
             }
-            // A setting can change what a card says, and redraw() fires `change` only for the settings in REDRAWN_SETTINGS.
-            queueChange();
         },
 
         // Writes the open puzzle's progress to the store where Penpa+ reads it back at boot, and resolves true once the write
