@@ -444,14 +444,17 @@
         shownIds(cards).forEach((id) => keepInside(id, cards[id].node, width, height));
     }
 
+    // A card's box on the desk; and whether two boxes (these, or DOMRects) overlap.
+    const boxOf = (node) => ({ left: node.offsetLeft, top: node.offsetTop, right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight });
+    const boxesMeet = (p, q) => p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom;
+
     // The cards that overlap: a map from a key naming the pair to the pair's two card ids.
     function overlappingPairs(cards) {
         const ids = shownIds(cards);
         const box = (id) => cards[id].node.getBoundingClientRect();
         const pairs = new Map();
         ids.forEach((a, i) => ids.slice(i + 1).forEach((b) => {
-            const [p, q] = [box(a), box(b)];
-            if (p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom) {
+            if (boxesMeet(box(a), box(b))) {
                 pairs.set(`${a}/${b}`, [a, b]);
             }
         }));
@@ -785,33 +788,50 @@
     // Each shown card's height when the cards last changed size, so a card that grows can tell which cards it newly covers.
     const heightsSeen = new Map();
 
-    const boxOf = (node) => ({ left: node.offsetLeft, top: node.offsetTop, right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight });
-    const boxesMeet = (p, q) => p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom;
 
-    // Card `id` grew from the box `was`: each card below it that `was` left clear and that it covers now moves down to
-    // CARD_GAP_PX under it, shorter where the desk's bottom leaves less room, and in turn moves down whatever it now covers
-    // (#288). Wherever the solver placed it, since the growth, not the solver, closed the gap; cards that already met stay.
+    // A card the desk moved or sized, kept: as fitted while it was, else as the solver's, its flags as they were. One never
+    // saved gets no place of its own, which would read as placed by the solver.
+    function keepDeskChange(desk, cards, id) {
+        const entry = saved[id];
+        if (entry?.fitted) {
+            keepFitted(desk, cards, [id]);
+            return;
+        }
+        if (entry) {
+            keepPlace(id, cards[id].node);
+        }
+        saveCard(desk, id, cards[id].node);
+    }
+
+    // Card `id` grew from the box `was`: each card below it that `was` left clear and that it covers now moves down out from
+    // under it, and in turn moves what it then covers (#288). A card the solver never touched moves to CARD_GAP_PX under it,
+    // as restackRight's do (#199); one the solver moved or sized moves only by the overlap, its size kept, since the growth,
+    // not the solver, closed the gap (an exception to #199, ruled 2026-11-17). Either shrinks only to the room above the
+    // desk's bottom; where even its least height has no room, the grown card stops above it instead.
     function clearBelow(desk, cards, id, was) {
-        const now = boxOf(cards[id].node);
+        const grown = cards[id].node;
         shownIds(cards).filter((other) => other !== id).forEach((other) => {
             const { node } = cards[other];
             const box = boxOf(node);
+            const now = boxOf(grown);
             if (box.top < was.top || boxesMeet(box, was) || !boxesMeet(box, now)) {
                 return;
             }
-            const top = now.bottom + CARD_GAP_PX;
+            const gap = saved[other] && !saved[other].fitted ? 0 : CARD_GAP_PX;
+            const top = now.bottom + gap;
             const room = desk.clientHeight - EDGE_MARGIN_PX - top;
+            if (room < minHeightOf(other, cards[other])) {
+                setHeight(grown, Math.max(minHeightOf(id, cards[id]), box.top - gap - now.top));
+                heightsSeen.set(id, grown.offsetHeight);
+                keepDeskChange(desk, cards, id);
+                return;
+            }
             if (node.offsetHeight > room) {
-                setHeight(node, Math.max(minHeightOf(other, cards[other]), room));
+                setHeight(node, room);
             }
-            node.style.top = `${Math.max(box.top, Math.min(top, desk.clientHeight - node.offsetHeight))}px`;
-            if (saved[other]?.fitted) {
-                keepFitted(desk, cards, [other]);
-            } else {
-                keepPlace(other, node);
-                saveCard(desk, other, node);
-            }
+            node.style.top = `${top}px`;
             heightsSeen.set(other, node.offsetHeight);
+            keepDeskChange(desk, cards, other);
             clearBelow(desk, cards, other, box);
         });
     }

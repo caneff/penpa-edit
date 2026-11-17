@@ -27,10 +27,10 @@ export const AREAS = ['bar', 'board', 'mouse-rules', 'pinned', 'mode', 'recent',
 // How many times more often a focused area's kinds are drawn.
 const FOCUS_FACTOR = 5
 // The cards a card action picks from, by name, and the resize handles by their `data-testid` suffix (desk.js).
-const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-const HANDLES = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bottom-right', 'bottom-left']
+export const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
+export const HANDLES = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bottom-right', 'bottom-left']
 // The moves a card drag or resize picks from, in pixels, each way.
-const MOVES = [-240, -80, -20, 0, 20, 80, 240]
+export const MOVES = [-240, -80, -20, 0, 20, 80, 240]
 const MOVE = fc.nat({ max: MOVES.length - 1 })
 // A drag is let go in this many mouse moves, so the page sees it travel.
 const DRAG_MOVES = 5
