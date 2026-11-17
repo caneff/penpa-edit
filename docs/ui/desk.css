@@ -126,7 +126,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-picker { position: relative; }
 .ui-search { box-sizing: border-box; width: 100%; font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: inherit; }
 .ui-search:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
-.ui-list { position: fixed; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
+.ui-list { position: fixed; z-index: 4; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
 .ui-list[hidden] { display: none; }
 /* A card's stacking context holds its floating list, so the card with an open list stacks above every card, even a raised one (desk.js stops raising one below this). */
 .ui-card:has(.ui-list:not([hidden])) { z-index: calc(var(--ui-bar-z) - 1) !important; }
