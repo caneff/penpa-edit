@@ -25,7 +25,7 @@
     const LIGHTNESS_STEPS = 20;
     const NEUTRAL_COLOUR = 'var(--ui-neutral-colour)';
     const BUTTON = 'button, wa-button';
-    // The pin of the pin toggles, and of Unpin all's icon: a pin with a slash through it.
+    // A pin seen from the side: the head and the needle.
     const PIN_SHAPE = '<path d="M5.5 1.5h5l-.8 4.2 2.3 2.8H4l2.3-2.8z"/><path d="M8 8.5v6"/>';
     const UNPIN_ALL_ICON = `${PIN_SHAPE}<path d="M2 2l12 12"/>`;
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
@@ -176,12 +176,7 @@
         cards.pins.body.replaceChildren(strip);
 
         // No confirm: "Puzzle defaults" or a saved preset brings pins back.
-        const unpinAll = iconButton(UNPIN_ALL_ICON, 'Unpin all', () => {
-            pins = [];
-            cursor = -1;
-            save();
-            render();
-        });
+        const unpinAll = iconButton(UNPIN_ALL_ICON, 'Unpin all', () => window.pinBoard.replace([]));
         unpinAll.node.classList.add('ui-unpin-all');
         cards.pins.head.append(unpinAll.node);
 

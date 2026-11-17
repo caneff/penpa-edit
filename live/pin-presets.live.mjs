@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { currentTool, newBoardSolveLink, openPenpa, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
-import { choosePreset, closed, nameField, openList, pinnedCard, presetField, presetList, saveButton, savePreset } from './pin-card.mjs'
+import { choosePreset, closed, nameField, openList, pinnedCard, presetField, presetList, saveButton, savePreset, toolKeyOf } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -26,7 +26,6 @@ const allTabs = async () => {
 const link = (tabSet) => newBoardSolveLink(browser(), tabSet)
 const openSolve = (hash) => openSolvePage(browser(), hash)
 
-const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
 
 const offered = (page) => presetList(page).getByRole('option').allInnerTexts()
 const groupTitles = (page) => presetList(page).getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')))

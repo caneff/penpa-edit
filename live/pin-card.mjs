@@ -1,5 +1,7 @@
 // What the live tests of `solve.html` share for the Pinned card's preset picker: its field, list and name form, found by role and
 // accessible name. Not a check itself, so `live/**/*.live.mjs` skips it.
+import { chipName, newBoardSolveLink, openSolvePage } from './page.mjs'
+
 export const pinnedCard = (page) => page.getByRole('region', { name: 'Pinned' })
 export const presetField = (page) => pinnedCard(page).getByRole('combobox', { name: 'Pin presets' })
 export const presetList = (page) => pinnedCard(page).getByRole('listbox', { name: 'Presets' })
@@ -22,4 +24,21 @@ export const savePreset = async (page, name) => {
   await saveButton(page).click()
   await nameField(page).fill(name)
   await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).click()
+}
+
+export const pinChips = (page) => pinnedCard(page).locator('.ui-chip')
+export const pinChipTexts = async (page) => (await pinChips(page).locator('.ui-chip-main').allInnerTexts()).map(chipName)
+export const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
+
+// The Tab set the pin tests open a new board with, so the Pinned card starts with one pin each.
+export const PIN_TAB_SET = ['Line Normal', 'Sudoku Corner', 'Surface']
+
+// Runs `body(page)` on a solve page opened on a new board with PIN_TAB_SET, and closes it after.
+export const withPinnedPage = (browser, body) => async () => {
+  const opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), PIN_TAB_SET))
+  try {
+    await body(opened.page)
+  } finally {
+    await opened.context.close()
+  }
 }
