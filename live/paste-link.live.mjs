@@ -89,6 +89,74 @@ describe('solve.html with no puzzle data', () => {
   }
 })
 
+describe('the paste page\'s look (#193)', () => {
+  // Runs in the page: the paste page's own nodes by tag, with whether Web Awesome has upgraded them and the card's colours.
+  const lookInPage = () => {
+    const card = document.querySelector('.ui-paste')
+    const parse = (css) => css.match(/[\d.]+/g).map(Number)
+    return {
+      inputTag: document.querySelector('#paste-link-input')?.tagName,
+      buttonTag: card.querySelector('[type=submit]')?.tagName,
+      upgraded: [...card.querySelectorAll('wa-input, wa-button')].every((n) => n.matches(':defined')),
+      htmlDark: document.documentElement.classList.contains('wa-dark'),
+      cardBackground: parse(getComputedStyle(card).backgroundColor),
+      pageText: card.innerText
+    }
+  }
+
+  it('uses the desk\'s Web Awesome input and button, named and with one line of help and an example link', async () => {
+    const bare = await openBare()
+    try {
+      const look = await bare.page.evaluate(lookInPage)
+      assert.equal(look.inputTag, 'WA-INPUT')
+      assert.equal(look.buttonTag, 'WA-BUTTON')
+      assert.equal(look.upgraded, true)
+      assert.equal(await bare.page.getByRole('heading', { name: 'ChinStrap solve page' }).count(), 1)
+      assert.match(look.pageText, /https:\/\/caneff\.github\.io\/penpa-edit\/\S*[?#]\S*p=/, 'an example link')
+    } finally { await bare.context.close() }
+  })
+
+  it('puts the focus in the box on load, and Enter in it opens the link', async () => {
+    const bare = await openBare()
+    try {
+      assert.equal(await bare.page.evaluate(() => document.activeElement.id), 'paste-link-input')
+      await bare.page.keyboard.type(`${UPSTREAM}${AKARI_SOLVE}`)
+      await bare.page.keyboard.press('Enter')
+      await bare.page.getByRole('region', { name: 'Board' }).waitFor()
+      assert.equal(await bare.page.evaluate(() => location.hash), AKARI_SOLVE)
+    } finally { await bare.context.close() }
+  })
+
+  it('shows the error below the box, in the danger colours of the theme', async () => {
+    const bare = await openBare()
+    try {
+      await bare.page.keyboard.type('hello')
+      await bare.page.keyboard.press('Enter')
+      await bare.error.waitFor()
+      assert.notEqual(await bare.error.evaluate((n) => getComputedStyle(n).backgroundColor), 'rgba(0, 0, 0, 0)', 'a filled panel')
+      const [boxBottom, errorTop] = await bare.page.evaluate(() => [
+        document.querySelector('#paste-link-input').getBoundingClientRect().bottom,
+        document.querySelector('[role=alert]').getBoundingClientRect().top])
+      assert.equal(errorTop >= boxBottom, true, `the error (top ${errorTop}) is below the box (bottom ${boxBottom})`)
+    } finally { await bare.context.close() }
+  })
+
+  for (const [theme, dark] of [['light', false], ['dark', true]]) {
+    it(`follows the saved ${theme} theme`, async () => {
+      const bare = await openBare()
+      try {
+        await bare.page.evaluate((t) => localStorage.setItem('chinstrap-solve-theme-v1', t), theme)
+        await bare.page.reload()
+        await bare.page.getByRole('textbox', { name: 'Penpa+ link' }).waitFor()
+        const look = await bare.page.evaluate(lookInPage)
+        assert.equal(look.htmlDark, dark)
+        const [r, g, b] = look.cardBackground
+        assert.equal((r + g + b) / 3 < 100, dark, `card background ${look.cardBackground}`)
+      } finally { await bare.context.close() }
+    })
+  }
+})
+
 describe('solve.html with a puzzle in its link', () => {
   it('shows no paste box', async () => {
     const { context, page } = await openSolvePage(browser(), AKARI_SOLVE)
