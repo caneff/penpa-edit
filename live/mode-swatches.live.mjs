@@ -1,5 +1,6 @@
 // The Mode card's colour swatches (#236): every swatch's digit reads against its fill at 1366x768 in both themes, and the swatches
 // grow with the desk-wide text scale (#199) from 1366x768 to 2560x1440. Colours are read from the page's computed styles.
+// A page that opens in a saved dark theme draws swatches even when the theme's stylesheet arrives after the tools are read (#247).
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
 import { afterChange, contrastHelpersInPage, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
@@ -12,6 +13,10 @@ const LAPTOP = { width: 1366, height: 768 }
 const HUGE = { width: 2560, height: 1440 }
 // The least a swatch must grow from 1366x768 to 2560x1440: well past rounding, short of the desk's full text scale.
 const MIN_GROWTH = 1.3
+// Where the solve page keeps its theme (engine_bridge.js).
+const THEME_KEY = 'chinstrap-solve-theme-v1'
+// The names of Surface's and Number's colour styles, as `engine.listTools()` gives them.
+const COLOUR_NAMES = ['dark grey', 'grey', 'light grey', 'black', 'green', 'blue', 'red', 'yellow', 'pink', 'orange', 'purple', 'brown', 'dark blue']
 
 // Runs in the page: each swatch's digit contrast against its fill, and whether the digit has an outline.
 function swatchContrastsInPage () {
@@ -57,5 +62,38 @@ describe('the Mode card swatches', () => {
     // Pass once the desk's scale has applied; a swatch that never grows settles at its small size and fails the assert.
     const big = await settle(async () => (await swatchWidth(page)) / small >= MIN_GROWTH, true)
     assert.equal(big, true, `the swatch stayed ${small}px at 2560x1440`)
+  })
+})
+
+describe('a saved dark theme whose stylesheet is slow to arrive (#247)', () => {
+  it('still draws every colour style of Surface and Number as a swatch, never as its name', async () => {
+    const link = await newBoardSolveLink(browser(), ['Surface', 'Number'])
+    // The dark stylesheet is held until the page has read its tools, as a slow network holds it on the live site; until it
+    // arrives Penpa+'s colour variables are undefined, so its legacy style labels have no background.
+    const opened = await openSolvePage(browser(), link, {
+      served: true,
+      setup: async (context) => {
+        await context.addInitScript(([key]) => localStorage.setItem(key, 'dark'), [THEME_KEY])
+        await context.route(/\/css\/dark_theme\.css/, async (route) => {
+          const page = context.pages()[0]
+          await page.waitForFunction(() => typeof engine !== 'undefined')
+          await page.evaluate(async () => { await engine.ready; engine.listTools() })
+          await route.fallback()
+        })
+      }
+    })
+    const { page } = opened
+    const colourStyles = (mode) => page.evaluate(([mode, names]) => engine.listTools().find((t) => t.mode === mode).styles
+      .filter((s) => names.includes(s.name)).map((s) => [s.name, typeof s.swatch]), [mode, COLOUR_NAMES])
+    for (const mode of ['surface', 'number']) {
+      const styles = await colourStyles(mode)
+      assert.ok(styles.length >= 6, `${mode} lists its colours`)
+      assert.deepEqual(styles.filter(([, swatch]) => swatch !== 'string'), [], `${mode}: every colour style has a swatch`)
+    }
+    await setTool(page, { mode: 'surface' })
+    const buttons = await settle(() => page.evaluate(() => [...document.querySelectorAll('.ui-stylebtn')].map((b) => b.querySelector('.ui-swatch') ? 'swatch' : b.textContent.trim())), null)
+    assert.equal(buttons.length, 12, 'Surface has twelve colours')
+    assert.deepEqual(buttons.filter((b) => b !== 'swatch'), [], 'every Surface button is a swatch')
+    await opened.context.close()
   })
 })

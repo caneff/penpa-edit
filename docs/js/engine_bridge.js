@@ -533,7 +533,7 @@
     };
     // The modes whose colour styles are pen strokes, so their swatch is the stroke colour of Penpa+'s `set_line_style`.
     const PEN_BOXES = new Set(['line', 'lineE', 'wall']);
-    // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
+    // The styles that are colours: only these have a swatch.
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
     // The key that picks each Surface colour, which Penpa+'s `surfaceKeys` (main.js) deals out in a different order from the colours' own
@@ -594,12 +594,22 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
-    // MVP gap: calls Penpa+'s `set_line_style` on a scratch canvas to read the colour it strokes pen style `style` with.
-    // A legacy label's background is no source: a checked label has a ground of its own, and the greys differ.
-    function penColourOf(style) {
+    // MVP gap: calls Penpa+'s own paint setter on a scratch canvas to read the colour it draws colour style `style` of style box
+    // `box` with: `set_line_style`'s stroke for a pen, `set_surface_style`'s fill for a Surface colour, `set_font_style`'s fill
+    // for a text colour. A legacy label's background is no source (#247): its colour is a variable of the theme stylesheet,
+    // undefined while a theme switch reloads it, and a checked label has a grey ground of its own.
+    function colourOf(box, style) {
         const scratch = document.createElement('canvas').getContext('2d');
-        set_line_style(scratch, style);
-        return scratch.strokeStyle;
+        if (PEN_BOXES.has(box)) {
+            set_line_style(scratch, style);
+            return scratch.strokeStyle;
+        }
+        if (box === 'surface') {
+            set_surface_style(scratch, style);
+        } else {
+            set_font_style(scratch, SAMPLE_FONT_PX, style);
+        }
+        return scratch.fillStyle;
     }
 
     // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it
@@ -636,11 +646,7 @@
             }
             const name = STYLE_NAMES[box]?.[radio.value] ?? `style ${radio.value}`;
             const style = parseInt(radio.value, 10);
-            const background = getComputedStyle(label).backgroundColor;
-            let swatch = null;
-            if (COLOUR_STYLE_NAMES.has(name)) {
-                swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
-            }
+            const swatch = COLOUR_STYLE_NAMES.has(name) ? colourOf(box, style) : null;
             const sample = box === 'number' && style in TEXT_STYLE_DISC ? textSampleOf(style) : null;
             return [{ style, name, swatch, sample, key: box === 'surface' ? SURFACE_KEY_OF_STYLE[style] ?? null : null }];
         });
