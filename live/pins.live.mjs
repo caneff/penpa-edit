@@ -15,7 +15,7 @@ const CELL = 12
 
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
-const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save these pins as a preset)/ })
+const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins as a preset)/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
 
 // The colour of the board's frame, as the Board card draws it.
@@ -346,7 +346,7 @@ describe('the pin toggles', () => {
     assert.equal(await modeCard(page).getByRole('button', { name: 'Pin Surface' }).getAttribute('aria-pressed'), 'false')
   })
 
-  it('gives each Recent chip a pin that toggles its mode and leaves the current tool alone', async () => {
+  it('gives each Recent chip a pin that pins its tool and leaves the current tool alone', async () => {
     const { page } = opened
     await setTool(page, { mode: 'wall', submode: null })
     await afterChange(page)
@@ -357,9 +357,10 @@ describe('the pin toggles', () => {
     assert.equal(await wall.getAttribute('aria-pressed'), 'false')
     await wall.click()
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner', 'Wall']), ['Line > Normal', 'Sudoku > Corner', 'Wall'])
-    assert.equal(await recentCard(page).getByRole('button', { name: 'Unpin Wall' }).getAttribute('aria-pressed'), 'true')
+    // A pinned mode leaves Recent (#182).
+    assert.equal(await recentCard(page).getByRole('button', { name: /Wall/ }).count(), 0)
     assert.equal((await currentTool(page)).mode, 'surface', 'the tool did not change')
-    await recentCard(page).getByRole('button', { name: 'Unpin Wall' }).click()
+    await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: 'Unpin Wall' }).click()
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner']), ['Line > Normal', 'Sudoku > Corner'])
     assert.equal((await currentTool(page)).mode, 'surface')
   })

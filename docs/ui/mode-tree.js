@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { TOOL_GROUPS, placeTool, searchWords, matchesSearch, toolKey } = window.toolGuide;
+    const { TOOL_GROUPS, placeTool, looseText, searchWords, looseWords, matchesSearch, toolKey } = window.toolGuide;
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
@@ -22,7 +22,7 @@
         ['Everything', () => true]
     ];
 
-    // The tree's nodes: a branch has `children`, a leaf has its `tool` and the text it is searched by.
+    // The tree's nodes: a branch has `children`, a leaf has its `tool`, the Penpa+ names it also answers to (`oldNames`) and the text it is searched by.
     function buildNodes(tools) {
         const node = (parent, label, level, tool = null, place = null) => {
             const made = { key: parent ? `${parent.key}/${label}` : label, label, level, parent, children: [], tool, description: place?.description };
@@ -31,7 +31,10 @@
                 for (let at = parent; at; at = at.parent) {
                     ancestors.push(at.label);
                 }
-                made.text = [...ancestors, label, place.name, place.description, tool.modeName, ...tool.labels].join(' ').toLowerCase();
+                made.oldNames = [...tool.labels, tool.mode, /^\d*$/.test(tool.submode ?? '') ? null : tool.submode].filter(Boolean);
+                const fields = [...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames];
+                made.text = fields.join(' ').toLowerCase();
+                made.looseText = looseText(fields);
             }
             parent?.children.push(made);
             return made;
@@ -50,6 +53,7 @@
         const all = [];
         const open = new Set();
         let words = [];
+        let loose = false;
         let selectedKey = null;
         let focusable = null;
         const selectedRow = () => visibleRows().find((n) => n.tool && toolKey(n.tool) === selectedKey);
@@ -64,6 +68,7 @@
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [node.label]),
+                el('span', { class: 'ui-tmatch', 'aria-hidden': 'true', hidden: '' }),
                 el('span', { class: 'ui-tcount', 'aria-hidden': 'true' })
             ]);
             node.row = row;
@@ -82,13 +87,26 @@
         // The mouse press keeps the focus where it is, so the click that follows is a pick or a fold.
         tree.addEventListener('mousedown', (e) => e.preventDefault());
 
+        // A radio's sub-mode value is a bare digit nobody saw in Penpa+, so it is neither searched nor shown. The hint names the
+        // old name that holds the whole search, so it appears only when the row's own label does not.
+        function showOldName(node, matched) {
+            const hint = node.row.querySelector('.ui-tmatch');
+            const holds = (name) => matchesSearch(loose ? looseText([name]) : name.toLowerCase(), words);
+            const name = matched && !holds(node.label) ? node.oldNames.find(holds) : undefined;
+            hint.textContent = name ? `Penpa+: ${name}` : '';
+            hint.hidden = !name;
+        }
+
         // Shows what the open set and the search say: a leaf shows when it matches; a branch shows when a leaf below does,
         // and is open while searching, so every match shows under its ancestors.
         function refresh() {
             const searching = words.length > 0;
             let shown = 0;
             const count = (node) => {
-                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(leaf.text, words)) : node.children.flatMap(count);
+                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(loose ? leaf.looseText : leaf.text, words)) : node.children.flatMap(count);
+                if (node.tool) {
+                    showOldName(node, matching.length > 0 && searching);
+                }
                 const expanded = searching || open.has(node.key);
                 node.wrap.hidden = matching.length === 0;
                 if (!node.tool) {
@@ -195,9 +213,16 @@
         return {
             tree,
             levels,
-            // Filters to the tools whose search text holds every word of `text`; returns how many match.
+            // Filters to the tools whose search text holds every word of `text`, loosely when none does; returns how many match.
             search(text) {
+                loose = false;
                 words = searchWords(text);
+                const shown = refresh();
+                if (shown > 0 || !words.length) {
+                    return shown;
+                }
+                loose = true;
+                words = looseWords(text);
                 return refresh();
             },
             // Opens the branch holding `tool`, and keeps the rest of the open state.

@@ -687,8 +687,9 @@ describe('the desk\'s own settings in the dialog', () => {
     const { context, page } = await openSolve()
     try {
       const pinned = page.getByRole('region', { name: 'Pinned' })
-      await pinned.getByRole('textbox', { name: 'Save current pins as…' }).fill('Mine')
-      await pinned.getByRole('button', { name: 'Save these pins as a preset' }).click()
+      await pinned.getByRole('button', { name: 'Save pins as a preset' }).click()
+      await pinned.getByRole('textbox', { name: 'Preset name' }).fill('Mine')
+      await pinned.getByRole('button', { name: 'Save', exact: true }).click()
       const offered = async () => {
         await pinned.getByRole('combobox', { name: 'Pin presets' }).click()
         const names = await page.getByRole('option').allInnerTexts()

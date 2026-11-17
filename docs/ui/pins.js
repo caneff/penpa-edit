@@ -251,6 +251,8 @@
             }
         }
 
+        const pinListeners = [];
+
         function render() {
             followTool();
             // Between two unpinned tools the signature holds, yet the Mode card's pin names the new one.
@@ -261,6 +263,7 @@
                 return;
             }
             drawn = signature;
+            pinListeners.forEach((listener) => listener());
             strip.replaceChildren(...pins.map((pin, i) => chip(pin, i + 1, i === index)));
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
@@ -271,6 +274,8 @@
             // `toggleButton(toolNow)` is a pin toggle for the tool `toolNow()` names; `isPinned(tool)` tells whether a tool is pinned.
             toggleButton: pinToggle,
             isPinned: (tool) => pinIndexOf(tool) >= 0,
+            // `onChange(listener)` calls `listener` whenever the pins or the current pin change.
+            onChange: (listener) => pinListeners.push(listener),
             snapshot: () => pins.map(({ mode, submode, style }) => ({ mode, submode, style })),
             replace(entries) {
                 pins = entries.filter(toolOf).map(({ mode, submode, style }) => ({ id: nextId++, mode, submode, style: style ?? null }));
