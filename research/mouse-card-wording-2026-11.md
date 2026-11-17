@@ -13,7 +13,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 
 - **Shift + click and Ctrl + click act as Right click** in Shading (`surface`) and every Composite tool (`mouseevent`:
   "Map shift/ctrl-click to right click"). Listed in More only where Right click does something.
-- **"Starting on ... : erase"**: a drag's first step decides. If the first segment already holds this tool's line (same
+- **"Starting on ...: clear it"**: a drag's first step decides. If the first segment already holds this tool's line (same
   style), the whole drag erases that line; otherwise it draws, replacing a line of another style (`re_line`,
   `drawing_mode` 100 → style or 0). Crossing a line later in the drag does not erase it.
 - Middle button does nothing (`onDown` ignores `e.button === 1`).
@@ -23,8 +23,8 @@ Things that hold for many rows, so they are not repeated in every cell:
 
 | key | name | Left click | Right click | Drag | More | Changed? | Sure? | Handler |
 |---|---|---|---|---|---|---|---|---|
-| surface/ | Shade cells | colour in the cell → clear | 2nd colour in the cell → clear | colour on many cells; starting on a coloured cell: clear many | Digit: pick that colour (1–9); Right drag: 2nd colour on many cells; starting on one: clear many; Alt + drag: colour in a rectangle; starting on the colour: clear it (square grids only); Alt + right drag: 2nd colour in a rectangle (square grids only) | reworded | yes (Shift + click checked live) | `mouse_surface`, `re_surface_twobutton`, `re_surfaceR`, `re_surfacemove`, `handle_rect_mousedown` |
-| multicolor/ | Colour selected cells | only that cell selected | — | many cells selected | Digit: that colour (1–9) added to the selected cells, again: removed; Ctrl/Shift + click: cell added to the selection, again: removed; Ctrl/Shift + drag: from a selected cell: those cells leave the selection; Alt + drag: rectangle of cells selected (square grids only); Double click: every cell with the same colour selected | fixed | yes | `mouse_sudoku`, `dblmouseevent`, `key_number` (`edit_mode === "multicolor"`) |
+| surface/ | Shade cells | colour in the cell → clear | 2nd colour in the cell → clear | colour on many cells; starting on a coloured cell: clear many | Digit: pick that colour (0–9); Right drag: 2nd colour on many cells; starting on one: clear many; Alt + drag: colour in a rectangle; starting on the colour: clear it (square grids only); Alt + right drag: 2nd colour in a rectangle (square grids only) | reworded | yes (Shift + click checked live) | `mouse_surface`, `re_surface_twobutton`, `re_surfaceR`, `re_surfacemove`, `handle_rect_mousedown` |
+| multicolor/ | Colour selected cells | only that cell selected | — | many cells selected | Digit: that colour (0–9) added to the selected cells, again: removed; Ctrl/Shift + click: cell added to the selection, again: removed; Ctrl/Shift + drag: from a selected cell: those cells leave the selection; Alt + drag: rectangle of cells selected (square grids only); Double click: every cell with the same colour selected | fixed | yes | `mouse_sudoku`, `dblmouseevent`, `key_number` (`edit_mode === "multicolor"`) |
 | combi/blpo | Shade + dot | shade → dot · → clear | dot · → shade → clear | the first cell's change repeated on each cell (shade, dot or clear) | — | reworded | yes | `re_combi_blpo`, `re_combi_blpo_downright`, `re_combi_blpo_move` |
 | combi/shaka | Corner triangles + dot | dot · → clear | — | from a cell toward a corner: black triangle filling that corner's half → clear (same way) | — | new | yes (checked live) | `re_combi_shaka`, `re_combi_shaka_move`, `re_combi_shaka_up` |
 
@@ -42,7 +42,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 | combi/linedir | Line + direction marks | — | edge: × → arrowhead one way → the other way → clear | line through cell centres; starting on a line: clear it | Right drag: from a cell toward an edge: arrowhead on that edge pointing that way → clear (same way); from an edge: × on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes) | new | yes | `re_combi_linedir_move`, `re_combi_linedir_downright`, `re_combi_linedir_up` |
 | combi/yajilin | Shade + line | shaded cell → clear | cell: dot · → clear; edge: × → clear | line through cell centres; starting on a line: clear it | Right drag: dot · on many cells; starting on a dot ·: clear many | reworded | yes | `re_combi_yajilin_move`, `re_combi_yajilin_up_reduced`, `re_combi_yajilin_downright` |
 | combi/hashi | Bridges | × in the cell → clear | × in the cell → clear | bridge between cells → double → clear | — | fixed | yes (clicks checked live) | `re_combi_hashi`, `re_combi_hashi_move`, `re_combi_hashi_up` |
-| combi/rassisillai | Line + cell marks | ○ in the cell → clear | shaded cell → clear | line through cell centres; starting on a line: clear it | Right drag: shaded cells on many cells; starting on a shaded cell: clear many | new | yes | `re_combi_rassisillai_move`, `re_combi_rassisillai_up_reduced`, `re_combi_rassisillai_downright` |
+| combi/rassisillai | Line + cell marks | ○ in the cell → clear | shaded cell → clear | line through cell centres; starting on a line: clear it | Right drag: shading on many cells; starting on a shaded cell: clear many | new | yes | `re_combi_rassisillai_move`, `re_combi_rassisillai_up_reduced`, `re_combi_rassisillai_downright` |
 
 ## Edges and walls
 
@@ -53,7 +53,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 | lineE/3 | Free edge line | — | — | straight line from one corner to another, any angle, drawn on release; starting on the same line: clear it | — | reworded | yes | `mouse_lineEfree`, `re_lineEup_free` |
 | lineE/6 | Midpoint edge line | — | — | line along grid lines in half steps, corner to edge middle, so it can stop mid-edge; starting on a line: clear it | — | fixed | yes | `mouse_lineE`, `re_linemoveE` (submode "6", `edge_to_vertex`) |
 | lineE/4 | Edge helper × | × on the grid line → clear | — | as a click where it starts | — | same | yes | `mouse_lineEX`, `re_lineEX` |
-| lineE/5 | Erase grid lines | — | — | grid lines it runs along cleared; starting on a cleared one: restore them | — | reworded | yes | `re_linemoveE` (submode "5", `deletelineE`) |
+| lineE/5 | Clear grid lines | — | — | grid lines it runs along cleared; starting on a cleared one: grid lines restored | — | reworded | yes | `re_linemoveE` (submode "5", `deletelineE`) |
 | wall/ | Wall | — | — | from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on a wall: clear it | — | reworded | yes (checked live) | `mouse_wall`, `re_wallmove` |
 | combi/edgex | Edges + × | — | × on the edge, if no edge line is there → clear | line along grid lines; starting on a line: clear it | Right drag: from an edge: × on each edge it passes; starting on a ×: clear them | reworded | yes | `re_combi_edgex_move`, `re_combi_cross_downright` |
 | combi/edgexoi | Edges + inside / outside | cell: yellow → 2nd colour → clear | edge: × → clear; cell: 2nd colour → yellow → clear | line along grid lines; starting on a line: clear it | — | reworded | yes | `re_combi_edgexoi_move`, `re_combi_edgexoi_up`, `re_combi_cross_downright` |
@@ -110,9 +110,9 @@ Things that hold for many rows, so they are not repeated in every cell:
 
 | key | name | Left click | Right click | Drag | More | Changed? | Sure? | Handler |
 |---|---|---|---|---|---|---|---|---|
-| move/1 | Move anything | — | — | move a number or shape you entered to an empty cell | — | reworded | yes | `mouse_move`, `re_movedown`, `re_movemove` |
-| move/2 | Move numbers | — | — | move a number you entered to an empty cell | — | reworded | yes | as move/1 |
-| move/3 | Move shapes | — | — | move a shape you entered to an empty cell | — | reworded | yes | as move/1 |
+| move/1 | Move anything | — | — | a number or shape you entered, moved to an empty cell | — | reworded | yes | `mouse_move`, `re_movedown`, `re_movemove` |
+| move/2 | Move numbers | — | — | a number you entered, moved to an empty cell | — | reworded | yes | as move/1 |
+| move/3 | Move shapes | — | — | a shape you entered, moved to an empty cell | — | reworded | yes | as move/1 |
 
 ## Where today's text is factually wrong
 

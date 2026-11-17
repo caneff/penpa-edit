@@ -204,7 +204,7 @@
         const [click, ...rest] = selectRows(what, double);
         return { left: 'only that cell selected', right: NOTHING, drag: 'many cells selected', digit, more: [click, ...extra, ...rest, ...after] };
     };
-    const line = (drag, noun = 'a line', more = []) => ({ left: NOTHING, right: NOTHING, drag: `${drag}; ${clearing(noun)}`, more });
+    const line = (drag, noun = 'a line') => ({ left: NOTHING, right: NOTHING, drag: `${drag}; ${clearing(noun)}`, more: [] });
     const clearMany = (mark) => `${mark} on many cells; starting on a ${mark}: clear many`;
     // Penpa+ starts the marking only when the press lands on an edge.
     const crossEdges = ['Right drag', `from an edge: × on each edge it passes; starting on a ×: clear them`];
@@ -214,7 +214,7 @@
     const mineRows = (left, drag = 'starting on a marked cell: clear many') => ({ left: `${left}${alsoClears}`,
         right: `cell: × → ${CYCLE_END}; ${cornerOrEdgeDot}`, drag, more: [['Right drag', clearMany('×')]] });
     const thermoRows = (click, drag) => ({ left: click, right: NOTHING, drag: `${drag}; drag back to undo a step`, more: [] });
-    const move = (what) => ({ left: NOTHING, right: NOTHING, drag: `move ${what} you entered to an empty cell`, more: [] });
+    const move = (what) => ({ left: NOTHING, right: NOTHING, drag: `${what} you entered, moved to an empty cell`, more: [] });
     // The flick tools: `keys` are the nine values the drag directions give, in the order of a keypad (NW N NE, W centre E, SW S SE).
     const ARROWS = ['↖', '↑', '↗', '←', '', '→', '↙', '↓', '↘'];
     const flick = (centre, what, keys) => ({ left: `${centre} in the cell → ${CYCLE_END}`, right: NOTHING,
@@ -222,11 +222,11 @@
 
     const ROWS = {
         'surface/': { left: `colour in the cell → ${CYCLE_END}`, right: `2nd colour${SECOND_COLOUR_DOT} in the cell → ${CYCLE_END}`,
-            drag: 'colour on many cells; starting on a coloured cell: clear many', digit: 'pick that colour (1–9)',
+            drag: 'colour on many cells; starting on a coloured cell: clear many', digit: 'pick that colour (0–9)',
             more: [['Right drag', `2nd colour${SECOND_COLOUR_DOT} on many cells; starting on one: clear many`],
                 ['Alt + drag', `colour in a rectangle; starting on the colour: clear it (${SQUARE_ONLY})`],
                 ['Alt + right drag', `2nd colour${SECOND_COLOUR_DOT} in a rectangle (${SQUARE_ONLY})`]] },
-        'multicolor/': selecting('colour', 'that colour (1–9) added to the selected cells, again: removed', { extra: [REMOVE_DRAG] }),
+        'multicolor/': selecting('colour', 'that colour (0–9) added to the selected cells, again: removed', { extra: [REMOVE_DRAG] }),
         'combi/blpo': { left: `shade → dot · → ${CYCLE_END}`, right: `dot · → shade → ${CYCLE_END}`,
             drag: 'the first cell\'s change repeated on each cell (shade, dot or clear)', more: [] },
         'combi/shaka': { left: `dot · → ${CYCLE_END}`, right: NOTHING,
@@ -249,7 +249,7 @@
         'combi/hashi': { left: `× in the cell → ${CYCLE_END}`, right: `× in the cell → ${CYCLE_END}`,
             drag: `bridge between cells → double → ${CYCLE_END}`, more: [] },
         'combi/rassisillai': { left: `○ in the cell → ${CYCLE_END}`, right: `shaded cell → ${CYCLE_END}`,
-            drag: `line through cell centres; ${clearing('a line')}`, more: [['Right drag', 'shaded cells on many cells; starting on a shaded cell: clear many']] },
+            drag: `line through cell centres; ${clearing('a line')}`, more: [['Right drag', 'shading on many cells; starting on a shaded cell: clear many']] },
 
         'lineE/1': line('line along grid lines'),
         'lineE/2': line('line along grid lines, and across cells corner to corner'),
@@ -257,7 +257,7 @@
         'lineE/6': line('line along grid lines in half steps, corner to edge middle, so it can stop mid-edge'),
         'lineE/4': { left: `× on the grid line → ${CYCLE_END}`, right: NOTHING, drag: AS_A_CLICK, more: [] },
         'lineE/5': { left: NOTHING, right: NOTHING,
-            drag: 'grid lines it runs along cleared; starting on a cleared one: restore them', more: [] },
+            drag: 'grid lines it runs along cleared; starting on a cleared one: grid lines restored', more: [] },
         'wall/': line('from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag', 'a wall'),
         'combi/edgex': { left: NOTHING, right: `× on the edge, if no edge line is there → ${CYCLE_END}`,
             drag: `line along grid lines; ${clearing('a line')}`, more: [crossEdges] },

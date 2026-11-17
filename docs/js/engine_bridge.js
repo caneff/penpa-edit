@@ -1009,7 +1009,7 @@
             if (REDRAWN_SETTINGS.includes(name)) {
                 pu.redraw();
             }
-            // A card that words itself by a setting (the Mouse card's 2nd colour) redraws on `change`.
+            // A setting can change what a card says, and redraw() fires `change` only for the settings in REDRAWN_SETTINGS.
             queueChange();
         },
 

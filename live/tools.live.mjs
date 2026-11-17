@@ -64,8 +64,8 @@ describe('engine.listTools', () => {
 
   it('says "line", not "loop", for the Composite tools that draw one; only the Angle loop shape keeps the word (#186)', async () => {
     const loops = await opened.page.evaluate(() => engine.listTools().filter((t) => t.submode !== 'angleloop').flatMap((t) => {
-      const { left, right, drag, more } = toolGuide.mouseRows(t)
-      const words = [t.submodeName, toolGuide.placeTool(t).name, toolGuide.placeTool(t).description, left, right, drag, ...more.flat()]
+      const { left, right, drag, digit, more } = toolGuide.mouseRows(t)
+      const words = [t.submodeName, toolGuide.placeTool(t).name, toolGuide.placeTool(t).description, left, right, drag, digit, ...more.flat()]
       return words.filter((w) => /loop/i.test(w ?? '')).map((w) => `${t.mode}/${t.submode}: ${w}`)
     }))
     assert.deepEqual(loops, [])
@@ -518,7 +518,7 @@ describe('the Mouse card and the title bar', () => {
   const WORDING = [
     [{ mode: 'surface', style: 2 }, 'Surface', [
       ['Left click', 'colour in the cell → clear'], ['Right click', '2nd colour in the cell → clear'],
-      ['Drag', 'colour on many cells; starting on a coloured cell: clear many'], ['Digit', 'pick that colour (1–9)'],
+      ['Drag', 'colour on many cells; starting on a coloured cell: clear many'], ['Digit', 'pick that colour (0–9)'],
       ['Right drag', '2nd colour on many cells; starting on one: clear many'],
       ['Alt + drag', 'colour in a rectangle; starting on the colour: clear it (square grids only)'],
       ['Alt + right drag', '2nd colour in a rectangle (square grids only)']]],
@@ -532,7 +532,7 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on the bulb: clear the thermometer'],
       ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
     [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on a cage line: clear it']]],
-    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'move a number you entered to an empty cell']]],
+    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'a number you entered, moved to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
       ['Right click', 'cursor on the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'that variant (1–9) at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor on the cell'], ['Right click', 'cursor on the cell'],
@@ -706,23 +706,34 @@ describe('the Mouse card reads at a glance (#203)', () => {
     assert.equal(polygon.Drag, 'as a click where it starts')
   })
 
-  it('names the 2nd colour with a dot in its own colour', async () => {
-    const dots = await opened.page.evaluate(async () => {
-      const surface = engine.listTools().find((t) => t.mode === 'surface')
-      engine.setTool({ mode: 'surface', style: surface.styles[0].style })
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-      const second = surface.styles.find((s) => s.style === engine.getSettings().secondcolor).swatch
-      const ctx = document.createElement('canvas').getContext('2d')
-      ctx.fillStyle = second
-      const rows = [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')]
-      return {
-        expected: ctx.fillStyle,
-        dots: rows.filter((r) => r.querySelector('.ui-dot')).map((r) => [r.children[0].textContent, getComputedStyle(r.querySelector('.ui-dot')).backgroundColor])
-      }
-    })
-    assert.deepEqual(dots.dots.map(([gesture]) => gesture), ['Right click', 'Right drag', 'Alt + right drag'])
-    const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`
-    assert.deepEqual(new Set(dots.dots.map(([, colour]) => colour)), new Set([rgb(dots.expected)]))
+  // The dots in the card's rows as [gesture, background colour]; `swatchOf` is Surface's style `style` colour as the browser writes it.
+  const dotsOf = () => opened.page.evaluate(async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+    return [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].filter((r) => r.querySelector('.ui-dot'))
+      .map((r) => [r.children[0].textContent, getComputedStyle(r.querySelector('.ui-dot')).backgroundColor])
+  })
+  const swatchOf = (style) => opened.page.evaluate((style) => {
+    const colour = engine.listTools().find((t) => t.mode === 'surface').styles.find((s) => s.style === style).swatch
+    const ctx = document.createElement('canvas').getContext('2d')
+    ctx.fillStyle = colour
+    return [1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16))
+  }, style).then((rgb) => `rgb(${rgb.join(', ')})`)
+
+  it('names the 2nd colour with a dot in its own colour, and redraws it when the setting changes', async () => {
+    await setTool(opened.page, { mode: 'surface', style: 1 })
+    for (const style of [2, 5]) {
+      await opened.page.evaluate((style) => engine.setSetting('secondcolor', style), style)
+      const colour = await swatchOf(style)
+      const expected = [['Right click', colour], ['Right drag', colour], ['Alt + right drag', colour]]
+      assert.deepEqual(await settle(dotsOf, expected), expected)
+    }
+  })
+
+  it('draws the 2nd colour dot for Edges + inside / outside too', async () => {
+    await opened.page.evaluate(() => engine.setSetting('secondcolor', 5))
+    await setTool(opened.page, { mode: 'combi', submode: 'edgexoi' })
+    const expected = await swatchOf(5)
+    assert.deepEqual(await settle(dotsOf, [['Left click', expected], ['Right click', expected]]), [['Left click', expected], ['Right click', expected]])
   })
 })
 

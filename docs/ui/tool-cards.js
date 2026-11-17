@@ -48,7 +48,7 @@
         return h3;
     }
 
-    // An effect's words, with a dot in `secondColour` where it names the 2nd colour (no dot when the tool has no such colour).
+    // An effect's words, with a dot in `secondColour` where it names the 2nd colour (no dot when there is none).
     function effectNodes(effect, secondColour) {
         return effect.split(SECOND_COLOUR_DOT).flatMap((text, i) => (i === 0 || !secondColour ? [text] : [el('i', { class: 'ui-dot', style: `background:${secondColour}` }), text]));
     }
@@ -61,8 +61,7 @@
         const row = (gesture, effect, cls, extra = []) => el('div', { class: `ui-mrow ${cls}` }, [
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [...effectNodes(effect, secondColour), ...extra])
         ]);
-        // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen. A tool that
-        // types gets a Digit row among the main ones.
+        // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
         const main = [['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag], ['Digit', rows.digit ?? NOTHING]];
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
             ...main.filter(([, effect]) => effect !== NOTHING)
@@ -309,8 +308,7 @@
         const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style),
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
-        // The colour of Surface's style `style`, which the Surface tool's styles carry as swatches.
-        const surfaceColour = (style) => tools.find((t) => t.mode === 'surface')?.styles.find((s) => s.style === style)?.swatch ?? null;
+        const surfaceTool = tools.find((t) => t.mode === 'surface');
 
         function sizeMouseCard() {
             // A closed card has no width to measure at; the desk sizes it again when it opens.
@@ -328,7 +326,7 @@
             const current = engine.getTool();
             const held = engine.getState().held;
             const orientation = engine.getOrientation();
-            const secondColour = surfaceColour(engine.getSettings().secondcolor);
+            const secondColour = styleColour(surfaceTool, engine.getSettings().secondcolor);
             const now = `${toolKey(current)}/${current.style}/${orientation}/${held}/${secondColour}`;
             if (now === drawn) {
                 return;
