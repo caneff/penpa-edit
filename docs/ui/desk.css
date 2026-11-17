@@ -212,7 +212,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* The flash: the tool's name over the Board card's header for a moment on each change, never over the board; it never takes a click. */
 .ui-card-board .ui-head { position: relative; }
 .ui-flash { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 8px;
-    padding: 1px 14px; border-radius: 999px; background: rgba(18, 20, 26, .88); color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
+    padding: 1px 14px; border-radius: 999px; background: #12141a; text-transform: none; letter-spacing: 0; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
 .ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
 .ui-flash-dot { width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); flex: none; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
