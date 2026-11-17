@@ -381,7 +381,7 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-size-bottom { grid-area: 3 / 2; }
 .ui-size-side { display: flex; gap: 4px; }
 .ui-size-left, .ui-size-right { flex-direction: column-reverse; }
-.ui-size-side wa-button[data-refused] { opacity: .45; }
+:is(.ui-size-side wa-button, .ui-change-size)[data-refused] { opacity: .45; }
 .ui-size-note { min-height: 1.4em; margin: 14px 0 0; color: #5f5b4c; font-size: 13px; }
 .wa-dark .ui-size-board { border-color: #a9b0bd; background: #23262d; color: #e6e8ec; }
 .wa-dark .ui-size-note { color: #a9b0bd; }

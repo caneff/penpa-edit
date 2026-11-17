@@ -55,9 +55,10 @@ const openNumberBoard = async (options) => {
 }
 
 // Runs in the page: a new board of `columns` x `rows` cells of `gridtype`, `space` of them blank on every side, the grid's
-// first cell given a 1 and the first `topClues` cells of the top blank row given 1, 2, ...; turned by Penpa+'s
-// `rotate_grid(turn)` and flipped top to bottom when `flip`. Returns its solve link's `#` part.
-function boardLinkInPage ({ columns, rows, gridtype = 'square', space = 0, topClues = 0, turn = 0, flip = false }) {
+// first cell given a 1, the first `topClues` cells of the top blank row given 1, 2, ..., and with `topLine` a given
+// thermometer and a given line through its second and third cells; turned by Penpa+'s `rotate_grid(turn)`, and flipped
+// with `flip` 'UD' (top to bottom) or 'LR'. Returns its solve link's `#` part.
+function boardLinkInPage ({ columns, rows, gridtype = 'square', space = 0, topClues = 0, topLine = null, turn = 0, flip = null }) {
   document.getElementById('gridtype').value = gridtype
   UserSettings.gridtype = gridtype
   document.getElementById('nb_size1').value = columns
@@ -67,8 +68,11 @@ function boardLinkInPage ({ columns, rows, gridtype = 'square', space = 0, topCl
   pu.pu_q.number[pu.centerlist[0]] = [1, 1, '1']
   // Penpa+'s cells are `i + j * nx0`, the board's first row at j = 2 and its first column at i = 2.
   for (let k = 0; k < topClues; k++) pu.pu_q.number[2 + k + 2 * pu.nx0] = [String(k + 1), 1, '1']
+  const [second, third] = [3 + 2 * pu.nx0, 4 + 2 * pu.nx0]
+  if (topLine === 'thermo') pu.pu_q.thermo.push([second, third])
+  if (topLine === 'line') pu.pu_q.line[`${second},${third}`] = 3
   if (turn) pu.rotate_grid(turn)
-  if (flip) pu.rotate_UD()
+  if (flip) pu[`rotate_${flip}`]()
   const url = pu.maketext_solve()
   return url.slice(url.indexOf('#'))
 }
@@ -95,6 +99,17 @@ describe('engine.changeSize on a square-cell board', () => {
         assert.equal((await layout(page)).givens, 1, `the given stays after ${side} ${change}`)
       }
       assert.deepEqual(errors, [])
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('throws on a side or change it does not know', async () => {
+    const { context, page } = await openNumberBoard()
+    try {
+      assert.match(await refusal(page, 'up', 1), /no side "up"/)
+      assert.match(await refusal(page, 'top', 2), /change must be 1 or -1, got 2/)
+      assert.deepEqual(await shape(page), START)
     } finally {
       await context.close()
     }
@@ -152,16 +167,25 @@ describe('engine.changeSize on a square-cell board', () => {
     const { context, page } = await openNumberBoard()
     try {
       await page.evaluate(() => engine.changeSize('top', 1))
-      // The new row's first cell, in Penpa+'s own order.
-      await page.evaluate(() => {
-        const row = []
-        for (let i = 2; i < pu.nx0 - 2; i++) row.push(i + 2 * pu.nx0)
-        pu.pu_a.number[row[0]] = ['5', 2, '1']
-      })
+      // The new row's first cell: Penpa+'s board starts at column 2 and row 2 of its point ids.
+      await page.evaluate(() => { pu.pu_a.number[2 + 2 * pu.nx0] = ['5', 2, '1'] })
       assert.match(await refusal(page, 'top', -1), /holds an entry/)
-      assert.deepEqual([(await layout(page)).rows, (await layout(page)).entries], [5, 1])
+      const after = await layout(page)
+      assert.deepEqual([after.rows, after.entries], [5, 1])
     } finally {
       await context.close()
+    }
+  })
+
+  it('refuses to remove a blank row that holds a given thermometer or line', async () => {
+    for (const topLine of ['thermo', 'line']) {
+      const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6, space: 1, topLine }))
+      try {
+        assert.match(await refusal(page, 'top', -1), /holds a given/, topLine)
+        assert.equal((await page.evaluate(() => engine.getSizeChanges())).sides.bottom.remove, null, `${topLine}: the bottom row can go`)
+      } finally {
+        await context.close()
+      }
     }
   })
 
@@ -179,8 +203,8 @@ describe('engine.changeSize on a square-cell board', () => {
     }
   })
 
-  it('adds on the side named as the board is drawn, when the link turns or flips it', async () => {
-    for (const options of [{ turn: 90 }, { turn: 270 }, { flip: true }]) {
+  it('adds and removes on the side named as the board is drawn, when the link turns or flips it', async () => {
+    for (const options of [{ turn: 90 }, { turn: 180 }, { turn: 270 }, { flip: 'UD' }, { flip: 'LR' }]) {
       const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 3, rows: 2, ...options }))
       try {
         const before = await shape(page)
@@ -189,6 +213,8 @@ describe('engine.changeSize on a square-cell board', () => {
         assert.deepEqual(after, { columns: before.columns, rows: before.rows + 1, given: [before.given[0], before.given[1] + 1] }, JSON.stringify(options))
         await page.evaluate(() => engine.changeSize('right', 1))
         assert.deepEqual(await shape(page), { ...after, columns: after.columns + 1 }, JSON.stringify(options))
+        await page.evaluate(() => { engine.changeSize('top', -1); engine.changeSize('right', -1) })
+        assert.deepEqual(await shape(page), before, `${JSON.stringify(options)}: removed again`)
       } finally {
         await context.close()
       }
@@ -241,17 +267,6 @@ describe('engine.changeSize on a grid that is not square', () => {
         assert.equal(changes.sides[side].remove, changes.unavailable)
       }
       assert.match(await refusal(page, 'top', 1), /square cells/)
-    } finally {
-      await context.close()
-    }
-  })
-
-  it('throws on a side or change it does not know', async () => {
-    const { context, page } = await openNumberBoard()
-    try {
-      assert.match(await refusal(page, 'up', 1), /side/)
-      assert.match(await refusal(page, 'top', 2), /change/)
-      assert.deepEqual(await shape(page), START)
     } finally {
       await context.close()
     }
@@ -309,9 +324,12 @@ describe('the Change size dialog', () => {
     }
   })
 
-  it('on a grid that is not square, says why and offers no side', async () => {
+  it('on a grid that is not square, dims its button, says why and refuses every side', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 4, rows: 4, gridtype: 'hex' }))
     try {
+      const entry = page.locator(`${BOARD} wa-button.ui-change-size`)
+      assert.equal(await entry.getAttribute('data-refused'), '', 'the button is dimmed')
+      assert.equal(await page.locator(`wa-tooltip[for="${await entry.getAttribute('id')}"]`).textContent(), 'Only a grid of square cells can change size.')
       const dialog = await openDialog(page)
       await dialog.getByRole('status').getByText(/square cells/).waitFor()
       const sides = dialog.locator('wa-button').filter({ hasText: /^(\u2212|\+)(Add|Remove) / })

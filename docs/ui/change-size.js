@@ -6,7 +6,6 @@
 
     const { el, textButton, onDeskReady } = window.uiKit;
 
-    // Each side's buttons, named for screen readers and the tests.
     const SIDE_LABELS = {
         top: { add: 'Add a row above', remove: 'Remove the row above' },
         bottom: { add: 'Add a row below', remove: 'Remove the row below' },
@@ -14,7 +13,8 @@
         right: { add: 'Add a column on the right', remove: 'Remove the column on the right' }
     };
 
-    const refusalOf = (changes, side, change) => changes.sides[side][change > 0 ? 'add' : 'remove'];
+    const kindOf = (change) => (change > 0 ? 'add' : 'remove');
+    const refusalOf = (changes, side, change) => changes.sides[side][kindOf(change)];
 
     onDeskReady(({ cards, fitBoard }) => {
         const size = el('div', { class: 'ui-size-board' });
@@ -27,7 +27,7 @@
             const name = el('span', { class: 'ui-sr-only' });
             const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' }, [el('span', { 'aria-hidden': 'true' }, [content]), name]);
             node.addEventListener('click', () => press(side, change));
-            buttons.push({ node, name, label: SIDE_LABELS[side][change > 0 ? 'add' : 'remove'], side, change });
+            buttons.push({ node, name, label: SIDE_LABELS[side][kindOf(change)], side, change });
             return node;
         }
         const sideGroup = (side) => el('div', { class: `ui-size-side ui-size-${side}` }, [sideButton(side, -1, '\u2212'), sideButton(side, 1, '+')]);
@@ -61,11 +61,15 @@
             show();
         }
 
-        const open = textButton('Change size\u2026', 'Add or remove blank rows and columns around the board', () => {
+        // A grid that is not square stays one for the page's life, so the button is dimmed and names the reason once; it still
+        // opens the dialog, which says the same.
+        const { unavailable } = engine.getSizeChanges();
+        const open = textButton('Change size\u2026', unavailable ?? 'Add or remove blank rows and columns around the board', () => {
             show();
             dialog.open = true;
         });
         open.node.classList.add('ui-change-size');
+        open.node.toggleAttribute('data-refused', unavailable !== null);
         cards.board.head.append(open.node);
     });
 })();

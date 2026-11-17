@@ -15,6 +15,9 @@
     // MVP gap: draw_selection fills with `Puzzle.prototype.selection_fill` when it is set (a caneff: line in class_p.js).
     Puzzle.prototype.selection_fill = 'rgba(110, 110, 110, 0.12)';
 
+    // Penpa+'s square-cell grids keep this many unused cells (`pu.point` ids) round the board on each side.
+    const PENPA_MARGIN_CELLS = 2;
+
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
 
@@ -773,44 +776,51 @@
 
     const NOT_SQUARE = 'Only a grid of square cells can change size.';
 
-    // The sides `changeSize` takes, as the board is drawn: what the outermost line of cells there is called, the axis it lies
-    // across, which way is outward on that axis, and the side of Penpa+'s unturned board it is at each `get_orientation` value
-    // (0 to 3), main.js's table for its Change Size buttons (`rt_addtop` and the rest).
+    // The sides `changeSize` takes, as the board is drawn: what the outermost line of cells there is, the axis it lies across,
+    // which way is outward on that axis, and the side of Penpa+'s unturned board it is at each `get_orientation` value (0 to
+    // 3), main.js's table for its Change Size buttons (`rt_addtop` and the rest).
     const SIZE_SIDES = Object.freeze({
-        top: { line: 'row', name: 'top row', axis: 'y', outward: -1, penpa: ['b', 'l', 't', 'r'] },
-        bottom: { line: 'row', name: 'bottom row', axis: 'y', outward: 1, penpa: ['t', 'r', 'b', 'l'] },
-        left: { line: 'column', name: 'left column', axis: 'x', outward: -1, penpa: ['r', 'b', 'l', 't'] },
-        right: { line: 'column', name: 'right column', axis: 'x', outward: 1, penpa: ['l', 't', 'r', 'b'] }
+        top: { line: 'row', axis: 'y', outward: -1, penpa: ['b', 'l', 't', 'r'] },
+        bottom: { line: 'row', axis: 'y', outward: 1, penpa: ['t', 'r', 'b', 'l'] },
+        left: { line: 'column', axis: 'x', outward: -1, penpa: ['r', 'b', 'l', 't'] },
+        right: { line: 'column', axis: 'x', outward: 1, penpa: ['l', 't', 'r', 'b'] }
     });
     // Penpa+'s unturned sides: the method that resizes each, its index in `pu.space`, and the count of lines across it.
-    const PENPA_RESIZERS = { t: 'resize_top', b: 'resize_bottom', l: 'resize_left', r: 'resize_right' };
-    const PENPA_SPACE_INDEX = { t: 0, b: 1, l: 2, r: 3 };
-    const PENPA_LINE_COUNT = { t: 'ny', b: 'ny', l: 'nx', r: 'nx' };
+    const PENPA_SIDES = Object.freeze({
+        t: { resize: 'resize_top', space: 0, count: 'ny' },
+        b: { resize: 'resize_bottom', space: 1, count: 'ny' },
+        l: { resize: 'resize_left', space: 2, count: 'nx' },
+        r: { resize: 'resize_right', space: 3, count: 'nx' }
+    });
     // A point this far inside the line between the outermost two lines of cells, as a share of the cell size, is on the
     // outermost line; one nearer is on that boundary and stays.
     const BOUNDARY_SLACK = 0.1;
+    // Canvas positions are compared to a hundredth of a pixel: a turned board puts cell centres at half pixels, give or take
+    // a float's error.
+    const POSITION_STEPS_PER_PX = 100;
 
-    const penpaSideOf = (side) => SIZE_SIDES[side].penpa[pu.get_orientation(side[0])];
+    const penpaSideOf = (side) => PENPA_SIDES[SIZE_SIDES[side].penpa[pu.get_orientation(side[0])]];
 
     // The centres of the drawn cells' columns (`xs`) and rows (`ys`), in canvas px, ascending; blank rows and columns included.
-    // MVP gap: Penpa+ draws the cells `i + j * nx0` with i and j from 2 to nx0 - 3 and ny0 - 3, turned and flipped in place.
+    // MVP gap: Penpa+ draws the cells `i + j * nx0` inside PENPA_MARGIN_CELLS on each side, turned and flipped in place.
     function drawnLines() {
+        const at = (px) => Math.round(px * POSITION_STEPS_PER_PX) / POSITION_STEPS_PER_PX;
         const xs = new Set();
         const ys = new Set();
-        for (let j = 2; j < pu.ny0 - 2; j++) {
-            for (let i = 2; i < pu.nx0 - 2; i++) {
+        for (let j = PENPA_MARGIN_CELLS; j < pu.ny0 - PENPA_MARGIN_CELLS; j++) {
+            for (let i = PENPA_MARGIN_CELLS; i < pu.nx0 - PENPA_MARGIN_CELLS; i++) {
                 const cell = pu.point[i + j * pu.nx0];
-                xs.add(Math.round(cell.x * 100) / 100);
-                ys.add(Math.round(cell.y * 100) / 100);
+                xs.add(at(cell.x));
+                ys.add(at(cell.y));
             }
         }
         const ascending = (set) => [...set].sort((a, b) => a - b);
         return { xs: ascending(xs), ys: ascending(ys) };
     }
 
-    // The point ids that `entries` (`pu.pu_q` or `pu.pu_a`) puts anything on.
-    // MVP gap: Penpa+ keys an object feature by a point id or a "a,b" pair of them, and fills an array feature with lists of
-    // point ids, as its `translate_puzzle_elements` reads them; the undo logs are left out.
+    // MVP gap: Penpa+ keys an object feature of `pu.pu_q` or `pu.pu_a` by a point id or a "a,b" pair of them, and fills an array
+    // feature with lists of point ids (a removed one leaves a hole), as its `translate_puzzle_elements` reads them; the undo
+    // logs are left out. Anything else throws, so content this cannot place never reads as an empty row.
     function pointsUsed(entries) {
         const ids = [];
         Object.entries(entries).forEach(([name, feature]) => {
@@ -818,15 +828,26 @@
                 return;
             }
             if (Array.isArray(feature)) {
-                feature.forEach((item) => Array.isArray(item) && ids.push(...item));
+                feature.forEach((item) => {
+                    if (Array.isArray(item)) {
+                        ids.push(...item);
+                    } else if (item != null) {
+                        throw new Error(`engine: ${name} holds ${JSON.stringify(item)}, not a list of points`);
+                    }
+                });
             } else {
                 Object.keys(feature).forEach((key) => ids.push(...key.split(',')));
             }
         });
-        return ids.map(Number).filter((id) => pu.point[id]);
+        return ids.map((id) => {
+            if (!pu.point[Number(id)]) {
+                throw new Error(`engine: an entry is on ${JSON.stringify(id)}, which is not a point of the board`);
+            }
+            return Number(id);
+        });
     }
 
-    // Whether point `id` lies on the outermost line of cells on `side`.
+    // The outermost line ends halfway to the next line's centres, less BOUNDARY_SLACK.
     function isOnOutermostLine(id, side, drawn) {
         const { axis, outward } = SIZE_SIDES[side];
         const lines = axis === 'x' ? drawn.xs : drawn.ys;
@@ -838,22 +859,22 @@
 
     // Why `changeSize(side, change)` cannot run on a square-cell grid, or null when it can.
     function sizeChangeRefusal(side, change) {
-        const { line, name } = SIZE_SIDES[side];
+        const { line } = SIZE_SIDES[side];
         const penpaSide = penpaSideOf(side);
         if (change > 0) {
             const max = pu.gridmax.square;
-            return pu[PENPA_LINE_COUNT[penpaSide]] + 1 > max ? `The board has ${max} ${line}s, the most Penpa+ allows.` : null;
+            return pu[penpaSide.count] + 1 > max ? `The board has ${max} ${line}s, the most Penpa+ allows.` : null;
         }
-        if (pu.space[PENPA_SPACE_INDEX[penpaSide]] === 0) {
-            return `The ${name} is part of the grid.`;
+        if (pu.space[penpaSide.space] === 0) {
+            return `The ${side} ${line} is part of the grid.`;
         }
         const drawn = drawnLines();
         const holds = (entries) => pointsUsed(entries).some((id) => isOnOutermostLine(id, side, drawn));
         if (holds(pu.pu_q)) {
-            return `The ${name} holds a given.`;
+            return `The ${side} ${line} holds a given.`;
         }
         if (holds(pu.pu_a)) {
-            return `The ${name} holds an entry.`;
+            return `The ${side} ${line} holds an entry.`;
         }
         return null;
     }
@@ -1257,7 +1278,7 @@
         // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
         // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
         // leaves its row and column in place. Null for any other grid type.
-        // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside two margin cells and
+        // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside PENPA_MARGIN_CELLS and
         // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
         getGridAxes() {
             const origin = boardCanvas().getBoundingClientRect();
@@ -1265,12 +1286,12 @@
                 return null;
             }
             const [top, bottom, left, right] = pu.space;
-            const firstRow = 2 + top;
-            const firstColumn = 2 + left;
+            const firstRow = PENPA_MARGIN_CELLS + top;
+            const firstColumn = PENPA_MARGIN_CELLS + left;
             const span = (count, at) => Array.from({ length: count }, (_, k) => at(k));
             return {
-                columns: span(pu.nx0 - 4 - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
-                rows: span(pu.ny0 - 4 - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+                columns: span(pu.nx0 - 2 * PENPA_MARGIN_CELLS - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
+                rows: span(pu.ny0 - 2 * PENPA_MARGIN_CELLS - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
             };
         },
 
@@ -1336,7 +1357,7 @@
             }
             // MVP gap: Penpa+'s Change Size buttons call `resize_top` and its siblings; 'white' makes the row blank board outside
             // the grid (`pu.space`), and a removal takes only such a row.
-            pu[PENPA_RESIZERS[penpaSideOf(side)]](change, 'white');
+            pu[penpaSideOf(side).resize](change, 'white');
         },
 
         // A key for the open puzzle that the solver's progress never changes, so a history copy of its link (which carries the
