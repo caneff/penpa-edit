@@ -95,9 +95,10 @@ describe('with Settings open', () => {
     const { page } = opened
     await page.evaluate(() => { let f = document.activeElement; while (f?.shadowRoot?.activeElement) f = f.shadowRoot.activeElement; f.blur() })
     assert.equal(await boardHasFocus(page), true, 'the body has focus')
-    const before = JSON.stringify(await board(page))
+    const before = JSON.stringify([await board(page), await currentTool(page)])
     await page.keyboard.press('5')
-    assert.equal(JSON.stringify(await board(page)), before)
+    await page.keyboard.press('x')
+    assert.equal(JSON.stringify([await board(page), await currentTool(page)]), before)
   })
 
   it('Shift+Tab from the first control stays in the dialog too', async () => {
