@@ -13,6 +13,8 @@
     // Z, X, C and V jump to pins 1 to 4, and label those chips.
     const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
     const SHORTCUT_LABELS = Object.keys(SHORTCUT_SLOT_BY_CODE).map((code) => code.slice('Key'.length));
+    // Tab and Enter step to the next pin, and with Shift to the previous one.
+    const STEP_KEYS = ['Tab', 'Enter'];
     const NUMBER_MODE = 'number';
     const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
     // Colour number `n` is the golden angle times `n` around the hue wheel, so each new colour lands in the widest gap left and no
@@ -118,6 +120,14 @@
 
         // ---- Moving between pins ----------------------------------------------------------------------------------------
 
+        // With no pins the browser keeps Tab and Enter and Z, X, C and V do nothing, so no row says otherwise.
+        window.uiKeys.describe('Tools', () => (pins.length ? [
+            { keys: STEP_KEYS.join(', '), text: 'Next pinned tool' },
+            { keys: STEP_KEYS.map((key) => `Shift+${key}`).join(', '), text: 'Previous pinned tool' },
+            { keys: SHORTCUT_LABELS.join(' '), text: `Jump to pinned tool 1 to ${SHORTCUT_LABELS.length}, except in Number mode`,
+                state: engine.getSettings().shortcuts_enabled ? 'On' : 'Off: turn it on in Settings > Keys' }
+        ] : []));
+
         // The last pin the solver was on, for stepping from a tool that is not one.
         let cursor = -1;
 
@@ -148,7 +158,7 @@
             if (e.type !== 'keydown' || e.ctrlKey || e.metaKey || e.altKey) {
                 return;
             }
-            if (e.key === 'Tab' || e.key === 'Enter') {
+            if (STEP_KEYS.includes(e.key)) {
                 if (!pins.length || (e.key === 'Enter' && originIsButton(e))) {
                     return 'browser';
                 }
