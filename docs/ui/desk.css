@@ -269,13 +269,16 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-swatch { stroke: rgba(255, 255, 255, .65); }
 
 /* The top bar is dark in both themes, so its buttons are too: a fill clear of the bar, a clearer one on hover, and a disabled
-   button dimmed but still shaped, its icon at 3:1. */
-.ui-bar wa-button::part(base) { background: #3a3f4b; border-color: #4a5060; color: #eef0f4; }
-.ui-bar wa-button:not([disabled])::part(base):hover { background: #4a5060; }
-.ui-bar wa-button[disabled]::part(base) { opacity: 1; color: #8d94a1; }
-/* The Settings dialog's and the card heads' buttons, which Web Awesome fills light in the dark theme. */
-:is(.wa-dark wa-dialog, .ui-dark .ui-head) wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"])::part(base) { background: #3a3f4b; border-color: #4a5060; color: #eef0f4; }
-:is(.wa-dark wa-dialog, .ui-dark .ui-head) wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"]):not([disabled])::part(base):hover { background: #4a5060; }
+   button dimmed but still shaped, its icon at 3:1. Web Awesome dims a disabled button on the host (`:host([disabled])`), so
+   the host's opacity is reset there, not on the part. */
+:root { --ui-btn-fill: #3a3f4b; --ui-btn-hover: #4a5060; --ui-btn-edge: #4a5060; --ui-btn-ink: #eef0f4; }
+.ui-bar wa-button::part(base) { background: var(--ui-btn-fill); border-color: var(--ui-btn-edge); color: var(--ui-btn-ink); }
+.ui-bar wa-button:not([disabled])::part(base):hover { background: var(--ui-btn-hover); }
+.ui-bar wa-button[disabled] { opacity: 1; }
+.ui-bar wa-button[disabled]::part(base) { color: #8d94a1; }
+/* The Settings dialog's buttons, which Web Awesome fills light in the dark theme. */
+.wa-dark wa-dialog wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"])::part(base) { background: var(--ui-btn-fill); border-color: var(--ui-btn-edge); color: var(--ui-btn-ink); }
+.wa-dark wa-dialog wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"]):not([disabled])::part(base):hover { background: var(--ui-btn-hover); }
 
 /* The Settings dialog: one fieldset per group, one setting per row. */
 .ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }

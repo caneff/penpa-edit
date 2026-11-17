@@ -14,11 +14,11 @@
     const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
     const NUMBER_MODE = 'number';
     // A pin's colour is the golden angle times its id around the hue wheel, so each new pin lands in the widest gap left and
-    // no count of pins runs out; the lightness keeps white text on it at 4.5:1 for every hue.
+    // no count of pins runs out; the lightness keeps white text on it, and the pin's colour as text on the dark theme's #dfe3ea label pill, at 4.5:1 for every hue.
     const GOLDEN_ANGLE_DEG = 137.508;
     const PIN_HUE_OFFSET_DEG = 220;
     const PIN_SATURATION_PERCENT = 62;
-    const PIN_LIGHTNESS_PERCENT = 28;
+    const PIN_LIGHTNESS_PERCENT = 24;
     const NEUTRAL_COLOUR = '#585d68';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").

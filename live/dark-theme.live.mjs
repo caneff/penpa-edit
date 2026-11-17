@@ -11,21 +11,24 @@ const browser = useBrowser()
 const WCAG_AA_TEXT = 4.5
 // WCAG's bar for a graphic the user must find (an icon, a button's edge).
 const WCAG_GRAPHIC = 3
-// A resting button fill against the bar: the ratio between #2b2f38 and #3a3f4b, the fills the ticket names.
+// The least a resting button fill may differ from the bar's, and a hovered fill from the resting one (both about 1.3 as built).
 const BUTTON_AGAINST_BAR = 1.25
-// A hovered fill against the resting one: the ratio between #3a3f4b and #4a5060.
 const HOVER_AGAINST_REST = 1.15
+// The lightest a Settings button's fill may be in the dark theme: a light slab is about 0.8.
+const DARK_BUTTON_LUMINANCE = 0.15
+// The share of the board's sampled pixels that must stand out from the ground, so a grid and clues, not one pixel, show.
+const MIN_MARK_SHARE = 0.005
 // The board's ground luminance in the dark theme, and the lightest a "dark" ground may be.
 const DARK_GROUND_LUMINANCE = 0.1
 
-// Tools whose style buttons are colour swatches, and one whose are not.
+// Three of the tools: two whose style buttons are colour swatches, and one whose are not.
 const TOOLS = [{ mode: 'surface' }, { mode: 'multicolor' }, { mode: 'number', submode: '1' }]
 
 let numberLink
 async function openIn (theme) {
   numberLink ??= await makeNumberSolveLink(browser())
   const opened = await openSolvePage(browser(), numberLink)
-  await opened.page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}; window.__groundOf = ${groundOfInPage}; window.__boardCanvas = ${boardCanvasInPage}` })
+  await opened.page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}; window.__groundOf = ${groundOfInPage}; window.__opacityOf = ${opacityOfInPage}; window.__boardCanvas = ${boardCanvasInPage}` })
   await opened.page.evaluate((t) => engine.setTheme(t), theme)
   await settle(() => opened.page.evaluate(() => document.documentElement.classList.contains('wa-dark')), theme === 'dark')
   // The colours ease to the new theme's; read them only once the easing is over.
@@ -52,6 +55,15 @@ function contrastHelpersInPage () {
   return { luminance, parse, over, ratio }
 }
 
+// Runs in the page: the product of the opacities of a node and its flat-tree ancestors, which dims what the node shows.
+function opacityOfInPage (node) {
+  let product = 1
+  for (let n = node; n; n = n.assignedSlot ?? n.parentElement ?? n.getRootNode()?.host ?? null) {
+    if (n.nodeType === 1) product *= Number(getComputedStyle(n).opacity)
+  }
+  return product
+}
+
 // Runs in the page: the colour a node's own box shows, composited over its ancestors in the flat tree (a slotted node sits in its slot).
 function groundOfInPage (node, parse, over) {
   const layers = []
@@ -67,7 +79,7 @@ function groundOfInPage (node, parse, over) {
 describe('the board in the dark theme', () => {
   it('has a dark ground, and its grid still stands out from it', async () => {
     const { context, page } = await openIn('dark')
-    const read = await page.evaluate(() => {
+    const read = await page.evaluate((graphic) => {
       const { parse, over, luminance, ratio } = window.__helpers()
       const canvas = window.__boardCanvas()
       const ground = window.__groundOf(canvas, parse, over)
@@ -80,12 +92,16 @@ describe('the board in the dark theme', () => {
       ctx.fillRect(0, 0, flat.width, flat.height)
       ctx.drawImage(canvas, 0, 0)
       const data = ctx.getImageData(0, 0, flat.width, flat.height).data
-      let best = 1
-      for (let i = 0; i < data.length; i += 28) best = Math.max(best, ratio([data[i], data[i + 1], data[i + 2]], ground))
-      return { ground: luminance(ground), contrast: best }
-    })
+      let sampled = 0
+      let marks = 0
+      for (let i = 0; i < data.length; i += 28) {
+        sampled++
+        if (ratio([data[i], data[i + 1], data[i + 2]], ground) >= graphic) marks++
+      }
+      return { ground: luminance(ground), markShare: marks / sampled }
+    }, WCAG_GRAPHIC)
     assert.ok(read.ground < DARK_GROUND_LUMINANCE, `board ground luminance ${read.ground}`)
-    assert.ok(read.contrast >= WCAG_GRAPHIC, `the lightest mark against the ground is ${read.contrast}:1`)
+    assert.ok(read.markShare >= MIN_MARK_SHARE, `only ${read.markShare} of the board stands out from its ground at ${WCAG_GRAPHIC}:1`)
     await context.close()
   })
 
@@ -100,25 +116,30 @@ describe('the board in the dark theme', () => {
   })
 })
 
-// Runs in the page: every visible text in the cards and the bar whose colour is under 4.5:1 against what it sits on.
-function lowContrastTextInPage () {
+// Runs in the page: every visible text in the cards and the bar whose colour is under `minRatio`:1 against what it sits on.
+function lowContrastTextInPage (minRatio) {
   const { parse, over, ratio } = window.__helpers()
   const texts = [...document.querySelectorAll('.ui-card *, .ui-bar *')].filter((n) =>
-    n.checkVisibility() && !n.closest('.ui-sr-only') && [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()))
+    n.checkVisibility({ opacityProperty: true }) && !n.closest('.ui-sr-only') && [...n.childNodes].some((c) => c.nodeType === 3 && c.textContent.trim()))
   return texts.flatMap((n) => {
     const ground = window.__groundOf(n, parse, over)
-    const r = ratio(over(parse(getComputedStyle(n).color), ground), ground)
-    return r < 4.5 ? [`${n.className || n.tagName} "${n.textContent.trim().slice(0, 30)}" ${r.toFixed(2)}`] : []
+    const [red, green, blue, alpha] = parse(getComputedStyle(n).color)
+    const r = ratio(over([red, green, blue, alpha * window.__opacityOf(n)], ground), ground)
+    return r < minRatio ? [`${n.className || n.tagName} "${n.textContent.trim().slice(0, 30)}" ${r.toFixed(2)}`] : []
   })
 }
 
 for (const theme of ['light', 'dark']) {
   describe(`text contrast in the ${theme} theme`, () => {
-    it('the Board label and every card text meet 4.5:1, for every tool and style', async () => {
+    it('the Board label and every card text meet 4.5:1, for each style of three tools', async () => {
       const { context, page } = await openIn(theme)
       await page.addScriptTag({ content: `window.__lowContrast = ${lowContrastTextInPage}` })
       // Colours ease to their new value, so each read waits until the list settles.
-      const lowContrast = () => settle(() => page.evaluate(() => window.__lowContrast()), [])
+      const lowContrast = async () => {
+        // A tool change flashes its name in and out; the flash is not the card's text.
+        await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+        return settle(() => page.evaluate((min) => window.__lowContrast(min), WCAG_AA_TEXT), [])
+      }
       assert.deepEqual(await lowContrast(), [], 'on opening')
       for (const tool of TOOLS) {
         await page.evaluate((t) => engine.setTool(t), tool)
@@ -145,25 +166,26 @@ describe('top-bar buttons', () => {
         const base = node.shadowRoot.querySelector('[part~="base"]')
         const bar = document.querySelector('.ui-bar')
         const barGround = window.__groundOf(bar, parse, over)
-        // The base's opacity dims both its fill and its icon over what lies behind.
-        const dim = (c) => [c[0], c[1], c[2], c[3] * Number(getComputedStyle(base).opacity)]
+        // The opacity of the base and of the button (a disabled one is dimmed on the host) dims both its fill and its icon.
+        const dim = (c) => [c[0], c[1], c[2], c[3] * window.__opacityOf(base)]
         const fill = over(dim(parse(getComputedStyle(base).backgroundColor)), barGround)
         const icon = over(dim(parse(getComputedStyle(base).color)), fill)
         return { name: node.textContent.trim(), disabled: node.hasAttribute('disabled'), shape: ratio(fill, barGround), icon: ratio(icon, fill) }
       })
-      let sawDisabled = false
+      const icons = { disabled: [], enabled: [] }
       for (let i = 0; i < count; i++) {
         const b = await read(i)
-        sawDisabled ||= b.disabled
+        icons[b.disabled ? 'disabled' : 'enabled'].push(b.icon)
         if (b.name === 'Undo' || b.name === 'Redo') assert.ok(b.disabled, `${b.name} starts disabled`)
         assert.ok(b.shape >= BUTTON_AGAINST_BAR, `${b.name}: fill against the bar ${b.shape.toFixed(2)}:1 (${theme})`)
         assert.ok(b.icon >= WCAG_GRAPHIC, `${b.name}${b.disabled ? ' (disabled)' : ''}: icon against its fill ${b.icon.toFixed(2)}:1 (${theme})`)
       }
-      assert.ok(sawDisabled, 'a disabled button was measured')
+      assert.ok(icons.disabled.length > 0, 'a disabled button was measured')
+      assert.ok(Math.max(...icons.disabled) < Math.min(...icons.enabled), `a disabled icon (${icons.disabled}) looks dimmer than every enabled one (${icons.enabled})`)
 
       const restart = page.locator('.ui-bar wa-button', { hasText: 'Restart' })
       const fillOf = () => restart.evaluate((node) => {
-        const { parse, over, ratio } = window.__helpers()
+        const { parse } = window.__helpers()
         const fill = parse(getComputedStyle(node.shadowRoot.querySelector('[part~="base"]')).backgroundColor)
         return fill.slice(0, 3)
       })
@@ -179,8 +201,8 @@ describe('top-bar buttons', () => {
 })
 
 describe('pin colours', () => {
-  it('hold white text at 4.5:1 for 24 pins, so a current chip reads', async () => {
-    const { context, page } = await openIn('light')
+  it('hold white text on a current chip and show on the dark Board label, at 4.5:1, for 24 pins', async () => {
+    const { context, page } = await openIn('dark')
     // The saved pin set the Pinned card reads on load: pin ids 0..23 run round the hue wheel on the golden angle.
     await page.evaluate(() => {
       const keys = Object.keys(localStorage).filter((key) => localStorage.getItem(key).includes('"pins"'))
@@ -191,13 +213,23 @@ describe('pin colours', () => {
     await page.reload()
     await waitForDesk(page)
     await page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}` })
-    const ratios = await page.evaluate(() => {
+    const worst = await page.evaluate(() => {
       const { parse, ratio } = window.__helpers()
-      return [...document.querySelectorAll('.ui-chip')].map((chip) =>
-        ratio([255, 255, 255, 255], parse(getComputedStyle(chip).getPropertyValue('--ui-pin-colour'))))
+      // The label with no style colour set, as a pinned tool of no colour style shows it: `initial` leaves the CSS's own fallback pill.
+      const label = document.querySelector('.ui-tool-name').cloneNode()
+      label.style.setProperty('--ui-style-pill', 'initial')
+      document.querySelector('.ui-card-board').append(label)
+      const pill = parse(getComputedStyle(label).backgroundColor)
+      label.remove()
+      return [...document.querySelectorAll('.ui-chip')].map((chip) => {
+        const value = getComputedStyle(chip).getPropertyValue('--ui-pin-colour').trim()
+        if (!value) throw new Error('a chip has no --ui-pin-colour')
+        const colour = parse(value)
+        return Math.min(ratio([255, 255, 255, 255], colour), ratio(colour, pill))
+      })
     })
-    assert.equal(ratios.length, 24, 'every pin has a chip')
-    assert.deepEqual(ratios.filter((r) => r < WCAG_AA_TEXT), [], 'white against each pin colour')
+    assert.equal(worst.length, 24, 'every pin has a chip')
+    assert.deepEqual(worst.filter((r) => r < WCAG_AA_TEXT), [], 'white on each pin colour, and each pin colour on the label pill')
     await context.close()
   })
 })
@@ -229,7 +261,7 @@ describe('the dark theme elsewhere', () => {
       const ground = window.__groundOf(node, parse, over)
       return luminance(over(parse(getComputedStyle(node.shadowRoot.querySelector('[part~="base"]')).backgroundColor), ground))
     })
-    assert.ok(luminance < 0.15, `Clear saved progress fill luminance ${luminance}`)
+    assert.ok(luminance < DARK_BUTTON_LUMINANCE, `Clear saved progress fill luminance ${luminance}`)
     await context.close()
   })
 })
