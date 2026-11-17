@@ -2,7 +2,7 @@
 // (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
+import { afterChange, chipName, listedTools, newBoardSolveLink, openSolvePage, setTool, shareOf, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -12,57 +12,81 @@ const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
 const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
+// The chip name the shared name gives `tool`.
+const labelOf = (page, tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
+// Waits until the first Recent chip is `tool`'s, not an earlier tool's still on show, and returns it.
+const recentChipOf = async (page, tool) => {
+  const label = await labelOf(page, tool)
+  await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
+  return region(page, 'Recent').locator('.ui-chip-main').first()
+}
 const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map(chipName)
 
-// Every tool the link lists, as `{ mode, submode }`.
-const listed = (page) => page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode })))
 const pin = (page, entries) => page.evaluate((e) => window.pinBoard.replace(e), entries)
+
+// How many tests each loop over every tool splits into.
+const BOARD_SHARES = 8
+const RECENT_SHARES = 4
 
 describe('one name per tool', () => {
   let opened
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })
   after(async () => { await opened?.context.close() })
 
-  it('reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool', async () => {
-    const { page } = opened
-    const tools = await listed(page)
+  it('offers over a hundred tools, and the shares each loop is split into hold every one of them once', async () => {
+    const tools = await listedTools(opened.page)
     assert.ok(tools.length > 100, `${tools.length} tools listed`)
-    await pin(page, tools.map(({ mode, submode }) => ({ mode, submode, style: null })))
-    const chips = await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, tools.length)
-    assert.equal(chips, tools.length, 'a chip per tool')
-    const names = await chipTexts(region(page, 'Pinned'))
-    const unequal = []
-    for (const [i, tool] of tools.entries()) {
-      await setTool(page, tool)
-      const seen = await settle(async () => [await boardLabel(page).textContent(), await mouseName(page).textContent(), await modeName(page), await pickerName(page, tool)],
-        [names[i], names[i], names[i], names[i]])
-      if (seen.some((text) => text !== names[i])) unequal.push({ tool, chip: names[i], board: seen[0], mouse: seen[1], mode: seen[2], picker: seen[3] })
+    for (const count of [BOARD_SHARES, RECENT_SHARES]) {
+      const shares = Array.from({ length: count }, (_, share) => shareOf(tools, share, count))
+      assert.deepEqual(shares.flat().sort((a, b) => tools.indexOf(a) - tools.indexOf(b)), tools, `${count} shares hold every tool once`)
     }
-    assert.deepEqual(unequal, [])
   })
 
-  it('reads the same on a Recent chip as the shared name gives, for every tool', async () => {
-    const { page } = opened
-    await pin(page, [])
-    const unequal = []
-    for (const tool of await listed(page)) {
-      await setTool(page, tool)
-      const label = await page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
-      const first = await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
-      if (first !== label) unequal.push({ tool, name: label, recent: first })
-    }
-    assert.deepEqual(unequal, [])
-  })
+  // Each share of the tools is its own test, so the loop over every tool stays inside the seam's per-test timeout (#284).
+  for (let share = 0; share < BOARD_SHARES; share++) {
+    it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
+      const { page } = opened
+      const tools = shareOf(await listedTools(page), share, BOARD_SHARES)
+      assert.ok(tools.length > 0, 'the share holds tools')
+      await pin(page, tools.map(({ mode, submode }) => ({ mode, submode, style: null })))
+      const chips = await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, tools.length)
+      assert.equal(chips, tools.length, 'a chip per tool')
+      const names = await chipTexts(region(page, 'Pinned'))
+      const unequal = []
+      for (const [i, tool] of tools.entries()) {
+        await setTool(page, tool)
+        const seen = await settle(async () => [await boardLabel(page).textContent(), await mouseName(page).textContent(), await modeName(page), await pickerName(page, tool)],
+          [names[i], names[i], names[i], names[i]])
+        if (seen.some((text) => text !== names[i])) unequal.push({ tool, chip: names[i], board: seen[0], mouse: seen[1], mode: seen[2], picker: seen[3] })
+      }
+      assert.deepEqual(unequal, [])
+    })
+  }
+
+  for (let share = 0; share < RECENT_SHARES; share++) {
+    it(`reads the same on a Recent chip as the shared name gives, for every tool (share ${share + 1} of ${RECENT_SHARES})`, async () => {
+      const { page } = opened
+      await pin(page, [])
+      const unequal = []
+      for (const tool of shareOf(await listedTools(page), share, RECENT_SHARES)) {
+        await setTool(page, tool)
+        const label = await labelOf(page, tool)
+        const first = await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
+        if (first !== label) unequal.push({ tool, name: label, recent: first })
+      }
+      assert.deepEqual(unequal, [])
+    })
+  }
 
   it('gives a chip the tool\'s plain name as its tooltip, and none when the plain names do not know the tool', async () => {
     const { page } = opened
-    const [surface] = (await listed(page)).filter((t) => t.mode === 'surface')
+    const [surface] = (await listedTools(page)).filter((t) => t.mode === 'surface')
     await pin(page, [{ ...surface, style: null }])
     await setTool(page, { mode: 'line', submode: '1' })
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
-    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
+    const lineChip = await recentChipOf(page, { mode: 'line', submode: '1' })
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), 'Shade cells')
-    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), 'Line', 'a Recent chip too')
+    assert.equal(await lineChip.getAttribute('title'), 'Line', 'a Recent chip too')
     const unknown = await page.evaluate(() => engine.listTools().find((t) => !window.toolGuide.tooltipAttrs(t).title))
     assert.ok(unknown, 'some listed tool has no plain name')
     await pin(page, [{ mode: unknown.mode, submode: unknown.submode, style: null }])
@@ -70,8 +94,8 @@ describe('one name per tool', () => {
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), null)
     await pin(page, [])
     await setTool(page, { mode: unknown.mode, submode: unknown.submode })
-    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
-    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), null, 'a Recent chip too')
+    const unknownChip = await recentChipOf(page, unknown)
+    assert.equal(await unknownChip.getAttribute('title'), null, 'a Recent chip too')
   })
 
   it('shows the same name in the tool-change banner', async () => {
