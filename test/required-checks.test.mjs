@@ -22,6 +22,11 @@ describe('the master ruleset', () => {
     assert.deepEqual(ruleset.bypass_actors, [{ actor_id: 5, actor_type: 'RepositoryRole', bypass_mode: 'always' }])
   })
 
+  it('is strict: a PR must contain the current master before it merges (#221)', () => {
+    const { parameters } = ruleset.rules.find((r) => r.type === 'required_status_checks')
+    assert.equal(parameters.strict_required_status_checks_policy, true)
+  })
+
   it('requires exactly the jobs of ci.yml', () => {
     assert.deepEqual(required, jobIds('.github/workflows/ci.yml'))
   })
