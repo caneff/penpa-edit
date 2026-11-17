@@ -768,6 +768,9 @@
         // False when the page opened with no link: `ready` then never settles and no puzzle is loaded.
         hasPuzzle: hasPuzzleData(),
 
+        // The theme the page opens in, 'light' or 'dark': read without a puzzle open, which `getSettings` needs.
+        savedTheme: savedTheme(),
+
         // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
         // or Ctrl lends a tool, `solved` while the board matches the author's answer, and `cellSize` is the board's pixels
         // per cell.

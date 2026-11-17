@@ -33,16 +33,17 @@
         return null;
     }
 
-    const { el } = window.uiKit;
-    const input = el('input', { type: 'text', id: 'paste-link-input', class: 'ui-paste-input', autocomplete: 'off', spellcheck: 'false' });
+    const { el, setDark } = window.uiKit;
+    const EXAMPLE_LINK = 'https://caneff.github.io/penpa-edit/solve.html?m=solve&p=…';
+    const input = el('wa-input', { id: 'paste-link-input', label: 'Penpa+ link', placeholder: EXAMPLE_LINK, autocomplete: 'off', spellcheck: 'false' });
     const error = el('p', { class: 'ui-paste-error', role: 'alert', hidden: '' }, [
         'That is not a Penpa+ link with its puzzle after the ? or the #. Paste the whole link, such as one ending in ?m=solve&p=… or #m=solve&p=…'
     ]);
     const form = el('form', { class: 'ui-paste' }, [
-        el('h1', {}, ['Paste a Penpa+ link']),
-        el('label', { for: 'paste-link-input' }, ['Penpa+ link']),
+        el('h1', {}, ['ChinStrap solve page']),
+        el('p', { class: 'ui-help' }, ['Paste a Penpa+ link to solve its puzzle here, such as ', el('code', {}, [EXAMPLE_LINK]), '.']),
         input,
-        el('button', { type: 'submit' }, ['Open']),
+        el('wa-button', { type: 'submit', variant: 'brand', class: 'ui-paste-open' }, ['Open']),
         error
     ]);
     form.addEventListener('submit', (event) => {
@@ -54,5 +55,9 @@
             location.reload();
         }
     });
-    document.body.append(el('div', { class: 'ui-paste-page' }, [form]));
+    const page = el('div', { class: 'ui-paste-page' }, [form]);
+    setDark(page, engine.savedTheme === 'dark');
+    document.body.append(page);
+    // Web Awesome upgrades the box after this script runs; the focus waits for it.
+    customElements.whenDefined('wa-input').then(() => input.focus());
 })();

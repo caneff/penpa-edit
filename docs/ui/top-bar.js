@@ -5,7 +5,7 @@
 (function () {
     'use strict';
 
-    const { confirmDialog, iconButton, onDeskReady } = window.uiKit;
+    const { confirmDialog, iconButton, onDeskReady, setDark } = window.uiKit;
 
     // Penpa+'s pause toggle (main.js), which a paused board still answers.
     const PAUSE_KEY = 'F4';
@@ -141,8 +141,7 @@
         function renderState() {
             renderHistory();
             const dark = engine.getSettings().theme === 'dark';
-            document.documentElement.classList.toggle('wa-dark', dark);
-            bar.parentElement.classList.toggle('ui-dark', dark);
+            setDark(bar.parentElement, dark);
         }
 
         engine.on('timer', renderTimer);
