@@ -4,7 +4,11 @@
 (function () {
     'use strict';
 
-    const { el, textButton, onDeskReady } = window.uiKit;
+    const { el, iconButton, onDeskReady } = window.uiKit;
+
+    const TITLE = 'Change size';
+    // A board with a tick off the middle of each side.
+    const ICON = '<rect x="4.5" y="4.5" width="7" height="7"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2"/>';
 
     const SIDE_LABELS = {
         top: { add: 'Add a row above', remove: 'Remove the row above' },
@@ -32,7 +36,7 @@
         }
         const sideGroup = (side) => el('div', { class: `ui-size-side ui-size-${side}` }, [sideButton(side, -1, '\u2212'), sideButton(side, 1, '+')]);
 
-        const dialog = el('wa-dialog', { label: 'Change size' }, [
+        const dialog = el('wa-dialog', { label: TITLE }, [
             el('div', { class: 'ui-size-grid' }, [sideGroup('top'), sideGroup('left'), size, sideGroup('right'), sideGroup('bottom')]),
             status
         ]);
@@ -62,14 +66,14 @@
         }
 
         // A grid that is not square stays one for the page's life, so the button is dimmed and names the reason once; it still
-        // opens the dialog, which says the same.
+        // opens the dialog, which says the same. An icon, so the Board card's header keeps room for its tool name.
         const { unavailable } = engine.getSizeChanges();
-        const open = textButton('Change size\u2026', unavailable ?? 'Add or remove blank rows and columns around the board', () => {
+        const open = iconButton(ICON, unavailable ? `${TITLE}: ${unavailable}` : TITLE, () => {
             show();
             dialog.open = true;
         });
         open.node.classList.add('ui-change-size');
         open.node.toggleAttribute('data-refused', unavailable !== null);
-        cards.board.head.append(open.node);
+        cards.board.head.querySelector('.ui-zoom').append(open.node);
     });
 })();

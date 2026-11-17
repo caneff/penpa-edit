@@ -329,7 +329,7 @@ describe('the Change size dialog', () => {
     try {
       const entry = page.locator(`${BOARD} wa-button.ui-change-size`)
       assert.equal(await entry.getAttribute('data-refused'), '', 'the button is dimmed')
-      assert.equal(await page.locator(`wa-tooltip[for="${await entry.getAttribute('id')}"]`).textContent(), 'Only a grid of square cells can change size.')
+      assert.equal(await page.locator(`wa-tooltip[for="${await entry.getAttribute('id')}"]`).textContent(), 'Change size: Only a grid of square cells can change size.')
       const dialog = await openDialog(page)
       await dialog.getByRole('status').getByText(/square cells/).waitFor()
       const sides = dialog.locator('wa-button').filter({ hasText: /^(\u2212|\+)(Add|Remove) / })
