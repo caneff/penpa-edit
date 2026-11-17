@@ -12983,8 +12983,11 @@ class Puzzle {
                     }
                     this.ctx.closePath();
                     if (this.selection_fill) { // caneff: the solve page fills a selected cell (#200); engine_bridge.js sets the colour
+                        const outline_shadow = this.ctx.shadowColor; // the outline's red glow would tint the fill
+                        this.ctx.shadowColor = Color.TRANSPARENTBLACK;
                         this.ctx.fillStyle = this.selection_fill;
                         this.ctx.fill();
+                        this.ctx.shadowColor = outline_shadow;
                     }
                     this.ctx.stroke();
                 }
