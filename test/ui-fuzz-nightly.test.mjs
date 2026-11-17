@@ -2,7 +2,8 @@
 // output lines and fake runners: no page, no `gh`.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { didNotRunIssue, failureTitle, fileIssue, nightly, parseFuzzOutput } from '../live/ui-fuzz/nightly.mjs'
+import { readFileSync } from 'node:fs'
+import { TITLE_MAX, didNotRunIssue, failureTitle, fileIssue, filerFor, nightly, parseFuzzOutput } from '../live/ui-fuzz/nightly.mjs'
 
 const rule = (when, ...lines) => `${lines.length === 1 ? 'rule broken' : 'rules broken'} ${when}: ${lines.join('; ')}`
 
@@ -27,7 +28,14 @@ test('a crash is titled by its first signal with the numbers folded', () => {
 
 test('an error that is neither is titled by its first line, and a long title is cut', () => {
   assert.equal(failureTitle('Timeout 30000ms exceeded\n  at foo'), 'UI fuzz: error: Timeout Nms exceeded')
-  assert.ok(failureTitle(`boom ${'x'.repeat(300)}`).length <= 110)
+  assert.ok(failureTitle(`boom ${'x'.repeat(300)}`).length <= TITLE_MAX)
+})
+
+test('a step that threw is titled by its error alone, whatever the step, action or tool', () => {
+  const a = failureTitle('step 3 (pick tool 40 in the Mode card (Sudoku > Normal)) threw: locator.click: Timeout 5000ms exceeded.')
+  const b = failureTitle('step 11 (Reset layout from the top bar) threw: locator.click: Timeout 30000ms exceeded.')
+  assert.equal(a, 'UI fuzz: error: locator.click: Timeout Nms exceeded.')
+  assert.equal(b, a)
 })
 
 const FAILED = [
@@ -56,13 +64,19 @@ test('a pass is a verdict only when it ran an action list; no output is none', (
   assert.equal(parseFuzzOutput('browserType.launch: Executable does not exist'), null)
 })
 
-// A fake night: `outputs` are the runs' printed output in order; every filing is kept.
+// A fake night: `outputs` are the runs' printed output in order, each a string (its exit read from it), an
+// `{ ok, output }` or an Error the start throws; every filing is kept.
 async function night (outputs) {
   const filed = []
   const seeds = [1, 2, 3, 4, 5]
   let clock = 0
   const outcome = await nightly({
-    runFuzz: async () => { clock += 60000; const o = outputs.shift(); if (o instanceof Error) throw o; return { ok: !o.includes('FAILED') && !o.includes('Error'), output: o } },
+    runFuzz: async () => {
+      clock += 60000
+      const o = outputs.shift()
+      if (o instanceof Error) throw o
+      return typeof o === 'string' ? { ok: !o.includes('FAILED') && !o.includes('Error'), output: o } : o
+    },
     fileIssue: async (issue) => { filed.push(issue) },
     newSeed: () => seeds.shift(),
     now: () => clock
@@ -96,36 +110,48 @@ test('a run that cannot start, or prints no verdict, files one did-not-run issue
   assert.match(b.filed[0].body, /Executable does not exist/)
 })
 
+test('a pass line from a run that exited non-zero is no verdict', async () => {
+  const { outcome, filed } = await night([{ ok: false, output: 'fuzz:ui passed: 5 action lists over 1 puzzles in 1 s (seed 3)' }])
+  assert.equal(outcome, 'did-not-run')
+  assert.match(filed[0].body, /exit non-zero/)
+})
+
+test('a night whose run passed with no action list did not run', async () => {
+  const { outcome, filed } = await night(['fuzz:ui passed: 0 action lists over 5 puzzles in 1800 s (seed 1)'])
+  assert.equal(outcome, 'did-not-run')
+  assert.deepEqual(filed.map((i) => i.title), [didNotRunIssue('x').title])
+})
+
 test('a filed issue body ends with a Blocked by section', async () => {
   const { filed } = await night([FAILED, 'fuzz:ui passed: 5 action lists over 1 puzzles in 1 s (seed 3)'])
   assert.match(filed[0].body, /\n## Blocked by\n\n- None — can start immediately\.$/)
 })
 
-// A fake `gh`: `open` is the list output, `ok` whether each call succeeds; every call is kept.
-const fakeGh = (open, ok = true) => {
+// A fake runner for the filer script: every call is kept, and each answers `ok`.
+const fakeFiler = (ok = true) => {
   const calls = []
-  return { calls, runGh: async (command, args, opts) => { calls.push({ args, input: opts?.input }); return { ok, output: args[1] === 'list' ? open : '' } } }
+  return { calls, run: async (command, args) => { calls.push({ command, args, body: readFileSync(args[2], 'utf8') }); return { ok, output: '' } } }
 }
-const issue = { title: 'UI fuzz: rule broken: a', body: 'the body', comment: 'the comment' }
+const issue = { title: 'UI fuzz: rule broken: a', body: 'the body' }
 
-test('a title with an open issue gets a comment on that issue, not a second issue', async () => {
-  const gh = fakeGh('7\tother\n12\tUI fuzz: rule broken: a\n')
-  await fileIssue(issue, gh.runGh)
-  assert.deepEqual(gh.calls.map((c) => c.args.slice(0, 3)), [['issue', 'list', '--repo'], ['issue', 'comment', '12']])
-  assert.equal(gh.calls[1].input, 'the comment')
+test('an issue is filed through the repo\'s file-issue-once script, the body in a file it reads', async () => {
+  const filer = fakeFiler()
+  await fileIssue(issue, filer.run)
+  assert.equal(filer.calls.length, 1)
+  const { command, args, body } = filer.calls[0]
+  assert.deepEqual([command, ...args.slice(0, 2)], ['bash', '.github/scripts/file-issue-once.sh', 'UI fuzz: rule broken: a'])
+  assert.equal(body, 'the body')
 })
 
-test('a new title files a bug and needs-info issue', async () => {
-  const gh = fakeGh('7\tother\n')
-  await fileIssue(issue, gh.runGh)
-  const create = gh.calls[1].args
-  assert.deepEqual(create.slice(0, 2), ['issue', 'create'])
-  assert.equal(create[create.indexOf('--label') + 1], 'bug,needs-info')
-  assert.equal(gh.calls[1].input, 'the body')
+test('a failed filing rejects', async () => {
+  await assert.rejects(fileIssue(issue, fakeFiler(false).run), /file-issue-once\.sh failed/)
 })
 
-test('a failed list files nothing', async () => {
-  const gh = fakeGh('', false)
-  await assert.rejects(fileIssue(issue, gh.runGh), /gh issue list failed/)
-  assert.equal(gh.calls.length, 1)
+test('a night files for real unless FUZZ_DRY_RUN is 1', async () => {
+  const real = fakeFiler()
+  await filerFor({}, real.run)(issue)
+  assert.equal(real.calls.length, 1)
+  const dry = fakeFiler()
+  await filerFor({ FUZZ_DRY_RUN: '1' }, dry.run)(issue)
+  assert.equal(dry.calls.length, 0)
 })

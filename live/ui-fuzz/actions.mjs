@@ -5,8 +5,9 @@
 import fc from 'fast-check'
 import { DRAG_REACH, pointsInPage } from '../fuzz.mjs'
 import { waitForDesk } from '../page.mjs'
-import { choosePreset, closed, openList, pinnedCard, presetField, presetList, savePreset } from '../pin-card.mjs'
+import { choosePreset, closed, openList, pinnedCard, presetField, presetList, saveButton, savePreset } from '../pin-card.mjs'
 import { pickInModeCard, pointPixel } from '../replay.mjs'
+import { PIN_KEYS } from './rules.mjs'
 
 // The windows a resize picks from, laptop to desktop.
 export const WINDOW_SIZES = [
@@ -31,7 +32,6 @@ const HANDLES = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bot
 // The moves a card drag or resize picks from, in pixels, each way.
 const MOVES = [-240, -80, -20, 0, 20, 80, 240]
 const MOVE = fc.nat({ max: MOVES.length - 1 })
-const PIN_KEYS = ['z', 'x', 'c', 'v']
 // A drag is let go in this many mouse moves, so the page sees it travel.
 const DRAG_MOVES = 5
 // What breaks off a card drag halfway: a key, a window resize, or the window losing focus.
@@ -285,7 +285,7 @@ export const KINDS = [
     weight: 1,
     arg: PICK,
     label: (pick) => `unpin pin ${pick} in the Pinned card`,
-    run: (page, pick) => clickNth(card(page, 'Pinned').getByRole('button', { name: /^Unpin / }), pick, 'no pin')
+    run: (page, pick) => clickNth(pinnedCard(page).getByRole('button', { name: /^Unpin / }), pick, 'no pin')
   },
   {
     kind: 'pin pick',
@@ -293,13 +293,14 @@ export const KINDS = [
     weight: 2,
     arg: PICK,
     label: (pick) => `pick pin ${pick} in the Pinned card`,
-    run: (page, pick) => clickNth(card(page, 'Pinned').locator('.ui-pins .ui-chip-main'), pick, 'no pin')
+    run: (page, pick) => clickNth(pinnedCard(page).locator('.ui-pins .ui-chip-main'), pick, 'no pin')
   },
   {
     kind: 'pin key',
     area: 'pinned',
     weight: 2,
-    arg: fc.constantFrom(...PIN_KEYS),
+    // The key as typed (`z`); a chip shows it in capitals.
+    arg: fc.constantFrom(...PIN_KEYS.map((key) => key.toLowerCase())),
     label: (key) => `press pin key ${key.toUpperCase()}`,
     run: (page, key) => page.keyboard.press(key)
   },
@@ -310,7 +311,7 @@ export const KINDS = [
     arg: fc.tuple(PICK, PICK),
     label: ([from, to]) => `drag pin ${from} onto pin ${to}`,
     run: async (page, [from, to]) => {
-      const chips = card(page, 'Pinned').locator('.ui-pins .ui-chip')
+      const chips = pinnedCard(page).locator('.ui-pins .ui-chip')
       const count = await chips.count()
       if (count < 2) return 'fewer than two pins'
       const target = chips.nth(to % count)
@@ -345,7 +346,12 @@ export const KINDS = [
     run: async (page, pick) => {
       const name = await inPresetList(page, async (list) => {
         const options = list.getByRole('option')
-        return (await options.nth(pick % await options.count()).innerText()).trim()
+        // The option's name, which leaves out the note Puzzle defaults shows under its name (pin-presets.js, `aria-hidden`).
+        return options.nth(pick % await options.count()).evaluate((option) => {
+          const named = option.cloneNode(true)
+          named.querySelectorAll('[aria-hidden="true"]').forEach((node) => node.remove())
+          return named.textContent.replace(/\s+/g, ' ').trim()
+        })
       })
       if (name === COVERED) return name
       await choosePreset(page, name)
@@ -359,7 +365,7 @@ export const KINDS = [
     arg: fc.nat({ max: 3 }),
     label: (n) => `save the pins as preset Fuzz ${n}`,
     run: async (page, n) => {
-      const save = pinnedCard(page).getByRole('button', { name: 'Save pins…', exact: true })
+      const save = saveButton(page)
       if (await isDisabled(save)) return 'save is off'
       if (!await reachable(save)) return COVERED
       await savePreset(page, `Fuzz ${n}`)
@@ -455,11 +461,10 @@ export const KINDS = [
     kind: 'reset layout',
     area: 'layout',
     weight: 1,
-    arg: fc.constantFrom('bar', 'Settings'),
-    label: (where) => `Reset layout from the ${where === 'bar' ? 'top bar' : 'Settings dialog'}`,
-    run: (page, where) => where === 'bar'
-      ? button(page, 'Reset layout').click()
-      : inSettings(page, (dialog) => dialog.getByRole('group', { name: 'Desk' }).getByRole('button', { name: 'Reset layout' }).click())
+    arg: fc.constant(null),
+    label: () => 'Reset layout in the Settings dialog',
+    // Settings' Page group holds the page's one Reset layout button (settings.js), which closes the dialog.
+    run: (page) => inSettings(page, (dialog) => dialog.getByRole('group', { name: 'Page' }).getByRole('button', { name: 'Reset layout' }).click())
   },
   {
     kind: 'theme',

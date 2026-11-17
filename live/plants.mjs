@@ -6,7 +6,7 @@
 // text. `handler`, when given, names the method of `class_p.js` the change is in, and `find` is searched for in that
 // method alone. `audit` names the finding of `research/fork-audit-2026-11.md` whose fix the plant undoes.
 //
-// `UI_PLANTS` are the same for the solve UI, a `file` under `docs/ui/`, caught by the UI fuzz (`live/ui-fuzz.live.mjs`)
+// `UI_PLANTS` are the same for the solve UI, a `file` under `docs/ui/`, caught by the UI fuzz
 // rather than by a recording, so `npm run measure` does not hunt them.
 import { readFile } from 'node:fs/promises'
 import { Script } from 'node:vm'
@@ -285,7 +285,7 @@ async function plantSetup (plant, dir = 'js', request = jsRequest(plant.file)) {
   return (context) => context.route(request, (route) => route.fulfill({ contentType: 'text/javascript', body }))
 }
 
-// `plantSetup` for one of `UI_PLANTS`, for `openTarget` (`ui-fuzz/target.mjs`) with `served: true`.
+// `plantSetup` for one of `UI_PLANTS`: served from `docs/ui/`, so a page opened with it needs its files served.
 export const uiPlantSetup = (plant) => plantSetup(plant, 'ui', new RegExp(`/ui/${plant.file.replace(/\./g, '\\.')}(\\?|$)`))
 
 // The recordings of `ids` made for the audit finding `plant` undoes the fix of; none for a plant of no finding.

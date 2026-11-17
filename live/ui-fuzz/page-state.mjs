@@ -1,7 +1,7 @@
 // One snapshot of the solve page (#195), what the UI fuzz's crash signals and rules (`rules.mjs`) read after every action:
 // the window, each card's rectangle, heading and background, the Board label and the name of the engine's tool, the Board
-// card's scroll, the pins, Recent, the theme, the open dialogs, the undo state and the board, the solve page's storage and
-// the page's errors so far. `rules.mjs` says what each field holds. Not a check itself.
+// card's scroll, the pins, Recent, the theme, the dialogs, the undo state and the board, and the page's errors so far.
+// `rules.mjs` says what each field holds. Not a check itself.
 
 // Runs in the page: the snapshot's page half. A heading or label line is `{ text, lines }`, `lines` the count of rows its
 // text is drawn on; a chip is `{ shortcut, label, current }`, `shortcut` null on a chip with no key.
@@ -53,14 +53,13 @@ function pageStateInPage () {
     tool,
     shortcutsEnabled: engine.getSettings().shortcuts_enabled,
     theme: engine.getSettings().theme,
-    dialogs: [...document.querySelectorAll('wa-dialog[open]')].map((dialog) => ({
+    // Every dialog, open or closed: a step closes what it opens before the snapshot is read.
+    dialogs: [...document.querySelectorAll('wa-dialog')].map((dialog) => ({
       label: dialog.getAttribute('label'),
       background: getComputedStyle(dialog.shadowRoot.querySelector('[part~="dialog"]')).backgroundColor
     })),
     canUndo,
-    board,
-    // The solve page's own keys (layout, pins, presets), whatever each is called.
-    storage: Object.fromEntries(Object.keys(localStorage).filter((key) => key.startsWith('chinstrap')).sort().map((key) => [key, localStorage.getItem(key)]))
+    board
   }
 }
 

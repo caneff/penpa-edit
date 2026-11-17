@@ -17,14 +17,18 @@
 //   tool              the engine's { mode, submode, style }
 //   shortcutsEnabled  whether the pin keys are on (the engine's `shortcuts_enabled` setting)
 //   theme             'light' or 'dark'
-//   dialogs           one { label, background } per open dialog, `background` its panel's computed colour
+//   dialogs           one { label, background } per dialog on the page, open or closed, `background` its panel's computed
+//                     colour: a step closes the dialogs it opens before the snapshot, and a closed panel's colour is the one it
+//                     opens with
 //   canUndo           whether the solver has something to undo
 //   board             the solver's entries as text, the undo, redo and replay stacks left out
+//   errors            the page errors and `console.error` lines so far, which the crash signals read (`signals.mjs`)
 
 // The keys the first pins show, in order (`SHORTCUT_SLOT_BY_CODE` in docs/ui/pins.js).
-const PIN_KEYS = ['Z', 'X', 'C', 'V']
+export const PIN_KEYS = ['Z', 'X', 'C', 'V']
 // The action kinds by which the solver places a card by hand, and the one that gives the page its own layout back.
-// The desk lets the solver put a card anywhere on the desk (docs/ui/desk.js), over another one included.
+// The desk lets the solver put a card anywhere on the desk (docs/ui/desk.js), over another one included; nothing else
+// the page does makes a new overlap on the solver's layout (`repairOverlaps` in desk.js).
 const PLACING_KINDS = ['card drag', 'card resize', 'interrupted drag']
 const RESET_LAYOUT = 'reset layout'
 // The card whose chips last for the visit only (docs/ui/recent.js): a reload empties it, so its height follows.
@@ -44,28 +48,62 @@ const shownCards = (page) => page.cards.filter((c) => c.shown)
 const solverPlaced = (history) => history.findLastIndex((kind) => PLACING_KINDS.includes(kind)) > history.lastIndexOf(RESET_LAYOUT)
 const box = ({ x, y, width, height }) => `${x},${y} ${width}x${height}`
 
-// WCAG relative luminance of a computed `rgb(...)` or `rgba(...)` colour.
-function luminance (colour) {
-  const [r, g, b] = colour.match(/[\d.]+/g).slice(0, 3).map((c) => {
-    const s = Number(c) / 255
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
-  })
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+// Each pair of shown cards of `page` that overlap, as `{ key, line }`: `key` names the pair, `line` the overlap in words.
+function overlaps (page) {
+  const cards = shownCards(page)
+  return cards.flatMap((a, i) => cards.slice(i + 1).flatMap((b) => {
+    const w = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width) - Math.max(a.rect.x, b.rect.x)
+    const h = Math.min(a.rect.y + a.rect.height, b.rect.y + b.rect.height) - Math.max(a.rect.y, b.rect.y)
+    return w > SLACK_PX && h > SLACK_PX ? [{ key: `${a.name}|${b.name}`, line: `${a.name} and ${b.name} overlap by ${Math.round(w)}x${Math.round(h)} px` }] : []
+  }))
 }
-const themeOf = (colour) => luminance(colour) >= LIGHT_MIN_LUMINANCE ? 'light' : 'dark'
+
+// The WCAG relative luminance (0 black to 1 white) of a computed colour: null when it is fully transparent, undefined when
+// it is not one read here. Chromium computes a colour as `rgb()` or `rgba()`, as `color(srgb r g b)` (a `color-mix()`), or
+// as the `oklch()` or `oklab()` the stylesheet wrote.
+function luminance (colour) {
+  const match = /^([a-z]+)\((.*)\)$/.exec(colour.trim())
+  if (!match) return undefined
+  const [, fn, inner] = match
+  const [channels, alpha] = inner.split('/')
+  const parts = channels.trim().split(/[\s,]+/)
+  // A channel or alpha as a number, `scale` being what 100% means.
+  const num = (part, scale) => part.endsWith('%') ? Number(part.slice(0, -1)) / 100 * scale : Number(part)
+  const opacity = alpha !== undefined ? num(alpha.trim(), 1) : fn.startsWith('rgb') && parts.length === 4 ? num(parts[3], 1) : 1
+  if (opacity === 0) return null
+  const fromRgb = (rgb) => {
+    const [r, g, b] = rgb.map((c) => c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  if (fn === 'rgb' || fn === 'rgba') return fromRgb(parts.slice(0, 3).map((p) => num(p, 255) / 255))
+  if (fn === 'color' && parts[0] === 'srgb') return fromRgb(parts.slice(1, 4).map((p) => num(p, 1)))
+  // Oklab's lightness is near the cube root of luminance for a grey; the solve page's backgrounds are near grey.
+  if (fn === 'oklch' || fn === 'oklab') return num(parts[0], 1) ** 3
+  return undefined
+}
+// 'light' or 'dark' for a computed colour; null when it is transparent or not a colour `luminance` reads.
+function themeOf (colour) {
+  const y = luminance(colour)
+  return y == null || Number.isNaN(y) ? null : y >= LIGHT_MIN_LUMINANCE ? 'light' : 'dark'
+}
+// What is wrong, in words, with `what` drawn in `colour` in `theme`; null when nothing is.
+function offTheme (what, colour, theme) {
+  const drawn = themeOf(colour)
+  if (drawn === theme) return null
+  return drawn ? `${what} is ${colour} in the ${theme} theme` : `${what} is ${colour}, which reads as neither light nor dark, in the ${theme} theme`
+}
 
 export const RULES = [
   {
-    // The page's own layout only: a card the solver put over another stays there.
+    // On the page's own layout, no two cards overlap. A card the solver put over another stays there, so on the solver's
+    // layout only a pair that overlaps after a step and not before it is broken, unless the step was the solver placing a card.
     name: 'cards-do-not-overlap',
-    check: ({ now, history }) => {
-      if (solverPlaced(history)) return []
-      const cards = shownCards(now)
-      return cards.flatMap((a, i) => cards.slice(i + 1).flatMap((b) => {
-        const w = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width) - Math.max(a.rect.x, b.rect.x)
-        const h = Math.min(a.rect.y + a.rect.height, b.rect.y + b.rect.height) - Math.max(a.rect.y, b.rect.y)
-        return w > SLACK_PX && h > SLACK_PX ? [`${a.name} and ${b.name} overlap by ${Math.round(w)}x${Math.round(h)} px`] : []
-      }))
+    check: ({ now, before, action, history }) => {
+      const found = overlaps(now)
+      if (!solverPlaced(history)) return found.map((o) => o.line)
+      if (PLACING_KINDS.includes(action?.kind)) return []
+      const had = new Set(overlaps(before).map((o) => o.key))
+      return found.filter((o) => !had.has(o.key)).map((o) => `${o.line}, after a step that placed no card`)
     }
   },
   {
@@ -154,9 +192,9 @@ export const RULES = [
   {
     name: 'theme-reaches-everything',
     check: ({ now }) => [
-      ...shownCards(now).filter((c) => themeOf(c.background) !== now.theme).map((c) => `the ${c.name} card is ${c.background} in the ${now.theme} theme`),
-      ...now.dialogs.filter((d) => themeOf(d.background) !== now.theme).map((d) => `the ${d.label} dialog is ${d.background} in the ${now.theme} theme`)
-    ]
+      ...shownCards(now).map((c) => offTheme(`the ${c.name} card`, c.background, now.theme)),
+      ...now.dialogs.map((d) => offTheme(`the ${d.label} dialog`, d.background, now.theme))
+    ].filter((line) => line !== null)
   }
 ]
 

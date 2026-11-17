@@ -1,24 +1,30 @@
 // `npm run fuzz:ui:nightly`: the nightly workflow's 30-minute UI fuzz (#234). It runs `run.mjs` with a fresh seed and reads
 // what it prints. A failure files one `bug` and `needs-info` issue titled by the failure (the seed, the shrunk steps and
-// the replay command in the body); a title an open issue already has gets a comment instead, and one night files or
-// comments once per title. After a failure the fuzz starts again on a new seed with the time left, so one failure cannot
-// use the whole night. A run that could not start or printed no verdict files one "did not run" issue and ends the night.
-// `FUZZ_DRY_RUN=1` prints each filing instead of making it.
+// the replay command in the body); a title an open issue already has gets the body as a comment instead, and one night
+// files or comments once per title. After a failure the fuzz starts again on a new seed with the time left, so one
+// failure cannot use the whole night. A run that could not start or printed no verdict files one "did not run" issue and
+// ends the night. `node live/ui-fuzz/nightly.mjs --did-not-run <why>` files only that issue: the workflow runs it when a
+// step before the fuzz failed. `.github/scripts/file-issue-once.sh` does the filing; `FUZZ_DRY_RUN=1` prints each filing
+// instead of making it.
 import { spawn } from 'node:child_process'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-const REPO = 'caneff/penpa-edit'
 export const FUZZ_MINUTES = 30
 const MINUTE_MS = 60000
-const TITLE_MAX = 110
+export const TITLE_MAX = 110
+const FILER = '.github/scripts/file-issue-once.sh'
 // Less time than this left is not worth a page start.
 const MIN_RUN_MINUTES = 1
 // The run's minutes, a shrink of up to 10 minutes (engine.mjs) and the page starts; a fuzz still running after this has hung.
 const FUZZ_TIMEOUT_MS = (FUZZ_MINUTES + 20) * MINUTE_MS
 const BLOCKED_BY = '## Blocked by\n\n- None — can start immediately.'
 
-// A short, stable name for what failed, from the error line `run.mjs` prints: the broken rules' names, or the first crash
-// signal with its numbers folded, so the same failure on another seed or step has the same title.
+// A short, stable name for what failed, from the error line `run.mjs` prints: the broken rules' names, the first crash
+// signal, or a thrown step's error without the step's label, with numbers folded, so the same failure on another seed,
+// step, action or tool has the same title.
 export function failureTitle (error) {
   const when = String.raw`after (?:step \d+ \(.*?\)|the last step)`
   const rules = new RegExp(`^rules? broken ${when}: (.*)$`, 's').exec(error)
@@ -27,7 +33,8 @@ export function failureTitle (error) {
     if (names.length) return `UI fuzz: rule broken: ${names.join(', ')}`
   }
   const signal = new RegExp(`^crash signals? ${when}: (.*)$`, 's').exec(error)
-  const text = (signal ? signal[1].split('; ')[0] : error).split('\n')[0].replace(/\d+/g, 'N').trim()
+  const thrown = /^step \d+ \(.*?\) threw: (.*)$/s.exec(error)
+  const text = (signal ? signal[1].split('; ')[0] : thrown ? thrown[1] : error).split('\n')[0].replace(/\d+/g, 'N').trim()
   return `UI fuzz: ${signal ? 'crash' : 'error'}: ${text}`.slice(0, TITLE_MAX).trimEnd()
 }
 
@@ -62,19 +69,19 @@ function fuzzIssue (f, { runUrl } = {}) {
   ].join('\n')
   return {
     title: failureTitle(f.error),
-    body: `The nightly UI fuzz (\`npm run fuzz:ui:nightly\`) failed on the ${f.puzzle} puzzle, seed ${f.seed}.\n\n${details}\nFiled by \`npm run fuzz:ui:nightly\` (\`live/ui-fuzz/nightly.mjs\`).\n\n${BLOCKED_BY}`,
-    comment: `The same failure again, seed ${f.seed} on the ${f.puzzle} puzzle.\n\n${details}`
+    body: `The nightly UI fuzz (\`npm run fuzz:ui:nightly\`) failed on the ${f.puzzle} puzzle, seed ${f.seed}.\n\n${details}\nFiled by \`npm run fuzz:ui:nightly\` (\`live/ui-fuzz/nightly.mjs\`).\n\n${BLOCKED_BY}`
   }
 }
 
 // The fixed title is the dedupe key.
-export const didNotRunIssue = (why) => ({
+export const didNotRunIssue = (why, { runUrl } = {}) => ({
   title: 'UI fuzz did not run: the nightly UI fuzz could not be checked',
   body: [
     '`npm run fuzz:ui:nightly` ended without a verdict. The cause may be the runner (no Chromium, no network) or a change that stopped the fuzz starting; what stopped it:',
     '',
     why,
     '',
+    ...(runUrl ? [`Run: ${runUrl}`, ''] : []),
     'Filed by `npm run fuzz:ui:nightly` (`live/ui-fuzz/nightly.mjs`).',
     '',
     BLOCKED_BY
@@ -86,7 +93,7 @@ export async function nightly ({ runFuzz, fileIssue, newSeed, now = Date.now, ru
   const start = now()
   const reported = new Set()
   const stopNight = async (why) => {
-    await fileIssue(didNotRunIssue(why))
+    await fileIssue(didNotRunIssue(why, { runUrl }))
     return 'did-not-run'
   }
   while (true) {
@@ -120,20 +127,24 @@ const run = (command, args, { input, timeout } = {}) => new Promise((resolve, re
   if (input !== undefined) child.stdin.end(input)
 })
 
-// Files `issue`, or comments on the open issue with its title. A failed list stops: filing blind could duplicate.
-export async function fileIssue ({ title, body, comment }, runGh = run) {
-  const list = await runGh('gh', ['issue', 'list', '--repo', REPO, '--state', 'open', '--limit', '200', '--json', 'number,title', '--jq', '.[] | "\\(.number)\t\\(.title)"'])
-  if (!list.ok) throw new Error('gh issue list failed')
-  const open = list.output.split('\n').map((l) => l.split('\t')).find(([, t]) => t === title)
-  if (open) {
-    if (!comment) return
-    if (!(await runGh('gh', ['issue', 'comment', open[0], '--repo', REPO, '--body-file', '-'], { input: comment })).ok) throw new Error('gh issue comment failed')
-    return
+// Files `issue`, or comments its body on the open issue with its title, through the repo's one filer (it reads
+// `$GITHUB_REPOSITORY`). The body goes in a file of its own: the script reads a path, and a spawned child's stdin is a
+// socket that `/dev/stdin` cannot reopen.
+export async function fileIssue ({ title, body }, runFiler = run) {
+  const dir = await mkdtemp(join(tmpdir(), 'ui-fuzz-issue-'))
+  try {
+    const bodyFile = join(dir, 'body.md')
+    await writeFile(bodyFile, body)
+    if (!(await runFiler('bash', [FILER, title, bodyFile])).ok) throw new Error(`${FILER} failed`)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
   }
-  if (!(await runGh('gh', ['issue', 'create', '--repo', REPO, '--label', 'bug,needs-info', '--title', title, '--body-file', '-'], { input: body })).ok) throw new Error('gh issue create failed')
 }
 
 const printIssue = async ({ title, body }) => console.log(`fuzz:ui:nightly dry run, would file or comment on: ${title}\n\n${body}\n`)
+
+// The filer the environment asks for: `FUZZ_DRY_RUN=1` prints each issue, anything else files it with `runFiler`.
+export const filerFor = (env, runFiler = run) => env.FUZZ_DRY_RUN === '1' ? printIssue : (issue) => fileIssue(issue, runFiler)
 
 // Each run is told its seed in the log, since a run killed for hanging prints none.
 const fuzzProcess = (seed, { minutes, timeoutMs }) => {
@@ -142,13 +153,19 @@ const fuzzProcess = (seed, { minutes, timeoutMs }) => {
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  const { GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_REPOSITORY, FUZZ_DRY_RUN } = process.env
-  const outcome = await nightly({
-    runFuzz: fuzzProcess,
-    fileIssue: FUZZ_DRY_RUN === '1' ? printIssue : fileIssue,
-    newSeed: () => Math.floor(Math.random() * 2 ** 31),
-    runUrl: GITHUB_RUN_ID ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : undefined
-  })
-  console.error(`fuzz:ui:nightly: ${outcome}`)
-  process.exitCode = outcome === 'green' ? 0 : 1
+  const { GITHUB_RUN_ID, GITHUB_SERVER_URL, GITHUB_REPOSITORY } = process.env
+  const runUrl = GITHUB_RUN_ID ? `${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}` : undefined
+  const [flag, why] = process.argv.slice(2)
+  if (flag === '--did-not-run') {
+    await filerFor(process.env)(didNotRunIssue(why, { runUrl }))
+  } else {
+    const outcome = await nightly({
+      runFuzz: fuzzProcess,
+      fileIssue: filerFor(process.env),
+      newSeed: () => Math.floor(Math.random() * 2 ** 31),
+      runUrl
+    })
+    console.error(`fuzz:ui:nightly: ${outcome}`)
+    process.exitCode = outcome === 'green' ? 0 : 1
+  }
 }
