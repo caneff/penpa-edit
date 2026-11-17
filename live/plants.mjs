@@ -303,7 +303,9 @@ export async function hunt (browser, plant, ids, { lanes = 1 } = {}) {
   let error = null
   await inLanes(huntOrder(plant, ids), lanes, async (id) => {
     replayed++
-    const [recording, expected] = await Promise.all([readRecording(id), readExpected(id)])
+    // In order, not Promise.all: for an id with neither file both reads reject, and the first to settle would be thrown.
+    const recording = await readRecording(id)
+    const expected = await readExpected(id)
     let failure
     try {
       const { report, errors } = await replay(browser, recording, { id, expected, served: true, setup })
