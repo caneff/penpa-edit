@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { afterChange, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { afterChange, chipName, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -315,7 +315,7 @@ describe('a link with a Tab set', () => {
 
   it('still seeds the pins from the Tab set', async () => {
     const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as a preset)/ }).allInnerTexts())
-      .map((text) => text.replace(/^\d+\s*/, '').trim())
+      .map(chipName)
     assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
     assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])
     assert.deepEqual(await withoutTabSet.page.evaluate(() => engine.tabSet()), [])
@@ -404,7 +404,7 @@ describe('the Mode card', () => {
   it('follows a tool set from outside', async () => {
     await setTool(opened.page, { mode: 'number', submode: '7' })
     const read = () => combobox().inputValue()
-    assert.equal(await settle(read, 'Candidates'), 'Candidates')
+    assert.equal(await settle(read, 'Number > Candidates'), 'Number > Candidates')
   })
 })
 
@@ -489,13 +489,13 @@ describe('the Mouse card and the title bar', () => {
   const headline = () => opened.page.getByRole('region', { name: 'Mouse' }).getByRole('heading', { level: 3 })
   const titleBarTool = () => opened.page.getByTestId('board-tool-name')
 
-  it('names mode, sub-mode and style, in the card and in the title bar', async () => {
+  it('gives the tool one name, in the card and in the title bar', async () => {
     await setTool(opened.page, { mode: 'line', submode: '4', style: 3 })
-    assert.equal(await settle(() => headline().textContent(), 'Line · helper × · green'), 'Line · helper × · green')
-    assert.equal(await settle(() => titleBarTool().textContent(), 'Line · helper × · green'), 'Line · helper × · green')
+    assert.equal(await settle(() => headline().textContent(), 'Line > Helper ×'), 'Line > Helper ×')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Line > Helper ×'), 'Line > Helper ×')
     await setTool(opened.page, { mode: 'combi', submode: 'akari' })
-    assert.equal(await settle(() => headline().textContent(), 'Composite · Bulbs + dots'), 'Composite · Bulbs + dots')
-    assert.equal(await settle(() => titleBarTool().textContent(), 'Composite · Bulbs + dots'), 'Composite · Bulbs + dots')
+    assert.equal(await settle(() => headline().textContent(), 'Bulbs + dots'), 'Bulbs + dots')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Bulbs + dots'), 'Bulbs + dots')
   })
 
   // The card's rows as [gesture, effect] pairs.
@@ -504,29 +504,29 @@ describe('the Mouse card and the title bar', () => {
 
   // One tool of each mode family, with the rows its agreed wording gives (research/mouse-card-wording-2026-11.md).
   const WORDING = [
-    [{ mode: 'surface', style: 2 }, 'Surface · green', [
+    [{ mode: 'surface', style: 2 }, 'Surface', [
       ['Left click', 'paint the cell → clear'], ['Right click', 'paint the 2nd colour → clear'],
       ['Drag', 'paint many cells; starting on a painted cell: clear many'],
       ['Right drag', '2nd colour on many cells (starting on it: clear many)'],
       ['Alt + drag', 'paint a rectangle (starting on the colour: clear it; square grids only)'],
       ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
-    [{ mode: 'line', submode: '1' }, 'Line · Normal', [['Left click', '—'], ['Right click', '—'],
+    [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'line through cell centres; starting on it: erase']]],
-    [{ mode: 'lineE', submode: '4' }, 'Edge · helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', '—']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', '—']]],
     [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag; starting on it: erase']]],
-    [{ mode: 'number', submode: '3' }, 'Number · quarter', [['Left click', 'cursor to the nearest cell corner spot'],
+    [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor to the nearest cell corner spot'],
       ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', '—'], ['Digit', 'number at the cursor']]],
-    [{ mode: 'combi', submode: 'blwh' }, 'Composite · Black + white circles', [['Left click', 'white ○ → black ● → clear'],
+    [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],
       ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
-    [{ mode: 'special', submode: 'thermo' }, 'Special · Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
+    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
       ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
-    [{ mode: 'cage', submode: '2' }, 'Cage · free lines', [['Left click', '—'], ['Right click', '—'],
+    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
-    [{ mode: 'move', submode: '2' }, 'Move · numbers', [['Left click', '—'], ['Right click', '—'],
+    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'move a number you entered to an empty cell']]],
-    [{ mode: 'symbol', submode: 'circle_L' }, 'Shape · Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
+    [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
       ['Right click', 'cursor to the cell'], ['Drag', '—'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
-    [{ mode: 'symbol', submode: 'cross' }, 'Shape · Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
+    [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
       ['Drag', '—'], ['Digit', 'add or remove part n of the shape at the cursor']]]
   ]
 
@@ -540,7 +540,7 @@ describe('the Mouse card and the title bar', () => {
 
   it('says Left click, Right click and Drag first for every tool, and has no row for the style', async () => {
     await setTool(opened.page, { mode: 'surface', style: 2 })
-    await settle(() => headline().textContent(), 'Surface · green')
+    await settle(() => headline().textContent(), 'Surface')
     assert.deepEqual((await rows()).slice(0, 3).map(([gesture]) => gesture), ['Left click', 'Right click', 'Drag'])
     assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
   })

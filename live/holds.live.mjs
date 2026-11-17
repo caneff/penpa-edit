@@ -30,13 +30,13 @@ describe('a held Shift or Ctrl', () => {
   it('shows the lent tool with the held tag, and key-up restores', async () => {
     const { page } = opened
     await setTool(page, NORMAL)
-    await waitForHeadline(page, 'Sudoku · normal · dark blue')
+    await waitForHeadline(page, 'Sudoku > Normal')
     await page.keyboard.down('Shift')
     await waitForTool(page, CORNER)
-    assert.equal(await waitForHeadline(page, 'Sudoku · corner · dark blueheld'), 'Sudoku · corner · dark blueheld')
+    assert.equal(await waitForHeadline(page, 'Sudoku > Cornerheld'), 'Sudoku > Cornerheld')
     await page.keyboard.up('Shift')
     await waitForTool(page, NORMAL)
-    assert.equal(await waitForHeadline(page, 'Sudoku · normal · dark blue'), 'Sudoku · normal · dark blue', 'the tag goes with the hold')
+    assert.equal(await waitForHeadline(page, 'Sudoku > Normal'), 'Sudoku > Normal', 'the tag goes with the hold')
   })
 
   it('ends the hold when the window loses focus, and the next hold still works', async () => {
@@ -46,7 +46,7 @@ describe('a held Shift or Ctrl', () => {
     await waitForTool(page, CORNER)
     await page.evaluate(() => window.dispatchEvent(new Event('blur')))
     await waitForTool(page, NORMAL)
-    assert.equal(await waitForHeadline(page, 'Sudoku · normal · dark blue'), 'Sudoku · normal · dark blue')
+    assert.equal(await waitForHeadline(page, 'Sudoku > Normal'), 'Sudoku > Normal')
     await page.keyboard.up('Shift')
     await page.keyboard.down('Shift')
     await waitForTool(page, CORNER, 'a hold after the lost one starts')
@@ -107,7 +107,7 @@ describe('a held Shift or Ctrl', () => {
     await page.keyboard.up('Shift')
     // Penpa+ would give Normal back on the key-up.
     assert.equal(await page.evaluate(() => engine.getState().held), false)
-    await settle(() => headlineText(page), 'Sudoku · corner · dark blue')
+    await settle(() => headlineText(page), 'Sudoku > Corner')
     await waitForTool(page, CORNER)
   })
 })
@@ -210,7 +210,7 @@ describe('a held Ctrl', () => {
     await setTool(page, NORMAL)
     await page.keyboard.down('Control')
     await waitForTool(page, CENTRE)
-    assert.equal(await waitForHeadline(page, 'Sudoku · centre · dark blueheld'), 'Sudoku · centre · dark blueheld')
+    assert.equal(await waitForHeadline(page, 'Sudoku > Centreheld'), 'Sudoku > Centreheld')
     await page.keyboard.up('Control')
     await waitForTool(page, NORMAL)
   })
@@ -225,16 +225,16 @@ describe('after a hold', () => {
   it('leaves the pins and what the page keeps unchanged', async () => {
     const { page } = opened
     await setTool(page, NORMAL)
-    await waitForHeadline(page, 'Sudoku · normal · dark blue')
+    await waitForHeadline(page, 'Sudoku > Normal')
     const before = await storedEntries(page)
     const chips = () => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin)/ }).allInnerTexts()
     const chipsBefore = await chips()
     await page.keyboard.down('Shift')
     await waitForTool(page, CORNER)
-    await waitForHeadline(page, 'Sudoku · corner · dark blueheld')
+    await waitForHeadline(page, 'Sudoku > Cornerheld')
     await page.keyboard.up('Shift')
     await waitForTool(page, NORMAL)
-    await waitForHeadline(page, 'Sudoku · normal · dark blue')
+    await waitForHeadline(page, 'Sudoku > Normal')
     assert.equal(await storedEntries(page), before)
     assert.deepEqual(await chips(), chipsBefore)
   })

@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { afterChange, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -16,7 +16,7 @@ const CELL = 12
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
 const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins as a preset)/ })
-const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
+const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map(chipName)
 
 // The colour of the board's frame, as the Board card draws it.
 const frameColour = (page) => page.getByRole('region', { name: 'Board' }).evaluate((card) => getComputedStyle(card).outlineColor)
@@ -271,25 +271,33 @@ describe('what a pin remembers', () => {
 
 describe('the board frame', () => {
   let opened
-  before(async () => { opened = await openSolve(['Line Normal', 'Line Diagonal']) })
+  before(async () => { opened = await openSolve(['Line Normal']) })
   after(async () => { await opened?.context.close() })
+
+  // The frame shows the selected style's colour where a tool has one (#190), so the pins are told apart on tools with no colour style.
+  const noColourTools = (page) => page.evaluate(() => engine.listTools().filter((t) => t.styles.every((s) => !s.swatch)).slice(0, 3)
+    .map(({ mode, submode }) => ({ mode, submode })))
 
   // The Pinned card marks the current pin's chip in the same draw that colours the frame.
   const pressedChip = (page) => page.getByRole('region', { name: 'Pinned' }).locator('[aria-pressed="true"]').allInnerTexts()
-    .then((texts) => texts.map((text) => text.replace(/^\d+\s*/, '').trim()))
+    .then((texts) => texts.map(chipName))
   const frameOnce = async (page, chips) => {
     assert.deepEqual(await settle(() => pressedChip(page), chips), chips)
     return frameColour(page)
   }
 
-  it('gives two pins on one mode different colours, and a tool outside the pins its own', async () => {
+  it('gives two pins different colours, and a tool outside the pins its own, on tools with no colour style', async () => {
     const { page } = opened
-    await setTool(page, { mode: 'line', submode: '1' })
-    const first = await frameOnce(page, ['Line > Normal'])
-    await page.keyboard.press('Tab')
-    const second = await frameOnce(page, ['Line > Diagonal'])
-    assert.notEqual(second, first, 'two pins on Line differ')
-    await setTool(page, { mode: 'line', submode: '4' })
+    const [one, two, other] = await noColourTools(page)
+    assert.ok(other, 'three tools have no colour style')
+    await page.evaluate((entries) => window.pinBoard.replace(entries), [one, two].map((t) => ({ ...t, style: null })))
+    await setTool(page, one)
+    const nameOf = (tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
+    const first = await frameOnce(page, [await nameOf(one)])
+    await setTool(page, two)
+    const second = await frameOnce(page, [await nameOf(two)])
+    assert.notEqual(second, first, 'two pins differ')
+    await setTool(page, other)
     const neutral = await frameOnce(page, [])
     assert.notEqual(neutral, first)
     assert.notEqual(neutral, second)
