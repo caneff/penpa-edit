@@ -62,7 +62,7 @@
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout }) => {
+    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -127,6 +127,9 @@
             THEMES.map(([value, text]) => el('wa-option', { value }, [text])));
         theme.addEventListener('change', () => engine.setTheme(theme.value));
 
+        const showMouse = el('wa-switch', {}, ['Show Mouse card']);
+        showMouse.addEventListener('change', () => setMouseClosed(!showMouse.checked));
+
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
             dialog.open = false;
@@ -152,7 +155,8 @@
         const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
             el('div', { class: 'ui-setting' }, [theme]),
             el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
-            el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
+            el('div', { class: 'ui-setting' }, [presets, deletePreset]),
+            el('div', { class: 'ui-setting' }, [showMouse])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
             [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup]);
@@ -166,6 +170,7 @@
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
             theme.value = current.theme;
+            showMouse.checked = !isMouseClosed();
             showPresets();
             dialog.open = true;
         }
