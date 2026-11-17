@@ -1,5 +1,5 @@
-// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the desk's own
-// (theme, layout, pins and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the page's own
+// (Page: theme, Mouse card and layout; Pins: saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
 // Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -158,11 +158,13 @@
             showPresets();
         });
 
-        const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
+        const pageGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Page']),
             el('div', { class: 'ui-setting' }, [theme]),
-            el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
-            el('div', { class: 'ui-setting' }, [presets, deletePreset]),
-            el('div', { class: 'ui-setting' }, [showMouse])]);
+            el('div', { class: 'ui-setting' }, [showMouse]),
+            el('div', { class: 'ui-setting' }, [resetLayoutButton])]);
+        const pinsGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Pins']),
+            el('div', { class: 'ui-setting' }, [resetPins]),
+            el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
 
         const aboutGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['About']),
             el('div', { class: 'ui-settings-about' }, [
@@ -173,7 +175,7 @@
                 el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup, aboutGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), pageGroup, pinsGroup, aboutGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {

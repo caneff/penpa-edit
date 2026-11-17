@@ -11,6 +11,9 @@ const LAPTOP = { width: 1366, height: 768 }
 const PENPA_URL = 'https://github.com/swaroopg92/penpa-edit'
 const PENPA_LICENCE_URL = `${PENPA_URL}/blob/master/LICENSE`
 const FORK_URL = 'https://github.com/caneff/penpa-edit'
+const FORK_LINK_TEXT = 'caneff/penpa-edit'
+// Shift+Tab presses from a freshly opened dialog that are enough to leave it, whatever holds focus first.
+const FIRST_TAB_STOPS_TO_LEAVE = 4
 
 async function open (theme) {
   const opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: { viewport: LAPTOP } })
@@ -75,15 +78,36 @@ describe('the About group in Settings', () => {
     }
   })
 
-  it('lets Shift+Tab from the dialog reach the About links', async () => {
+  it('says "desk" nowhere a solver reads it: not in Settings, not in a tooltip', async () => {
     const { context, page } = await open('light')
     try {
       await page.getByRole('button', { name: 'Settings' }).click()
       await page.getByRole('dialog', { name: 'Settings' }).waitFor()
-      const about = page.locator('wa-dialog[open]').getByRole('group', { name: 'About' })
-      await about.getByRole('link').last().focus()
-      await page.keyboard.press('Shift+Tab')
-      assert.equal(await settle(() => page.evaluate(() => document.activeElement?.textContent), 'MIT licence'), 'MIT licence')
+      const dialog = page.locator('wa-dialog[open]')
+      const legends = await dialog.locator('fieldset > legend').allTextContents()
+      assert.deepEqual(legends.slice(-3), ['Page', 'Pins', 'About'])
+      const shown = await page.evaluate(() => [...document.querySelectorAll('wa-dialog[open] *, wa-tooltip')]
+        .map((node) => node.textContent).join('\n'))
+      assert.doesNotMatch(shown, /\bdesk\b/i)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('brings Shift+Tab that leaves the dialog back to its last control, an About link', async () => {
+    const { context, page } = await open('light')
+    try {
+      await page.getByRole('button', { name: 'Settings' }).click()
+      await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+      // A press that leaves the dialog is answered in a timeout, which the next macrotask of the page follows.
+      const afterTimeouts = () => page.evaluate(() => new Promise((resolve) => setTimeout(resolve)))
+      const reached = []
+      for (let press = 0; press < FIRST_TAB_STOPS_TO_LEAVE && !reached.includes(FORK_LINK_TEXT); press++) {
+        await page.keyboard.press('Shift+Tab')
+        await afterTimeouts()
+        reached.push(await page.evaluate(() => document.activeElement?.textContent.slice(0, 40)))
+      }
+      assert.equal(reached.includes(FORK_LINK_TEXT), true, `Shift+Tab reached ${JSON.stringify(reached)}`)
     } finally {
       await context.close()
     }

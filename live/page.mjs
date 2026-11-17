@@ -293,7 +293,7 @@ export async function openSolvePage (browser, query, options = {}) {
 export async function resetLayoutInSettings (page) {
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await page.getByRole('dialog', { name: 'Settings' }).waitFor()
-  await page.locator('wa-dialog[open]').getByRole('group', { name: 'Desk' }).getByRole('button', { name: 'Reset layout' }).click()
+  await page.locator('wa-dialog[open]').getByRole('group', { name: 'Page' }).getByRole('button', { name: 'Reset layout' }).click()
   await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
 }
 
