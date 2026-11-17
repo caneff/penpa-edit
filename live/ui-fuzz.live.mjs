@@ -1,10 +1,13 @@
 // The solve page's UI fuzz (`live/ui-fuzz/`): a scripted action list holding every action kind runs clean, rules included,
 // on every puzzle of its set, `--focus` raises its area's share of the actions, and a seeded run on a page that throws on
 // one action, or breaks a rule on one, finds it and prints a replay command, focus and all, that fails again on the same step.
+// A planted solve-UI bug (`UI_PLANTS`, `live/plants.mjs`) is found and shrunk to a handful of steps that replay, and the same
+// seed passes with no plant in (#233).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fc from 'fast-check'
 import { takePageErrors, useBrowser } from './page.mjs'
+import { UI_PLANTS, uiPlantSetup } from './plants.mjs'
 import { actionList, AREAS, KINDS, scriptedList, WINDOW_SIZES } from './ui-fuzz/actions.mjs'
 import { parseFuzzArgs, replayCommand } from './ui-fuzz/command.mjs'
 import { runFuzz, runScript } from './ui-fuzz/engine.mjs'
@@ -92,17 +95,23 @@ function swallowPinKeysInPage () {
   }, true)
 }
 
-// Hunts on Akari with `setup` planted and `focus`, checks the run fails with an error matching `error` after a shrunk list
-// whose last step matches `last` (`only`: the list is that one step), and that its printed replay command fails again on
-// the same step.
-async function findsAndReplays (setup, error, { focus = PLANT_RUN.focus, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
-  const planted = openTarget(browser(), { setup: (context) => context.addInitScript(setup) })
-  const akari = puzzles.filter((p) => p.name === 'akari')
+const akari = puzzles.filter((p) => p.name === 'akari')
+// The most steps a planted bug's shrunk list may hold: a handful, which a person reads at a glance.
+const HANDFUL = 5
+// `openTarget`'s options that run `inPage` in the page before its scripts.
+const initScript = (inPage) => ({ setup: (context) => context.addInitScript(inPage) })
+
+// Hunts on Akari on a page opened with `target` (`openTarget`'s options) and `focus`, checks the run fails with an error
+// matching `error` after a shrunk list whose last step matches `last` (`only`: the list is that one step; else at most
+// HANDFUL), and that its printed replay command fails again on the same step.
+async function findsAndReplays (target, error, { focus = PLANT_RUN.focus, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
+  const planted = openTarget(browser(), target)
   const found = await runFuzz({ openTarget: planted, puzzles: akari, ...PLANT_RUN, focus })
   assert.equal(found.failed, true, 'the run finds the plant')
   assert.match(found.error, error)
   assert.match(found.sequence.at(-1), last, 'the shrunk list ends on the planted step')
   if (only) assert.equal(found.sequence.length, 1, `shrunk to the one step, got ${found.sequence.join('; ')}`)
+  assert.ok(found.sequence.length <= HANDFUL, `shrunk to at most ${HANDFUL} steps, got ${found.sequence.join('; ')}`)
   assert.equal(found.step, found.sequence.length, 'the failure is read after the last step of the shrunk list')
 
   const command = replayCommand(found)
@@ -151,15 +160,23 @@ describe('the solve page\'s UI fuzz', () => {
   }
 
   it('finds a crash on a seeded run and prints a replay command that fails again on the same step', async () => {
-    await findsAndReplays(throwOnToolPickInPage, /planted tool pick/)
+    await findsAndReplays(initScript(throwOnToolPickInPage), /planted tool pick/)
     takePageErrors()
   })
 
   it('finds a broken rule on a seeded run and prints a replay command that fails again on the same step', async () => {
-    await findsAndReplays(overlapOnToolPickInPage, /^rules? broken after step \d+ \(.*\): cards-do-not-overlap: Board and Pinned overlap/)
+    await findsAndReplays(initScript(overlapOnToolPickInPage), /^rules? broken after step \d+ \(.*\): cards-do-not-overlap: Board and Pinned overlap/)
   })
 
   it('finds a broken rule that reads the step\'s action on a seeded run, and its replay fails again on the same step', async () => {
-    await findsAndReplays(swallowPinKeysInPage, /pin-keys-select-their-pin: pressing [ZXCV] left /, { focus: ['pinned'], last: /^press pin key [ZXCV]/, only: false })
+    await findsAndReplays(initScript(swallowPinKeysInPage), /pin-keys-select-their-pin: pressing [ZXCV] left /, { focus: ['pinned'], last: /^press pin key [ZXCV]/, only: false })
   })
+
+  for (const plant of UI_PLANTS) {
+    it(`finds the planted ${plant.id}, shrinks it, replays it on the same step, and passes on the same seed without it`, async () => {
+      await findsAndReplays({ served: true, setup: await uiPlantSetup(plant) }, plant.caughtBy, { focus: plant.focus, last: plant.last, only: false })
+      const clean = await runFuzz({ openTarget: openTarget(browser(), { served: true }), puzzles: akari, ...PLANT_RUN, focus: plant.focus })
+      assert.equal(clean.failed, false, `with no plant the same seed passes, got ${clean.error}`)
+    })
+  }
 })

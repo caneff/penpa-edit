@@ -59,7 +59,8 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `live/recordings/solve/` are written by `node live/generate-tier-c.mjs`, a solver's history by its `--history`. It also opens the Penpa links the fork writes (the save dialog's, the progress store's; not the .pp and .gmp file texts) on `upstream/master`'s own files and checks the board matches the fork's (`live/upstream-links.live.mjs`; it needs the `upstream/master` ref, which CI fetches). It also checks that each plant undoing an
   audit fix still applies to its file and fails a recording made for that finding (`live/safety-net.live.mjs`). It also runs the solve page's UI fuzz on a scripted
   action list on each of its puzzles, and a seeded run on a page that throws on one action, and one on a page that breaks a rule on one, whose printed replay must fail
-  again on the same step (`live/ui-fuzz.live.mjs`, #195). In both commands, a page error or
+  again on the same step, and one on each planted solve-UI bug (`UI_PLANTS` in `live/plants.mjs`), which it must shrink to
+  at most 5 steps and replay, the same seed passing with no plant in (`live/ui-fuzz.live.mjs`, #195, #233). In both commands, a page error or
   `console.error` on a page `openPenpa` or `openReloader` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both scripts pass `--test-concurrency=4`, so at most 4 test files run at once on the shared box.
 - **CI**: `.github/workflows/ci.yml` runs both on every PR and push to `master` (job `test`), and the expected-file gate
