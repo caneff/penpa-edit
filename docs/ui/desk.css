@@ -84,7 +84,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card.is-sized .ui-body { flex: 1 1 auto; min-height: 0; }
 .ui-card-rules.is-sized .ui-body { max-height: none; }
 .ui-card[hidden] { display: none; }
-.ui-close { order: 2; margin-left: auto; }
+.ui-close, .ui-unpin-all { order: 2; margin-left: auto; }
 .ui-head { cursor: grab; }
 /* A card being dragged looks picked up. */
 .ui-card.is-dragging { box-shadow: 0 12px 32px rgba(40, 35, 20, .32); }
