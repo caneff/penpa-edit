@@ -63,11 +63,15 @@ describe('one name per tool', () => {
     await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), 'Shade cells')
     assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), 'Line', 'a Recent chip too')
-    const unknown = await page.evaluate(() => engine.listTools().find((t) => !window.toolGuide.plainName(t)))
+    const unknown = await page.evaluate(() => engine.listTools().find((t) => !window.toolGuide.tooltipAttrs(t).title))
     assert.ok(unknown, 'some listed tool has no plain name')
     await pin(page, [{ mode: unknown.mode, submode: unknown.submode, style: null }])
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), null)
+    await pin(page, [])
+    await setTool(page, { mode: unknown.mode, submode: unknown.submode })
+    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
+    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), null, 'a Recent chip too')
   })
 
   it('shows the same name in the tool-change banner', async () => {

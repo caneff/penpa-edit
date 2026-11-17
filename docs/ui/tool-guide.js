@@ -1,4 +1,4 @@
-// What each tool is for, in words: the group the Mode card files it under, its picker name and description, and what the
+// What each tool is for, in words: the group the Mode card files it under, its plain name and description, and what the
 // mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, each checked against the board by performing its gesture. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
 (function () {
     'use strict';
@@ -19,7 +19,7 @@
         ['move', 'Moving things']
     ];
 
-    // 'mode/sub-mode' (a mode with none: 'mode/') -> [group, picker name, description].
+    // 'mode/sub-mode' (a mode with none: 'mode/') -> [group, plain name, description]. The plain name is a search term and a chip's tooltip; the tree's leaf is named by `chipLabel`.
     const ENTRIES = {
         'surface/': ['shade', 'Shade cells', 'Click paints the chosen colour, right the 2nd colour; drag paints many.'],
         'multicolor/': ['shade', 'Colour selected cells', 'Select cells, then type a digit or pick a colour.'],
@@ -59,7 +59,7 @@
         'move/3': ['move', 'Move shapes', 'Drag a shape elsewhere.']
     };
 
-    // Composite sub-mode -> [group, description]. Its picker name is the engine's name for the sub-mode.
+    // Composite sub-mode -> [group, description]. Its plain name is the engine's name for the sub-mode.
     const COMPOSITE_ENTRIES = {
         blpo: ['shade', 'Left shades a cell, right puts a dot (unshaded).'],
         shaka: ['shade', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
@@ -88,33 +88,32 @@
     // One tool's identity, for a lookup: its mode and sub-mode.
     const toolKey = (tool) => `${tool.mode}/${tool.submode ?? ''}`;
 
-    // The picker's entry for a tool: where it is filed, what it is called and what it does.
+    // The picker's entry for a tool: where it is filed, its plain name and what it does.
     function describeTool(tool) {
         const known = ENTRIES[toolKey(tool)];
         if (known) {
-            return { group: known[0], name: known[1], description: known[2] };
+            return { group: known[0], plainName: known[1], description: known[2] };
         }
         const composite = tool.mode === 'combi' && COMPOSITE_ENTRIES[tool.submode];
         if (composite) {
-            return { group: composite[0], name: tool.submodeName, description: composite[1] };
+            return { group: composite[0], plainName: tool.submodeName, description: composite[1] };
         }
         if (tool.mode === 'symbol') {
-            const name = capitalised(submodeLabel(tool));
+            const plainName = capitalised(submodeLabel(tool));
             const description = ON_OFF_SHAPES.includes(tool.submode) ? 'Shape at the cursor; digits switch its parts on and off.'
                 : 'Shape at the cursor; digits pick its variant.';
-            return { group: 'symbols', name, description };
+            return { group: 'symbols', plainName, description };
         }
-        return { group: 'symbols', name: tool.name, description: '' };
+        return { group: 'symbols', plainName: tool.name, description: '' };
     }
 
     // ---- Where the tree files each tool -----------------------------------------------------------------------------
 
     // Symbols and marks has a level of subgroups, and a symbol that comes in sizes or colours is one entry whose sizes or
     // colours sit under it (Chris, 2026-11-16). A tool listed under no subgroup goes to the last one.
-    const SIZE_NAMES = { LL: 'XL', L: 'L', M: 'M', S: 'S', SS: 'XS' };
-    const sizes = (name, prefix, suffixes) => [name, suffixes.map((suffix) => [`symbol/${prefix}_${suffix}`, SIZE_NAMES[suffix]])];
-    const blackGreyWhite = (name, prefix) => [name, [['B', 'Black'], ['G', 'Grey'], ['W', 'White']].map(([suffix, colour]) => [`symbol/${prefix}_${suffix}`, colour])];
-    const alone = (...keys) => keys.map((key) => [null, [[key, null]]]);
+    const sizes = (name, prefix, suffixes) => [name, suffixes.map((suffix) => `symbol/${prefix}_${suffix}`)];
+    const blackGreyWhite = (name, prefix) => [name, ['B', 'G', 'W'].map((suffix) => `symbol/${prefix}_${suffix}`)];
+    const alone = (...keys) => keys.map((key) => [null, [key]]);
     const symbols = (...ids) => alone(...ids.map((id) => `symbol/${id}`));
     const combis = (...ids) => alone(...ids.map((id) => `combi/${id}`));
     const SYMBOL_SUBGROUPS = [
@@ -128,52 +127,51 @@
         ]],
         ['Arrows', [
             blackGreyWhite('Arrow', 'arrow_B'), blackGreyWhite('Arrow, notched', 'arrow_N'), blackGreyWhite('Arrow, triangle', 'arrow_tri'),
-            ['Edge arrows', [['symbol/arrow_fouredge_B', 'Black'], ['symbol/arrow_fouredge_G', 'Grey'], ['symbol/arrow_fouredge_E', 'Green']]],
+            ['Edge arrows', ['symbol/arrow_fouredge_B', 'symbol/arrow_fouredge_G', 'symbol/arrow_fouredge_E']],
             ...symbols('arrow_GP', 'arrow_GP_C', 'arrow_Short', 'arrow_S', 'arrow_cross', 'arrow_eight', 'arrow_fourtip'), ...combis('arrowS')
         ]],
         ['Signs and small marks', [
-            ['○ △ □ ×', [['symbol/ox_B', 'Black'], ['symbol/ox_E', 'Green'], ['symbol/ox_G', 'Grey']]],
+            ['○ △ □ ×', ['symbol/ox_B', 'symbol/ox_E', 'symbol/ox_G']],
             ...symbols('cross', 'line', 'frameline'),
             blackGreyWhite('Bars', 'bars'),
             ...symbols('tri'),
-            ['Maths signs', [['symbol/math', 'Black'], ['symbol/math_G', 'Green']]],
+            ['Maths signs', ['symbol/math', 'symbol/math_G']],
             ...symbols('inequality'),
-            ['Segment digit', [['symbol/degital_B', 'Black'], ['symbol/degital_E', 'Green'], ['symbol/degital_G', 'Grey'], ['symbol/degital_f', 'Outline']]]
+            ['Segment digit', ['symbol/degital_B', 'symbol/degital_E', 'symbol/degital_G', 'symbol/degital_f']]
         ]],
         ['Genre symbols', [
-            ['Ship', [['symbol/battleship_B', 'Black'], ['symbol/battleship_G', 'Grey'], ['symbol/battleship_W', 'White'],
-                ['symbol/battleship_B+', 'Curvy, black'], ['symbol/battleship_G+', 'Curvy, grey'], ['symbol/battleship_W+', 'Curvy, white']]],
+            ['Ship', ['symbol/battleship_B', 'symbol/battleship_G', 'symbol/battleship_W',
+                'symbol/battleship_B+', 'symbol/battleship_G+', 'symbol/battleship_W+']],
             ...symbols('kakuro', 'tents', 'star', 'compass', 'sun_moon', 'dice', 'pills', 'polyomino', 'polyhex', 'firefly', 'pencils', 'slovak',
                 'arc', 'darts', 'spans', 'neighbors', 'angleloop', 'sudokuetc', 'sudokumore')
         ]]
     ];
 
-    // 'mode/sub-mode' -> where the tree puts a symbol: [subgroup, symbol entry (null: the tool stands alone), variant, rank].
+    // 'mode/sub-mode' -> where the tree puts a symbol: [subgroup, symbol entry (null: the tool stands alone), rank].
     const SYMBOL_PLACES = new Map();
-    SYMBOL_SUBGROUPS.forEach(([subgroup, entries]) => entries.forEach(([entry, variants]) => variants.forEach(([key, variant]) => {
-        SYMBOL_PLACES.set(key, [subgroup, entry, variant, SYMBOL_PLACES.size]);
+    SYMBOL_SUBGROUPS.forEach(([subgroup, entries]) => entries.forEach(([entry, variants]) => variants.forEach((key) => {
+        SYMBOL_PLACES.set(key, [subgroup, entry, SYMBOL_PLACES.size]);
     })));
     const LAST_SUBGROUP = SYMBOL_SUBGROUPS[SYMBOL_SUBGROUPS.length - 1][0];
 
     // The tree's place for a tool: its group, the branches between the group and the tool (a mode, or a subgroup and a
     // symbol), its own label, and a rank that orders tools within their group. Modes that name each tool on their own
     // stand alone one level under their group, and so does a mode with no sub-modes.
-    // `label` is the one name every card gives the tool (`chipLabel`); `name` is the plain name, which only the search reads.
     function placeTool(tool) {
-        const { group, name, description } = describeTool(tool);
+        const { group, plainName, description } = describeTool(tool);
         const label = chipLabel(tool);
         const place = SYMBOL_PLACES.get(toolKey(tool));
         if (place) {
-            const [subgroup, entry, variant, rank] = place;
-            return { group, trail: [subgroup, entry].filter(Boolean), label, name, description, rank };
+            const [subgroup, entry, rank] = place;
+            return { group, trail: [subgroup, entry].filter(Boolean), label, plainName, description, rank };
         }
         if (group === 'symbols') {
-            return { group, trail: [LAST_SUBGROUP], label, name, description, rank: SYMBOL_PLACES.size };
+            return { group, trail: [LAST_SUBGROUP], label, plainName, description, rank: SYMBOL_PLACES.size };
         }
         if (SELF_NAMING_MODES.includes(tool.mode) || !tool.submodeName) {
-            return { group, trail: [], label, name, description, rank: 0 };
+            return { group, trail: [], label, plainName, description, rank: 0 };
         }
-        return { group, trail: [tool.modeName], label, name, description, rank: 0 };
+        return { group, trail: [tool.modeName], label, plainName, description, rank: 0 };
     }
 
     // A search first matches each typed word as typed, case aside. Only when that finds nothing does it match loosely, ignoring
@@ -365,8 +363,8 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    // The plain-words name a tool has in `ENTRIES` ("Shade cells" for Surface), for a chip's tooltip; undefined for a tool it does not list.
-    const plainName = (tool) => ENTRIES[toolKey(tool)]?.[1];
+    // The attributes giving a chip its tooltip: the tool's plain name from `ENTRIES` ("Shade cells" for Surface), none for a tool it does not list.
+    const tooltipAttrs = (tool) => (ENTRIES[toolKey(tool)] ? { title: ENTRIES[toolKey(tool)][1] } : {});
 
-    window.toolGuide = { plainName, TOOL_GROUPS, NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
+    window.toolGuide = { tooltipAttrs, TOOL_GROUPS, NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
 })();

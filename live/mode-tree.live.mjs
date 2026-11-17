@@ -192,11 +192,17 @@ describe('the Mode card tree', () => {
     await opened.page.keyboard.press('Escape')
   })
 
-  it('lists Surface as Surface, and finds it by its plain name "shade" as well as by "Surface"', async () => {
+  it('lists Surface as Surface, and finds it by its plain name "shade" as well as by "Surface", and Enter picks it"', async () => {
     await reopen({ mode: 'line', submode: '1' })
     for (const typed of ['shade', 'Surface']) {
       await search().fill(typed)
       assert.equal(await tree().locator('[role=treeitem][data-mode=surface]:visible .ui-tname').textContent(), 'Surface', `"${typed}" finds Surface under its shared name`)
+    }
+    for (const typed of ['shade', 'Shade cells']) {
+      await reopen({ mode: 'line', submode: '1' })
+      await search().fill(typed)
+      await search().press('Enter')
+      assert.equal((await currentTool(opened.page)).mode, 'surface', `Enter on "${typed}" picks Surface`)
     }
     await opened.page.keyboard.press('Escape')
   })
