@@ -1,0 +1,42 @@
+name: UI fuzz nightly
+
+# The random clicker on `solve.html` for 30 minutes with a fresh seed (#234, spec #195). A failure files one `bug` +
+# `needs-info` issue titled by the failure, or comments on the open one; `live/ui-fuzz/nightly.mjs` does the filing.
+on:
+  schedule:
+    - cron: '47 6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Print the issues instead of filing them'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  issues: write
+
+# Two overlapping runs could file the same failure twice.
+concurrency:
+  group: ui-fuzz-nightly
+  cancel-in-progress: false
+
+jobs:
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tests
+      - id: fuzz
+        run: npm run fuzz:ui:nightly
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FUZZ_DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+      # A step before the fuzz (npm ci, the Chromium install) failed, so nightly.mjs never ran and filed nothing. It files
+      # its own "did not run" issue here; it needs only the runner's own Node.
+      - name: File the did-not-run issue
+        if: ${{ failure() && steps.fuzz.outcome == 'skipped' && !inputs.dry_run }}
+        run: node live/ui-fuzz/nightly.mjs --did-not-run 'A step before it (npm ci or the Chromium install) failed, so the fuzz never started.'
+        env:
+          GH_TOKEN: ${{ github.token }}

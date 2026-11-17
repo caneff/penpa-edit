@@ -5,12 +5,15 @@
 // Each plant has an `id`, the `bug` in words, its `file` under `docs/js/`, and a `find` and `replace` of one line's
 // text. `handler`, when given, names the method of `class_p.js` the change is in, and `find` is searched for in that
 // method alone. `audit` names the finding of `research/fork-audit-2026-11.md` whose fix the plant undoes.
+//
+// `UI_PLANTS` are the same for the solve UI, a `file` under `docs/ui/`, caught by the UI fuzz
+// rather than by a recording, so `npm run measure` does not hunt them.
 import { readFile } from 'node:fs/promises'
 import { Script } from 'node:vm'
 import { jsRequest } from './page.mjs'
 import { methodStart, readExpected, readRecording, replay } from './replay.mjs'
 
-const JS = new URL('../docs/js/', import.meta.url)
+const DOCS = new URL('../docs/', import.meta.url)
 
 // The ids of the recordings made for an audit finding start with this, as `audit-c1-or-empty-category` does.
 const auditPrefix = (audit) => `audit-${audit.toLowerCase()}-`
@@ -228,6 +231,21 @@ export const PLANTS = [
   }
 ]
 
+// Solve-UI bugs, each with the UI fuzz's hunt for it: the `focus` it draws more of, the error that names the rule it breaks
+// (`caughtBy`) and the step its shrunk list ends on (`last`).
+export const UI_PLANTS = [
+  {
+    id: 'pin-keys-x-and-c-swapped',
+    bug: 'pin keys X and C select each other\'s pin, each chip still showing its own key',
+    file: 'pins.js',
+    find: 'const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };',
+    replace: 'const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 2, KeyC: 1, KeyV: 3 };',
+    focus: ['pinned'],
+    caughtBy: /^rules? broken after step \d+ \(.*\): pin-keys-select-their-pin: pressing [XC] left /,
+    last: /^press pin key [XC]/
+  }
+]
+
 // The text of `source` that `plant.find` is searched for in: the whole file, or the method `plant.handler`, from its
 // first line to the closing brace at its indent.
 function scopeOf (source, plant) {
@@ -260,11 +278,15 @@ export function plantIn (source, plant) {
   return planted
 }
 
-// The `setup` that serves `plant.file` with the plant in it, for `replay` with `served: true`.
-async function plantSetup (plant) {
-  const body = plantIn(await readFile(new URL(plant.file, JS), 'utf8'), plant)
-  return (context) => context.route(jsRequest(plant.file), (route) => route.fulfill({ contentType: 'text/javascript', body }))
+// The `setup` that serves `docs/<dir>/<plant.file>` with the plant in it, for a page opened with `served: true`;
+// `request` matches the page's requests for that file.
+async function plantSetup (plant, dir = 'js', request = jsRequest(plant.file)) {
+  const body = plantIn(await readFile(new URL(`${dir}/${plant.file}`, DOCS), 'utf8'), plant)
+  return (context) => context.route(request, (route) => route.fulfill({ contentType: 'text/javascript', body }))
 }
+
+// `plantSetup` for one of `UI_PLANTS`: served from `docs/ui/`, so a page opened with it needs its files served.
+export const uiPlantSetup = (plant) => plantSetup(plant, 'ui', new RegExp(`/ui/${plant.file.replace(/\./g, '\\.')}(\\?|$)`))
 
 // The recordings of `ids` made for the audit finding `plant` undoes the fix of; none for a plant of no finding.
 export function auditRecordings (plant, ids) {
