@@ -5,8 +5,8 @@
 # merged commit it tested (`.github/workflows/upstream-merge.yml`). The rule is strict (#221): a PR must contain the
 # current master before it merges, so GitHub reports a PR whose base is older BEHIND, not CLEAN, until master is merged
 # in and CI passes again. The nightly is unaffected: its merge commit is built on master's tip and pushed as a
-# fast-forward, and a master that moved during its run already refuses the push. Run by Chris; an existing ruleset of the same name
-# is updated, not duplicated.
+# fast-forward, and a master that moved during its run already refuses the push. Run by Chris; an existing ruleset of
+# the same name is updated, not duplicated.
 # Usage: require-checks.sh [--dry-run]   (--dry-run prints the ruleset JSON and sends nothing)
 set -euo pipefail
 name='master: safety-net checks'
