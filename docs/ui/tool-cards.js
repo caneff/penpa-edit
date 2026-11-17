@@ -147,7 +147,13 @@
             'aria-controls': window.modeTree.TREE_ID, spellcheck: 'false', autocomplete: 'off', class: 'ui-search', placeholder: 'Search tools…'
         });
         const none = el('div', { class: 'ui-none', hidden: '' }, ['No tool matches.']);
-        const toolTree = window.modeTree.createModeTree(tools, (tool) => pick(tool));
+        const toolTree = window.modeTree.createModeTree(tools, (tool) => pick(tool), (id) => {
+            if (id) {
+                input.setAttribute('aria-activedescendant', id);
+            } else {
+                input.removeAttribute('aria-activedescendant');
+            }
+        });
         const list = el('div', { class: 'ui-list', hidden: '' }, [toolTree.levels, toolTree.tree, none]);
         const toolOptions = el('div', { class: 'ui-toolopts' });
         const picker = el('div', { class: 'ui-picker' }, [input, list]);
@@ -170,6 +176,7 @@
             open = false;
             list.hidden = true;
             input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
             showCurrent();
         }
 
@@ -209,11 +216,17 @@
             } else if (e.target === input && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                 e.preventDefault();
                 toolTree.focusSelected();
+            } else if (e.target !== input && e.target.closest('[role=treeitem]') && (e.key === 'Backspace' || (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey && !e.metaKey && !e.altKey))) {
+                // A letter typed with the focus in the tree is a search the field would have taken.
+                e.preventDefault();
+                input.focus();
+                input.value = e.key === 'Backspace' ? input.value.slice(0, -1) : input.value + e.key;
+                filter();
             } else if (e.target === input && e.key === 'Enter') {
                 e.preventDefault();
-                const first = input.value.trim() ? toolTree.firstMatch() : null;
-                if (first) {
-                    pick(first);
+                const best = input.value.trim() ? toolTree.bestMatch() : null;
+                if (best) {
+                    pick(best);
                 }
             }
         });
