@@ -137,6 +137,7 @@
         const sheetRow = el('div', { class: 'ui-setting' }, [sheetButton]);
 
         const clearRow = el('div', { class: 'ui-setting' }, [clear, cleared]);
+        const specialRows = new Map([[CLEAR_PROGRESS_ROW, clearRow], [SHEET_ROW, sheetRow]]);
 
         // ---- The desk's own settings, kept by the UI in localStorage --------------------------------------------------
 
@@ -187,7 +188,7 @@
                 el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : row === SHEET_ROW ? sheetRow : control(row)))])), pageGroup, pinsGroup, aboutGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (specialRows.get(row) ?? control(row)))])), pageGroup, pinsGroup, aboutGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {

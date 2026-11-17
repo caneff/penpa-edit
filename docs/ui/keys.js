@@ -98,11 +98,19 @@
     // keys first).
     const keyHandlers = [];
     // The files that own keys also say what they do: each adds rows `{ keys, text, state? }` for a group of the shortcut sheet, as
-    // a list or as a function read each time the sheet opens, so a key a file stops answering drops off the sheet with its rows.
+    // a list or as a function read each time the sheet opens. A file that owns a key builds its row from the same table its handler
+    // reads, so the row goes when the key does; the Board rows below describe keys Penpa+ answers and have no table here.
+    const SHEET_GROUPS = ['Board', 'Tools', 'Page'];
     const keyRows = [];
     window.uiKeys = {
         add: (handler) => keyHandlers.push(handler),
-        describe: (group, rows) => keyRows.push({ group, rows }),
+        groups: SHEET_GROUPS,
+        describe: (group, rows) => {
+            if (!SHEET_GROUPS.includes(group)) {
+                throw new RangeError(`uiKeys.describe: no shortcut group "${group}"`);
+            }
+            keyRows.push({ group, rows });
+        },
         rowsOf: (group) => keyRows.filter((entry) => entry.group === group).flatMap(({ rows }) => (typeof rows === 'function' ? rows() : rows))
     };
 
@@ -114,10 +122,9 @@
         { keys: 'Backspace', text: 'Clear the selected cells in Sudoku, elsewhere delete the last character' },
         { keys: 'Escape', text: 'Close the open menu or dialog, else clear the selection' }
     ]);
-    window.uiKeys.describe('Tools', [
-        { keys: 'Shift (hold)', text: 'In Sudoku, the Corner tool while held' },
-        { keys: 'Ctrl (hold)', text: 'In Sudoku, the Centre tool while held' }
-    ]);
+    window.uiKeys.describe('Tools', () => engine.holdTools().map(({ key, tool }) => ({
+        keys: `${key} (hold)`, text: `In Sudoku, ${window.toolGuide.chipLabel(tool)} while held`
+    })));
 
     function answerOfHandlers(e) {
         for (const handler of keyHandlers) {

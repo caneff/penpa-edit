@@ -13,11 +13,16 @@ const SHEET = 'Keyboard shortcuts'
 const GROUPS = ['Board', 'Tools', 'Page']
 const CELL = 12
 const PINS = ['Line Normal', 'Sudoku Corner']
+const PIN_TOOLS = [{ mode: 'line', submode: '1' }, { mode: 'sudoku', submode: '2' }]
 
 const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
 // The host, not the role: Web Awesome's inner <dialog> does not hold the slotted rows, and `[open]` is on the host while it shows.
 const sheetOf = (page) => page.locator(`wa-dialog[label="${SHEET}"][open]`)
 const rowsOfGroup = (page, group) => sheetOf(page).getByRole('group', { name: group }).getByRole('listitem')
+const closeSheet = async (page) => {
+  await page.keyboard.press('Escape')
+  await sheetOf(page).waitFor({ state: 'detached' })
+}
 const openWithQuestionMark = async (page) => {
   await page.keyboard.press('?')
   await sheetOf(page).waitFor({ state: 'attached' })
@@ -75,8 +80,7 @@ describe('the keyboard shortcut sheet', () => {
       await page.evaluate(() => pu.mode_set('number'))
       await clickCell(page, CELL)
       await openWithQuestionMark(page)
-      await page.keyboard.press('Escape')
-      await sheetOf(page).waitFor({ state: 'detached' })
+      await closeSheet(page)
       await page.keyboard.press('7')
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'])
     } finally { await context.close() }
@@ -95,6 +99,37 @@ describe('the keyboard shortcut sheet', () => {
     })
   }
 
+  for (const chord of ['Control+?', 'Alt+?']) {
+    it(`${chord} opens the sheet and Penpa+ opens none of its own`, async () => {
+      const { context, page } = await openSolve()
+      try {
+        await page.evaluate(() => pu.mode_set('line'))
+        await page.keyboard.press(chord)
+        await sheetOf(page).waitFor({ state: 'attached' })
+        assert.equal(await page.evaluate(() => engine.getState().penpaDialogOpen), false)
+      } finally { await context.close() }
+    })
+  }
+
+  it('with no pins the sheet lists no pin keys', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await page.evaluate(() => window.pinBoard.replace([]))
+      await openWithQuestionMark(page)
+      assert.deepEqual(await rowsOfGroup(page, 'Tools').allInnerTexts().then((texts) => texts.filter((text) => /Tab|Z X C V/.test(text))), [])
+    } finally { await context.close() }
+  })
+
+  it('the Sudoku hold rows name the tools the held keys lend', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await openWithQuestionMark(page)
+      const texts = await rowsOfGroup(page, 'Tools').allInnerTexts()
+      assert.equal(texts.some((text) => /^Shift \(hold\)\s+In Sudoku, Sudoku > Corner while held/.test(text)), true, texts.join(' | '))
+      assert.equal(texts.some((text) => /^Ctrl \(hold\)\s+In Sudoku, Sudoku > Centre while held/.test(text)), true, texts.join(' | '))
+    } finally { await context.close() }
+  })
+
   describe('every group\'s keys do what the sheet says', () => {
     it('Board: a digit goes into the selected cell', async () => {
       const { context, page } = await openSolve()
@@ -102,9 +137,8 @@ describe('the keyboard shortcut sheet', () => {
         await page.evaluate(() => pu.mode_set('number'))
         await clickCell(page, CELL)
         await openWithQuestionMark(page)
-        assert.match(await rowsOfGroup(page, 'Board').filter({ hasText: 'Digits' }).innerText(), /digit/i)
-        await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'detached' })
+        assert.equal(await rowsOfGroup(page, 'Board').filter({ hasText: 'Digits' }).count(), 1)
+        await closeSheet(page)
         await page.keyboard.press('5')
         assert.deepEqual(await settle(() => typedDigits(page), ['5']), ['5'])
       } finally { await context.close() }
@@ -115,12 +149,13 @@ describe('the keyboard shortcut sheet', () => {
       try {
         await clickCell(page, CELL)
         await openWithQuestionMark(page)
-        assert.equal(await rowsOfGroup(page, 'Tools').filter({ hasText: 'Tab' }).count() > 0, true)
-        await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'detached' })
+        assert.equal(await rowsOfGroup(page, 'Tools').filter({ hasText: 'Next pinned tool' }).count(), 1)
+        await closeSheet(page)
         const before = await currentTool(page)
         await page.keyboard.press('Tab')
-        assert.equal(await settle(async () => JSON.stringify(await currentTool(page)) !== JSON.stringify(before), true), true, 'the tool changed')
+        const expected = PIN_TOOLS.find((tool) => tool.mode !== before.mode)
+        const after = await settle(() => currentTool(page), expected)
+        assert.deepEqual({ mode: after.mode, submode: after.submode }, expected)
       } finally { await context.close() }
     })
 
@@ -134,8 +169,7 @@ describe('the keyboard shortcut sheet', () => {
         assert.notDeepEqual(await settle(() => board(page), blank), blank, 'the digit is in')
         await openWithQuestionMark(page)
         assert.equal(await rowsOfGroup(page, 'Page').filter({ hasText: 'Ctrl+Z' }).count(), 1)
-        await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'detached' })
+        await closeSheet(page)
         await page.keyboard.press('Control+z')
         assert.deepEqual(await settle(() => board(page), blank), blank)
       } finally { await context.close() }
@@ -146,8 +180,7 @@ describe('the keyboard shortcut sheet', () => {
       try {
         await openWithQuestionMark(page)
         assert.equal(await rowsOfGroup(page, 'Page').filter({ hasText: 'F4' }).count(), 1)
-        await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'detached' })
+        await closeSheet(page)
         await page.keyboard.press('F4')
         assert.equal(await settle(() => page.evaluate(() => engine.getTimer().covered), true), true)
       } finally { await context.close() }
