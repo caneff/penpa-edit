@@ -19,6 +19,7 @@
         });
         const list = el('div', { role: 'listbox', id: listId, 'aria-label': listLabel, class: 'ui-list', hidden: '' });
         const node = el('div', { class: 'ui-picker' }, [input, list]);
+        window.floatList(input, list);
 
         let open = false;
         let shown = [];
