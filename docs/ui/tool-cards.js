@@ -20,11 +20,9 @@
     }
 
     // White or black, whichever reads better on `colour`: no one ink holds a mid tone at 4.5:1, and the better of these two never falls
-    // under it. The canvas reads any CSS colour back as #rrggbb.
-    function pillFor(colour) {
-        const ctx = document.createElement('canvas').getContext('2d');
-        ctx.fillStyle = colour;
-        const lum = luminance([1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16)));
+    // under it.
+    function inkOn(colour) {
+        const lum = luminance(colour);
         // Contrast with white is 1.05 / (L + .05); with black, (L + .05) / .05.
         return 1.05 / (lum + 0.05) >= (lum + 0.05) / 0.05 ? '#ffffff' : '#000000';
     }
@@ -120,7 +118,7 @@
         const ink = 'stroke="currentColor"';
         if (swatch) {
             return svg(`<rect class="ui-swatch" x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>` +
-                (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" fill="${pillFor(swatch)}">${digit}</text>`));
+                (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" fill="${inkOn(swatch)}">${digit}</text>`));
         }
         const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
             `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);

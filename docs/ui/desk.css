@@ -6,6 +6,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     --ui-bar-height: 60px;
     --ui-bar-padding: 14px;
     --ui-bar-z: 950;
+    /* The colour of a tool off the pins: the Board label, frame and flash, and the current Recent chip. White on it is 6.6:1. */
+    --ui-neutral-colour: #585d68;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -139,7 +141,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-tool-name { margin-left: auto; font-size: 15px; line-height: 1.2; font-weight: 700; letter-spacing: 0; text-transform: none; color: #fff;
     /* One line, cut short with its whole text as its tooltip, so a long name never makes the header taller (#181). */
     min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    padding: 1px 10px; border-radius: 999px; background: var(--ui-tool-colour); }
+    padding: 1px 10px; border-radius: 999px; background: var(--ui-tool-colour, var(--ui-neutral-colour)); }
 /* A white ring, so a style dot of the pin's own hue still shows on the pill. */
 .ui-tool-name .ui-dot { border-color: #fff; }
 
@@ -198,7 +200,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
 
 /* The board's frame: the current tool's colour (a pin's own, or the neutral one off the pins). */
-.ui-card-board { outline: 5px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
+.ui-card-board { outline: 5px solid var(--ui-tool-colour, var(--ui-neutral-colour)); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each tinted with its pin's colour and barred with it on the left edge; the current one is filled with it. */
 .ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
@@ -206,7 +208,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip { display: flex; align-items: center; font-size: calc(12px * var(--ui-text-scale, 1)); border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
-.ui-recent .ui-chip.is-current { --ui-pin-colour: #585d68; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: var(--ui-neutral-colour); }
 /* A Recent chip has no pin, so no colour bar. */
 .ui-recent .ui-chip { border-left-width: 1px; }
 .ui-chip:not(.is-current):hover { background: #f3f0e6; }

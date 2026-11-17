@@ -23,31 +23,22 @@
     const PIN_SATURATION_PERCENT = 80;
     const PIN_LUMINANCE = 0.16;
     const LIGHTNESS_STEPS = 20;
-    const NEUTRAL_COLOUR = '#585d68';
+    const NEUTRAL_COLOUR = 'var(--ui-neutral-colour)';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
         'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
 
-    // CSS's hsl(h s% l%) as [r, g, b], each 0 to 255.
-    function hslToRgb(h, s, l) {
-        const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
-        const channel = (n) => {
-            const k = (n + h / 30) % 12;
-            return 255 * (l / 100 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)));
-        };
-        return [channel(0), channel(8), channel(4)];
-    }
-
     // The pin colour of hue `h`: the lightest, to a tenth of a percent, whose luminance stays under PIN_LUMINANCE. One lightness for
     // every hue would leave yellow too light for white text or blue darker than it need be.
     function pinColourOfHue(h) {
+        const hsl = (lightness) => `hsl(${h} ${PIN_SATURATION_PERCENT}% ${lightness}%)`;
         let [dark, light] = [0, 100];
         for (let i = 0; i < LIGHTNESS_STEPS; i++) {
             const mid = (dark + light) / 2;
-            [dark, light] = luminance(hslToRgb(h, PIN_SATURATION_PERCENT, mid)) < PIN_LUMINANCE ? [mid, light] : [dark, mid];
+            [dark, light] = luminance(hsl(mid)) < PIN_LUMINANCE ? [mid, light] : [dark, mid];
         }
-        return `hsl(${h} ${PIN_SATURATION_PERCENT}% ${Math.floor(dark * 10) / 10}%)`;
+        return hsl(Math.floor(dark * 10) / 10);
     }
 
     // Penpa+ tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.

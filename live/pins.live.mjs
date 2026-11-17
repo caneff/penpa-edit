@@ -274,9 +274,8 @@ describe('the board frame', () => {
   before(async () => { opened = await openSolve(['Line Normal']) })
   after(async () => { await opened?.context.close() })
 
-  // The frame shows the selected style's colour where a tool has one (#190), so the pins are told apart on tools with no colour style.
-  const noColourTools = (page) => page.evaluate(() => engine.listTools().filter((t) => t.styles.every((s) => !s.swatch)).slice(0, 3)
-    .map(({ mode, submode }) => ({ mode, submode })))
+  // The frame takes the current pin's colour whatever the style (#243); the first listed tool, Surface, has colour styles.
+  const threeTools = (page) => page.evaluate(() => engine.listTools().slice(0, 3).map(({ mode, submode }) => ({ mode, submode })))
 
   // The Pinned card marks the current pin's chip in the same draw that colours the frame.
   const pressedChip = (page) => page.getByRole('region', { name: 'Pinned' }).locator('[aria-pressed="true"]').allInnerTexts()
@@ -286,10 +285,9 @@ describe('the board frame', () => {
     return frameColour(page)
   }
 
-  it('gives two pins different colours, and a tool outside the pins its own, on tools with no colour style', async () => {
+  it('gives two pins different colours, and a tool outside the pins its own', async () => {
     const { page } = opened
-    const [one, two, other] = await noColourTools(page)
-    assert.ok(other, 'three tools have no colour style')
+    const [one, two, other] = await threeTools(page)
     await page.evaluate((entries) => window.pinBoard.replace(entries), [one, two].map((t) => ({ ...t, style: null })))
     await setTool(page, one)
     const nameOf = (tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)

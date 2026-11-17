@@ -191,9 +191,14 @@
         root.classList.toggle('ui-dark', dark);
     }
 
-    // WCAG's relative luminance of an sRGB colour given as [r, g, b], each 0 to 255.
-    function luminance(rgb) {
-        const [r, g, b] = rgb.map((c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; });
+    // WCAG's relative luminance of an opaque CSS colour. A canvas reads any such colour back as #rrggbb.
+    const colourReader = document.createElement('canvas').getContext('2d');
+    function luminance(colour) {
+        colourReader.fillStyle = colour;
+        const [r, g, b] = [1, 3, 5].map((i) => {
+            const s = parseInt(colourReader.fillStyle.slice(i, i + 2), 16) / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     }
 

@@ -181,7 +181,7 @@ describe('top-bar buttons', () => {
   }
 })
 
-// The least relative luminance a pin colour may have, so hues are told apart at chip size; #202's dark pins reached 0.10 at most.
+// The least relative luminance a pin colour may have: under it hues darken toward one another and are hard to tell apart at chip size.
 const PIN_MIN_LUMINANCE = 0.14
 
 describe('pin colours', () => {
