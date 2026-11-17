@@ -22,10 +22,12 @@
         const original = Puzzle.prototype.__export_text_shared;
         Puzzle.prototype.__export_text_shared = function (...args) {
             const real = { size: this.size, canvasx: this.canvasx, canvasy: this.canvasy };
-            const scale = Math.min(1, PENPA_CELL_SIZE_MAX / real.size);
-            this.size = real.size * scale;
-            this.canvasx = real.canvasx * scale;
-            this.canvasy = real.canvasy * scale;
+            const size = Math.min(real.size, PENPA_CELL_SIZE_MAX);
+            // Through the cells across, `canvasx / size`, which index.html reads back with parseInt: scaling by
+            // `size / real.size` can land a hair under the whole number (629.99... for 1225 px at 175 px a cell) (#181).
+            this.size = size;
+            this.canvasx = real.canvasx / real.size * size;
+            this.canvasy = real.canvasy / real.size * size;
             try {
                 return original.apply(this, args);
             } finally {

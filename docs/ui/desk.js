@@ -314,9 +314,12 @@
         // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
         const rulesHeight = clamp(rulesCardHeight(cards.rules, leftWidth), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]);
 
-        const gap = Math.max(DESK_MARGIN_PX, Math.floor((width - boardWidth - leftWidth - rightWidth) / 4));
-        const boardX = gap + leftWidth + gap;
-        const rightX = boardX + boardWidth + gap;
+        // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
+        const spare = width - boardWidth - leftWidth - rightWidth;
+        const gapsUpTo = (n) => Math.max(n * DESK_MARGIN_PX, Math.round(n * spare / 4));
+        const leftX = gapsUpTo(1);
+        const boardX = leftWidth + gapsUpTo(2);
+        const rightX = leftWidth + boardWidth + gapsUpTo(3);
         stack(cards, RIGHT_COLUMN, rightX, rightWidth);
         // Unlike `position`, which gives a card its kept width, the fit sets every size itself.
         const place = (id, x, y, w, h) => {
@@ -324,8 +327,8 @@
             setHeight(cards[id].node, h);
         };
         place('board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
-        place('rules', gap, TOP_MARGIN_PX, leftWidth, rulesHeight);
-        place('mouse', gap, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
+        place('rules', leftX, TOP_MARGIN_PX, leftWidth, rulesHeight);
+        place('mouse', leftX, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
         Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
         keepFitted(desk, cards, Object.keys(cards));
     }

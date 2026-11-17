@@ -57,13 +57,13 @@ describe('the desk', () => {
 
   it('keeps a moved and resized card after a reload, and Reset layout puts it back', async () => {
     const start = await boxOf(page, 'Rules')
-    // Up and to the right: the fitted layout puts Rules at the bottom of the desk.
-    await drag(page, await headCentre(page, 'Rules'), 120, -70)
+    // Down and to the right: the fitted layout puts Rules at the top of the desk.
+    await drag(page, await headCentre(page, 'Rules'), 120, 70)
     await drag(page, await handleCentre(page, 'Rules'), 40, 30)
     const changed = await boxOf(page, 'Rules')
     assert.notDeepEqual(changed, start)
     assert.equal(changed.x, start.x + 120)
-    assert.equal(changed.y, start.y - 70)
+    assert.equal(changed.y, start.y + 70)
 
     await page.reload()
     await card(page, 'Rules').waitFor()
@@ -86,8 +86,8 @@ describe('the desk', () => {
   for (const { handle, dx, dy, fixed } of HANDLE_DRAGS) {
     it(`resizes the Rules card from its ${handle} handle, keeps the size after a reload`, async () => {
       // Moved clear of the desk's edges first, so every handle has room to grow into: the fitted layout puts Rules at the
-      // bottom of the desk, so up.
-      await drag(page, await headCentre(page, 'Rules'), 80, -60)
+      // top of the desk, so down.
+      await drag(page, await headCentre(page, 'Rules'), 80, 60)
       const start = await boxOf(page, 'Rules')
       await drag(page, await handleCentre(page, 'Rules', handle), dx, dy)
       const grown = await boxOf(page, 'Rules')
@@ -133,8 +133,8 @@ describe('the desk', () => {
 
   it('still moves the card by its title bar below the top strip', async () => {
     const start = await boxOf(page, 'Rules')
-    await drag(page, await headCentre(page, 'Rules'), 50, -40)
-    assert.deepEqual(await boxOf(page, 'Rules'), { ...start, x: start.x + 50, y: start.y - 40 })
+    await drag(page, await headCentre(page, 'Rules'), 50, 40)
+    assert.deepEqual(await boxOf(page, 'Rules'), { ...start, x: start.x + 50, y: start.y + 40 })
   })
 
   // The key the desk keeps its layout under: the stored value with a card's entry in it.
