@@ -7,7 +7,7 @@
     const MULTICOLOR_MODE = 'multicolor';
     const SWATCHES_IN_TWO_ROWS = 12;
     const TWO_ROWS = 2;
-    const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
+    const { NOTHING, SECOND_COLOUR_DOT, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -50,16 +50,24 @@
         return h3;
     }
 
-    function renderMouse(target, tool, style, held = false) {
+    // An effect's words, with a dot in `secondColour` where it names the 2nd colour (no dot when there is none).
+    function effectNodes(effect, secondColour) {
+        return effect.split(SECOND_COLOUR_DOT).flatMap((text, i) => (i === 0 || !secondColour ? [text] : [el('i', { class: 'ui-dot', style: `background:${secondColour}` }), text]));
+    }
+
+    // A flick tool's nine keys, drawn as a 3×3 keypad.
+    const keypad = (keys) => el('div', { class: 'ui-keypad' }, keys.map((key) => el('span', {}, [key])));
+
+    function renderMouse(target, tool, style, held = false, secondColour = null) {
         const rows = mouseRows(tool);
-        const row = (gesture, effect, cls) => el('div', { class: `ui-mrow ${cls}` }, [
-            el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
+        const row = (gesture, effect, cls, extra = []) => el('div', { class: `ui-mrow ${cls}` }, [
+            el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [...effectNodes(effect, secondColour), ...extra])
         ]);
+        // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
+        const main = [['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag], ['Digit', rows.digit ?? NOTHING]];
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
-            // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
-            ...[['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag]]
-                .filter(([, effect]) => effect !== NOTHING)
-                .map(([gesture, effect]) => row(gesture, effect, '')),
+            ...main.filter(([, effect]) => effect !== NOTHING)
+                .map(([gesture, effect]) => row(gesture, effect, '', gesture === 'Drag' && rows.keypad ? [keypad(rows.keypad)] : [])),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));
     }
@@ -315,6 +323,8 @@
         const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style),
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
+        const surfaceTool = tools.find((t) => t.mode === 'surface');
+
         // The tools the Mouse card is sized for: the link's Tab set and the pins (#199), which the solver mostly moves between;
         // another tool's rows may scroll. Every tool when the puzzle names none. Read from the fit on, after pins.js is up.
         function puzzleTools() {
@@ -339,13 +349,14 @@
             const current = engine.getTool();
             const held = engine.getState().held;
             const orientation = engine.getOrientation();
-            const now = `${toolKey(current)}/${current.style}/${orientation}/${held}`;
+            const secondColour = styleColour(surfaceTool, engine.getSettings().secondcolor);
+            const now = `${toolKey(current)}/${current.style}/${orientation}/${held}/${secondColour}`;
             if (now === drawn) {
                 return;
             }
             drawn = now;
             const tool = toolFor(current);
-            renderMouse(cards.mouse.body, tool, current.style, held);
+            renderMouse(cards.mouse.body, tool, current.style, held, secondColour);
             titleBarName.textContent = chipLabel(tool);
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
             titleBarName.title = titleBarName.textContent;
