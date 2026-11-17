@@ -155,6 +155,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-toolopts[hidden] { display: none; }
 .ui-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; }
 .ui-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.ui-styles.is-two-rows { display: grid; grid-template-columns: repeat(6, 28px); }
 .ui-stylebtn { width: 28px; height: 28px; padding: 3px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #23262c; cursor: pointer; }
 .ui-stylebtn:hover { border-color: #8aa6e0; }
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
@@ -170,6 +171,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
+/* A Recent chip has no pin, so no colour bar. */
+.ui-recent .ui-chip { border-left-width: 1px; }
+.ui-chip:not(.is-current):hover { background: #f3f0e6; }
+.ui-chip.is-current:hover { filter: brightness(1.12); }
+.ui-chip[draggable="true"] { cursor: grab; }
+.ui-pins-empty { margin: 0; font-size: 12px; color: #6b6656; }
 .ui-chip-main { display: flex; gap: 5px; padding: 1px 2px 1px 6px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset field, the save row under it and the undo line for a deleted preset. */
@@ -189,7 +196,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-preset-undo { margin-top: 6px; font-size: 12px; }
 .ui-preset-undo:empty { display: none; }
 .ui-preset-undo-btn { margin-left: 6px; border: 0; background: transparent; color: #3b6fd4; text-decoration: underline; cursor: pointer; font: inherit; }
-.ui-chip-unpin { padding: 0 6px; opacity: .55; }
+.ui-chip-unpin { padding: 5px 8px; opacity: .55; }
 .ui-chip-unpin:hover { opacity: 1; }
 .ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
 
@@ -243,6 +250,9 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
 .ui-dark .ui-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--ui-pin-colour, #4a5060); }
 .ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
+.ui-dark .ui-recent .ui-chip:not(.is-current) { border-left-color: #4a5060; }
+.ui-dark .ui-chip:not(.is-current):hover { background: #343946; }
+.ui-dark .ui-pins-empty { color: #a9b0bd; }
 
 /* The Settings dialog: one fieldset per group, one setting per row. */
 .ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }

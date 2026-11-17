@@ -10,8 +10,8 @@
     // that is stable between calls and a lowercase `haystack` the typed words are looked for in. `renderEntry(entry)` gives the
     // nodes inside an entry's option, and `rowButtons(entry)` the buttons beside it (none when absent). `currentText()` is what the
     // closed field shows. `onPick(entry)` is a pick; `onKey(e, entry)` may answer a key for the highlighted entry (`entry` is
-    // undefined when none is) and returns true when it did.
-    function createCombobox({ idPrefix, label, listLabel, placeholder, noMatch, groups, renderEntry, rowButtons, currentText, onPick, onKey }) {
+    // undefined when none is) and returns true when it did. `onClose()` runs each time the list closes.
+    function createCombobox({ idPrefix, label, listLabel, placeholder, noMatch, groups, renderEntry, rowButtons, currentText, onPick, onKey, onClose }) {
         const listId = `${idPrefix}-listbox`;
         const input = el('input', {
             type: 'text', role: 'combobox', 'aria-label': label, 'aria-autocomplete': 'list', 'aria-expanded': 'false',
@@ -52,6 +52,7 @@
             input.setAttribute('aria-expanded', 'false');
             input.removeAttribute('aria-activedescendant');
             showCurrent();
+            onClose?.();
         }
 
         function pick(entry) {

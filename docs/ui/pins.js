@@ -10,22 +10,18 @@
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
-    // Z, X, C and V jump to pins 1 to 4.
+    // Z, X, C and V jump to pins 1 to 4, and label those chips.
     const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
+    const SHORTCUT_LABELS = Object.keys(SHORTCUT_SLOT_BY_CODE).map((code) => code.slice('Key'.length));
     const NUMBER_MODE = 'number';
-    // A pin's colour is the golden angle times its id around the hue wheel, so each new pin lands in the widest gap left and
-    // no count of pins runs out; the lightness keeps white text readable on it.
-    const GOLDEN_ANGLE_DEG = 137.508;
-    const PIN_HUE_OFFSET_DEG = 220;
-    const PIN_SATURATION_PERCENT = 62;
-    const PIN_LIGHTNESS_PERCENT = 38;
+    // Ten colours far apart in hue, each dark enough for white text. A tool keeps its colour (`colours`, kept with the pins); only
+    // past ten pins does a colour repeat.
+    const PIN_PALETTE = ['#c0392b', '#1e7e34', '#1f5fbf', '#8e44ad', '#b9570e', '#0e7c86', '#b5266f', '#7a7a12', '#5b4bd1', '#8a5a2b'];
     const NEUTRAL_COLOUR = '#7d828c';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
         'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
-
-    const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + pin.id * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
 
     // Penpa+ tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.
     function capsLockIsOn(e) {
@@ -70,15 +66,33 @@
         }
 
         // A pin for a tool the link no longer offers is dropped.
-        let { nextId, pins } = savedState() ?? seededState();
+        let { nextId, pins, colours } = { colours: {}, ...(savedState() ?? seededState()) };
         pins = pins.filter(toolOf);
-
-        function save() {
-            localStorage.setItem(storageKey, JSON.stringify({ nextId, pins }));
-        }
-        save();
+        // What a saved palette index is worth: a whole number the palette has, else the tool gets a colour again.
+        const validColours = Object.fromEntries(Object.entries(colours ?? {}).filter(([, i]) => Number.isInteger(i) && PIN_PALETTE[i]));
 
         const pinIndexOf = (tool) => pins.findIndex((p) => toolKey(p) === toolKey(tool));
+
+        // Gives each pin the colour its tool had, or else the palette colour fewest pins wear. Two pins share a colour only past
+        // the palette's size. The tools' colours outlive their pins, so a tool pinned again comes back in its own.
+        function assignColours() {
+            const worn = PIN_PALETTE.map(() => 0);
+            pins.forEach((pin) => {
+                const key = toolKey(pin);
+                if (validColours[key] === undefined || worn[validColours[key]] > 0) {
+                    validColours[key] = worn.indexOf(Math.min(...worn));
+                }
+                worn[validColours[key]]++;
+            });
+        }
+
+        const pinColour = (pin) => PIN_PALETTE[validColours[toolKey(pin)]];
+
+        function save() {
+            assignColours();
+            localStorage.setItem(storageKey, JSON.stringify({ nextId, pins, colours: validColours }));
+        }
+        save();
 
         // ---- Moving between pins ----------------------------------------------------------------------------------------
 
@@ -137,14 +151,31 @@
         // ---- The Pinned card --------------------------------------------------------------------------------------------
 
         const strip = el('div', { class: 'ui-pins' });
+        const EMPTY_NOTE = el('p', { class: 'ui-pins-empty' }, ['Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.']);
         cards.pins.body.replaceChildren(strip);
 
-        function chip(pin, number, current) {
+        // The chip being dragged, for the drop to move.
+        let dragged = null;
+
+        // Moves `pin` to just before or after `target`, which Z, X, C and V and the Tab cycle then follow.
+        function movePin(pin, target, before) {
+            if (pin === target) {
+                return;
+            }
+            const cursorPin = pins[cursor];
+            pins = pins.filter((p) => p !== pin);
+            pins.splice(pins.indexOf(target) + (before ? 0 : 1), 0, pin);
+            cursor = pins.indexOf(cursorPin);
+            save();
+            render();
+        }
+
+        function chip(pin, slot, current) {
             const label = chipLabel(toolOf(pin));
-            const main = el('button', {
-                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current)
-            }, [el('span', { class: 'ui-chip-num' }, [String(number)]), label]);
-            const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}` });
+            const key = SHORTCUT_LABELS[slot];
+            const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current) },
+                [...(key ? [el('span', { class: 'ui-chip-num' }, [key])] : []), label]);
+            const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}`, title: `Unpin ${label}` });
             unpin.innerHTML = REMOVE_ICON;
             main.addEventListener('click', () => {
                 applyPin(pin);
@@ -156,7 +187,27 @@
                 render();
                 unpin.blur();
             });
-            return el('div', { class: `ui-chip${current ? ' is-current' : ''}`, style: `--ui-pin-colour:${pinColour(pin)}` }, [main, unpin]);
+            const node = el('div', { class: `ui-chip${current ? ' is-current' : ''}`, style: `--ui-pin-colour:${pinColour(pin)}`, draggable: 'true' }, [main, unpin]);
+            node.addEventListener('dragstart', (e) => {
+                dragged = pin;
+                e.dataTransfer.effectAllowed = 'move';
+                // Firefox starts no drag without some data.
+                e.dataTransfer.setData('text/plain', label);
+            });
+            node.addEventListener('dragend', () => { dragged = null; });
+            node.addEventListener('dragover', (e) => {
+                if (dragged) {
+                    e.preventDefault();
+                }
+            });
+            node.addEventListener('drop', (e) => {
+                if (dragged) {
+                    e.preventDefault();
+                    const { left, width } = node.getBoundingClientRect();
+                    movePin(dragged, pin, e.clientX < left + width / 2);
+                }
+            });
+            return node;
         }
 
         // ---- The pin toggles --------------------------------------------------------------------------------------------
@@ -193,7 +244,9 @@
                 drawn = now;
                 button.hidden = !known;
                 button.setAttribute('aria-pressed', String(pinned));
-                button.setAttribute('aria-label', `${pinned ? 'Unpin' : 'Pin'} ${known ? chipLabel(known) : ''}`.trim());
+                const label = `${pinned ? 'Unpin' : 'Pin'} ${known ? chipLabel(known) : ''}`.trim();
+            button.setAttribute('aria-label', label);
+            button.setAttribute('title', label);
                 button.innerHTML = pinIcon(pinned);
             }
             button.addEventListener('click', () => {
@@ -268,7 +321,7 @@
             }
             drawn = signature;
             pinListeners.forEach((listener) => listener());
-            strip.replaceChildren(...pins.map((pin, i) => chip(pin, i + 1, i === index)));
+            strip.replaceChildren(...(pins.length ? pins.map((pin, i) => chip(pin, i, i === index)) : [EMPTY_NOTE.cloneNode(true)]));
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 

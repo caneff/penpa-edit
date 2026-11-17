@@ -58,7 +58,7 @@ async function tabToNextTool (page) {
 // The tools the pins hold, in order: starts on the first pin and Tabs round once.
 async function walkPins (page, count) {
   const keys = []
-  await pinnedCard(page).getByRole('button', { name: /^1/ }).click()
+  await pinnedCard(page).getByRole('button', { name: /^Z/ }).click()
   keys.push(toolKeyOf(await currentTool(page)))
   for (let i = 1; i < count; i++) {
     keys.push(await tabToNextTool(page))

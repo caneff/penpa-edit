@@ -5,6 +5,7 @@
     'use strict';
 
     const MULTICOLOR_MODE = 'multicolor';
+    const SWATCHES_IN_TWO_ROWS = 12;
     const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
@@ -97,11 +98,14 @@
     const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
 
     // A 20 px sample of a style for its button: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
-    function styleSample(name, swatch, sample) {
+    // `digit` is the number key that picks a swatch's colour, or null where no key does.
+    function styleSample(name, swatch, sample, digit) {
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
-            return svg(`<rect x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>`);
+            return svg(`<rect x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>` +
+                (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" ` +
+                    `paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" fill="#23262c">${digit}</text>`));
         }
         const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
             `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);
@@ -219,10 +223,12 @@
         });
 
         function styleGroup(tool, style) {
-            const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
+            // Twelve swatches make two even rows.
+            const group = el('div', { role: 'group', 'aria-label': 'Style', class: `ui-styles${tool.styles.length === SWATCHES_IN_TWO_ROWS ? ' is-two-rows' : ''}` });
+            const colourTool = tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE;
             tool.styles.forEach((s) => {
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
-                button.innerHTML = styleSample(s.name, s.swatch, s.sample);
+                button.innerHTML = styleSample(s.name, s.swatch, s.sample, colourTool ? s.style : null);
                 button.addEventListener('click', () => {
                     // A Multicolor swatch colours the selected cells, as a digit key does; any other style is only picked.
                     if (tool.mode === MULTICOLOR_MODE) {
@@ -234,7 +240,7 @@
                 });
                 group.append(button);
             });
-            return [el('div', { class: 'ui-sub' }, [tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE ? 'Colour' : 'Style']), group];
+            return [el('div', { class: 'ui-sub' }, [colourTool ? 'Colour' : 'Style']), group];
         }
 
         function orientationGroup(current) {

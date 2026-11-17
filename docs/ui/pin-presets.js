@@ -16,6 +16,8 @@
     const DELETE_KEY = 'Delete';
     const FAVOURITES = 'Favourites';
     const YOUR_PRESETS = 'Your presets';
+    // How long the line offering an Undo stays, when nothing else clears it.
+    const UNDO_VISIBLE_MS = 8000;
 
     const SAVE_ICON = '<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5"/><path d="M4.5 13.5V9h7v4.5"/>';
     const STAR_ICON = '<path d="M8 1.8l1.9 4 4.3.6-3.1 3 .8 4.3L8 11.6l-3.9 2.1.8-4.3-3.1-3 4.3-.6z"/>';
@@ -155,9 +157,14 @@
             if (!name) {
                 return;
             }
-            writePresets([...savedPresets().filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
-            // An undo for a delete would put the older preset of that name over this one.
-            undoRow.replaceChildren();
+            const all = savedPresets();
+            const index = all.findIndex((p) => p.name === name);
+            writePresets([...all.filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
+            // An undo for an earlier delete would put the older preset of that name over this one.
+            clearUndo();
+            if (index >= 0) {
+                showUndo(`Replaced “${name}”.`, `Undo replace of ${name}`, () => restoreSaved(all[index], index));
+            }
             closeForm();
         }
 
@@ -178,8 +185,29 @@
                 closeForm();
             }
         });
-        // The line offering to undo the last delete, until the next delete or save.
+        // The line offering to undo the last load, delete or replacing save, until the next one, a few seconds, or (for a delete) the
+        // list closing.
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
+        let undoTimer = null;
+        let clearOnListClose = false;
+
+        function clearUndo() {
+            clearTimeout(undoTimer);
+            clearOnListClose = false;
+            undoRow.replaceChildren();
+        }
+
+        function showUndo(message, label, action, { untilListCloses = false } = {}) {
+            clearUndo();
+            const undo = el('button', { type: 'button', class: 'ui-preset-undo-btn', 'aria-label': label }, ['Undo']);
+            undo.addEventListener('click', () => {
+                action();
+                clearUndo();
+            });
+            undoRow.replaceChildren(el('span', {}, [message]), undo);
+            clearOnListClose = untilListCloses;
+            undoTimer = setTimeout(clearUndo, UNDO_VISIBLE_MS);
+        }
 
         function toggleStar(preset) {
             const starred = starredKeys();
@@ -198,22 +226,22 @@
             return { preset: all[index], index, wasStarred: starred.includes(key) };
         }
 
-        function undoDelete({ preset, index, wasStarred }) {
+        // Puts `preset` back among the saved ones at `index`, in place of one of its name.
+        function restoreSaved(preset, index) {
             const others = savedPresets().filter((p) => p.name !== preset.name);
             others.splice(index, 0, preset);
             writePresets(others);
-            if (wasStarred) {
-                writeStars([...starredKeys(), savedKey(preset.name)]);
-            }
-            undoRow.replaceChildren();
             picker.redraw();
         }
 
         function deleteSaved(preset) {
-            const removed = removeSaved(preset.name);
-            const undo = el('button', { type: 'button', class: 'ui-preset-undo-btn', 'aria-label': `Undo delete of ${preset.name}` }, ['Undo']);
-            undo.addEventListener('click', () => undoDelete(removed));
-            undoRow.replaceChildren(el('span', {}, [`Deleted “${preset.name}”.`]), undo);
+            const { preset: removed, index, wasStarred } = removeSaved(preset.name);
+            showUndo(`Deleted “${preset.name}”.`, `Undo delete of ${preset.name}`, () => {
+                restoreSaved(removed, index);
+                if (wasStarred) {
+                    writeStars([...starredKeys(), savedKey(preset.name)]);
+                }
+            }, { untilListCloses: true });
             picker.redraw();
         }
 
@@ -247,7 +275,16 @@
                     : [star];
             },
             currentText: () => '',
-            onPick: ({ preset }) => window.pinBoard.replace(preset.tools),
+            onPick: ({ preset }) => {
+                const earlier = window.pinBoard.snapshot();
+                window.pinBoard.replace(preset.tools);
+                showUndo(`Loaded “${preset.name}”.`, `Undo load of ${preset.name}`, () => window.pinBoard.replace(earlier));
+            },
+            onClose: () => {
+                if (clearOnListClose) {
+                    clearUndo();
+                }
+            },
             onKey: (e, entry) => {
                 if (!e.shiftKey) {
                     return false;
