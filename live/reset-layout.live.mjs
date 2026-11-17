@@ -1,5 +1,5 @@
 // Reset layout (#156) arranges the desk for the window and the puzzle: the board as tall as the desk, its card only as
-// wide as the board needs (capped so the side columns keep their minimum), and the spare width going to Mouse and Rules.
+// wide as the board needs (capped so the side columns keep their minimum), and the spare width going to the side columns.
 // Read through the cards' bounding boxes, the board canvas's drawn size and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
@@ -129,7 +129,7 @@ describe('Reset layout fits the desk to the puzzle', () => {
     assertCardsOnDesk(read)
   })
 
-  it('shares the width left over as equal gaps, not stretched into the left column', async () => {
+  it('gives the width the board leaves to both side columns alike, with no gap past the margin', async () => {
     const page = await open({ cols: 9, rows: 9 })
     const { cards, desk } = await reset(page)
     const gaps = [
@@ -138,8 +138,8 @@ describe('Reset layout fits the desk to the puzzle', () => {
       cards.Pinned.x - (cards.Board.x + cards.Board.w),
       desk.x + desk.w - (cards.Pinned.x + cards.Pinned.w)
     ]
-    assert.equal(Math.max(...gaps) - Math.min(...gaps) <= GAP_SLACK_PX, true, `the gaps are ${gaps}`)
-    assert.equal(gaps[0] > DESK_MARGIN_PX, true, `the spare width is shared out, not stretched into the left column (gaps ${gaps})`)
+    assert.equal(gaps.every((gap) => Math.abs(gap - DESK_MARGIN_PX) <= GAP_SLACK_PX), true, `the gaps are ${gaps}`)
+    assert.equal(Math.abs(cards.Mouse.w - cards.Pinned.w) <= GAP_SLACK_PX, true, `the left column is ${cards.Mouse.w}px, the right ${cards.Pinned.w}px`)
   })
 
   it('keeps every card on the desk, none over another, when the window shrinks after Reset layout', async () => {
