@@ -26,17 +26,22 @@ function newBoardInPage ({ columns, rows, space = 0, gridtype = 'square' }) {
 }
 const boardLink = (options) => linkFromNewBoard(browser(), newBoardInPage, options)
 
-// Runs in the page: each cell's rectangle as drawn (viewport px), in row-major order, and the canvas's.
-function cellRectsInPage () {
-  const canvas = [...document.querySelectorAll('section[aria-label="Board"] canvas')].find((c) => c.getBoundingClientRect().width > 0)
+// Runs in the page, given the board canvas: each cell's rectangle as drawn (viewport px) by its row and column, whatever order Penpa+ keeps
+// its cell list in, and the canvas's own.
+function cellRectsInPage (canvas) {
   const origin = canvas.getBoundingClientRect()
-  const cells = pu.centerlist.map((id) => {
+  const cells = {}
+  for (const id of pu.centerlist) {
     const corners = pu.point[id].surround.map((s) => pu.point[s])
     const xs = corners.map((p) => p.x)
     const ys = corners.map((p) => p.y)
-    return { left: origin.left + Math.min(...xs), right: origin.left + Math.max(...xs), top: origin.top + Math.min(...ys), bottom: origin.top + Math.max(...ys) }
-  })
+    cells[`${Math.floor(id / pu.nx0)},${id % pu.nx0}`] = { left: origin.left + Math.min(...xs), right: origin.left + Math.max(...xs), top: origin.top + Math.min(...ys), bottom: origin.top + Math.max(...ys) }
+  }
   return { canvas: { left: origin.left, top: origin.top, right: origin.right, bottom: origin.bottom }, cells }
+}
+const readCells = async (page) => {
+  const canvas = await page.evaluateHandle(boardCanvasInPage)
+  try { return await page.evaluate(cellRectsInPage, canvas) } finally { await canvas.dispose() }
 }
 
 // Runs in the page: every shown label's text, axis and box.
@@ -58,28 +63,42 @@ const turnOn = async (page) => {
 // Checks the labels of `page` against the grid: 1..columns across the top, 1..rows down the left, each on its cell's centre line, and
 // none inside the canvas.
 async function assertAligned (page, columns, rows) {
-  const { canvas, cells } = await page.evaluate(cellRectsInPage)
+  const { canvas, cells } = await readCells(page)
   const labels = await page.evaluate(labelsInPage)
   const top = labels.filter((l) => l.axis === 'column')
   const left = labels.filter((l) => l.axis === 'row')
   assert.deepEqual(top.map((l) => l.text), Array.from({ length: columns }, (_, i) => String(i + 1)), 'columns are numbered 1..N')
   assert.deepEqual(left.map((l) => l.text), Array.from({ length: rows }, (_, i) => String(i + 1)), 'rows are numbered 1..N')
+  // Every cell of the grid, by position: the cells' own keys sort in row-major order.
+  const keys = Object.keys(cells).sort((a, b) => { const [ar, ac] = a.split(',').map(Number); const [br, bc] = b.split(',').map(Number); return ar - br || ac - bc })
+  const firstRow = Number(keys[0].split(',')[0])
+  const firstColumn = Math.min(...keys.map((k) => Number(k.split(',')[1])))
   top.forEach((l, i) => {
-    const cell = cells[i]
+    const cell = cells[`${firstRow},${firstColumn + i}`]
     assert.ok(Math.abs(l.cx - (cell.left + cell.right) / 2) <= SLACK_PX, `column ${i + 1} label is over its cell centre: ${l.cx} vs ${(cell.left + cell.right) / 2}`)
     assert.ok(l.bottom <= canvas.top + SLACK_PX, `column ${i + 1} label is above the canvas`)
   })
   left.forEach((l, j) => {
-    const cell = cells[j * columns]
+    const cell = cells[`${firstRow + j},${firstColumn}`]
     assert.ok(Math.abs(l.cy - (cell.top + cell.bottom) / 2) <= SLACK_PX, `row ${j + 1} label is beside its cell centre: ${l.cy} vs ${(cell.top + cell.bottom) / 2}`)
     assert.ok(l.right <= canvas.left + SLACK_PX, `row ${j + 1} label is left of the canvas`)
   })
+}
+
+const switchChecked = async (page) => {
+  await page.getByRole('button', { name: 'Settings' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  const checked = await page.getByRole('switch', { name: SWITCH }).isChecked()
+  await page.keyboard.press('Escape')
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+  return checked
 }
 
 describe('row and column numbers', () => {
   it('are off by default', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
     assert.deepEqual(await page.evaluate(labelsInPage), [])
+    assert.equal(await switchChecked(page), false, 'the switch is there, and off')
     await context.close()
   })
 
@@ -104,6 +123,8 @@ describe('row and column numbers', () => {
     await page.reload()
     await waitForDesk(page)
     assert.equal(await settle(async () => (await page.evaluate(labelsInPage)).length, 18), 18, 'the labels are back after a reload')
+    await assertAligned(page, 9, 9)
+    assert.equal(await switchChecked(page), true, 'the switch is on after a reload')
     await context.close()
   })
 
@@ -119,6 +140,38 @@ describe('row and column numbers', () => {
     await turnOn(page)
     // The band takes one column and one row of the grid's size.
     await assertAligned(page, 6, 6)
+    await context.close()
+  })
+
+  it('stay on their own rows and columns when Penpa+ keeps its cell list in another order', async () => {
+    const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6 }), { served: true })
+    // Box mode takes a cell out with splice and puts it back at the end, and the link keeps that order.
+    await page.evaluate(() => pu.centerlist.push(pu.centerlist.shift()))
+    await turnOn(page)
+    await assertAligned(page, 6, 6)
+    await context.close()
+  })
+
+  it('keep a row and a column of the grid when Box mode took a cell out', async () => {
+    const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6 }), { served: true })
+    await page.evaluate(() => pu.centerlist.splice(14, 1))
+    await turnOn(page)
+    await assertAligned(page, 6, 6)
+    await context.close()
+  })
+
+  it('show none, and raise no error, when a puzzle that is not square opens with the setting on', async () => {
+    const square = await boardLink({ columns: 6, rows: 6 })
+    const hex = await boardLink({ columns: 6, rows: 6, gridtype: 'hex' })
+    const { context, page } = await openSolvePage(browser(), square, { served: true })
+    await turnOn(page)
+    const here = page.url().split('#')[0]
+    await page.goto('about:blank')
+    await page.goto(here + hex)
+    await waitForDesk(page)
+    assert.deepEqual(await page.evaluate(labelsInPage), [])
+    await page.getByRole('button', { name: 'Zoom in' }).click()
+    assert.deepEqual(await page.evaluate(labelsInPage), [])
     await context.close()
   })
 

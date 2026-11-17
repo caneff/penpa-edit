@@ -65,7 +65,7 @@
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersShown, setNumbersShown }) => {
+    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -133,9 +133,10 @@
         const showMouse = el('wa-switch', {}, ['Show Mouse card']);
         showMouse.addEventListener('change', () => setMouseClosed(!showMouse.checked));
 
-        const showNumbers = el('wa-switch', {}, ['Show row and column numbers']);
-        showNumbers.addEventListener('change', () => setNumbersShown(showNumbers.checked));
-        const numbersRow = el('div', { class: 'ui-setting' }, [showNumbers]);
+        const numbersSwitch = el('wa-switch', {}, ['Show row and column numbers']);
+        numbersSwitch.addEventListener('change', () => setNumbersWanted(numbersSwitch.checked));
+        const numbersRow = el('div', { class: 'ui-setting' }, [numbersSwitch]);
+        const deskRows = new Map([[CLEAR_PROGRESS_ROW, clearRow], [NUMBERS_ROW, numbersRow]]);
 
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
@@ -166,7 +167,7 @@
             el('div', { class: 'ui-setting' }, [showMouse])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : row === NUMBERS_ROW ? numbersRow : control(row)))])), deskGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (deskRows.get(row) ?? control(row)))])), deskGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
@@ -174,7 +175,7 @@
             controls.forEach((show, name) => show(current[name]));
             const applies = engine.getPuzzleSettings();
             settingRows.forEach((row, name) => { row.hidden = !applies.includes(name); });
-            showNumbers.checked = areNumbersShown();
+            numbersSwitch.checked = areNumbersWanted();
             numbersRow.hidden = !canShowNumbers();
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
