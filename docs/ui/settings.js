@@ -1,5 +1,5 @@
 // The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the page's own
-// (Page: theme, Mouse card and layout; Pins: saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// (Page: theme, Mouse card, row and column numbers and layout; Pins: saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
 // Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -68,7 +68,7 @@
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed }) => {
+    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -136,6 +136,10 @@
         const showMouse = el('wa-switch', {}, ['Show Mouse card']);
         showMouse.addEventListener('change', () => setMouseClosed(!showMouse.checked));
 
+        const numbersSwitch = el('wa-switch', {}, ['Show row and column numbers']);
+        numbersSwitch.addEventListener('change', () => setNumbersWanted(numbersSwitch.checked));
+        const numbersRow = el('div', { class: 'ui-setting' }, [numbersSwitch]);
+
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
             dialog.open = false;
@@ -158,6 +162,7 @@
         const pageGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Page']),
             el('div', { class: 'ui-setting' }, [theme]),
             el('div', { class: 'ui-setting' }, [showMouse]),
+            numbersRow,
             el('div', { class: 'ui-setting' }, [resetLayoutButton])]);
         const pinsGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Pins']),
             el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
@@ -179,6 +184,8 @@
             controls.forEach((show, name) => show(current[name]));
             const applies = engine.getPuzzleSettings();
             settingRows.forEach((row, name) => { row.hidden = !applies.includes(name); });
+            numbersSwitch.checked = areNumbersWanted();
+            numbersRow.hidden = !canShowNumbers();
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
             theme.value = current.theme;

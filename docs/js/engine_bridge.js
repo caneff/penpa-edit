@@ -1165,6 +1165,26 @@
             };
         },
 
+        // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
+        // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
+        // leaves its row and column in place. Null for any other grid type.
+        // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside two margin cells and
+        // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
+        getGridAxes() {
+            const origin = boardCanvas().getBoundingClientRect();
+            if (!pu.grid_is_square()) {
+                return null;
+            }
+            const [top, bottom, left, right] = pu.space;
+            const firstRow = 2 + top;
+            const firstColumn = 2 + left;
+            const span = (count, at) => Array.from({ length: count }, (_, k) => at(k));
+            return {
+                columns: span(pu.nx0 - 4 - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
+                rows: span(pu.ny0 - 4 - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+            };
+        },
+
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.
         fitBoard(w, h) {
             requirePositiveNumber('fitBoard', 'w', w);
