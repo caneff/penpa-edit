@@ -43,6 +43,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
   does it for every card.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
+- **Trial**: the solve page's way to guess (#258): Try marks the undo history, and Keep or Discard later keeps or undoes
+  everything entered since. Trials nest; puzz.link calls it trial mode.
+- **Stage**: one Try's mark in a trial, ended by Keep, Discard, Restart, or an undo by hand to before it; the top bar
+  shows how many are on as "Trial <n>".
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool
@@ -74,6 +78,16 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Safety net**: the recordings, the tests and the CI checks the migration runs under. Its live files (`SAFETY_NET_FILES` in
   `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
   cannot reach them skips them (#268).
-- **Plant**: a one-line bug served in place of a file of `docs/js/` while recordings replay, to measure whether the
-  safety net catches it (`live/plants.mjs`). Caught when a replay with it differs from its expected file, fails its
-  duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
+- **Plant**: a one-line bug served in place of a file while a test runs, to measure whether the safety net catches it
+  (`live/plants.mjs`). A plant in `docs/js/` is served while recordings replay, and is caught when a replay with it differs
+  from its expected file, fails its duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
+  A plant in `docs/ui/` (`UI_PLANTS`) is caught when the UI fuzz finds it, shrinks it and replays it.
+- **UI fuzz**: random lists of actions on `solve.html`, checked by rules (`live/ui-fuzz/`, `npm run fuzz:ui`). Not the
+  recordings' fuzz (`live/fuzz.mjs`), which drives the engine.
+- **Action**: one thing a solver does in the UI fuzz (a kind and its numbers, `live/ui-fuzz/actions.mjs`). Not a **Step**,
+  which is a recording's input. The fuzz prints an action's place in its list as "step N" (and `--max-steps` caps the list's
+  length): a position, not a recording's Step.
+- **Action list**: the actions one fuzz run draws, naming its puzzle first; shrunk on a failure and replayed from its path.
+- **Rule**: something that must hold on the solve page after every action of a UI fuzz run (`live/ui-fuzz/rules.mjs`); a broken
+  rule fails the run as a crash does.
+- **Area**: the card or part of the page an action kind exercises; `--focus <area>` draws its kinds more often.

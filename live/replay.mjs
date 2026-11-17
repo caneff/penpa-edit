@@ -466,6 +466,14 @@ function panelChoices (page, step, clickInPanel, afterInput) {
   }
 }
 
+// Picks `tool` (one of `engine.listTools()`) in the Mode card's tree, every branch opened first.
+export async function pickInModeCard (page, tool) {
+  const card = page.getByRole('region', { name: 'Mode' })
+  await card.getByRole('combobox', { name: 'Tool' }).click()
+  await card.getByRole('button', { name: 'Everything', exact: true }).click()
+  await card.locator(`[role=treeitem][data-mode="${tool.mode}"][data-submode="${tool.submode ?? ''}"]`).click()
+}
+
 // The `choose` of `switchMode` for the Mode card, which picks a whole tool (mode and sub-mode) from its list and then a
 // style from its buttons. A mode is picked as the tool the step names, so the sub-mode that follows is already right.
 function modeCardChoices (page, step, _clickInPanel, afterInput) {
@@ -477,10 +485,7 @@ function modeCardChoices (page, step, _clickInPanel, afterInput) {
     return tool
   }
   const pickTool = async () => {
-    const tool = await toolOf()
-    await card.getByRole('combobox', { name: 'Tool' }).click()
-    await card.getByRole('button', { name: 'Everything', exact: true }).click()
-    await card.locator(`[role=treeitem][data-mode="${tool.mode}"][data-submode="${tool.submode ?? ''}"]`).click()
+    await pickInModeCard(page, await toolOf())
     afterInput()
   }
   return {

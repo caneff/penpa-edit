@@ -42,7 +42,7 @@ const WEIGHTS = { gesture: 45, key: 25, mode: 10, undo: 10, redo: 7, double: 3 }
 // A gesture moves through at most this many points between its down and its up.
 const MAX_MOVES = 3
 // A drag's next point is within this many cell sizes of its last, as a hand's drag goes.
-const DRAG_REACH = 1.5
+export const DRAG_REACH = 1.5
 // Chances, out of 1, that a gesture is a right-button one, that it is Ctrl-held, and that it ends with the pointer
 // leaving the canvas instead of a button release.
 const RIGHT_BUTTON = 0.25
@@ -98,7 +98,7 @@ function modeChoicesInPage (choices) {
 
 // Runs in the page: every point a click can land on in the current mode (`coord_point` in `main.js` picks only points
 // of a type in `pu.type`), on the canvas, as { x, y, num }, and the cell size.
-function pointsInPage () {
+export function pointsInPage () {
   const canvas = document.getElementById('canvas')
   const points = []
   for (const [num, p] of pu.point.entries()) {
