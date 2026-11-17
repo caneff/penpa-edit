@@ -7,6 +7,8 @@ import fc from 'fast-check'
 import { actionList, REPLAY_PATH } from './actions.mjs'
 import { ruleViolations } from './rules.mjs'
 
+const MINUTE_MS = 60000
+
 // After the last action the run reads the page once more after this long: a "nothing happened in N ms" check for an error
 // that lands late (a timer). fast-check never drops a list's last action in a shrink, so a late error read only there
 // would keep one stray step.
@@ -94,7 +96,7 @@ export async function runFuzz ({ openTarget, puzzles, puzzle, seed, runs, minute
   // The hunt stops at the first failure, so the time limit never cuts a shrink short. A time limit that fires before the
   // first list has run is reported by fast-check as a failure with no counterexample.
   const hunt = await fc.check(property, {
-    seed, numRuns: replaying ? upTo(fcPath) : runs ?? UNBOUNDED, path: fcPath, endOnFailure: true, interruptAfterTimeLimit: replaying ? undefined : minutes * 60000, verbose: 0
+    seed, numRuns: replaying ? upTo(fcPath) : runs ?? UNBOUNDED, path: fcPath, endOnFailure: true, interruptAfterTimeLimit: replaying ? undefined : minutes * MINUTE_MS, verbose: 0
   })
   if (hunt.counterexample === null) {
     if (hunt.numRuns === 0) throw new Error(`no action list ran: the time limit (${minutes} minutes) passed before the first one ended`)
@@ -106,7 +108,7 @@ export async function runFuzz ({ openTarget, puzzles, puzzle, seed, runs, minute
   if (!replaying) {
     // The same list again, from its index alone, this time shrinking; a failure that does not repeat leaves the hunt's own.
     const shrunk = await fc.check(property, {
-      seed, numRuns: upTo(hunt.counterexamplePath), path: hunt.counterexamplePath.split(':')[0], interruptAfterTimeLimit: shrinkMinutes * 60000, verbose: 0
+      seed, numRuns: upTo(hunt.counterexamplePath), path: hunt.counterexamplePath.split(':')[0], interruptAfterTimeLimit: shrinkMinutes * MINUTE_MS, verbose: 0
     })
     if (shrunk.failed && shrunk.counterexample !== null) found = shrunk
   }

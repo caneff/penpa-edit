@@ -83,8 +83,9 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   Mocha page stays as `npm run test:browser`; it is not part of the seam. Nor is `npm run measure` (`live/measure.mjs`,
   #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
   enforces when; its last tables are in `research/safety-net-measure-2026-11.md`. Nor is `npm run fuzz:ui -- [--seed <n>] [--minutes <m>]
-  [--path <printed path>] [--focus <area> ...]` (`live/ui-fuzz/run.mjs`, #195): random fast-check action lists on `solve.html`, 2 minutes by
-  default, `--focus` drawing one area's actions more often, a crash or broken rule shrunk and printed with the command that replays it.
+  [--puzzle <name>] [--max-steps <n>] [--path <printed path>] [--focus <area> ...]` (`live/ui-fuzz/run.mjs`, #195): random fast-check action
+  lists on `solve.html`, 2 minutes by default, `--focus` drawing one area's actions more often, a crash or broken rule shrunk and printed
+  with the command that replays it (naming its puzzle), and a run that checked no list printed as "gave no verdict" with exit 1.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
 - **fast-check** is an approved dev dependency, for the solve.html UI fuzz (#195) (Chris, 2026-11-16).
 - **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and

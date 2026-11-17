@@ -70,7 +70,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **UI fuzz**: random lists of actions on `solve.html`, checked by rules (`live/ui-fuzz/`, `npm run fuzz:ui`). Not the
   recordings' fuzz (`live/fuzz.mjs`), which drives the engine.
 - **Action**: one thing a solver does in the UI fuzz (a kind and its numbers, `live/ui-fuzz/actions.mjs`). Not a **Step**,
-  which is a recording's input; call a fuzz input an action, never a step.
+  which is a recording's input. The fuzz prints an action's place in its list as "step N" (and `--max-steps` caps the list's
+  length): a position, not a recording's Step.
 - **Action list**: the actions one fuzz run draws, naming its puzzle first; shrunk on a failure and replayed from its path.
 - **Rule**: something that must hold on the solve page after every action of a UI fuzz run (`live/ui-fuzz/rules.mjs`); a broken
   rule fails the run as a crash does.
