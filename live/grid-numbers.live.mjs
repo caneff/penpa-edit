@@ -85,7 +85,11 @@ describe('row and column numbers', () => {
 
   it('show 1-9 on a sudoku at Fit and after zooming in twice, and the setting survives a reload', async () => {
     const { context, page } = await openSolvePage(browser(), await solveLinkOfImport(browser(), IMPORTS['sudoku-9x9']), { served: true })
+    const cellWithout = await page.evaluate(() => engine.getState().cellSize)
     await turnOn(page)
+    assert.ok(await page.evaluate(() => engine.getState().cellSize) < cellWithout, 'Fit gives the numbers their room, so the cells get smaller')
+    const body = await page.evaluate(() => { const b = document.querySelector('section[aria-label="Board"] .ui-body'); return { w: b.scrollWidth - b.clientWidth, h: b.scrollHeight - b.clientHeight } })
+    assert.deepEqual(body, { w: 0, h: 0 }, 'the Board card does not scroll at Fit')
     await assertAligned(page, 9, 9)
     // The fit leaves room for the numbers: at Fit every label is inside the Board card.
     const card = await page.evaluate(() => document.querySelector('section[aria-label="Board"]').getBoundingClientRect().toJSON())
