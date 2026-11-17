@@ -538,7 +538,7 @@
 
     const SUBMODE_NAMES = {
         line: { 1: 'normal', 2: 'diagonal', 3: 'free', 5: 'middle', 4: 'helper ×' },
-        lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'erase' },
+        lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'clear' },
         number: { 1: 'normal', 10: 'large', 6: 'medium', 5: 'small', 7: 'candidates', 3: 'quarter', 9: 'side', 8: 'long' },
         sudoku: { 1: 'normal', 2: 'corner', 3: 'centre' },
         cage: { 1: 'killer', 2: 'free' },
@@ -1009,6 +1009,8 @@
             if (REDRAWN_SETTINGS.includes(name)) {
                 pu.redraw();
             }
+            // A card that words itself by a setting (the Mouse card's 2nd colour) redraws on `change`.
+            queueChange();
         },
 
         // Writes the open puzzle's progress to the store where Penpa+ reads it back at boot, and resolves true once the write
