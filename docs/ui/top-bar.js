@@ -1,11 +1,11 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause and the Penpa+ button, the cover a paused board wears (and what it
+// The top bar's controls: undo, redo, the trial buttons, Restart, the timer, Pause and the Penpa+ button, the cover a paused board wears (and what it
 // switches off), and the dialog that says the puzzle is solved. The theme is chosen in the Settings dialog (#181); this file
 // still applies it to the page.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
-    const { confirmDialog, iconButton, onDeskReady, setDark, textButton } = window.uiKit;
+    const { confirmDialog, el, iconButton, onDeskReady, setDark, textButton } = window.uiKit;
 
     // Penpa+'s pause toggle (main.js), which a paused board still answers.
     const PAUSE_KEY = 'F4';
@@ -38,6 +38,51 @@
         // The shortcuts are Penpa+'s own keys (main.js), which the solve page passes on.
         const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo(), UNDO_KEY);
         const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo(), REDO_KEY);
+
+        // Trial mode (#258): each stage is the history's length when its Try was pressed, innermost last. Kept in memory only,
+        // so a reload keeps the entries and drops the stages.
+        const stages = [];
+        const tryButton = textButton('Try', 'Start a trial: what you enter next can be kept or discarded in one click', () => {
+            stages.push(engine.getState().historyLength);
+            renderHistory();
+        });
+        const trialDepth = el('span', { class: 'ui-trial-depth' });
+        const keep = textButton('Keep', 'End this trial and keep what you entered in it', () => keepStages(1));
+        const discard = textButton('Discard', 'Undo everything entered since this trial began, and end it', () => discardStages(1));
+        const keepAll = textButton('Keep all', 'End every trial and keep everything', () => keepStages(stages.length));
+        const discardAll = textButton('Discard all', 'Undo everything entered since the first trial began, and end every trial',
+            () => discardStages(stages.length));
+        // Keep all and Discard all would repeat Keep and Discard with one stage on.
+        const allButtons = el('span', { class: 'ui-trial-all' }, [keepAll.node, discardAll.node]);
+        const trial = el('span', { class: 'ui-trial' }, [trialDepth, keep.node, discard.node, allButtons]);
+        const trialButtons = [tryButton, keep, discard, keepAll, discardAll];
+
+        // Ends the `count` innermost stages, keeping their entries.
+        function keepStages(count) {
+            stages.length -= count;
+            renderHistory();
+        }
+
+        // Takes the history back to where the outermost of the `count` innermost stages began, then ends them. It undoes through
+        // the engine's own undo, so what it takes back goes to the redo stack as a plain undo's would.
+        function discardStages(count) {
+            const start = stages[stages.length - count];
+            while (engine.getState().historyLength > start) {
+                if (!engine.undo()) {
+                    break;
+                }
+            }
+            keepStages(count);
+        }
+
+        // An undo by hand past a stage's start, to before its Try, ends that stage.
+        function endStagesUndone() {
+            const { historyLength } = engine.getState();
+            while (stages.length && stages.at(-1) > historyLength) {
+                stages.pop();
+            }
+        }
+
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
         window.uiKeys.describe('Page', [
             { keys: UNDO_KEY, text: 'Undo' },
@@ -76,7 +121,10 @@
             text: 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.',
             cancel: 'Cancel',
             confirm: 'Restart puzzle',
-            onConfirm: () => engine.restart()
+            onConfirm: () => {
+                stages.length = 0;
+                engine.restart();
+            }
         });
 
         // Over the whole Board card while paused, so no click reaches the board; it is opaque so a pause hides the puzzle.
@@ -116,7 +164,7 @@
         // While the board is paused, only Resume, Settings and Penpa+ work: the pins, Mode and Recent are inert.
         const pausedOff = [cards.pins.body, cards.mode.body, cards.recent.body];
 
-        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, openInPenpa.node);
+        bar.append(undo.node, redo.node, tryButton.node, trial, restartButton.node, clock, pause.node, openInPenpa.node);
         bar.after(restartDialog, notSavedDialog, solvedDialog);
 
         function renderTimer() {
@@ -136,15 +184,24 @@
             pause.node.toggleAttribute('disabled', solved && !covered);
         }
 
-        // The board cannot change while paused, so neither can the history.
+        // The board cannot change while paused, so neither can the history nor the trials.
         function renderHistory() {
             const { canUndo, canRedo } = engine.getState();
             const { covered } = engine.getTimer();
             undo.node.toggleAttribute('disabled', !canUndo || covered);
             redo.node.toggleAttribute('disabled', !canRedo || covered);
+            trial.hidden = !stages.length;
+            allButtons.hidden = stages.length < 2;
+            // Written only when it differs: a new text node is a page change, which would wake `change` again every frame.
+            const depthText = `Trial ${stages.length}`;
+            if (trialDepth.textContent !== depthText) {
+                trialDepth.textContent = depthText;
+            }
+            trialButtons.forEach((button) => button.node.toggleAttribute('disabled', covered));
         }
 
         function renderState() {
+            endStagesUndone();
             renderHistory();
             const dark = engine.getSettings().theme === 'dark';
             setDark(bar.parentElement, dark);

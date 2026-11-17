@@ -197,7 +197,23 @@ describe('the top bar on a laptop screen', () => {
       await barButton(page, name).hover()
       return settle(() => shownTooltips(page), [label])
     }
-    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Penpa+': 'Open this puzzle in Penpa+', Settings: 'Settings' }
+    const want = {
+      Undo: 'Undo (Ctrl+Z)',
+      Redo: 'Redo (Ctrl+Y)',
+      Try: 'Start a trial: what you enter next can be kept or discarded in one click',
+      Keep: 'End this trial and keep what you entered in it',
+      Discard: 'Undo everything entered since this trial began, and end it',
+      'Keep all': 'End every trial and keep everything',
+      'Discard all': 'Undo everything entered since the first trial began, and end every trial',
+      Restart: 'Restart',
+      Pause: 'Pause (F4)',
+      'Penpa+': 'Open this puzzle in Penpa+',
+      Settings: 'Settings'
+    }
+    // Two trials on, so the trial buttons that show only during one are there to hover.
+    await barButton(page, 'Try').click()
+    await barButton(page, 'Try').click()
+    await page.mouse.move(0, 0)
     const buttons = page.locator('.ui-bar wa-button')
     const names = await buttons.evaluateAll((hosts) => hosts.map((host) => host.querySelector('.ui-sr-only')?.textContent ?? host.textContent.trim()))
     assert.equal(names.length, await buttons.count(), 'every top-bar button has a name')
