@@ -114,8 +114,7 @@
             confirm: 'Clear progress',
             onConfirm: async () => {
                 await engine.clearSavedProgress();
-                controls.get('local_storage')(engine.getSettings().local_storage);
-                cleared.textContent = 'Cleared. This puzzle is not saved again until you turn saving back on or reload.';
+                cleared.textContent = 'This puzzle\'s saved progress was cleared. It is not saved again until the page reloads.';
             }
         });
         clear.addEventListener('click', () => { clearDialog.open = true; });

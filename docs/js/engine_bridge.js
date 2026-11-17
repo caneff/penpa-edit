@@ -971,13 +971,11 @@
         },
 
         // Every setting of the fixed list by name: a boolean, or the number Penpa+'s own control holds. `theme` is read here too,
-        // but set with `setTheme`. `local_storage` is whether this puzzle is saved, which Penpa+'s setting is not once its progress is cleared.
+        // but set with `setTheme`.
         getSettings() {
             boardCanvas();
             const listed = Object.fromEntries(Object.entries(SETTINGS).map(([name, allowed]) =>
                 [name, allowed === BOOLEAN ? Boolean(UserSettings[name]) : UserSettings[name]]));
-            // Whether this puzzle is saved: off once its saved progress is cleared, until the visitor turns saving on.
-            listed.local_storage = Boolean(UserSettings.save_current_puzzle);
             return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
         },
 
@@ -1003,10 +1001,6 @@
                 throw new RangeError(`engine.setSetting: ${name} takes one of ${allowed.join(', ')}, got ${JSON.stringify(value)}`);
             }
             UserSettings[name] = value;
-            if (name === 'local_storage') {
-                // The visitor's own choice replaces the "not this puzzle" that clearing its progress left.
-                UserSettings.save_current_puzzle = undefined;
-            }
             SETTING_SAVERS[name]?.(value);
             if (REDRAWN_SETTINGS.includes(name)) {
                 pu.redraw();
@@ -1020,7 +1014,7 @@
             return saveProgressNow();
         },
 
-        // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads or `setSetting('local_storage')` is called, as Penpa+'s "Clear this
+        // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this
         // puzzle" does. A puzzle with no link data was never saved, so there is nothing to clear.
         // MVP gap: PenpaProgress.clearPuzzle does not wait for localforage's removal, so this waits for it itself.
         async clearSavedProgress() {

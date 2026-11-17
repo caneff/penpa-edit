@@ -409,7 +409,7 @@ describe('Clear saved progress', () => {
     }
   })
 
-  it('shows the Save progress switch off after it clears, and turning it on saves again', async () => {
+  it('leaves the global Save progress switch as it was and notes that this puzzle was cleared', async () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openSolve(link)
     try {
@@ -418,15 +418,10 @@ describe('Clear saved progress', () => {
       const dialog = await openDialog(page)
       await dialog.getByRole('button', { name: CLEAR_BUTTON, exact: true }).click()
       await page.getByRole('button', { name: CONFIRM_CLEAR, exact: true }).click()
-      const saveSwitch = page.getByRole('switch', { name: 'Save progress in this browser' })
-      assert.equal(await settle(() => saveSwitch.isChecked(), false), false, 'the switch shows not saving')
+      await dialog.getByRole('status').filter({ hasText: /^This puzzle's saved progress was cleared\./ }).waitFor()
       assert.equal(await storedProgress(page), null, 'the progress is gone')
-      await closeDialog(page)
-      await openDialog(page)
-      assert.equal(await saveSwitch.isChecked(), false, 'the switch still shows not saving when the dialog reopens')
-      await flipSwitch(page, 'Save progress in this browser')
-      await savePenpa(page)
-      assert.notEqual(await settle(() => storedProgress(page), await storedProgress(page)), null, 'saving resumed')
+      assert.equal(await page.getByRole('switch', { name: 'Save progress in this browser' }).isChecked(), true, 'the global switch still shows saving on')
+      assert.equal((await settings(page)).local_storage, true, 'the setting is still on')
     } finally {
       await context.close()
     }
