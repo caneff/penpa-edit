@@ -523,10 +523,10 @@ describe('the Mouse card and the title bar', () => {
       ['Alt + drag', 'colour in a rectangle; starting on the colour: clear it (square grids only)'],
       ['Alt + right drag', '2nd colour in a rectangle (square grids only)']]],
     [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Drag', 'line through cell centres; starting on a line: clear it']]],
-    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Drag', 'as a click where it starts']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear']]],
     [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on a wall: clear it']]],
     [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor on the nearest cell corner spot; cell selected'],
-      ['Right click', 'cursor on the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
+      ['Right click', 'cursor on the nearest cell corner spot'], ['Digit', 'number at the cursor']]],
     [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],
       ['Right click', 'black ● → white ○ → clear'], ['Drag', 'the first cell\'s change repeated on each cell'], ['Given circles', 'left alone']]],
     [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on the bulb: clear the thermometer'],
@@ -534,9 +534,9 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on a cage line: clear it']]],
     [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'a number you entered, moved to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
-      ['Right click', 'cursor on the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'that variant (1–9) at the cursor → clear (same digit)']]],
+      ['Right click', 'cursor on the cell'], ['Digit', 'that variant (1–9) at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor on the cell'], ['Right click', 'cursor on the cell'],
-      ['Drag', 'as a click where it starts'], ['Digit', 'that part (1–9) of the shape added at the cursor, again: removed']]],
+      ['Digit', 'that part (1–9) of the shape added at the cursor, again: removed']]],
     // The rows past Left click, Right click and Drag that #186 corrected, which the agreed table's check does not read.
     [{ mode: 'combi', submode: 'linex' }, 'Line + edge ×', [['Right click', '× on the edge → clear'],
       ['Drag', 'line through cell centres; starting on a line: clear it'], ['Right drag', 'from an edge: × on each edge it passes; starting on a ×: clear them']]],
@@ -588,6 +588,21 @@ describe('the Mouse card and the title bar', () => {
     assert.deepEqual(shown, [])
   })
 
+  it('shows no row that only repeats its click row, for any tool (#253)', async () => {
+    const shown = await opened.page.evaluate(async () => {
+      const bad = []
+      for (const t of engine.listTools()) {
+        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        for (const row of document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')) {
+          if (row.children[1].textContent === toolGuide.AS_A_CLICK) bad.push(`${t.mode}/${t.submode}: ${row.children[0].textContent}`)
+        }
+      }
+      return bad
+    })
+    assert.deepEqual(shown, [])
+  })
+
   it('words Left click, Right click and Drag as the agreed table says, for every tool in it', async () => {
     // `research/mouse-card-wording-2026-11.md`: rows `| mode/submode | name | Left click | Right click | Drag | ...`.
     const agreed = readFileSync(new URL('../research/mouse-card-wording-2026-11.md', import.meta.url), 'utf8').split('\n')
@@ -599,7 +614,8 @@ describe('the Mouse card and the title bar', () => {
     const offered = new Set(tools.map((t) => `${t.mode}/${t.submode ?? ''}`))
     const differ = []
     let checked = 0
-    for (const [key, words] of agreed) {
+    for (const [key, agreedWords] of agreed) {
+      let words = agreedWords
       if (!offered.has(key)) continue
       const tool = tools.find((t) => `${t.mode}/${t.submode ?? ''}` === key)
       // The card draws on the engine's change, a frame or two after `setTool`.
@@ -612,6 +628,8 @@ describe('the Mouse card and the title bar', () => {
         const shown = Object.fromEntries([...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].map((r) => [r.children[0].textContent, wordsOf(r.children[1])]))
         return ['Left click', 'Right click', 'Drag'].map((gesture) => shown[gesture] ?? '—')
       }, tool)
+      // A Drag row that only repeats its click row is not drawn either (#253): the agreed table's words for it are a missing row.
+      if (words[2] === 'as a click where it starts') words = [...words.slice(0, 2), '—']
       checked++
       if (shown.join(' | ') !== words.join(' | ')) differ.push(`${key}: card ${shown.join(' | ')} vs agreed ${words.join(' | ')}`)
     }
@@ -698,12 +716,11 @@ describe('the Mouse card reads at a glance (#203)', () => {
     assert.deepEqual(cards['combi/alfl'].rows.find((r) => r.gesture === 'Drag').keypad, ['↖A', '↑B', '↗C', '←D', 'E', '→F', '↙G', '↓H', '↘dash'])
   })
 
-  it('splits the Polygon\'s Left click from its closing click, and words its Drag as a click', () => {
+  it('splits the Polygon\'s Left click from its closing click, and draws no Drag row (it only repeats the click)', () => {
     const polygon = Object.fromEntries(cards['special/polygon'].rows.map((r) => [r.gesture, r.effect]))
-    assert.deepEqual(Object.keys(polygon), ['Left click', 'Drag', 'Closing click'])
+    assert.deepEqual(Object.keys(polygon), ['Left click', 'Closing click'])
     assert.doesNotMatch(polygon['Left click'], /finish/)
     assert.match(polygon['Closing click'], /finishes the polygon/)
-    assert.equal(polygon.Drag, 'as a click where it starts')
   })
 
   // The dots in the card's rows as [gesture, background colour]; `swatchOf` is Surface's style `style` colour as the browser writes it.

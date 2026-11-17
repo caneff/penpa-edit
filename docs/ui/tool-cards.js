@@ -7,7 +7,7 @@
     const MULTICOLOR_MODE = 'multicolor';
     const SWATCHES_IN_TWO_ROWS = 12;
     const TWO_ROWS = 2;
-    const { NOTHING, SECOND_COLOUR_DOT, mouseRows, toolKey, chipLabel } = window.toolGuide;
+    const { NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -63,10 +63,11 @@
         const row = (gesture, effect, cls, extra = []) => el('div', { class: `ui-mrow ${cls}` }, [
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [...effectNodes(effect, secondColour), ...extra])
         ]);
-        // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
+        // A gesture that does nothing gets no row (#191), nor does a Drag that only repeats its click row (#253): a tool with few
+        // actions takes little of a short screen. `mouseRows` still gives that Drag, so the card's live test checks it acts as a click.
         const main = [['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag], ['Digit', rows.digit ?? NOTHING]];
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
-            ...main.filter(([, effect]) => effect !== NOTHING)
+            ...main.filter(([, effect]) => effect !== NOTHING && effect !== AS_A_CLICK)
                 .map(([gesture, effect]) => row(gesture, effect, '', gesture === 'Drag' && rows.keypad ? [keypad(rows.keypad)] : [])),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));
