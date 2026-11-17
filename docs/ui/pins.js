@@ -5,7 +5,9 @@
 (function () {
     'use strict';
 
-    const { chipLabel, toolKey } = window.toolGuide;
+    const { chipLabel, plainName, toolKey } = window.toolGuide;
+    // The attributes giving a chip its tooltip, the tool's plain name; none for a tool with no plain name.
+    const tooltip = (tool) => (plainName(tool) ? { title: plainName(tool) } : {});
     const { el, luminance, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
@@ -192,7 +194,7 @@
             const label = chipLabel(toolOf(pin));
             const shortcut = SHORTCUT_LABELS[slot];
             // The space is not drawn (flex items drop it); it keeps the chip's text and name readable as "Z Line > Normal".
-            const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current) },
+            const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), ...tooltip(toolOf(pin)) },
                 [...(shortcut ? [el('span', { class: 'ui-chip-num' }, [shortcut]), ' '] : []), label]);
             const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}`, title: `Unpin ${label}` });
             unpin.innerHTML = REMOVE_ICON;

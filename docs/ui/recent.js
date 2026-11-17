@@ -3,7 +3,7 @@
 (function () {
     'use strict';
 
-    const { chipLabel, toolKey } = window.toolGuide;
+    const { chipLabel, plainName, toolKey } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     const MAX_ENTRIES = 5;
@@ -31,7 +31,7 @@
 
         function chip(entry, current) {
             const main = el('button', {
-                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), ...OUT_OF_TAB_ORDER
+                type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), ...(plainName(toolOf(entry)) ? { title: plainName(toolOf(entry)) } : {}), ...OUT_OF_TAB_ORDER
             }, [chipLabel(toolOf(entry))]);
             main.addEventListener('click', () => {
                 engine.setTool({ mode: entry.mode, submode: entry.submode, ...(entry.style === null ? {} : { style: entry.style }) });

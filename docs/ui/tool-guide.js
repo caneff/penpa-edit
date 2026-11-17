@@ -158,20 +158,22 @@
     // The tree's place for a tool: its group, the branches between the group and the tool (a mode, or a subgroup and a
     // symbol), its own label, and a rank that orders tools within their group. Modes that name each tool on their own
     // stand alone one level under their group, and so does a mode with no sub-modes.
+    // `label` is the one name every card gives the tool (`chipLabel`); `name` is the plain name, which only the search reads.
     function placeTool(tool) {
         const { group, name, description } = describeTool(tool);
+        const label = chipLabel(tool);
         const place = SYMBOL_PLACES.get(toolKey(tool));
         if (place) {
             const [subgroup, entry, variant, rank] = place;
-            return { group, trail: [subgroup, entry].filter(Boolean), label: variant ?? name, name, description, rank };
+            return { group, trail: [subgroup, entry].filter(Boolean), label, name, description, rank };
         }
         if (group === 'symbols') {
-            return { group, trail: [LAST_SUBGROUP], label: name, name, description, rank: SYMBOL_PLACES.size };
+            return { group, trail: [LAST_SUBGROUP], label, name, description, rank: SYMBOL_PLACES.size };
         }
         if (SELF_NAMING_MODES.includes(tool.mode) || !tool.submodeName) {
-            return { group, trail: [], label: name, name, description, rank: 0 };
+            return { group, trail: [], label, name, description, rank: 0 };
         }
-        return { group, trail: [tool.modeName], label: capitalised(tool.submodeName), name, description, rank: 0 };
+        return { group, trail: [tool.modeName], label, name, description, rank: 0 };
     }
 
     // A search first matches each typed word as typed, case aside. Only when that finds nothing does it match loosely, ignoring
@@ -363,5 +365,8 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { TOOL_GROUPS, NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
+    // The plain-words name a tool has in `ENTRIES` ("Shade cells" for Surface), for a chip's tooltip; undefined for a tool it does not list.
+    const plainName = (tool) => ENTRIES[toolKey(tool)]?.[1];
+
+    window.toolGuide = { plainName, TOOL_GROUPS, NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
 })();
