@@ -103,15 +103,15 @@ describe('the solved message', () => {
 })
 
 describe('the clock after a solve', () => {
-  it('stays stopped through Pause and Resume', async () => {
+  it('cannot be paused: Pause is disabled and a forced press covers nothing', async () => {
     const { context, page } = await openSolve()
     try {
       const stopped = await solve(page)
-      await button(page, 'Pause').click()
-      await page.getByRole('region', { name: 'Paused' }).waitFor()
-      await button(page, 'Resume').first().click()
-      await page.getByRole('region', { name: 'Paused' }).waitFor({ state: 'hidden' })
+      assert.equal(await settle(() => button(page, 'Pause').isDisabled(), true), true, 'Pause is disabled')
+      await button(page, 'Pause').click({ force: true })
+      assert.equal(await page.evaluate(() => { engine.pauseTimer(); return engine.getTimer().covered }), false, 'engine.pauseTimer covers nothing either')
       await sleep(HOLD_WATCH_MS)
+      assert.equal(await page.getByRole('region', { name: 'Paused' }).isVisible(), false, 'no cover')
       assert.deepEqual(await timer(page), stopped, 'the clock did not run')
     } finally {
       await context.close()
@@ -139,6 +139,7 @@ describe('the clock after a solve', () => {
       await button(page, 'Restart').click()
       await button(page, 'Restart puzzle').click()
       assert.equal(await settle(async () => (await timer(page)).paused, false), false, 'the restart started the clock')
+      assert.equal(await button(page, 'Pause').isDisabled(), false, 'and Pause works again')
       assert.doesNotMatch(await clockText(page), /✓/)
     } finally {
       await context.close()
@@ -152,6 +153,8 @@ describe('a solved puzzle reloaded', () => {
     try {
       await page.waitForFunction(() => engine.getTimer().seconds >= 1)
       const stopped = await solve(page)
+      // Penpa+ saves on unload without waiting for the write, so the reload would race it.
+      assert.equal(await page.evaluate(() => engine.saveProgress()), true, 'the progress is saved')
       await page.reload()
       await page.getByRole('region', { name: 'Board' }).waitFor()
       await page.evaluate(() => engine.ready)
@@ -180,6 +183,8 @@ describe('a solved puzzle that was undone and reloaded', () => {
       const stopped = await solve(page)
       await button(page, 'Undo').click()
       assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the undo took the answer out')
+      // Penpa+ saves on unload without waiting for the write, so the reload would race it.
+      assert.equal(await page.evaluate(() => engine.saveProgress()), true, 'the progress is saved')
       await page.reload()
       await page.getByRole('region', { name: 'Board' }).waitFor()
       await page.evaluate(() => engine.ready)

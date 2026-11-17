@@ -123,6 +123,8 @@
                 renderHistory();
             }
             pause.show(covered ? ICONS.resume : ICONS.pause, covered ? 'Resume' : 'Pause');
+            // A solved clock is stopped for good, so there is nothing to pause.
+            pause.node.toggleAttribute('disabled', solved && !covered);
         }
 
         // The board cannot change while paused, so neither can the history.

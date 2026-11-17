@@ -308,12 +308,11 @@
     };
 
     // Penpa+ covers the board whenever it redraws the grid with a paused clock (general.js redraw_grid, which the desk's fit and
-    // zoom call), and a solved clock is paused: so a solved board would be covered by its first resize. Only the solver's own
-    // Pause covers a solved board.
-    let solverPausing = false;
+    // zoom call), and a solved clock is paused: so a solved board would be covered by its first resize. A solved board is never
+    // covered (`pauseTimer` does nothing then).
     const penpaShowPauseLayer = Puzzle.prototype.show_pause_layer;
     Puzzle.prototype.show_pause_layer = function () {
-        if (!latched || solverPausing) {
+        if (!latched) {
             return penpaShowPauseLayer.apply(this, arguments);
         }
     };
@@ -844,16 +843,12 @@
             };
         },
 
-        // Pauses the clock and covers Penpa+'s own board with its pause layer; nothing happens when the layer is already up.
+        // Pauses the clock and covers Penpa+'s own board with its pause layer; nothing happens when the layer is already up or the
+        // puzzle is solved (its clock is stopped for good).
         pauseTimer() {
             boardCanvas();
-            if (!engine.getTimer().covered) {
-                solverPausing = true;
-                try {
-                    pressTimerButton('sw_pause');
-                } finally {
-                    solverPausing = false;
-                }
+            if (!latched && !engine.getTimer().covered) {
+                pressTimerButton('sw_pause');
             }
         },
 
