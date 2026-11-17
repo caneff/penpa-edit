@@ -1,4 +1,4 @@
-// The Recent card of `solve.html` (#97): the last five tools the solver used, newest first, as pin chips without number or ×,
+// The Recent card of `solve.html` (#97): the last five tools the solver used that are not pinned, newest first, as pin chips without number or ×,
 // outside the Tab cycle; a click on one makes it current and gives the keys back to the board. The UI is found by role and
 // accessible name, the tool by `engine.getTool()`; the keys and clicks are real.
 import assert from 'node:assert/strict'
@@ -7,6 +7,13 @@ import { afterChange, newBoardSolveLink, openSolvePage, setTool, useBrowser, wai
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
+
+// Uses a tool of TOOLS and waits for the change it makes.
+const use = async (page, { tool }) => {
+  await setTool(page, tool)
+  await waitForTool(page, tool)
+  await afterChange(page)
+}
 
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
@@ -24,20 +31,18 @@ const TOOLS = [
   { tool: { mode: 'number', submode: '1' }, name: 'Number > Normal' },
   { tool: { mode: 'wall', submode: null }, name: 'Wall' },
   { tool: { mode: 'surface', submode: null }, name: 'Surface' },
-  { tool: { mode: 'line', submode: '4' }, name: 'Line > Helper' }
+  { tool: { mode: 'line', submode: '4' }, name: 'Line > Helper ×' }
 ]
 
 describe('the Recent card', () => {
   let opened
-  before(async () => { opened = await openSolve(['Line Normal', 'Line Diagonal', 'Sudoku Normal', 'Number Normal', 'Wall', 'Surface']) })
+  before(async () => { opened = await openSolve(['Sudoku Corner']) })
   after(async () => { await opened?.context.close() })
 
   it('leaves the five newest tools in order, newest first, when six are used', async () => {
     const { page } = opened
-    for (const { tool } of TOOLS.slice(0, 6)) {
-      await setTool(page, tool)
-      await waitForTool(page, tool)
-      await afterChange(page)
+    for (const entry of TOOLS.slice(0, 6)) {
+      await use(page, entry)
     }
     const expected = TOOLS.slice(1, 6).map((t) => t.name).reverse()
     assert.deepEqual(await settle(() => recentNames(page), expected), expected)
@@ -87,6 +92,40 @@ describe('the Recent card', () => {
   })
 })
 
+describe('the Recent card and the pins', () => {
+  let opened
+  before(async () => { opened = await openSolve(['Sudoku Corner']) })
+  after(async () => { await opened?.context.close() })
+
+  // The names Recent lists after clicking `button`, in the same task, before the engine's next-frame `change` could redraw it.
+  const recentNamesAfter = (page, button) => recentCard(page).elementHandle().then((card) => button.evaluate((node, recent) => {
+    node.click()
+    return [...recent.querySelectorAll('.ui-chip-main')].map((chip) => chip.textContent.trim())
+  }, card))
+
+  it('leaves out a pinned tool, fills the five from older unpinned ones, and brings it back when unpinned', async () => {
+    const { page } = opened
+    for (const entry of TOOLS) {
+      await use(page, entry)
+    }
+    // The page opened on Surface, so Recent holds Line > Helper ×, Surface, Wall, Number, Sudoku now.
+    const names = (list) => list.map((t) => t.name)
+    const full = names([TOOLS[6], TOOLS[5], TOOLS[4], TOOLS[3], TOOLS[2]])
+    assert.deepEqual(await settle(() => recentNames(page), full), full)
+    // Pinning a Recent chip removes it at once, and the sixth most recent tool takes its place.
+    const withoutWall = names([TOOLS[6], TOOLS[5], TOOLS[3], TOOLS[2], TOOLS[1]])
+    assert.deepEqual(await recentNamesAfter(page, recentCard(page).getByRole('button', { name: 'Pin Wall' })), withoutWall)
+    // A pinned tool that is used stays out, and is still the history's newest when it is unpinned later.
+    await use(page, TOOLS[4])
+    await use(page, TOOLS[1])
+    const whilePinned = names([TOOLS[1], TOOLS[6], TOOLS[5], TOOLS[3], TOOLS[2]])
+    assert.deepEqual(await settle(() => recentNames(page), whilePinned), whilePinned)
+    const wallBack = names([TOOLS[1], TOOLS[4], TOOLS[6], TOOLS[5], TOOLS[3]])
+    const unpinWall = page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: 'Unpin Wall' })
+    assert.deepEqual(await recentNamesAfter(page, unpinWall), wallBack)
+  })
+})
+
 // The key, and the Sudoku sub-mode Penpa+ lends while it is held.
 const HOLDS = [
   { key: 'Shift', lent: '2' },
@@ -96,7 +135,7 @@ const HOLDS = [
 
 describe('a held key in Sudoku', () => {
   let opened
-  before(async () => { opened = await openSolve(['Sudoku Normal', 'Line Normal']) })
+  before(async () => { opened = await openSolve(['Sudoku Corner']) })
   after(async () => { await opened?.context.close() })
 
   for (const { key, lent } of HOLDS) {
