@@ -251,17 +251,45 @@ describe('the dark theme elsewhere', () => {
     await context.close()
   })
 
-  it('the Settings dialog buttons are not light slabs', async () => {
-    const { context, page } = await openIn('dark')
-    await page.getByRole('button', { name: 'Settings', exact: true }).click()
-    const clear = page.locator('wa-button', { hasText: 'Clear saved progress' })
-    await clear.waitFor()
-    const luminance = await clear.evaluate((node) => {
-      const { parse, over, luminance } = window.__helpers()
+  // Runs in the page: each visible button of the open dialogs as its name, fill luminance and text against its fill.
+  function dialogButtonsInPage () {
+    const { parse, over, luminance, ratio } = window.__helpers()
+    const buttons = [...document.querySelectorAll('wa-dialog[open] wa-button')].filter((b) => b.checkVisibility())
+    return buttons.map((node) => {
+      const base = node.shadowRoot.querySelector('[part~="base"]')
+      const opacity = window.__opacityOf(base)
+      const dim = (c) => [c[0], c[1], c[2], c[3] * opacity]
       const ground = window.__groundOf(node, parse, over)
-      return luminance(over(parse(getComputedStyle(node.shadowRoot.querySelector('[part~="base"]')).backgroundColor), ground))
+      const fill = over(dim(parse(getComputedStyle(base).backgroundColor)), ground)
+      const text = over(dim(parse(getComputedStyle(base).color)), fill)
+      return { name: node.textContent.trim(), variant: node.getAttribute('variant'), disabled: node.hasAttribute('disabled'), fill: luminance(fill), text: ratio(text, fill) }
     })
-    assert.ok(luminance < DARK_BUTTON_LUMINANCE, `Clear saved progress fill luminance ${luminance}`)
+  }
+
+  it('the Settings dialog buttons, and the confirm dialog that Clear opens, are not light slabs and read at 4.5:1', async () => {
+    const { context, page } = await openIn('dark')
+    await page.addScriptTag({ content: `window.__dialogButtons = ${dialogButtonsInPage}` })
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    // A dialog fades in, so read once the buttons stop changing (settle returns the value once it holds still).
+    const dialogButtons = () => settle(() => page.evaluate(() => window.__dialogButtons()), null)
+    await page.locator('wa-dialog[open] wa-button', { hasText: 'Reset layout' }).waitFor()
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+    const inSettings = await dialogButtons()
+    const neutral = inSettings.filter((b) => !b.variant || b.variant === 'neutral')
+    assert.ok(neutral.length >= 2, `the dialog has neutral buttons: ${JSON.stringify(inSettings)}`)
+    assert.deepEqual(neutral.filter((b) => b.fill >= DARK_BUTTON_LUMINANCE).map((b) => b.name), [], 'no neutral button is a light slab')
+    // A disabled button is dimmed on purpose, so it is held to the graphic bar, as in the top bar.
+    assert.deepEqual(inSettings.filter((b) => b.text < (b.disabled ? WCAG_GRAPHIC : WCAG_AA_TEXT)).map((b) => `${b.name} ${b.text.toFixed(2)}`), [], 'settings button text at 4.5:1')
+
+    // The danger-styled Clear opens its own confirm dialog, over the Settings dialog.
+    await page.locator('wa-dialog[open] wa-button[variant="danger"]').first().click()
+    await page.locator('wa-dialog[open][label*="Clear"] wa-button').first().waitFor()
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+    const confirm = await page.evaluate(() => [...document.querySelectorAll('wa-dialog[label*="Clear"] wa-button')].length)
+    assert.equal(confirm, 2, 'the confirm dialog has Cancel and Clear')
+    const inConfirm = (await dialogButtons()).filter((b) => b.name === 'Clear progress' || b.name === 'Cancel' || /^Keep|^Cancel/.test(b.name))
+    assert.equal(inConfirm.length, 2, 'the confirm dialog buttons were measured')
+    assert.deepEqual(inConfirm.filter((b) => b.text < WCAG_AA_TEXT).map((b) => `${b.name} ${b.text.toFixed(2)}`), [], 'confirm button text at 4.5:1')
     await context.close()
   })
 })
