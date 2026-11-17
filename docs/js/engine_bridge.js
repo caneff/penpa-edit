@@ -1167,7 +1167,7 @@
 
         // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
         // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
-        // leaves its row and column in place. Null for any other grid type.
+        // leaves its row and column in place. Null for any other grid type (`getGridArea` serves those).
         // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside two margin cells and
         // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
         getGridAxes() {
@@ -1182,6 +1182,23 @@
             return {
                 columns: span(pu.nx0 - 4 - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
                 rows: span(pu.ny0 - 4 - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+            };
+        },
+
+        // The grid's bounding box in viewport px, from the corners of its cells, and the width of one cell in the same px: the area a
+        // reference band grid covers on a grid that is not square. Outside-clue margins and the canvas's own margin are not in it.
+        // MVP gap: it reads `pu.centerlist`, so a cell Box mode has taken out of the list at the grid's edge shrinks the box.
+        getGridArea() {
+            const origin = boardCanvas().getBoundingClientRect();
+            const corners = pu.centerlist.flatMap((id) => pu.point[id].surround.map((s) => pu.point[s]));
+            const xs = corners.map((p) => p.x);
+            const ys = corners.map((p) => p.y);
+            return {
+                left: origin.left + Math.min(...xs),
+                top: origin.top + Math.min(...ys),
+                right: origin.left + Math.max(...xs),
+                bottom: origin.top + Math.max(...ys),
+                cellWidth: pu.size
             };
         },
 

@@ -46,7 +46,7 @@
     // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
     const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
     const MOUSE_CLOSED = '1';
-    // Set to NUMBERS_SHOWN when the solver turned on the row and column numbers (#249).
+    // Set to NUMBERS_SHOWN when the solver turned on the board coordinates (#249, #250).
     const NUMBERS_KEY = 'chinstrap-solve-grid-numbers-v1';
     const NUMBERS_SHOWN = '1';
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
@@ -821,32 +821,60 @@
     let cursorCell = null;
     let hasCursorMoved = false;
 
-    // The Board card's box that holds the canvas, and the layer in it that carries the row and column numbers (desk.css gives the
+    // The Board card's box that holds the canvas, and the layer in it that carries the board coordinates (desk.css gives the
     // box the gutter they sit in, while `ui-numbers-on` is set).
     let boardBox = null;
     let numbersLayer = null;
 
-    const canShowNumbers = () => engine.getGridAxes() !== null;
     const areNumbersWanted = () => localStorage.getItem(NUMBERS_KEY) === NUMBERS_SHOWN;
 
     // The room the numbers take beside and above the canvas, which the fit leaves out.
     const numbersGutter = () => (boardBox.classList.contains('ui-numbers-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
 
-    // Puts one label per row and column on the centre lines of the cells, in the gutter outside the canvas.
+    // A band is about this many cells wide (#250), so a band is one to two cells wide whatever the grid's shape.
+    const BAND_CELLS = 1.5;
+    // Letters name the columns, so there are at most this many (A to Z).
+    const MAX_BAND_COLUMNS = 26;
+    const bandLetter = (i) => String.fromCharCode(65 + i);
+
+    // The labels of a grid that is not square (#250): letters over equal bands across the grid's bounding box, numbers down it, each at its band's middle.
+    function bandLabels(area) {
+        const bands = (from, to, cap) => {
+            const count = Math.min(cap, Math.max(1, Math.round((to - from) / (BAND_CELLS * area.cellWidth))));
+            return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
+        };
+        return {
+            columns: bands(area.left, area.right, MAX_BAND_COLUMNS).map((x, i) => ({ at: x, text: bandLetter(i) })),
+            rows: bands(area.top, area.bottom, Infinity).map((y, j) => ({ at: y, text: j + 1 }))
+        };
+    }
+
+    // The labels of a square-cell grid: its own column and row numbers, on the centre lines of the cells.
+    function numberLabels(axes) {
+        return {
+            columns: axes.columns.map((x, i) => ({ at: x, text: i + 1 })),
+            rows: axes.rows.map((y, j) => ({ at: y, text: j + 1 }))
+        };
+    }
+
+    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue: numbers on a square-cell grid, bands on any other.
     function drawNumbers() {
-        // Wanted is kept for every puzzle, so a grid that is not square meets it too and shows none.
-        const axes = areNumbersWanted() ? engine.getGridAxes() : null;
-        boardBox.classList.toggle('ui-numbers-on', axes !== null);
+        const wanted = areNumbersWanted();
+        boardBox.classList.toggle('ui-numbers-on', wanted);
         numbersLayer.replaceChildren();
-        if (axes === null) {
+        if (!wanted) {
             return;
         }
+        const axes = engine.getGridAxes();
+        const labels = axes ? numberLabels(axes) : bandLabels(engine.getGridArea());
         const box = boardBox.getBoundingClientRect();
         const gutter = numbersGutter();
-        const label = (axis, text, left, top) => el('span', { class: 'ui-grid-number', 'data-axis': axis, style: `left:${left}px;top:${top}px` }, [String(text)]);
+        const label = (axis, { text, at }, left, top) => el('span', {
+            class: axes ? 'ui-grid-number' : 'ui-grid-number ui-grid-band', 'data-axis': axis, style: `left:${left}px;top:${top}px`
+        }, [String(text)]);
         numbersLayer.append(
-            ...axes.columns.map((x, i) => label('column', i + 1, x - box.left, gutter / 2)),
-            ...axes.rows.map((y, j) => label('row', j + 1, gutter / 2, y - box.top)));
+            ...labels.columns.map((c) => label('column', c, c.at - box.left, gutter / 2)),
+            ...labels.rows.map((r) => label('row', r, gutter / 2, r.at - box.top)));
     }
 
     function setNumbersWanted(boardBody, shown) {
@@ -980,7 +1008,7 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill the bar and the
+    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill the bar and the
     // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
@@ -1086,7 +1114,7 @@
                 drawNumbers();
             }
         }).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.

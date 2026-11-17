@@ -1,6 +1,7 @@
-// The row and column numbers of solve.html's Settings (#249): off by default, kept across a reload, 1..N down the left and across the top
-// of a square grid aligned to the cell centres, outside the canvas (so never over an outside clue), following zoom and Fit, and
-// offered only on a square-cell grid. Label positions are read against the cell rectangles Penpa+ draws.
+// The board coordinates of solve.html's Settings (#249, #250): off by default, kept across a reload, outside the canvas (so never over an
+// outside clue), following zoom and Fit. A square-cell grid gets row and column numbers 1..N aligned to the cell centres (#249); every other
+// shape gets reference bands, letters A, B, C... across the top and numbers 1, 2, 3... down the left, equal bands over the grid's bounding
+// box (#250). Label positions are read against the cells Penpa+ draws.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { boardCanvasInPage, linkFromNewBoard, solveLinkOfImport, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
@@ -8,7 +9,7 @@ import { IMPORTS } from './tier-c-puzzles.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
-const SWITCH = 'Show row and column numbers'
+const SWITCH = 'Show board coordinates'
 // Cell centres and labels may differ by rounding.
 const SLACK_PX = 1.5
 
@@ -83,6 +84,42 @@ async function assertAligned (page, columns, rows) {
     assert.ok(Math.abs(l.cy - (cell.top + cell.bottom) / 2) <= SLACK_PX, `row ${j + 1} label is beside its cell centre: ${l.cy} vs ${(cell.top + cell.bottom) / 2}`)
     assert.ok(l.right <= canvas.left + SLACK_PX, `row ${j + 1} label is left of the canvas`)
   })
+}
+
+// Runs in the page, given the board canvas: the bounding box (viewport px) of every cell's corners as drawn, one cell's width, and the canvas.
+function gridAreaInPage (canvas) {
+  const origin = canvas.getBoundingClientRect()
+  const corners = pu.centerlist.flatMap((id) => pu.point[id].surround.map((s) => pu.point[s]))
+  const xs = corners.map((p) => p.x)
+  const ys = corners.map((p) => p.y)
+  return {
+    area: { left: origin.left + Math.min(...xs), right: origin.left + Math.max(...xs), top: origin.top + Math.min(...ys), bottom: origin.top + Math.max(...ys) },
+    cell: pu.size,
+    canvas: { left: origin.left, top: origin.top }
+  }
+}
+
+// Checks the bands of `page`: letters A, B, C... across the top and numbers 1, 2, 3... down the left, each label at the middle of an equal
+// band, the bands together exactly the grid's bounding box, each band one to two cells wide, and every label outside the canvas.
+async function assertBands (page) {
+  const handle = await page.evaluateHandle(boardCanvasInPage)
+  let read
+  try { read = await page.evaluate(gridAreaInPage, handle) } finally { await handle.dispose() }
+  const { area, cell, canvas } = read
+  const labels = await page.evaluate(labelsInPage)
+  const check = (axis, texts, centre, from, to, outside) => {
+    const own = labels.filter((l) => l.axis === axis)
+    assert.deepEqual(own.map((l) => l.text), texts(own.length), `${axis} bands are named in order`)
+    const centres = own.map(centre)
+    const width = (to - from) / own.length
+    centres.forEach((c, i) => assert.ok(Math.abs(c - (from + width * (i + 0.5))) <= SLACK_PX, `${axis} band ${i + 1} is centred at ${from + width * (i + 0.5)}, was ${c}`))
+    assert.ok(width >= cell - SLACK_PX && width <= 2 * cell + SLACK_PX, `a ${axis} band is one to two cells wide: ${width} vs a cell of ${cell}`)
+    own.forEach((l) => assert.ok(outside(l) <= SLACK_PX, `${axis} label ${l.text} is outside the canvas`))
+  }
+  const letters = (n) => Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i))
+  const numbers = (n) => Array.from({ length: n }, (_, i) => String(i + 1))
+  check('column', letters, (l) => l.cx, area.left, area.right, (l) => l.bottom - canvas.top)
+  check('row', numbers, (l) => l.cy, area.top, area.bottom, (l) => l.right - canvas.left)
 }
 
 const switchChecked = async (page) => {
@@ -160,29 +197,45 @@ describe('row and column numbers', () => {
     await context.close()
   })
 
-  it('show none, and raise no error, when a puzzle that is not square opens with the setting on', async () => {
+  it('turn a square puzzle opened with the setting on into bands when the next puzzle is a hexagon grid', async () => {
     const square = await boardLink({ columns: 6, rows: 6 })
     const hex = await boardLink({ columns: 6, rows: 6, gridtype: 'hex' })
     const { context, page } = await openSolvePage(browser(), square, { served: true })
     await turnOn(page)
+    assert.equal((await page.evaluate(labelsInPage)).length, 12)
     const here = page.url().split('#')[0]
     await page.goto('about:blank')
     await page.goto(here + hex)
     await waitForDesk(page)
-    assert.deepEqual(await page.evaluate(labelsInPage), [])
-    await page.getByRole('button', { name: 'Zoom in' }).click()
-    assert.deepEqual(await page.evaluate(labelsInPage), [])
+    await assertBands(page)
     await context.close()
   })
 
-  it('are not offered on a grid that is not square', async () => {
+  it('offer the switch on a grid that is not square', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6, gridtype: 'hex' }), { served: true })
     await page.getByRole('button', { name: 'Settings' }).click()
     await page.getByRole('dialog', { name: 'Settings' }).waitFor()
     assert.equal(await page.evaluate(() => pu.gridtype), 'hex', 'the board is a hexagon grid')
-    // A hidden control is out of the accessibility tree, so the role finds no switch.
-    assert.equal(await page.getByRole('switch', { name: SWITCH }).count(), 0)
-    assert.equal(await page.getByRole('switch', { name: 'Custom colours' }).count(), 1, 'the other switches of the group are there')
+    assert.equal(await page.getByRole('switch', { name: SWITCH }).count(), 1)
     await context.close()
   })
+})
+
+describe('board coordinates on a grid that is not square', () => {
+  for (const gridtype of ['hex', 'tri', 'pyramid']) {
+    it(`show letters and numbers over the whole ${gridtype} grid at Fit and after zooming`, async () => {
+      const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6, gridtype }), { served: true })
+      assert.deepEqual(await page.evaluate(labelsInPage), [], 'off by default')
+      await turnOn(page)
+      await assertBands(page)
+      const columnsAtFit = (await page.evaluate(labelsInPage)).filter((l) => l.axis === 'column').length
+      await page.getByRole('button', { name: 'Zoom in' }).click()
+      await page.getByRole('button', { name: 'Zoom in' }).click()
+      await assertBands(page)
+      assert.equal((await page.evaluate(labelsInPage)).filter((l) => l.axis === 'column').length, columnsAtFit, 'zoom keeps the band count')
+      await page.getByRole('button', { name: 'Fit', exact: true }).click()
+      await assertBands(page)
+      await context.close()
+    })
+  }
 })
