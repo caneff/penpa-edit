@@ -63,13 +63,14 @@
         const row = (gesture, effect, cls, extra = []) => el('div', { class: `ui-mrow ${cls}` }, [
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [...effectNodes(effect, secondColour), ...extra])
         ]);
-        // A gesture that does nothing gets no row (#191), nor does a Drag that only repeats its click row (#253): a tool with few
-        // actions takes little of a short screen. `mouseRows` still gives that Drag, so the card's live test checks it acts as a click.
+        // A gesture that does nothing gets no row (#191), nor does one that only repeats its click row (#253): a tool with few
+        // actions takes little of a short screen.
+        const shown = ([, effect]) => effect !== NOTHING && effect !== AS_A_CLICK;
         const main = [['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag], ['Digit', rows.digit ?? NOTHING]];
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
-            ...main.filter(([, effect]) => effect !== NOTHING && effect !== AS_A_CLICK)
+            ...main.filter(shown)
                 .map(([gesture, effect]) => row(gesture, effect, '', gesture === 'Drag' && rows.keypad ? [keypad(rows.keypad)] : [])),
-            ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
+            ...rows.more.filter(shown).map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));
     }
 

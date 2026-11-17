@@ -573,34 +573,28 @@ describe('the Mouse card and the title bar', () => {
     assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
   })
 
-  it('shows no row whose action is nothing, for any tool (#191)', async () => {
-    const shown = await opened.page.evaluate(async () => {
-      const bad = []
-      for (const t of engine.listTools()) {
-        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-        for (const row of document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')) {
-          if (row.children[1].textContent === '—') bad.push(`${t.mode}/${t.submode}: ${row.children[0].textContent}`)
-        }
+  // The names of the Mouse card's rows, for every tool, whose words are `text`.
+  const rowsReading = (text) => opened.page.evaluate(async (wanted) => {
+    const bad = []
+    for (const t of engine.listTools()) {
+      engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+      for (const row of document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')) {
+        if (row.children[1].textContent === wanted) bad.push(`${t.mode}/${t.submode}: ${row.children[0].textContent}`)
       }
-      return bad
-    })
-    assert.deepEqual(shown, [])
+    }
+    return bad
+  }, text)
+
+  it('shows no row whose action is nothing, for any tool (#191)', async () => {
+    assert.deepEqual(await rowsReading('—'), [])
   })
 
+  // The words of a Drag that only repeats its click, written out here and not read from `toolGuide.AS_A_CLICK`, so a lost export fails the test.
+  const AS_A_CLICK = 'as a click where it starts'
+
   it('shows no row that only repeats its click row, for any tool (#253)', async () => {
-    const shown = await opened.page.evaluate(async () => {
-      const bad = []
-      for (const t of engine.listTools()) {
-        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
-        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-        for (const row of document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')) {
-          if (row.children[1].textContent === toolGuide.AS_A_CLICK) bad.push(`${t.mode}/${t.submode}: ${row.children[0].textContent}`)
-        }
-      }
-      return bad
-    })
-    assert.deepEqual(shown, [])
+    assert.deepEqual(await rowsReading(AS_A_CLICK), [])
   })
 
   it('words Left click, Right click and Drag as the agreed table says, for every tool in it', async () => {
@@ -615,7 +609,6 @@ describe('the Mouse card and the title bar', () => {
     const differ = []
     let checked = 0
     for (const [key, agreedWords] of agreed) {
-      let words = agreedWords
       if (!offered.has(key)) continue
       const tool = tools.find((t) => `${t.mode}/${t.submode ?? ''}` === key)
       // The card draws on the engine's change, a frame or two after `setTool`.
@@ -629,7 +622,7 @@ describe('the Mouse card and the title bar', () => {
         return ['Left click', 'Right click', 'Drag'].map((gesture) => shown[gesture] ?? '—')
       }, tool)
       // A Drag row that only repeats its click row is not drawn either (#253): the agreed table's words for it are a missing row.
-      if (words[2] === 'as a click where it starts') words = [...words.slice(0, 2), '—']
+      const words = agreedWords[2] === AS_A_CLICK ? [...agreedWords.slice(0, 2), '—'] : agreedWords
       checked++
       if (shown.join(' | ') !== words.join(' | ')) differ.push(`${key}: card ${shown.join(' | ')} vs agreed ${words.join(' | ')}`)
     }
