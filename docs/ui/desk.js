@@ -814,15 +814,17 @@
                 y = deskHeight - (entry.vh - entry.y - savedHeight) - node.offsetHeight;
             }
         }
-        if (node.offsetWidth > deskWidth - 2 * EDGE_MARGIN_PX) {
-            node.style.width = `${Math.max(minWidth, deskWidth - 2 * EDGE_MARGIN_PX)}px`;
+        // A card may be as wide and as tall as the desk, not less its edge margins: a resize drag reaches the desk's edges,
+        // and a card left there must come back from a reload at the same size (#264).
+        if (node.offsetWidth > deskWidth) {
+            node.style.width = `${Math.max(minWidth, deskWidth)}px`;
         }
-        // A card never touched shrinks to the room below its default place; any card shrinks to the desk's height.
+        // A card never touched shrinks to the room below its default place; any card shrinks to the desk's size.
         if (!isMoved(id) && y + node.offsetHeight > deskHeight - EDGE_MARGIN_PX) {
             setHeight(node, Math.max(minHeight, deskHeight - EDGE_MARGIN_PX - y));
         }
-        if (node.offsetHeight > deskHeight - 2 * EDGE_MARGIN_PX) {
-            setHeight(node, Math.max(minHeight, deskHeight - 2 * EDGE_MARGIN_PX));
+        if (node.offsetHeight > deskHeight) {
+            setHeight(node, Math.max(minHeight, deskHeight));
         }
         node.style.left = `${Math.max(0, Math.min(x, deskWidth - node.offsetWidth))}px`;
         node.style.top = `${Math.max(0, Math.min(y, deskHeight - node.offsetHeight))}px`;

@@ -112,6 +112,25 @@ describe('the desk', () => {
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), grown), grown)
   })
 
+  it('keeps the Board card\'s box to the pixel after a top-edge drag and a reload (#264)', async () => {
+    await drag(page, await handleCentre(page, 'Board', 'top'), 0, -30)
+    const resized = await boxOf(page, 'Board')
+    await page.reload()
+    await card(page, 'Board').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Board'), resized), resized)
+  })
+
+  it('keeps the Board card\'s box when it fills the desk, edge to edge, after a reload (#264)', async () => {
+    await drag(page, await handleCentre(page, 'Board', 'left'), -2000, 0)
+    await drag(page, await handleCentre(page, 'Board', 'right'), 2000, 0)
+    await drag(page, await handleCentre(page, 'Board', 'top'), 0, -2000)
+    await drag(page, await handleCentre(page, 'Board', 'bottom'), 0, 2000)
+    const resized = await boxOf(page, 'Board')
+    await page.reload()
+    await card(page, 'Board').waitFor()
+    assert.deepEqual(await settle(() => boxOf(page, 'Board'), resized), resized)
+  })
+
   it('leaves the Board card\'s Fit button clickable at its right end, under the top-right handle', async () => {
     const fit = await card(page, 'Board').getByRole('button', { name: 'Fit' }).boundingBox()
     const handle = await card(page, 'Board').getByTestId('resize-top-right').boundingBox()
