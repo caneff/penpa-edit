@@ -642,6 +642,24 @@ async function checkedChanges (page, tool, setup, stages) {
   return { changes, expected, mismatch: JSON.stringify(changes) !== JSON.stringify(expected) }
 }
 
+// Whether any case of a row, given as each case's stages, expects the board to change.
+const casesExpectChange = (stagesOfCases) => stagesOfCases.some((stages) => stages.some(([, change]) => change.length > 0))
+
+// A tool's Mouse card rows, as `toolGuide.mouseRows` gives them, as gesture -> words.
+const byGesture = ({ left, right, drag, more }) => Object.fromEntries([['Left click', left], ['Right click', right], ['Drag', drag], ...more])
+
+// The words of a Given row, the card's other way to name no change.
+const LEFT_ALONE = 'left alone'
+
+// The rows whose words and cases disagree on whether the board changes: a row reading `nothing` (the card's `—`) or
+// LEFT_ALONE whose cases expect a change, or another whose cases expect none. `stagesOf(cases)` gives each case's stages.
+function unlikeRows (label, rows, byRow, nothing, stagesOf) {
+  const saysNoChange = (text) => text.startsWith(nothing) || text === LEFT_ALONE
+  return Object.entries(rows).filter(([g]) => byRow[g])
+    .filter(([g, text]) => saysNoChange(text) === casesExpectChange(stagesOf(byRow[g])))
+    .map(([g, text]) => `${label} ${g}: "${text}"`)
+}
+
 // ---- The checks ------------------------------------------------------------------------------------------------------
 
 const toolOfKey = (key) => {
@@ -663,15 +681,17 @@ describe('the Mouse card against the board', () => {
     })))
   })
 
-  it('has a case for every row of every tool the page offers, and none for a row the card lacks', async () => {
-    const rows = await opened.page.evaluate(() => engine.listTools().filter((t) => t.mode !== 'symbol').map((t) => {
-      const r = toolGuide.mouseRows(t)
-      return [toolGuide.toolKey(t), ['Left click', 'Right click', 'Drag', ...r.more.map(([gesture]) => gesture)]]
+  it('has a case for every row of every tool the page offers, none for a row the card lacks, and none that expects a change for a row naming none', async () => {
+    const { nothing, tools } = await opened.page.evaluate(() => ({
+      nothing: toolGuide.NOTHING,
+      tools: engine.listTools().filter((t) => t.mode !== 'symbol').map((t) => [toolGuide.toolKey(t), toolGuide.mouseRows(t)])
     }))
-    const missing = rows.flatMap(([k, gestures]) => gestures.filter((g) => !CASES[k]?.[g]).map((g) => `${k} ${g}`))
+    const rows = tools.map(([k, r]) => [k, byGesture(r)])
+    const missing = rows.flatMap(([k, words]) => Object.keys(words).filter((g) => !CASES[k]?.[g]).map((g) => `${k} ${g}`))
     const extra = Object.entries(CASES).flatMap(([k, byRow]) => Object.keys(byRow)
-      .filter((g) => !rows.find(([rk]) => rk === k)?.[1].includes(g)).map((g) => `${k} ${g}`))
-    assert.deepEqual({ missing, extra }, { missing: [], extra: [] })
+      .filter((g) => !(g in (rows.find(([rk]) => rk === k)?.[1] ?? {}))).map((g) => `${k} ${g}`))
+    const unlike = rows.flatMap(([k, words]) => unlikeRows(k, words, CASES[k] ?? {}, nothing, (cases) => cases.map(([, , stages]) => stages)))
+    assert.deepEqual({ missing, extra, unlike }, { missing: [], extra: [], unlike: [] })
   })
 
   // The Shape tools of each row set are split over this many tests, each well inside the seam's per-test timeout.
@@ -679,15 +699,18 @@ describe('the Mouse card against the board', () => {
   for (const [rowSet, byRow] of Object.entries(SHAPE_CASES)) {
     for (let part = 0; part < SHAPE_PARTS; part++) {
       it(`every Shape tool Penpa+ handles as ${rowSet} has the card's rows for it, each true (part ${part + 1} of ${SHAPE_PARTS})`, async () => {
-        const shapes = (await opened.page.evaluate((onOff) => engine.listTools().filter((t) => t.mode === 'symbol' &&
-          Boolean(pu.onoff_symbolmode_list[t.submode]) === onOff).map((t) => {
-          const r = toolGuide.mouseRows(t)
-          return { submode: t.submode, parts: pu.onoff_symbolmode_list[t.submode], gestures: ['Left click', 'Right click', 'Drag', ...r.more.map(([gesture]) => gesture)] }
-        }), rowSet === 'onOff')).filter((_, i) => i % SHAPE_PARTS === part)
-        assert.notEqual(shapes.length, 0, `the page offers ${rowSet} shapes`)
+        const { nothing, shapes } = await opened.page.evaluate((onOff) => ({
+          nothing: toolGuide.NOTHING,
+          shapes: engine.listTools().filter((t) => t.mode === 'symbol' && Boolean(pu.onoff_symbolmode_list[t.submode]) === onOff)
+            .map((t) => ({ submode: t.submode, parts: pu.onoff_symbolmode_list[t.submode], rows: toolGuide.mouseRows(t) }))
+        }), rowSet === 'onOff')
+        const ours = shapes.filter((_, i) => i % SHAPE_PARTS === part)
+        assert.notEqual(ours.length, 0, `the page offers ${rowSet} shapes`)
         const wrong = []
-        for (const { submode, parts, gestures } of shapes) {
-          if (JSON.stringify(gestures) !== JSON.stringify(Object.keys(byRow))) wrong.push(`${submode}: rows ${gestures.join(', ')}`)
+        for (const { submode, parts, rows } of ours) {
+          const words = byGesture(rows)
+          if (JSON.stringify(Object.keys(words)) !== JSON.stringify(Object.keys(byRow))) wrong.push(`${submode}: rows ${Object.keys(words).join(', ')}`)
+          wrong.push(...unlikeRows(submode, words, byRow, nothing, (cases) => cases.map(([, , stagesOf]) => stagesOf(submode, parts))))
           const tool = { mode: 'symbol', submode, style: firstStyles[`symbol/${submode}`] }
           for (const [row, cases] of Object.entries(byRow)) {
             for (const [title, setup, stagesOf] of cases) {

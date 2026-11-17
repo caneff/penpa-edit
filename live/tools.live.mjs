@@ -61,6 +61,17 @@ describe('engine.listTools', () => {
     assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa+\'s label')
     assert.deepEqual(list.find((t) => t.submode === 'akari').styles, [], 'Akari has no style')
   })
+
+  it('says "line", not "loop", for the Composite tools that draw one; only the Angle loop shape keeps the word (#186)', async () => {
+    const loops = await opened.page.evaluate(() => engine.listTools().filter((t) => t.submode !== 'angleloop').flatMap((t) => {
+      const { left, right, drag, more } = toolGuide.mouseRows(t)
+      const words = [t.submodeName, toolGuide.describeTool(t).name, toolGuide.describeTool(t).description, left, right, drag, ...more.flat()]
+      return words.filter((w) => /loop/i.test(w ?? '')).map((w) => `${t.mode}/${t.submode}: ${w}`)
+    }))
+    assert.deepEqual(loops, [])
+    const names = await opened.page.evaluate(() => engine.listTools().filter((t) => ['linex', 'lineox', 'yajilin'].includes(t.submode)).map((t) => t.submodeName))
+    assert.deepEqual(names, ['Line + edge ×', 'Line + cell ○ ×', 'Shade + line'])
+  })
 })
 
 // Runs in the page: draws one edge of the cell at `cell` in pen style `style` into `mode`'s layer and returns the pixel
