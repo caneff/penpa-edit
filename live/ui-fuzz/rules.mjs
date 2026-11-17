@@ -29,6 +29,8 @@ const PLACING_KINDS = ['card drag', 'card resize', 'interrupted drag']
 const RESET_LAYOUT = 'reset layout'
 // The card whose chips last for the visit only (docs/ui/recent.js): a reload empties it, so its height follows.
 const RECENT_CARD = 'Recent'
+// The card whose height follows the current tool's option rows (docs/ui/tool-cards.js) until #252 fixes it.
+const MODE_CARD = 'Mode'
 // The mode in which a pin key types a letter instead (pins.js).
 const NUMBER_MODE = 'number'
 // Layout sizes are fractional pixels; this much of an overlap or an overhang is rounding, not a broken layout.
@@ -125,10 +127,23 @@ export const RULES = [
     name: 'reload-keeps-layout-and-pins',
     check: ({ now, before, action }) => {
       if (action?.kind !== 'reload') return []
+      // A reload can bring back another tool than the one in use (#263: it is kept only when Penpa+'s unawaited save on
+      // unload wins), and the Mode card's height follows the tool (#252). The tool is #263's to check, not this rule's: when
+      // it changed, Mode may change height, and each card stacked under Mode in its column must move by exactly as much.
+      const toolChanged = before.tool.mode !== now.tool.mode || before.tool.submode !== now.tool.submode
+      const wasMode = before.cards.find((c) => c.name === MODE_CARD)
+      const isMode = now.cards.find((c) => c.name === MODE_CARD)
+      const grew = toolChanged && wasMode && isMode ? isMode.rect.height - wasMode.rect.height : 0
+      const underMode = (rect) => Math.abs(rect.x - wasMode.rect.x) <= SLACK_PX && rect.y >= wasMode.rect.y + wasMode.rect.height
       const moved = before.cards.flatMap((was) => {
         const is = now.cards.find((c) => c.name === was.name)
         if (!is || is.shown !== was.shown) return [`the reload ${was.shown ? 'closed' : 'opened'} ${was.name}`]
-        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - was.rect[side]) > SLACK_PX &&
+        const expected = {
+          ...was.rect,
+          y: was.rect.y + (grew && was.name !== MODE_CARD && underMode(was.rect) ? grew : 0),
+          height: was.rect.height + (was.name === MODE_CARD ? grew : 0)
+        }
+        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - expected[side]) > SLACK_PX &&
           !(side === 'height' && was.name === RECENT_CARD))
         return was.shown && moved ? [`the reload moved ${was.name} from ${box(was.rect)} to ${box(is.rect)}`] : []
       })

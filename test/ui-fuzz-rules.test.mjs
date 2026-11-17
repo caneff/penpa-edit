@@ -185,6 +185,23 @@ describe('the UI fuzz rules', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 300, 380, 98)] }, { action: action('reload'), before }),
         ['the reload moved Recent from 1005,326 380x136 to 1005,300 380x98'])
     })
+    describe('when the reload changes the tool (#263), which sets the Mode card\'s height (#252)', () => {
+      const LINE = { mode: 'lineE', submode: '3', style: 3 }
+      const SURFACE = { mode: 'surface', submode: null, style: 1 }
+      const column = (modeHeight, recentY) => [card('Pinned', 969, 72, 380, 120), card('Mode', 969, 202, 380, modeHeight), card('Recent', 969, recentY, 380, 98)]
+      const before = { tool: LINE, cards: column(137.71875, 350) }
+      it('holds when Mode changes height and the cards under it move by as much', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { tool: SURFACE, cards: column(168.71875, 381) }, { action: action('reload'), before }), [])
+      })
+      it('fails when a card under Mode moves by another amount', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { tool: SURFACE, cards: column(168.71875, 400) }, { action: action('reload'), before }),
+          ['the reload moved Recent from 969,350 380x98 to 969,400 380x98'])
+      })
+      it('fails when Mode changes height and the tool did not change', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { tool: LINE, cards: column(168.71875, 381) }, { action: action('reload'), before }),
+          ['the reload moved Mode from 969,202 380x137.71875 to 969,202 380x168.71875', 'the reload moved Recent from 969,350 380x98 to 969,381 380x98'])
+      })
+    })
     it('fails when a reload drops a pin', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', { pins: [pin('Z', 'Surface')] }, { action: action('reload') }),
         ['the reload changed the pins from Surface, Sudoku > Normal to Surface'])
