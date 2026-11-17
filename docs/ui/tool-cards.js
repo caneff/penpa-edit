@@ -317,6 +317,8 @@
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held);
             titleBarName.textContent = chipLabel(tool);
+            // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
+            titleBarName.title = titleBarName.textContent;
             const colour = styleColour(tool, current.style);
             if (colour) {
                 cards.board.node.style.setProperty('--ui-style-colour', colour);
