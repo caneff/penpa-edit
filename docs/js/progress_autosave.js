@@ -17,10 +17,10 @@ async function saveProgressNow() {
 }
 
 // MVP gap: patches Puzzle's methods until the engine API reports changes. Puzzle.record logs every edit; undo and redo move the log without calling it,
-// and reset_board (Restart) clears it without calling it either.
+// and reset_board (Restart) clears it without calling it either. mode_set is no trigger: it calls the sub-mode and style methods itself.
 // The tool is part of the saved text, and a reload restores it only from a save made after it changed. The save waits one task so the change's
 // own call has finished, and several changes in that task make one save.
-const AUTOSAVE_TRIGGERS = ['record', 'undo', 'redo', 'reset_board', 'mode_set', 'submode_check', 'subsymbolmode', 'subcombimode', 'stylemode_check'];
+const AUTOSAVE_TRIGGERS = ['record', 'undo', 'redo', 'reset_board', 'submode_check', 'subsymbolmode', 'subcombimode', 'stylemode_check'];
 function startProgressAutosave() {
     let saveQueued = false;
     const saveSoon = () => {
