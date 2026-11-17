@@ -2,8 +2,11 @@
 # Turns the safety-net gate on (#33): a repository ruleset on master that requires CI's jobs, `test` and
 # `expected-files`, to pass. The admin role bypasses it, so caneff's own direct pushes still land. GitHub Actions cannot
 # bypass a ruleset on a personal account's repo, so the nightly upstream merge posts these statuses itself on the
-# merged commit it tested (`.github/workflows/upstream-merge.yml`). Run by Chris; an existing ruleset of the same name
-# is updated, not duplicated.
+# merged commit it tested (`.github/workflows/upstream-merge.yml`). The rule is strict (#221): a PR must contain the
+# current master before it merges, so GitHub reports a PR whose base is older BEHIND, not CLEAN, until master is merged
+# in and CI passes again. The nightly is unaffected: its merge commit is built on master's tip and pushed as a
+# fast-forward, and a master that moved during its run already refuses the push. Run by Chris; an existing ruleset of
+# the same name is updated, not duplicated.
 # Usage: require-checks.sh [--dry-run]   (--dry-run prints the ruleset JSON and sends nothing)
 set -euo pipefail
 name='master: safety-net checks'
@@ -17,7 +20,7 @@ ruleset=$(cat <<EOF_JSON
   "rules": [{
     "type": "required_status_checks",
     "parameters": {
-      "strict_required_status_checks_policy": false,
+      "strict_required_status_checks_policy": true,
       "do_not_enforce_on_create": false,
       "required_status_checks": [{ "context": "test" }, { "context": "expected-files" }]
     }
