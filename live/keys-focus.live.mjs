@@ -16,7 +16,7 @@ const PINS = ['Line Normal', 'Sudoku Corner']
 const TABS_PAST_THE_DIALOG = 60
 // Longer than the zero-delay timeouts the key rules queue.
 const AFTER_TIMEOUT_MS = 150
-const MAX_SHIFT_TABS = 6
+const MAX_SHIFT_TABS = 7
 const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
