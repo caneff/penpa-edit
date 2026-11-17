@@ -1,4 +1,4 @@
-// "Open in Penpa+" (#148): the top bar's escape hatch to `index.html` on the same puzzle, keeping the solver's progress both
+// The top bar's Penpa+ button (#148, #244): the escape hatch to `index.html` on the same puzzle, keeping the solver's progress both
 // ways through the progress store the two pages share. Served over one origin so the store is shared; the buttons are found
 // by role and accessible name and the board is read as Penpa+ would save it (`board`). The timer is not checked: it is a
 // running clock, and nothing here reads it.
@@ -14,7 +14,7 @@ const browser = useBrowser()
 const PENPA_CELL = 15
 
 const entered = async (page) => (await board(page)).entered
-const open = (page) => page.getByRole('button', { name: 'Open in Penpa+', exact: true })
+const open = (page) => page.getByRole('button', { name: 'Penpa+', exact: true })
 const waitForPenpa = (page) => page.waitForFunction(() => typeof pu !== 'undefined' && !document.querySelector('section[aria-label="Board"]'))
 
 async function openWithEntries () {
@@ -35,7 +35,7 @@ async function openWithEntries () {
   return { ...opened, made }
 }
 
-describe('Open in Penpa+', () => {
+describe('the Penpa+ button', () => {
   it('opens index.html with every entry made on the solve page, and the way back keeps what was entered there', async () => {
     const { context, page, made } = await openWithEntries()
     await open(page).click()

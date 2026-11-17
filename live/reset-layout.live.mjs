@@ -3,7 +3,7 @@
 // Read through the cards' bounding boxes, the board canvas's drawn size and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
+import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -81,7 +81,7 @@ describe('Reset layout fits the desk to the puzzle', () => {
   }
 
   const reset = async (page) => {
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     await settle(() => boardFills(page), true)
     return page.evaluate(readDeskInPage, CARDS)
   }

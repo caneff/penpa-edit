@@ -69,7 +69,7 @@ describe('solve.html with a big Board card', () => {
       assert.notEqual(saved.cookie, null, 'solve.html saves the size, so the check below reads something')
       assert.ok(Number(saved.cookie.split('=')[1]) <= PENPA_MAX, `the cookie holds ${saved.cookie}`)
       assert.ok(saved.size > PENPA_MAX, 'the page itself still draws the large size')
-      await page.getByRole('button', { name: 'Open in Penpa+', exact: true }).click()
+      await page.getByRole('button', { name: 'Penpa+', exact: true }).click()
       await page.waitForFunction(() => typeof pu !== 'undefined' && !document.querySelector('section[aria-label="Board"]'))
       const size = await page.evaluate(() => UserSettings.displaysize)
       assert.ok(size >= PENPA_MIN && size <= PENPA_MAX, `index.html draws at ${size}`)

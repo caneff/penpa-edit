@@ -38,8 +38,6 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-bar.is-compact wa-button { --wa-form-control-height: 28px; --wa-form-control-padding-inline: .6em; }
 .ui-bar.is-compact .ui-timer { font-size: 13px; }
 .ui-spacer { flex: 1; }
-/* Reset layout ends the bar, after the controls the other files add to it. */
-.ui-reset { order: 99; }
 .ui-sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 
 .ui-desk {
@@ -258,7 +256,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     gap: 6px; border-radius: 9px; background: #ece8de; color: #3b3e45; font-size: 28px; font-weight: 700; }
 .ui-paused[hidden] { display: none; }
 .ui-paused wa-button { margin-top: 14px; }
-/* A paused board takes only Resume, Settings and Open in Penpa+: the cards that change the tool are dimmed and inert. */
+/* A paused board takes only Resume, Settings and Penpa+: the cards that change the tool are dimmed and inert. */
 .ui-body[inert] { opacity: 0.45; }
 
 /* The solved dialog's words: the setter's message is text, its line breaks kept. */
@@ -335,6 +333,9 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-settings-note { color: #5f5b4c; font-size: 12px; }
 .ui-dark .ui-settings-group { border-top-color: #3a3f4b; }
 .ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note, .ui-dark .ui-help { color: #a9b0bd; }
+.ui-settings-about { color: #5f5b4c; font-size: 12px; display: grid; gap: 6px; }
+.ui-settings-about p { margin: 0; }
+.ui-dark .ui-settings-about { color: #a9b0bd; }
 .ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }
 
 /* The pin toggles: beside the Mode card's picker and inside each Recent chip. */
