@@ -12,6 +12,8 @@ const browser = useBrowser()
 const SWITCH = 'Show board coordinates'
 // Cell centres and labels may differ by rounding.
 const SLACK_PX = 1.5
+// The drawn box includes the grid's outer line, which is a few px thick.
+const DRAWN_SLACK_PX = 4
 
 // Runs in the page: a new board of `columns` x `rows` cells with `space` outside-clue rows or columns on the top and the left.
 function newBoardInPage ({ columns, rows, space = 0, gridtype = 'square' }) {
@@ -47,7 +49,7 @@ const readCells = async (page) => {
 
 // Runs in the page: every shown label's text, axis and box.
 function labelsInPage () {
-  return [...document.querySelectorAll('.ui-grid-number')].map((node) => {
+  return [...document.querySelectorAll('.ui-grid-coordinate')].map((node) => {
     const r = node.getBoundingClientRect()
     return { text: node.textContent, axis: node.dataset.axis, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
   })
@@ -86,40 +88,54 @@ async function assertAligned (page, columns, rows) {
   })
 }
 
-// Runs in the page, given the board canvas: the bounding box (viewport px) of every cell's corners as drawn, one cell's width, and the canvas.
-function gridAreaInPage (canvas) {
+// Runs in the page, given the board canvas: the box (viewport px) round everything drawn on it, read from its pixels (anything that is
+// neither transparent nor near white), and where the canvas lies. Not Penpa+'s point list, which the engine's own reading uses.
+function drawnBoxInPage (canvas) {
   const origin = canvas.getBoundingClientRect()
-  const corners = pu.centerlist.flatMap((id) => pu.point[id].surround.map((s) => pu.point[s]))
-  const xs = corners.map((p) => p.x)
-  const ys = corners.map((p) => p.y)
+  const scale = canvas.width / origin.width
+  const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height)
+  let left = Infinity; let top = Infinity; let right = -Infinity; let bottom = -Infinity
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] > 0 && Math.min(data[i], data[i + 1], data[i + 2]) < 240) {
+      const x = (i / 4) % canvas.width
+      const y = Math.floor(i / 4 / canvas.width)
+      left = Math.min(left, x); right = Math.max(right, x + 1); top = Math.min(top, y); bottom = Math.max(bottom, y + 1)
+    }
+  }
   return {
-    area: { left: origin.left + Math.min(...xs), right: origin.left + Math.max(...xs), top: origin.top + Math.min(...ys), bottom: origin.top + Math.max(...ys) },
-    cell: pu.size,
+    area: { left: origin.left + left / scale, right: origin.left + right / scale, top: origin.top + top / scale, bottom: origin.top + bottom / scale },
     canvas: { left: origin.left, top: origin.top }
   }
 }
 
-// Checks the bands of `page`: letters A, B, C... across the top and numbers 1, 2, 3... down the left, each label at the middle of an equal
-// band, the bands together exactly the grid's bounding box, each band one to two cells wide, and every label outside the canvas.
-async function assertBands (page) {
+// A, B, ... Z, AA, AB, ...: the names of the first `n` column bands.
+const bandNames = (n) => {
+  const names = []
+  for (let i = 0; i < n; i++) {
+    let name = ''
+    for (let k = i; k >= 0; k = Math.floor(k / 26) - 1) name = String.fromCharCode(65 + (k % 26)) + name
+    names.push(name)
+  }
+  return names
+}
+
+// Checks the bands of `page`: `columns` column bands named A, B, C... across the top and `rows` row bands numbered 1, 2, 3... down the left,
+// each label at the middle of an equal band, the bands together the box the board is drawn in, and every label outside the canvas.
+async function assertBands (page, columns, rows) {
   const handle = await page.evaluateHandle(boardCanvasInPage)
   let read
-  try { read = await page.evaluate(gridAreaInPage, handle) } finally { await handle.dispose() }
-  const { area, cell, canvas } = read
+  try { read = await page.evaluate(drawnBoxInPage, handle) } finally { await handle.dispose() }
+  const { area, canvas } = read
   const labels = await page.evaluate(labelsInPage)
   const check = (axis, texts, centre, from, to, outside) => {
     const own = labels.filter((l) => l.axis === axis)
-    assert.deepEqual(own.map((l) => l.text), texts(own.length), `${axis} bands are named in order`)
-    const centres = own.map(centre)
+    assert.deepEqual(own.map((l) => l.text), texts, `${axis} bands are named in order`)
     const width = (to - from) / own.length
-    centres.forEach((c, i) => assert.ok(Math.abs(c - (from + width * (i + 0.5))) <= SLACK_PX, `${axis} band ${i + 1} is centred at ${from + width * (i + 0.5)}, was ${c}`))
-    assert.ok(width >= cell - SLACK_PX && width <= 2 * cell + SLACK_PX, `a ${axis} band is one to two cells wide: ${width} vs a cell of ${cell}`)
+    own.map(centre).forEach((c, i) => assert.ok(Math.abs(c - (from + width * (i + 0.5))) <= DRAWN_SLACK_PX, `${axis} band ${i + 1} is centred at ${from + width * (i + 0.5)}, was ${c}`))
     own.forEach((l) => assert.ok(outside(l) <= SLACK_PX, `${axis} label ${l.text} is outside the canvas`))
   }
-  const letters = (n) => Array.from({ length: n }, (_, i) => String.fromCharCode(65 + i))
-  const numbers = (n) => Array.from({ length: n }, (_, i) => String(i + 1))
-  check('column', letters, (l) => l.cx, area.left, area.right, (l) => l.bottom - canvas.top)
-  check('row', numbers, (l) => l.cy, area.top, area.bottom, (l) => l.right - canvas.left)
+  check('column', bandNames(columns), (l) => l.cx, area.left, area.right, (l) => l.bottom - canvas.top)
+  check('row', Array.from({ length: rows }, (_, i) => String(i + 1)), (l) => l.cy, area.top, area.bottom, (l) => l.right - canvas.left)
 }
 
 const switchChecked = async (page) => {
@@ -131,7 +147,7 @@ const switchChecked = async (page) => {
   return checked
 }
 
-describe('row and column numbers', () => {
+describe('board coordinates on a square-cell grid', () => {
   it('are off by default', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
     assert.deepEqual(await page.evaluate(labelsInPage), [])
@@ -196,6 +212,33 @@ describe('row and column numbers', () => {
     await assertAligned(page, 6, 6)
     await context.close()
   })
+})
+
+// Band counts for a 6 x 6 board of each shape, and a 20-side hexagon grid wide enough to run past Z. A band is about 1.5 cells wide, so these
+// are the grid's width and height over 1.5 cells, rounded.
+const SHAPES = [
+  { gridtype: 'hex', size: 6, columns: 8, rows: 7 },
+  { gridtype: 'tri', size: 6, columns: 6, rows: 5 },
+  { gridtype: 'pyramid', size: 6, columns: 4, rows: 4 },
+  { gridtype: 'truncated_square', size: 6, columns: 9, rows: 8 },
+  { gridtype: 'hex', size: 20, columns: 28, rows: 24 }
+]
+
+describe('board coordinates on a grid that is not square', () => {
+  for (const { gridtype, size, columns, rows } of SHAPES) {
+    it(`show ${columns} letters and ${rows} numbers over the whole ${gridtype} grid of size ${size} at Fit and after zooming`, async () => {
+      const { context, page } = await openSolvePage(browser(), await boardLink({ columns: size, rows: size, gridtype }), { served: true })
+      assert.deepEqual(await page.evaluate(labelsInPage), [], 'off by default')
+      await turnOn(page)
+      await assertBands(page, columns, rows)
+      await page.getByRole('button', { name: 'Zoom in' }).click()
+      await page.getByRole('button', { name: 'Zoom in' }).click()
+      await assertBands(page, columns, rows)
+      await page.getByRole('button', { name: 'Fit', exact: true }).click()
+      await assertBands(page, columns, rows)
+      await context.close()
+    })
+  }
 
   it('turn a square puzzle opened with the setting on into bands when the next puzzle is a hexagon grid', async () => {
     const square = await boardLink({ columns: 6, rows: 6 })
@@ -207,7 +250,7 @@ describe('row and column numbers', () => {
     await page.goto('about:blank')
     await page.goto(here + hex)
     await waitForDesk(page)
-    await assertBands(page)
+    await assertBands(page, 8, 7)
     await context.close()
   })
 
@@ -219,23 +262,4 @@ describe('row and column numbers', () => {
     assert.equal(await page.getByRole('switch', { name: SWITCH }).count(), 1)
     await context.close()
   })
-})
-
-describe('board coordinates on a grid that is not square', () => {
-  for (const gridtype of ['hex', 'tri', 'pyramid']) {
-    it(`show letters and numbers over the whole ${gridtype} grid at Fit and after zooming`, async () => {
-      const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 6, gridtype }), { served: true })
-      assert.deepEqual(await page.evaluate(labelsInPage), [], 'off by default')
-      await turnOn(page)
-      await assertBands(page)
-      const columnsAtFit = (await page.evaluate(labelsInPage)).filter((l) => l.axis === 'column').length
-      await page.getByRole('button', { name: 'Zoom in' }).click()
-      await page.getByRole('button', { name: 'Zoom in' }).click()
-      await assertBands(page)
-      assert.equal((await page.evaluate(labelsInPage)).filter((l) => l.axis === 'column').length, columnsAtFit, 'zoom keeps the band count')
-      await page.getByRole('button', { name: 'Fit', exact: true }).click()
-      await assertBands(page)
-      await context.close()
-    })
-  }
 })

@@ -68,7 +68,7 @@
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, areNumbersWanted, setNumbersWanted }) => {
+    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -136,9 +136,9 @@
         const showMouse = el('wa-switch', {}, ['Show Mouse card']);
         showMouse.addEventListener('change', () => setMouseClosed(!showMouse.checked));
 
-        const numbersSwitch = el('wa-switch', {}, ['Show board coordinates']);
-        numbersSwitch.addEventListener('change', () => setNumbersWanted(numbersSwitch.checked));
-        const numbersRow = el('div', { class: 'ui-setting' }, [numbersSwitch]);
+        const coordinatesSwitch = el('wa-switch', {}, ['Show board coordinates']);
+        coordinatesSwitch.addEventListener('change', () => setCoordinatesWanted(coordinatesSwitch.checked));
+        const coordinatesRow = el('div', { class: 'ui-setting' }, [coordinatesSwitch]);
 
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
@@ -162,7 +162,7 @@
         const pageGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Page']),
             el('div', { class: 'ui-setting' }, [theme]),
             el('div', { class: 'ui-setting' }, [showMouse]),
-            numbersRow,
+            coordinatesRow,
             el('div', { class: 'ui-setting' }, [resetLayoutButton])]);
         const pinsGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Pins']),
             el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
@@ -184,7 +184,7 @@
             controls.forEach((show, name) => show(current[name]));
             const applies = engine.getPuzzleSettings();
             settingRows.forEach((row, name) => { row.hidden = !applies.includes(name); });
-            numbersSwitch.checked = areNumbersWanted();
+            coordinatesSwitch.checked = areCoordinatesWanted();
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
             theme.value = current.theme;
