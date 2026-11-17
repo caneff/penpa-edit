@@ -3,6 +3,7 @@
 // accessible name, the tool by `engine.getTool()`; the keys and clicks are real.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
+import { pinChips } from './pin-card.mjs'
 import { afterChange, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -62,9 +63,9 @@ describe('the Recent card', () => {
       await page.keyboard.press('Tab')
     }
     assert.equal(await recentCard(page).locator(':focus').count(), 0, 'Tab with pins')
-    const pinned = page.getByRole('region', { name: 'Pinned' })
-    while (await pinned.getByRole('button', { name: /^Unpin/ }).count()) {
-      await pinned.getByRole('button', { name: /^Unpin/ }).first().click()
+    const pinChipUnpins = pinChips(page).getByRole('button', { name: /^Unpin/ })
+    while (await pinChipUnpins.count()) {
+      await pinChipUnpins.first().click()
     }
     // With no pin the browser keeps Tab, and moves focus along the page.
     await page.evaluate(() => document.activeElement?.blur())
