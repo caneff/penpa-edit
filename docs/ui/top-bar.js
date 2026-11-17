@@ -185,7 +185,11 @@
             redo.node.toggleAttribute('disabled', !canRedo || covered);
             trial.hidden = !stages.length;
             allButtons.hidden = stages.length < 2;
-            trialDepth.textContent = `Trial ${stages.length}`;
+            // Written only when it differs: a new text node is a page change, which would wake `change` again every frame.
+            const depthText = `Trial ${stages.length}`;
+            if (trialDepth.textContent !== depthText) {
+                trialDepth.textContent = depthText;
+            }
             trialButtons.forEach((button) => button.node.toggleAttribute('disabled', covered));
         }
 
