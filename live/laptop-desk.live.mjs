@@ -1,9 +1,11 @@
 // solve.html on a laptop screen (#181): the top bar keeps its title clear of the controls (centred, else at the left end,
 // else with smaller buttons, never cut short), every top-bar button names itself on hover, and the fitted desk puts Rules
-// over Mouse with no card over another and the right column stacked top-down. Read through bounding boxes and scroll sizes.
+// over Mouse with no card over another and the right column in order down to the desk's bottom. Read through bounding boxes
+// and scroll sizes.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
+import { CARD_GAP_PX, MOUSE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, steady } from './desk-layout.mjs'
 import { afterChange, ICEBREAKER, linkFromNewBoard, openSolvePage, puzzleSolveLinkInPage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -13,24 +15,18 @@ const LAPTOPS = [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { w
 const WIDE = { width: 1920, height: 1080 }
 const HUGE = { width: 2560, height: 1440 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-// desk.js's margins: the top one above each column, the gap between two cards; and desk.css's --ui-bar-padding.
+// desk.js's top margin above each column, and desk.css's --ui-bar-padding.
 const TOP_MARGIN_PX = 12
-const CARD_GAP_PX = 10
 const BAR_PADDING_PX = 14
-// The Mouse card's smallest height (desk.js's MIN_SIZE), which Rules leaves below itself.
-const MOUSE_MIN_HEIGHT_PX = 140
 // The Board card's smallest width (desk.js's MIN_SIZE).
 const MIN_BOARD_WIDTH_PX = 240
 // The tallest a card's header may be, controls and all.
 const HEAD_MAX_PX = 30
-// Box edges may differ by rounding.
-const SLACK_PX = 1
 // desk.js's EDGE_MARGIN_PX: the least room a dragged card keeps to the desk's edges.
 const EDGE_MARGIN_PX = 8
 // The share of the left column Rules stops at when Mouse needs the rest (Chris, 2026-11-17).
 const RULES_SHARE = 0.55
-// desk.js's Mouse body slack for its borders, and rounding.
-const MOUSE_SLACK_PX = 3
+
 
 // The Icebreaker rules four times over: more than Rules can show at a laptop size.
 const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
@@ -100,19 +96,6 @@ function linkFor (puzzle) {
   const key = JSON.stringify(puzzle)
   if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), puzzleSolveLinkInPage, puzzle))
   return links.get(key)
-}
-
-// Reads `inPage` until two reads in a row agree, and returns the last: the page lays out after it renders, so a read
-// is taken once nothing moves.
-async function steady (page, inPage, arg) {
-  let last = null
-  await settle(async () => {
-    const now = JSON.stringify(await page.evaluate(inPage, arg))
-    const same = now === last
-    last = now
-    return same
-  }, true)
-  return JSON.parse(last)
 }
 
 // Each bar control the heading overlaps, by name; none when the bar is clear.
@@ -258,13 +241,14 @@ describe('the desk on a laptop screen', () => {
 
   for (const viewport of LAPTOPS) {
     describe(`at ${viewport.width}x${viewport.height}`, () => {
-      it('puts no card over another, and stacks the right column top-down with the card gap', async () => {
+      it('puts no card over another, and keeps the right column in order down to the desk\'s bottom', async () => {
         const read = await deskSettled(await open(viewport))
         assert.deepEqual(cardOverlaps(read), [])
         const { Pinned, Mode, Recent } = read.cards
         assert.equal(near(Pinned.y, read.desk.y + TOP_MARGIN_PX), true, `Pinned at ${Pinned.y}`)
-        assert.equal(near(Mode.y, Pinned.y + Pinned.h + CARD_GAP_PX), true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
+        assert.equal(Mode.y >= Pinned.y + Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
         assert.equal(near(Recent.y, Mode.y + Mode.h + CARD_GAP_PX), true, `Recent at ${Recent.y}, Mode ends at ${Mode.y + Mode.h}`)
+        assert.equal(near(Recent.y + Recent.h, read.desk.y + read.desk.h - TOP_MARGIN_PX), true, `Recent ends at ${Recent.y + Recent.h}`)
       })
 
       it('puts Rules over Mouse, Rules showing its whole text or taking the larger share', async () => {
@@ -348,7 +332,7 @@ describe('the desk on a laptop screen', () => {
     })
     const read = await deskSettled(page)
     const { Pinned, Mode } = read.cards
-    assert.equal(near(Mode.y, Pinned.y + Pinned.h + CARD_GAP_PX), true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
+    assert.equal(Mode.y >= Pinned.y + Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
     assert.deepEqual(cardOverlaps(read).filter((pair) => !pair.includes('Board')), [])
   })
 
@@ -581,7 +565,7 @@ describe('the desk holds together', () => {
     const pinnedMode = async () => cardOverlaps(await page.evaluate(readDeskInPage, CARDS)).filter((pair) => pair === 'Mode/Pinned')
     assert.deepEqual(await settle(pinnedMode, []), [])
     const read = await deskSettled(page)
-    assert.equal(near(read.cards.Mode.y, read.cards.Pinned.y + read.cards.Pinned.h + CARD_GAP_PX), true, `Mode at ${read.cards.Mode.y}, Pinned ends at ${read.cards.Pinned.y + read.cards.Pinned.h}`)
+    assert.equal(read.cards.Mode.y >= read.cards.Pinned.y + read.cards.Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${read.cards.Mode.y}, Pinned ends at ${read.cards.Pinned.y + read.cards.Pinned.h}`)
   })
 
   it('moves an untouched card down from under Pinned when Pinned grows in a column the solver changed', async () => {
@@ -622,12 +606,12 @@ describe('the desk holds together', () => {
     assert.equal((await deskSettled(page)).overflowY.Rules, 0)
   })
 
-  // The Mouse card's room below the lowest last row of any tool of the puzzle's Tab set and pins, and its body's padding.
+  // The Mouse card's room below the lowest last row of any pinned tool, and its body's padding.
   const mouseSpare = (page) => page.evaluate(async () => {
     const body = document.querySelector('section[aria-label="Mouse"] .ui-body')
     const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     let lowest = 0
-    for (const tool of [...engine.tabSet(), ...window.pinBoard.snapshot()]) {
+    for (const tool of window.pinBoard.snapshot()) {
       engine.setTool({ mode: tool.mode, submode: tool.submode })
       await frames()
       lowest = Math.max(lowest, body.querySelector('.ui-mrows').lastElementChild.getBoundingClientRect().bottom)
@@ -655,8 +639,10 @@ describe('the desk holds together', () => {
     assert.equal(spare <= padding + MOUSE_SLACK_PX, true, `Mouse has ${spare}px below the tallest tool's last row`)
   })
 
-  it('sizes Mouse for the pins as well as the Tab set on a fresh load, the same as after a refit', async () => {
+  it('sizes Mouse for a pin added before a reload, the same as after a refit', async () => {
     const page = await open(LAPTOPS[1], LONG_LINE_RULES)
+    // The page opens on Surface, outside the pins; on the Line pin, Mouse is sized for Line alone.
+    await page.keyboard.press('Tab')
     const lineOnly = (await deskSettled(page)).cards
     // A pin with more Mouse rows than Line's, kept for the puzzle across the reload.
     await page.evaluate(() => {
