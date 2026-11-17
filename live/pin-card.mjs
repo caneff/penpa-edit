@@ -15,7 +15,7 @@ export const choosePreset = async (page, name) => {
   await closed(page)
 }
 export const nameField = (page) => pinnedCard(page).getByRole('textbox', { name: 'Preset name' })
-export const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save pins as a preset', exact: true })
+export const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save pins…', exact: true })
 
 // Saves the pins as `name` through the save icon's inline form.
 export const savePreset = async (page, name) => {

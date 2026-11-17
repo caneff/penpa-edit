@@ -108,11 +108,13 @@ describe('preset undo', () => {
 })
 
 describe('pin colours', () => {
-  it('give nine pins nine different colours', withPage(async (page) => {
-    await page.evaluate(() => window.pinBoard.replace(engine.listTools().slice(0, 9)))
-    await settle(async () => (await chipColours(page)).length, 9)
+  // Every tool the grid offers, far past any fixed list of colours.
+  it('give every pin its own colour, however many there are', withPage(async (page) => {
+    const count = await page.evaluate(() => { window.pinBoard.replace(engine.listTools()); return engine.listTools().length })
+    assert.ok(count > 30, `${count} pins, well past a short palette`)
+    await settle(async () => (await chipColours(page)).length, count)
     const colours = await chipColours(page)
-    assert.equal(new Set(colours).size, 9, `nine different colours: ${colours}`)
+    assert.equal(new Set(colours).size, count, `${count} pins, ${new Set(colours).size} different colours`)
   }))
 
   it('keep a tool\'s colour when it is pinned again, though another tool was pinned meanwhile', withPage(async (page) => {
@@ -144,8 +146,8 @@ describe('pin colours', () => {
   }))
 
   // A stored value this code did not write must not reach a chip's colour: each of these is read as no colour for the tool.
-  for (const colours of [null, 'red', { 'line/1': 99, 'sudoku/2': 'x', 'surface/': -1 }]) {
-    it(`are drawn from the palette whatever a stored value holds: ${JSON.stringify(colours)}`, withPage(async (page) => {
+  for (const colours of [null, 'red', { 'line/1': 1.5, 'sudoku/2': 'x', 'surface/': -1 }]) {
+    it(`are real colours whatever a stored value holds: ${JSON.stringify(colours)}`, withPage(async (page) => {
       await page.evaluate((bad) => {
         const key = Object.keys(localStorage).find((k) => k.startsWith('chinstrap.pins:'))
         localStorage.setItem(key, JSON.stringify({ ...JSON.parse(localStorage.getItem(key)), colours: bad }))
@@ -154,7 +156,7 @@ describe('pin colours', () => {
       await waitForDesk(page)
       await settle(async () => (await chipColours(page)).length, 3)
       const drawn = await chipColours(page)
-      assert.equal(drawn.every((c) => /^#[0-9a-f]{6}$/.test(c)), true, `palette colours: ${drawn}`)
+      assert.equal(drawn.every((c) => /^hsl\(\d/.test(c)), true, `colours: ${drawn}`)
       assert.equal(new Set(drawn).size, 3)
     }))
   }

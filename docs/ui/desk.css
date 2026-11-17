@@ -202,6 +202,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-preset-row > .ui-picker, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
 .ui-preset-row[hidden] { display: none; }
 .ui-preset-row > wa-button { flex: none; }
+/* Set apart from the load field: a gap and a rule, so it does not read as part of it. */
+.ui-preset-save { margin-left: 8px; padding-left: 8px; border-left: 1px solid #cfcabd; }
+.ui-dark .ui-preset-save { border-left-color: #4a5060; }
 .ui-preset-row > wa-button::part(base) { height: 28px; min-height: 0; padding: 0 8px; }
 /* The name field's label is for assistive tech: the placeholder says what to type. */
 .ui-preset-name::part(form-control-label) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

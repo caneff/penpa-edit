@@ -15,9 +15,12 @@
     const SHORTCUT_LABELS = Object.keys(SHORTCUT_SLOT_BY_CODE).map((code) => code.slice('Key'.length));
     const NUMBER_MODE = 'number';
     const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
-    // Ten colours far apart in hue, each dark enough for white text. A tool keeps its colour (`colours`, kept with the pins); only
-    // past ten pins does a colour repeat.
-    const PIN_PALETTE = ['#c0392b', '#1e7e34', '#1f5fbf', '#8e44ad', '#b9570e', '#0e7c86', '#b5266f', '#7a7a12', '#5b4bd1', '#8a5a2b'];
+    // Colour number `n` is the golden angle times `n` around the hue wheel, so each new colour lands in the widest gap left and no
+    // count of pins runs out; the lightness keeps white text readable on it.
+    const GOLDEN_ANGLE_DEG = 137.508;
+    const PIN_HUE_OFFSET_DEG = 220;
+    const PIN_SATURATION_PERCENT = 62;
+    const PIN_LIGHTNESS_PERCENT = 38;
     const NEUTRAL_COLOUR = '#7d828c';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
@@ -69,33 +72,26 @@
         // A pin for a tool the link no longer offers is dropped.
         let { nextId, pins, colours } = savedState() ?? seededState();
         pins = pins.filter(toolOf);
-        // What a saved palette index is worth: a whole number the palette has, else the tool gets a colour again.
-        const validColours = Object.fromEntries(Object.entries(colours ?? {}).filter(([, i]) => Number.isInteger(i) && PIN_PALETTE[i]));
+        // Each tool's colour number, kept with the pins and outliving them. A saved value that is not a whole number of 0 or more is dropped,
+        // and the tool gets a colour number again.
+        const validColours = Object.fromEntries(Object.entries(colours ?? {}).filter(([, n]) => Number.isInteger(n) && n >= 0));
 
         const pinIndexOf = (tool) => pins.findIndex((p) => toolKey(p) === toolKey(tool));
 
-        // The palette index for a tool with none: the colour fewest pins wear, then the one fewest other tools remember, so a tool
-        // unpinned for a while still finds its own colour free.
-        function freshColourFor(key, worn) {
-            const remembered = PIN_PALETTE.map(() => 0);
-            Object.entries(validColours).forEach(([other, index]) => { if (other !== key) { remembered[index]++; } });
-            return PIN_PALETTE.reduce((best, _, i) => (worn[i] < worn[best] || (worn[i] === worn[best] && remembered[i] < remembered[best]) ? i : best), 0);
-        }
-
-        // Gives each pin its tool's colour; the colours outlive the pins, so a tool pinned again comes back in its own. Two pins share a
-        // colour only past the palette's size.
+        // Gives each pin its tool's colour number, and a tool with none, or one a pin already wears, the next number nobody has had, so
+        // no two pins share a colour and a tool unpinned for a while still finds its own.
         function assignColours() {
-            const worn = PIN_PALETTE.map(() => 0);
+            const worn = new Set();
             pins.forEach((pin) => {
                 const key = toolKey(pin);
-                if (validColours[key] === undefined || worn[validColours[key]] > 0) {
-                    validColours[key] = freshColourFor(key, worn);
+                if (validColours[key] === undefined || worn.has(validColours[key])) {
+                    validColours[key] = Math.max(-1, ...Object.values(validColours)) + 1;
                 }
-                worn[validColours[key]]++;
+                worn.add(validColours[key]);
             });
         }
 
-        const pinColour = (pin) => PIN_PALETTE[validColours[toolKey(pin)]];
+        const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + validColours[toolKey(pin)] * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
 
         function save() {
             assignColours();

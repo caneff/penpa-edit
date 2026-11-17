@@ -5,12 +5,12 @@
 (function () {
     'use strict';
 
-    const { el, iconButton, onDeskReady } = window.uiKit;
+    const { el, onDeskReady } = window.uiKit;
     const { toolKey } = window.toolGuide;
 
     const STORAGE_KEY = 'chinstrap.pinPresets';
     const STARS_KEY = 'chinstrap.pinPresetStars';
-    const SAVE_LABEL = 'Save pins as a preset';
+    const SAVE_LABEL = 'Save pins…';
     // Keys that act on the highlighted preset, with Shift held; the buttons' hints name the same chords.
     const STAR_KEY = 'Enter';
     const DELETE_KEY = 'Delete';
@@ -19,7 +19,6 @@
     // How long the line offering an Undo stays, when nothing else clears it.
     const UNDO_VISIBLE_MS = 8000;
 
-    const SAVE_ICON = '<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5"/><path d="M4.5 13.5V9h7v4.5"/>';
     const STAR_ICON = '<path d="M8 1.8l1.9 4 4.3.6-3.1 3 .8 4.3L8 11.6l-3.9 2.1.8-4.3-3.1-3 4.3-.6z"/>';
     const TRASH_ICON = '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.5 6.5v4.5M9.5 6.5v4.5"/>';
     const ICON_ATTRS = 'width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"';
@@ -125,18 +124,17 @@
     }
 
     onDeskReady(({ cards }) => {
-        // The name form is closed on the resting card; the save icon opens it.
+        // The name form is closed on the resting card; the Save pins… button opens it.
         const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 'small' });
         const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
         const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
         const nameForm = el('div', { class: 'ui-preset-row', hidden: '' }, [nameInput, saveName, cancelName]);
-        const save = iconButton(SAVE_ICON, SAVE_LABEL, openForm);
-        // Web Awesome's small size, to sit level with the picker's field.
-        save.node.setAttribute('size', 'small');
-        save.node.setAttribute('title', SAVE_LABEL);
+        // A text button, so saving your own pins is not mistaken for saving the preset in the field; small, to sit level with it.
+        const save = el('wa-button', { class: 'ui-preset-save', appearance: 'outlined', variant: 'neutral', size: 'small' }, [SAVE_LABEL]);
+        save.addEventListener('click', openForm);
 
         function openForm() {
-            // Another click on the icon while the form is open keeps what was typed.
+            // Another click on the button while the form is open keeps what was typed.
             if (nameForm.hidden) {
                 nameForm.hidden = false;
                 nameInput.value = '';
@@ -317,7 +315,7 @@
             }
         });
 
-        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node, save.node]), nameForm, undoRow);
+        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node, save]), nameForm, undoRow);
 
         // The solver's saved presets, for the Settings dialog to list and delete.
         window.pinPresets = {

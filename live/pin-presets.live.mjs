@@ -336,15 +336,16 @@ describe('saving a preset', () => {
   before(async () => { opened = await openSolve(await link(['Line Normal', 'Sudoku Corner'])) })
   after(async () => { await opened?.context.close() })
 
-  it('is an icon button with a tooltip, which opens a field that says what it is for', async () => {
+  it('is a button that says "Save pins…" in visible text, apart from the load field, and opens a field that says what it is for', async () => {
     const { page } = opened
-    assert.equal(await saveButton(page).getAttribute('title'), 'Save pins as a preset')
+    // The role finds the button inside the web component, whose text is a slot; the host holds the text the solver reads.
+    const host = pinnedCard(page).locator('wa-button.ui-preset-save')
+    assert.equal(await settle(async () => (await host.innerText()).trim(), 'Save pins…'), 'Save pins…')
+    const [button, field] = await Promise.all([saveButton(page).boundingBox(), presetField(page).boundingBox()])
+    assert.ok(button.x >= field.x + field.width + 6, `the button starts ${button.x - (field.x + field.width)} px clear of the load field`)
     await saveButton(page).click()
     assert.equal(await nameField(page).getAttribute('placeholder'), 'Name this pin set')
     await page.keyboard.press('Escape')
-    const host = pinnedCard(page).locator('wa-button[title="Save pins as a preset"]')
-    assert.equal(await host.locator('svg').count(), 1, 'it shows an icon')
-    assert.equal(await host.evaluate((node) => [...node.childNodes].filter((n) => n.nodeType === 3 || (n.nodeType === 1 && !n.matches('svg, .ui-sr-only'))).length), 0, 'and no text')
   })
 
   it('survives a reload, is listed under Your presets and appears on another puzzle', async () => {
