@@ -128,9 +128,9 @@
 
         const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
             el('div', { class: 'ui-setting' }, [theme]),
-            el('div', { class: 'ui-setting' }, [showMouse]),
             el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
-            el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
+            el('div', { class: 'ui-setting' }, [presets, deletePreset]),
+            el('div', { class: 'ui-setting' }, [showMouse])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
             [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup]);

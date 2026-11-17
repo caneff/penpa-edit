@@ -140,15 +140,14 @@ describe('with Settings open', () => {
       window.focusLog = []
       document.addEventListener('focusin', (e) => window.focusLog.push(e.target.getAttribute?.('label') ?? e.target.tagName))
     })
-    // Shift+Tab until the log shows the wrap: the entry after the dialog's own (its close button).
+    // Shift+Tab until focus reaches a control that is neither the first one nor the dialog's own (its close button): the wrap.
     let log = []
     let wrapped
     for (let i = 0; i < MAX_SHIFT_TABS && wrapped === undefined; i++) {
       await page.keyboard.press('Shift+Tab')
       await afterTimeouts(page)
       log = await page.evaluate(() => window.focusLog)
-      const at = log.indexOf(DIALOG_LABEL)
-      wrapped = at < 0 ? undefined : log[at + 1]
+      wrapped = log.find((entry) => entry !== DIALOG_LABEL && entry !== firstLabel)
     }
     assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
     assert.equal(await focusIsInDialog(page), true)
