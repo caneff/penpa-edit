@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8"/>
+    <meta name="robots" content="noindex,nofollow"/>
+    <title>ChinStrap review</title>
+    <link rel="shortcut icon" href="./css/images/logo.png"/>
+    <style>
+        html, body { height: 100%; margin: 0; font-family: system-ui, sans-serif; background: #f4f4f6; color: #1c1c20; }
+        body { display: flex; }
+        aside { width: 260px; flex: none; display: flex; flex-direction: column; border-right: 1px solid #c8c8d0; background: #fff; }
+        aside h1 { font-size: 1rem; margin: 0; padding: 12px 14px; border-bottom: 1px solid #c8c8d0; }
+        #puzzle-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+        #puzzle-list button { display: block; width: 100%; text-align: left; border: 0; border-bottom: 1px solid #e4e4ea; background: none; padding: 9px 14px; font: inherit; cursor: pointer; }
+        #puzzle-list button:hover { background: #eef; }
+        #puzzle-list button[aria-current="true"] { background: #dde3ff; font-weight: 600; }
+        #puzzle-list small { display: block; font-weight: 400; color: #555; }
+        main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        #controls { display: flex; gap: 8px; align-items: center; padding: 8px 12px; border-bottom: 1px solid #c8c8d0; background: #fff; }
+        #controls label { margin-left: auto; }
+        #stage { flex: 1; min-height: 0; overflow: auto; }
+        #stage iframe { display: block; border: 0; background: #fff; }
+    </style>
+</head>
+
+<body>
+    <aside>
+        <h1>Puzzles</h1>
+        <ul id="puzzle-list"></ul>
+    </aside>
+    <main>
+        <div id="controls">
+            <button id="previous" type="button">Previous</button>
+            <button id="next" type="button">Next</button>
+            <label>Size
+                <select id="size" aria-label="Size"></select>
+            </label>
+        </div>
+        <div id="stage"></div>
+    </main>
+    <script src="./gallery-puzzles.js"></script>
+    <script src="./gallery.js"></script>
+</body>
+
+</html>

@@ -12,6 +12,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Pin**: a mode and one of its sub-modes the solver keeps for Tab in the new solve UI; its style is the last one used
   on it. The same mode can be pinned with different sub-modes.
 - **Tab cycle**: Tab and Shift+Tab stepping through the pins in the new solve UI. Not the Tab set, which only seeds them.
+- **Review page**: `docs/gallery.html` (the file keeps the name "gallery"): a list of representative puzzles, each opened in `solve.html` inside an iframe at a size the reviewer picks, for going through the solve page by hand.
 - **Upstream**: `swaroopg92/penpa-edit`, the Penpa+ this repo forks.
 - **The fork**: this repo, served at `https://caneff.github.io/penpa-edit/`.
 - **Redirect script**: `userscript/penpa-redirect.user.js`, which sends upstream's links to the fork.
