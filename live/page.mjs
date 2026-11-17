@@ -265,6 +265,16 @@ export function newBoardSolveLinkInPage (names) {
   return url.slice(url.indexOf('#'))
 }
 
+// Runs in the page. A 6x6 board with the rules `rules`; returns its solve link's `#` part.
+export function newBoardRulesSolveLinkInPage (rules) {
+  document.getElementById('nb_size1').value = 6
+  document.getElementById('nb_size2').value = 6
+  create_newboard()
+  document.getElementById('saveinforules').value = rules
+  const url = pu.maketext_solve()
+  return url.slice(url.indexOf('#'))
+}
+
 // One link per Tab set for a test file, since each costs a page of its own to build.
 const newBoardLinks = new Map()
 
