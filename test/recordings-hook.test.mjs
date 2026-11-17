@@ -1,6 +1,6 @@
 // The PreToolUse hook that keeps implement-lane workers off `live/recordings/**` (#33,
 // `.claude/hooks/deny-recording-writes.mjs`), spawned with the JSON Claude Code sends it, and its registration in
-// `.claude/settings.json`.
+// `.claude/settings.json`, whose `permissions` block (the one `npm ci` allow rule, #239) is checked here too.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
@@ -25,6 +25,8 @@ function decide (tool_name, tool_input, { project = WORKER, cwd = project, stdin
   assert.equal(out.hookEventName, 'PreToolUse')
   return out.permissionDecision
 }
+
+const SETTINGS = JSON.parse(readFileSync(new URL('../.claude/settings.json', import.meta.url), 'utf8'))
 
 const EXPECTED = `${WORKER}/live/recordings/genre/box.expected.json`
 
@@ -101,7 +103,7 @@ describe('the recordings hook outside a worker session', () => {
 
 describe('.claude/settings.json', () => {
   it('runs the hook before every file-writing tool and Bash', () => {
-    const { hooks } = JSON.parse(readFileSync(new URL('../.claude/settings.json', import.meta.url), 'utf8'))
+    const { hooks } = SETTINGS
     const entry = hooks.PreToolUse.find(({ hooks: h }) => h.some(({ command }) => command.includes(HOOK_PATH)))
     assert.ok(entry, `no PreToolUse entry runs ${HOOK_PATH}`)
     const matcher = new RegExp(`^(${entry.matcher})$`)
@@ -110,8 +112,7 @@ describe('.claude/settings.json', () => {
 
   // Chris, 2026-11-17 (#239): `npm ci` in a worker worktree must not prompt. The docs' rule syntax: a Bash rule with no `*`
   // matches one exact command, so `npm ci --foo` and `npm install` still prompt (https://code.claude.com/docs/en/permissions).
-  it('allows exactly `npm ci` without a prompt, and no other command', () => {
-    const { permissions } = JSON.parse(readFileSync(new URL('../.claude/settings.json', import.meta.url), 'utf8'))
-    assert.deepEqual(permissions.allow, ['Bash(npm ci)'])
+  it('has one permissions entry: the allow rule `Bash(npm ci)`', () => {
+    assert.deepEqual(SETTINGS.permissions, { allow: ['Bash(npm ci)'] })
   })
 })
