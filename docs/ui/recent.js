@@ -1,4 +1,4 @@
-// The Recent card: the last five tools the solver used, newest first, as pin chips without number or ×, each with a pin toggle from `window.pinBoard` (pins.js). Kept for this visit
+// The Recent card: the last five tools the solver used that are not pinned, newest first, as pin chips without number or ×, each with a pin toggle from `window.pinBoard` (pins.js). Kept for this visit
 // only, and outside the Tab cycle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -14,7 +14,8 @@
         const tools = engine.listTools();
         const toolOf = (entry) => tools.find((t) => toolKey(t) === toolKey(entry));
 
-        // Each entry is a tool and the style it was last used with, the newest first.
+        // Each entry is a tool and the style it was last used with, the newest first: every tool used, since a pinned one comes
+        // back here when unpinned.
         let entries = [];
         let drawn = '';
 
@@ -25,7 +26,7 @@
                 return;
             }
             const { mode, submode, style } = current;
-            entries = [{ mode, submode, style }, ...entries.filter((entry) => toolKey(entry) !== toolKey(current))].slice(0, MAX_ENTRIES);
+            entries = [{ mode, submode, style }, ...entries.filter((entry) => toolKey(entry) !== toolKey(current))];
         }
 
         function chip(entry, current) {
@@ -47,14 +48,16 @@
         function render() {
             noteCurrentTool();
             const currentKey = toolKey(engine.getTool());
-            const signature = JSON.stringify([entries, currentKey, entries.map((entry) => window.pinBoard.isPinned(entry))]);
+            const shown = entries.filter((entry) => !window.pinBoard.isPinned(entry)).slice(0, MAX_ENTRIES);
+            const signature = JSON.stringify([shown, currentKey]);
             if (signature !== drawn) {
                 drawn = signature;
-                strip.replaceChildren(...entries.map((entry) => chip(entry, toolKey(entry) === currentKey)));
+                strip.replaceChildren(...shown.map((entry) => chip(entry, toolKey(entry) === currentKey)));
             }
         }
 
         render();
         engine.on('change', render);
+        window.pinBoard.onChange(render);
     });
 })();
