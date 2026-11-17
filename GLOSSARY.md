@@ -78,6 +78,16 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Safety net**: the recordings, the tests and the CI checks the migration runs under. Its live files (`SAFETY_NET_FILES` in
   `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
   cannot reach them skips them (#268).
-- **Plant**: a one-line bug served in place of a file of `docs/js/` while recordings replay, to measure whether the
-  safety net catches it (`live/plants.mjs`). Caught when a replay with it differs from its expected file, fails its
-  duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
+- **Plant**: a one-line bug served in place of a file while a test runs, to measure whether the safety net catches it
+  (`live/plants.mjs`). A plant in `docs/js/` is served while recordings replay, and is caught when a replay with it differs
+  from its expected file, fails its duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
+  A plant in `docs/ui/` (`UI_PLANTS`) is caught when the UI fuzz finds it, shrinks it and replays it.
+- **UI fuzz**: random lists of actions on `solve.html`, checked by rules (`live/ui-fuzz/`, `npm run fuzz:ui`). Not the
+  recordings' fuzz (`live/fuzz.mjs`), which drives the engine.
+- **Action**: one thing a solver does in the UI fuzz (a kind and its numbers, `live/ui-fuzz/actions.mjs`). Not a **Step**,
+  which is a recording's input. The fuzz prints an action's place in its list as "step N" (and `--max-steps` caps the list's
+  length): a position, not a recording's Step.
+- **Action list**: the actions one fuzz run draws, naming its puzzle first; shrunk on a failure and replayed from its path.
+- **Rule**: something that must hold on the solve page after every action of a UI fuzz run (`live/ui-fuzz/rules.mjs`); a broken
+  rule fails the run as a crash does.
+- **Area**: the card or part of the page an action kind exercises; `--focus <area>` draws its kinds more often.
