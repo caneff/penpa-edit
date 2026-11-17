@@ -58,7 +58,7 @@ describe('the keyboard on the solve page', () => {
     assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
     await page.keyboard.press('Enter')
     assert.equal(await page.evaluate(() => engine.getTimer().covered), true, 'still paused')
-    await page.getByRole('button', { name: 'Resume' }).click()
+    await page.getByRole('button', { name: 'Resume' }).first().click() // the top bar's; the cover has one too
     assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
     await page.keyboard.press('Enter')
     assert.equal(await page.evaluate(() => engine.getTimer().covered), false, 'still running')
