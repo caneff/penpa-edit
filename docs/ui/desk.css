@@ -188,7 +188,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; }
 .ui-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
 .ui-styles.is-grid { display: grid; grid-template-columns: repeat(var(--ui-swatch-columns), auto); justify-content: start; }
-.ui-stylebtn { width: 28px; height: 28px; padding: 3px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #23262c; cursor: pointer; }
+.ui-stylebtn { width: calc(28px * var(--ui-text-scale, 1)); height: calc(28px * var(--ui-text-scale, 1)); padding: 3px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #23262c; cursor: pointer; }
+.ui-stylebtn svg { display: block; width: 100%; height: 100%; }
 .ui-stylebtn:hover { border-color: #8aa6e0; }
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }

@@ -105,15 +105,14 @@
 
     const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
 
-    // A 20 px sample of a style for its button: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
-    // `digit` is the key that picks a swatch's colour, or null where no key does.
+    // A sample (drawn on a 20 px grid, scaled with its button) of a style: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
+    // `digit` is the key that picks a swatch's colour, or null where no key does; it is printed white or black, whichever reads better on the swatch.
     function styleSample(name, swatch, sample, digit) {
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
         if (swatch) {
             return svg(`<rect class="ui-swatch" x="1" y="1" width="18" height="18" rx="3" fill="${swatch}" stroke="rgba(0,0,0,.3)"/>` +
-                (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" ` +
-                    `paint-order="stroke" stroke="#fff" stroke-width="2.5" stroke-linejoin="round" fill="#23262c">${digit}</text>`));
+                (digit === null ? '' : `<text x="10" y="14" text-anchor="middle" font-size="10" font-weight="700" font-family="system-ui,sans-serif" fill="${pillFor(swatch)}">${digit}</text>`));
         }
         const text = (label, extra = '', fill = 'currentColor') => svg(`${extra}<text x="10" y="14" text-anchor="middle" font-size="10" ` +
             `font-weight="700" font-family="system-ui,sans-serif" fill="${fill}">${label}</text>`);
