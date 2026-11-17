@@ -33,3 +33,5 @@ comparison is CPU time (`time` of `node --test live/engine-replay-1.live.mjs`, b
 
 k = 8 is the smallest that takes the part's cost down by half. Wall time of the three parts summed, k = 4 against full:
 517 s to 375 s (-27%), a noisy reading.
+
+Per replay, part 1 is 178 replays: full mode 1.47 s of CPU each, first/every 8th/last 0.71 s each.

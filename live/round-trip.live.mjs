@@ -123,10 +123,10 @@ describe('which checkpoints round-trip their duplicate link', () => {
     assert.deepEqual(at(3, 1), [0, 1, 2, 3], 'every 1 is every checkpoint')
   })
 
-  it('is every ROUND_TRIP_EVERY-th by default, and every checkpoint when the full-mode variable is set', () => {
+  it('is every ROUND_TRIP_EVERY-th by default, and every checkpoint when the full-mode variable is 1', () => {
     assert.ok(Number.isInteger(ROUND_TRIP_EVERY) && ROUND_TRIP_EVERY > 1)
     assert.equal(roundTripEvery({}), ROUND_TRIP_EVERY)
-    assert.equal(roundTripEvery({ [FULL_ROUND_TRIPS_ENV]: '' }), ROUND_TRIP_EVERY)
+    for (const off of ['', '0', 'false']) assert.equal(roundTripEvery({ [FULL_ROUND_TRIPS_ENV]: off }), ROUND_TRIP_EVERY, `"${off}" is not full mode`)
     assert.equal(roundTripEvery({ [FULL_ROUND_TRIPS_ENV]: '1' }), 1)
   })
 
@@ -139,7 +139,7 @@ describe('which checkpoints round-trip their duplicate link', () => {
     }
 
     it('checks the first, every k-th and the last checkpoint by default', async () => {
-      const { roundTripped, steps } = await checked({})
+      const { roundTripped, steps } = await checked({ roundTripEvery: roundTripEvery({}) })
       assert.ok(steps.length > ROUND_TRIP_EVERY + 1, 'the recording has checkpoints between')
       assert.deepEqual(roundTripped, steps.filter((step, index) => index % ROUND_TRIP_EVERY === 0 || index === steps.length - 1))
     })
