@@ -161,6 +161,14 @@
         return canvas;
     }
 
+    // The box, in canvas px, round the corners of the cell with point id `id`.
+    function cellBox(id) {
+        const corners = pu.point[id].surround.map((s) => pu.point[s]);
+        const xs = corners.map((p) => p.x);
+        const ys = corners.map((p) => p.y);
+        return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
+    }
+
     // MVP gap: Penpa+ hit-tests a click as `e.pageX - canvas.offsetLeft` (main.js), which is right only while the canvas's
     // offsetParent is the page. The real page position makes it right wherever the board sits. Penpa+ also assumes
     // 1 CSS px = 1 canvas px, so the board is never scaled by CSS; setCellSize resizes it.
@@ -1161,22 +1169,20 @@
             if (!cell || cell.type !== 0) {
                 return null;
             }
-            const corners = cell.surround.map((id) => pu.point[id]);
-            const xs = corners.map((p) => p.x);
-            const ys = corners.map((p) => p.y);
+            const box = cellBox(pu.cursol);
             const origin = canvas.getBoundingClientRect();
             return {
                 cell: pu.cursol,
-                left: origin.left + Math.min(...xs),
-                top: origin.top + Math.min(...ys),
-                right: origin.left + Math.max(...xs),
-                bottom: origin.top + Math.max(...ys)
+                left: origin.left + box.left,
+                top: origin.top + box.top,
+                right: origin.left + box.right,
+                bottom: origin.top + box.bottom
             };
         },
 
         // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
         // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
-        // leaves its row and column in place. Null for any other grid type.
+        // leaves its row and column in place. Null for any other grid type (`getGridArea` serves those).
         // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside two margin cells and
         // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
         getGridAxes() {
@@ -1191,6 +1197,28 @@
             return {
                 columns: span(pu.nx0 - 4 - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
                 rows: span(pu.ny0 - 4 - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+            };
+        },
+
+        // The grid's bounding box in viewport px, from the boxes of its cells, and the width of one cell in the same px: the area a
+        // reference band grid covers on a grid that is not square. Outside-clue margins and the canvas's own margin are not in it.
+        // A cell's width is the side of a square of the mean cell's area, since `pu.size` is the width of a cell on some grid types only.
+        // MVP gap: it reads `pu.centerlist`, so a cell Box mode has taken out of the list at the grid's edge shrinks the box.
+        getGridArea() {
+            const origin = boardCanvas().getBoundingClientRect();
+            const boxes = pu.centerlist.map(cellBox);
+            const cellArea = (id) => {
+                const corners = pu.point[id].surround.map((s) => pu.point[s]);
+                const twiceArea = corners.reduce((sum, p, i) => { const q = corners[(i + 1) % corners.length]; return sum + p.x * q.y - q.x * p.y; }, 0);
+                return Math.abs(twiceArea) / 2;
+            };
+            const meanArea = pu.centerlist.reduce((sum, id) => sum + cellArea(id), 0) / pu.centerlist.length;
+            return {
+                left: origin.left + Math.min(...boxes.map((b) => b.left)),
+                top: origin.top + Math.min(...boxes.map((b) => b.top)),
+                right: origin.left + Math.max(...boxes.map((b) => b.right)),
+                bottom: origin.top + Math.max(...boxes.map((b) => b.bottom)),
+                cellWidth: Math.sqrt(meanArea)
             };
         },
 

@@ -46,9 +46,9 @@
     // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
     const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
     const MOUSE_CLOSED = '1';
-    // Set to NUMBERS_SHOWN when the solver turned on the row and column numbers (#249).
-    const NUMBERS_KEY = 'chinstrap-solve-grid-numbers-v1';
-    const NUMBERS_SHOWN = '1';
+    // Set to COORDINATES_SHOWN when the solver turned on the board coordinates (#249, #250). The key keeps #249's name, so a setting made then holds.
+    const COORDINATES_KEY = 'chinstrap-solve-grid-numbers-v1';
+    const COORDINATES_SHOWN = '1';
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
     const RESIZE_HANDLES = {
         top: ['top'], right: ['right'], bottom: ['bottom'], left: ['left'],
@@ -821,41 +821,69 @@
     let cursorCell = null;
     let hasCursorMoved = false;
 
-    // The Board card's box that holds the canvas, and the layer in it that carries the row and column numbers (desk.css gives the
-    // box the gutter they sit in, while `ui-numbers-on` is set).
+    // The Board card's box that holds the canvas, and the layer in it that carries the board coordinates (desk.css gives the
+    // box the gutter they sit in, while `ui-coordinates-on` is set).
     let boardBox = null;
-    let numbersLayer = null;
+    let coordinatesLayer = null;
 
-    const canShowNumbers = () => engine.getGridAxes() !== null;
-    const areNumbersWanted = () => localStorage.getItem(NUMBERS_KEY) === NUMBERS_SHOWN;
+    const areCoordinatesWanted = () => localStorage.getItem(COORDINATES_KEY) === COORDINATES_SHOWN;
 
-    // The room the numbers take beside and above the canvas, which the fit leaves out.
-    const numbersGutter = () => (boardBox.classList.contains('ui-numbers-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
+    // The room the coordinates take beside and above the canvas, which the fit leaves out.
+    const coordinatesGutter = () => (boardBox.classList.contains('ui-coordinates-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
 
-    // Puts one label per row and column on the centre lines of the cells, in the gutter outside the canvas.
-    function drawNumbers() {
-        // Wanted is kept for every puzzle, so a grid that is not square meets it too and shows none.
-        const axes = areNumbersWanted() ? engine.getGridAxes() : null;
-        boardBox.classList.toggle('ui-numbers-on', axes !== null);
-        numbersLayer.replaceChildren();
-        if (axes === null) {
-            return;
-        }
-        const box = boardBox.getBoundingClientRect();
-        const gutter = numbersGutter();
-        const label = (axis, text, left, top) => el('span', { class: 'ui-grid-number', 'data-axis': axis, style: `left:${left}px;top:${top}px` }, [String(text)]);
-        numbersLayer.append(
-            ...axes.columns.map((x, i) => label('column', i + 1, x - box.left, gutter / 2)),
-            ...axes.rows.map((y, j) => label('row', j + 1, gutter / 2, y - box.top)));
+    // A band is about this many cells wide (#250), so a band is one to two cells wide whatever the grid's shape.
+    const BAND_CELLS = 1.5;
+    const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    // A, B, ... Z, AA, AB, ...: a grid wider than 26 bands runs on as a spreadsheet's columns do.
+    const bandName = (i) => (i < LETTERS.length ? '' : bandName(Math.floor(i / LETTERS.length) - 1)) + LETTERS[i % LETTERS.length];
+
+    // The labels of a grid that is not square (#250): letters over equal bands across the grid's bounding box, numbers down it, each at its band's middle.
+    function bandLabels(area) {
+        const bands = (from, to) => {
+            const count = Math.round((to - from) / (BAND_CELLS * area.cellWidth));
+            return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
+        };
+        return {
+            columns: bands(area.left, area.right).map((x, i) => ({ at: x, text: bandName(i) })),
+            rows: bands(area.top, area.bottom).map((y, j) => ({ at: y, text: j + 1 }))
+        };
     }
 
-    function setNumbersWanted(boardBody, shown) {
-        if (shown) {
-            localStorage.setItem(NUMBERS_KEY, NUMBERS_SHOWN);
-        } else {
-            localStorage.removeItem(NUMBERS_KEY);
+    // The labels of a square-cell grid: its own column and row numbers, on the centre lines of the cells.
+    function numberLabels(axes) {
+        return {
+            columns: axes.columns.map((x, i) => ({ at: x, text: i + 1 })),
+            rows: axes.rows.map((y, j) => ({ at: y, text: j + 1 }))
+        };
+    }
+
+    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue: numbers on a square-cell grid, bands on any other.
+    function drawCoordinates() {
+        const wanted = areCoordinatesWanted();
+        boardBox.classList.toggle('ui-coordinates-on', wanted);
+        coordinatesLayer.replaceChildren();
+        if (!wanted) {
+            return;
         }
-        drawNumbers();
+        const axes = engine.getGridAxes();
+        const labels = axes ? numberLabels(axes) : bandLabels(engine.getGridArea());
+        const box = boardBox.getBoundingClientRect();
+        const gutter = coordinatesGutter();
+        const label = (axis, { text }, left, top) => el('span', {
+            class: axes ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, style: `left:${left}px;top:${top}px`
+        }, [String(text)]);
+        coordinatesLayer.append(
+            ...labels.columns.map((c) => label('column', c, c.at - box.left, gutter / 2)),
+            ...labels.rows.map((r) => label('row', r, gutter / 2, r.at - box.top)));
+    }
+
+    function setCoordinatesWanted(boardBody, shown) {
+        if (shown) {
+            localStorage.setItem(COORDINATES_KEY, COORDINATES_SHOWN);
+        } else {
+            localStorage.removeItem(COORDINATES_KEY);
+        }
+        drawCoordinates();
         if (!isZoomed) {
             fitBoard(boardBody);
         }
@@ -880,11 +908,11 @@
     // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
         isZoomed = false;
-        drawNumbers();
+        drawCoordinates();
         for (let pass = 0; pass < FIT_PASSES; pass++) {
             const room = bodyRoom(boardBody);
-            const w = room.w - BOARD_FRAME_PX - numbersGutter();
-            const h = room.h - BOARD_FRAME_PX - numbersGutter();
+            const w = room.w - BOARD_FRAME_PX - coordinatesGutter();
+            const h = room.h - BOARD_FRAME_PX - coordinatesGutter();
             if (w < MIN_FIT_BOX_PX || h < MIN_FIT_BOX_PX) {
                 return;
             }
@@ -895,7 +923,7 @@
             }
         }
         showZoomLimits();
-        drawNumbers();
+        drawCoordinates();
     }
 
     // Scrolls the Board card's body so the cursor's cell is in view: only when it is not, or always (centred) with `centre`.
@@ -934,7 +962,7 @@
         isZoomed = true;
         engine.setCellSize(cellPx);
         showZoomLimits();
-        drawNumbers();
+        drawCoordinates();
     }
 
     function zoomBoard(boardBody, steps) {
@@ -980,15 +1008,15 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill the bar and the
+    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill the bar and the
     // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
         engine.mount(desk.cards.board.body);
         boardBox = desk.cards.board.body.firstElementChild;
-        numbersLayer = el('div', { class: 'ui-grid-numbers', 'aria-hidden': 'true' });
-        boardBox.append(numbersLayer);
+        coordinatesLayer = el('div', { class: 'ui-grid-coordinates', 'aria-hidden': 'true' });
+        boardBox.append(coordinatesLayer);
         openLayout();
         fitPending = Object.keys(saved).length === 0;
         layout(desk);
@@ -1074,7 +1102,7 @@
         cursorCell = engine.getFocusRect()?.cell ?? null;
         engine.on('change', () => {
             followCursor(boardBody);
-            drawNumbers();
+            drawCoordinates();
         });
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit, unless the solver
         // zoomed, which only Fit or a layout reset drops. The card is watched, not its body, since a scrollbar appearing
@@ -1083,10 +1111,10 @@
             if (!isZoomed) {
                 fitBoard(boardBody);
             } else {
-                drawNumbers();
+                drawCoordinates();
             }
         }).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.

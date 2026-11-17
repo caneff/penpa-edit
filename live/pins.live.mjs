@@ -249,7 +249,7 @@ describe('what a pin remembers', () => {
     // From pin 2, blue: Penpa+ keeps one style for all of Line, so the pick alone would come back blue.
     assert.equal((await currentTool(page)).style, 9)
     await page.getByRole('combobox', { name: 'Tool' }).fill('Drag through cell centres.')
-    await page.getByRole('treeitem', { name: 'Normal', exact: true }).click()
+    await page.getByRole('treeitem', { name: 'Line > Normal', exact: true }).click()
     await waitForTool(page, { mode: 'line', submode: '1' })
     assert.equal(await settle(async () => (await currentTool(page)).style, 8), 8, 'pin 1 is red again')
     const saved = await page.evaluate(() => window.pinBoard.snapshot())
