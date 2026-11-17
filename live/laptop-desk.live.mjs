@@ -17,6 +17,8 @@ const CARD_GAP_PX = 10
 const BAR_PADDING_PX = 14
 // The Mouse card's smallest height (desk.js's MIN_SIZE), which Rules leaves below itself.
 const MOUSE_MIN_HEIGHT_PX = 140
+// The Board card's smallest width (desk.js's MIN_SIZE).
+const MIN_BOARD_WIDTH_PX = 240
 // The tallest a card's header may be, controls and all.
 const HEAD_MAX_PX = 30
 // Box edges may differ by rounding.
@@ -257,6 +259,26 @@ describe('the desk on a laptop screen', () => {
         assert.deepEqual(shown, [label], `hovering ${card}'s ${name}`)
       }
     }
+  })
+
+  it('keeps the tool label on one line, cut short with its whole text as its tooltip, in a Board card dragged to its narrowest', async () => {
+    const page = await open(LAPTOPS[0])
+    const board = page.getByRole('region', { name: 'Board' })
+    const label = page.getByTestId('board-tool-name')
+    await page.evaluate(() => engine.setTool(engine.listTools().find((tool) => tool.mode === 'surface')))
+    const oneLine = (await label.boundingBox()).height
+    await page.evaluate(() => engine.setTool(engine.listTools().find((tool) => tool.mode === 'combi' && tool.submode === 'linex')))
+    const handle = await board.getByTestId('resize-right').boundingBox()
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(handle.x - 1000, handle.y + handle.height / 2, { steps: 5 })
+    await page.mouse.up()
+    const read = await deskSettled(page)
+    assert.equal(read.cards.Board.w <= MIN_BOARD_WIDTH_PX + SLACK_PX, true, `the Board card is ${read.cards.Board.w}px wide`)
+    assert.equal((await label.boundingBox()).height, oneLine, 'the label stays one line')
+    assert.equal(await label.evaluate((node) => node.scrollWidth > node.clientWidth), true, 'and is cut short')
+    assert.equal(await label.getAttribute('title'), await label.textContent(), 'its whole text is its tooltip')
+    assert.equal(read.overflowY.Board, 0, 'the board body does not scroll')
   })
 
   // Chris's case (Loop + edge × at 1366) and the longest Composite name, at each laptop size.
