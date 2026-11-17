@@ -769,6 +769,95 @@
         return [...holds.values()].some((before) => before.mode !== now.mode || before.submode !== now.submode);
     }
 
+    // ---- Change size ------------------------------------------------------------------------------------------------
+
+    const NOT_SQUARE = 'Only a grid of square cells can change size.';
+
+    // The sides `changeSize` takes, as the board is drawn: what the outermost line of cells there is called, the axis it lies
+    // across, which way is outward on that axis, and the side of Penpa+'s unturned board it is at each `get_orientation` value
+    // (0 to 3), main.js's table for its Change Size buttons (`rt_addtop` and the rest).
+    const SIZE_SIDES = Object.freeze({
+        top: { line: 'row', name: 'top row', axis: 'y', outward: -1, penpa: ['b', 'l', 't', 'r'] },
+        bottom: { line: 'row', name: 'bottom row', axis: 'y', outward: 1, penpa: ['t', 'r', 'b', 'l'] },
+        left: { line: 'column', name: 'left column', axis: 'x', outward: -1, penpa: ['r', 'b', 'l', 't'] },
+        right: { line: 'column', name: 'right column', axis: 'x', outward: 1, penpa: ['l', 't', 'r', 'b'] }
+    });
+    // Penpa+'s unturned sides: the method that resizes each, its index in `pu.space`, and the count of lines across it.
+    const PENPA_RESIZERS = { t: 'resize_top', b: 'resize_bottom', l: 'resize_left', r: 'resize_right' };
+    const PENPA_SPACE_INDEX = { t: 0, b: 1, l: 2, r: 3 };
+    const PENPA_LINE_COUNT = { t: 'ny', b: 'ny', l: 'nx', r: 'nx' };
+    // A point this far inside the line between the outermost two lines of cells, as a share of the cell size, is on the
+    // outermost line; one nearer is on that boundary and stays.
+    const BOUNDARY_SLACK = 0.1;
+
+    const penpaSideOf = (side) => SIZE_SIDES[side].penpa[pu.get_orientation(side[0])];
+
+    // The centres of the drawn cells' columns (`xs`) and rows (`ys`), in canvas px, ascending; blank rows and columns included.
+    // MVP gap: Penpa+ draws the cells `i + j * nx0` with i and j from 2 to nx0 - 3 and ny0 - 3, turned and flipped in place.
+    function drawnLines() {
+        const xs = new Set();
+        const ys = new Set();
+        for (let j = 2; j < pu.ny0 - 2; j++) {
+            for (let i = 2; i < pu.nx0 - 2; i++) {
+                const cell = pu.point[i + j * pu.nx0];
+                xs.add(Math.round(cell.x * 100) / 100);
+                ys.add(Math.round(cell.y * 100) / 100);
+            }
+        }
+        const ascending = (set) => [...set].sort((a, b) => a - b);
+        return { xs: ascending(xs), ys: ascending(ys) };
+    }
+
+    // The point ids that `entries` (`pu.pu_q` or `pu.pu_a`) puts anything on.
+    // MVP gap: Penpa+ keys an object feature by a point id or a "a,b" pair of them, and fills an array feature with lists of
+    // point ids, as its `translate_puzzle_elements` reads them; the undo logs are left out.
+    function pointsUsed(entries) {
+        const ids = [];
+        Object.entries(entries).forEach(([name, feature]) => {
+            if (name.startsWith('command_') || !feature) {
+                return;
+            }
+            if (Array.isArray(feature)) {
+                feature.forEach((item) => Array.isArray(item) && ids.push(...item));
+            } else {
+                Object.keys(feature).forEach((key) => ids.push(...key.split(',')));
+            }
+        });
+        return ids.map(Number).filter((id) => pu.point[id]);
+    }
+
+    // Whether point `id` lies on the outermost line of cells on `side`.
+    function isOnOutermostLine(id, side, drawn) {
+        const { axis, outward } = SIZE_SIDES[side];
+        const lines = axis === 'x' ? drawn.xs : drawn.ys;
+        const [outer, inner] = outward < 0 ? [lines[0], lines[1]] : [lines.at(-1), lines.at(-2)];
+        const boundary = (outer + inner) / 2;
+        const slack = Math.abs(outer - inner) * BOUNDARY_SLACK;
+        return (pu.point[id][axis] - boundary) * outward > slack;
+    }
+
+    // Why `changeSize(side, change)` cannot run on a square-cell grid, or null when it can.
+    function sizeChangeRefusal(side, change) {
+        const { line, name } = SIZE_SIDES[side];
+        const penpaSide = penpaSideOf(side);
+        if (change > 0) {
+            const max = pu.gridmax.square;
+            return pu[PENPA_LINE_COUNT[penpaSide]] + 1 > max ? `The board has ${max} ${line}s, the most Penpa+ allows.` : null;
+        }
+        if (pu.space[PENPA_SPACE_INDEX[penpaSide]] === 0) {
+            return `The ${name} is part of the grid.`;
+        }
+        const drawn = drawnLines();
+        const holds = (entries) => pointsUsed(entries).some((id) => isOnOutermostLine(id, side, drawn));
+        if (holds(pu.pu_q)) {
+            return `The ${name} holds a given.`;
+        }
+        if (holds(pu.pu_a)) {
+            return `The ${name} holds an entry.`;
+        }
+        return null;
+    }
+
     const engine = {
         ready,
 
@@ -1215,6 +1304,39 @@
                 px++;
             }
             return px;
+        },
+
+        // The board's size, blank rows and columns included, and what `changeSize` allows on each side: `add` and `remove` are
+        // null when allowed, else why not. `unavailable` says why no side can change (the grid is not square), else is null;
+        // `columns` and `rows` are null then.
+        getSizeChanges() {
+            boardCanvas();
+            const unavailable = pu.grid_is_square() ? null : NOT_SQUARE;
+            const sides = {};
+            Object.keys(SIZE_SIDES).forEach((side) => {
+                sides[side] = { add: unavailable ?? sizeChangeRefusal(side, 1), remove: unavailable ?? sizeChangeRefusal(side, -1) };
+            });
+            const drawn = unavailable ? null : drawnLines();
+            return { unavailable, columns: drawn ? drawn.xs.length : null, rows: drawn ? drawn.ys.length : null, sides };
+        },
+
+        // Adds (`change` 1) or removes (-1) a blank row or column on `side` of the board as drawn ('top', 'bottom', 'left' or
+        // 'right'). A change `getSizeChanges` does not allow throws, with its reason, and changes nothing.
+        changeSize(side, change) {
+            if (!Object.hasOwn(SIZE_SIDES, side)) {
+                throw new RangeError(`engine.changeSize: no side ${JSON.stringify(side)}; the sides are ${Object.keys(SIZE_SIDES).join(', ')}`);
+            }
+            if (change !== 1 && change !== -1) {
+                throw new RangeError(`engine.changeSize: change must be 1 or -1, got ${String(change)}`);
+            }
+            boardCanvas();
+            const reason = pu.grid_is_square() ? sizeChangeRefusal(side, change) : NOT_SQUARE;
+            if (reason) {
+                throw new Error(`engine.changeSize: ${reason}`);
+            }
+            // MVP gap: Penpa+'s Change Size buttons call `resize_top` and its siblings; 'white' makes the row blank board outside
+            // the grid (`pu.space`), and a removal takes only such a row.
+            pu[PENPA_RESIZERS[penpaSideOf(side)]](change, 'white');
         },
 
         // A key for the open puzzle that the solver's progress never changes, so a history copy of its link (which carries the
