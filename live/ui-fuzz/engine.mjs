@@ -72,12 +72,12 @@ export const runScript = ({ openTarget, puzzle, actions }) => runList(openTarget
 
 // Fuzzes with `seed` over `puzzles` (each list picks one) until `minutes` pass or `runs` lists have run, then shrinks a
 // failure for at most `shrinkMinutes`. `path`, as a failure prints it, replays that one list with no hunt and no shrink;
-// `maxCommands` shapes the lists, so a replay needs the one it was found with. Returns `{ failed: false, seed, runs }` or
-// the failure: `error`, `step` (the count of steps run when it was read), `puzzle` (its name), `sequence` (the steps, in
-// words), `seed`, `path` and `runs`.
-export async function runFuzz ({ openTarget, puzzles, seed, runs, minutes = DEFAULT_MINUTES, shrinkMinutes = DEFAULT_SHRINK_MINUTES, path, maxCommands }) {
+// `maxCommands` and `focus` (the areas whose actions are drawn more often) shape the lists, so a replay needs the ones it
+// was found with. Returns `{ failed: false, seed, runs }` or the failure: `error`, `step` (the count of steps run when it
+// was read), `puzzle` (its name), `sequence` (the steps, in words), `seed`, `path`, `focus` and `runs`.
+export async function runFuzz ({ openTarget, puzzles, seed, runs, minutes = DEFAULT_MINUTES, shrinkMinutes = DEFAULT_SHRINK_MINUTES, path, maxCommands, focus = [] }) {
   const [fcPath, replayPath] = path == null ? [] : path.split('@')
-  const property = fc.asyncProperty(actionList(puzzles, { maxCommands, replayPath }), ({ puzzle, commands }) => runList(openTarget, puzzle, [...commands]))
+  const property = fc.asyncProperty(actionList(puzzles, { maxCommands, replayPath, focus }), ({ puzzle, commands }) => runList(openTarget, puzzle, [...commands]))
   const replaying = fcPath != null
   // A path names its list by index, so a run limit one past it runs that list alone.
   const upTo = (p) => Number(p.split(':')[0]) + 1
@@ -105,6 +105,7 @@ export async function runFuzz ({ openTarget, puzzles, seed, runs, minutes = DEFA
     sequence: stepsOf(shown),
     seed: found.seed,
     path: `${found.counterexamplePath}@${REPLAY_PATH.exec(shown)[1]}`,
+    focus,
     runs: hunt.numRuns
   }
 }
