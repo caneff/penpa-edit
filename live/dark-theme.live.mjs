@@ -28,6 +28,8 @@ async function openIn (theme) {
   await opened.page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}; window.__groundOf = ${groundOfInPage}; window.__boardCanvas = ${boardCanvasInPage}` })
   await opened.page.evaluate((t) => engine.setTheme(t), theme)
   await settle(() => opened.page.evaluate(() => document.documentElement.classList.contains('wa-dark')), theme === 'dark')
+  // The colours ease to the new theme's; read them only once the easing is over.
+  await opened.page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
   return opened
 }
 
@@ -115,13 +117,15 @@ for (const theme of ['light', 'dark']) {
     it('the Board label and every card text meet 4.5:1, for every tool and style', async () => {
       const { context, page } = await openIn(theme)
       await page.addScriptTag({ content: `window.__lowContrast = ${lowContrastTextInPage}` })
-      assert.deepEqual(await page.evaluate(() => window.__lowContrast()), [], 'on opening')
+      // Colours ease to their new value, so each read waits until the list settles.
+      const lowContrast = () => settle(() => page.evaluate(() => window.__lowContrast()), [])
+      assert.deepEqual(await lowContrast(), [], 'on opening')
       for (const tool of TOOLS) {
         await page.evaluate((t) => engine.setTool(t), tool)
         const styles = page.locator('.ui-stylebtn')
         for (let i = 0, n = await styles.count(); i < n; i++) {
           await styles.nth(i).click()
-          assert.deepEqual(await page.evaluate(() => window.__lowContrast()), [], `${JSON.stringify(tool)}, style button ${i}`)
+          assert.deepEqual(await lowContrast(), [], `${JSON.stringify(tool)}, style button ${i}`)
         }
       }
       await context.close()
