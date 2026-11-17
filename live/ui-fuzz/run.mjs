@@ -1,4 +1,5 @@
-// The UI fuzz from the command line (#195): `npm run fuzz:ui -- [--seed <n>] [--minutes <m>] [--path <printed path>]`.
+// The UI fuzz from the command line (#195): `npm run fuzz:ui -- [--seed <n>] [--minutes <m>] [--path <printed path>]
+// [--focus <area> ...]`, `--focus` drawing that area's actions more often.
 // Random action lists on `solve.html` in headless Chromium, 2 minutes by default; a crash signal fails the run, which is
 // shrunk and printed with its seed, its steps and the command that replays it. Exits 1 on a failure. Not in `npm test` or
 // `npm run test:live`.
@@ -8,12 +9,12 @@ import { runFuzz } from './engine.mjs'
 import { uiFuzzPuzzles } from './puzzles.mjs'
 import { openTarget } from './target.mjs'
 
-const { seed = Math.floor(Math.random() * 2 ** 31), minutes, path } = parseFuzzArgs(process.argv.slice(2))
+const { seed = Math.floor(Math.random() * 2 ** 31), minutes, path, focus } = parseFuzzArgs(process.argv.slice(2))
 const puzzles = await uiFuzzPuzzles()
 const started = Date.now()
 const browser = await chromium.launch()
 try {
-  const r = await runFuzz({ openTarget: openTarget(browser), puzzles, seed, minutes, path })
+  const r = await runFuzz({ openTarget: openTarget(browser), puzzles, seed, minutes, path, focus })
   const seconds = Math.round((Date.now() - started) / 1000)
   if (!r.failed) {
     console.log(`fuzz:ui passed: ${r.runs} action lists over ${puzzles.length} puzzles in ${seconds} s (seed ${r.seed})`)
