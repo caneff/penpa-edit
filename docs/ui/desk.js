@@ -448,10 +448,10 @@
         target.addEventListener('pointercancel', end);
     }
 
-    // Cards raised by a click stack above the others, from the cards' own z-index up to just below the top bar's (desk.css).
+    // Cards raised by a click stack above the others, from the cards' own z-index up to two below the top bar's, one short of a card with an open picker list (desk.css).
     function makeMovable(bar, desk, cards) {
         const firstZ = Number(getComputedStyle(cards.board.node).zIndex);
-        const lastZ = Number(getComputedStyle(bar).zIndex) - 1;
+        const lastZ = Number(getComputedStyle(bar).zIndex) - 2;
         let topZ = firstZ;
         Object.entries(cards).forEach(([id, { node, head, handles }]) => {
             const [minWidth, minHeight] = MIN_SIZE[id];

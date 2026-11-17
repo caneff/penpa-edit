@@ -158,6 +158,7 @@
         const list = el('div', { class: 'ui-list', hidden: '' }, [toolTree.levels, toolTree.tree, none]);
         const toolOptions = el('div', { class: 'ui-toolopts' });
         const picker = el('div', { class: 'ui-picker' }, [input, list]);
+        window.floatList(input, list);
         // pins.js adds the pin toggle to the row.
         body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker]), toolOptions);
 
