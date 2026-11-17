@@ -42,8 +42,6 @@ const ICEBREAKER = {
     'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
   tabs: ['Surface', 'Line Normal', 'Composite']
 }
-// A title too long for the bar's left end beside full-size buttons at 1280 wide, short enough for it beside smaller ones.
-const LONG_TITLE = { ...ICEBREAKER, title: 'Icebreaker (Nurikabe + Icelom), longer title' }
 
 // The Icebreaker rules four times over: more than Rules can show at a laptop size.
 const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
@@ -204,9 +202,21 @@ describe('the top bar on a laptop screen', () => {
   }
 
   it('makes the buttons smaller only when the title still overlaps them at the left end', async () => {
-    const page = await open(LONG_TITLE, WIDE)
+    const page = await open(ICEBREAKER, LAPTOPS[0])
+    // The title grows one narrow letter at a time until the bar goes compact, so the title is the longest the left end takes beside full-size buttons whatever the font.
+    const grown = await page.evaluate(async () => {
+      const bar = document.querySelector('.ui-bar')
+      const title = bar.querySelector('.ui-title')
+      const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      for (let letters = 0; letters < 80 && !bar.classList.contains('is-compact'); letters++) {
+        title.textContent += 'i'
+        await frames()
+      }
+      return bar.classList.contains('is-compact')
+    })
+    assert.equal(grown, true, 'a long enough title makes the bar compact')
+    const small = await steady(page, readBarInPage)
     const full = await barAt(page, WIDE)
-    const small = await barAt(page, LAPTOPS[0])
     assert.equal(small.buttonHeight < full.buttonHeight, true, `buttons ${small.buttonHeight}px at 1280, ${full.buttonHeight}px at ${WIDE.width}`)
     assert.equal(near(small.heading.x, small.bar.x + BAR_PADDING_PX), true, `at the left end: ${JSON.stringify(small.heading)}`)
     assert.deepEqual(overlapping(small), [])
