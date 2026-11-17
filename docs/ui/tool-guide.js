@@ -331,7 +331,7 @@
         'battleship_W+': 'Ship, curvy, white', slovak: 'Slovak sums', angleloop: 'Angle loop'
     };
 
-    // The name a picker, chip and headline give the tool's sub-mode.
+    // The name every card gives the tool's sub-mode.
     const submodeLabel = (tool) => (tool.mode === 'symbol' && SHAPE_NAMES[tool.submode]) || tool.submodeName;
 
     // What Left click, Right click and Drag do with the tool, plus extra rows as [gesture, effect].
@@ -347,7 +347,7 @@
 
     const capitalised = (text) => text.charAt(0).toUpperCase() + text.slice(1);
 
-    // The one-line name a pin chip and a Recent chip give a tool of `listTools()`.
+    // The one name every card gives a tool of `listTools()`: the Mode field, the Board label, the Mouse headline, the chips and the flash.
     function chipLabel(tool) {
         if (!tool.submodeName) {
             return tool.modeName;
@@ -355,5 +355,5 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel, submodeLabel };
+    window.toolGuide = { TOOL_GROUPS, NOTHING, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
 })();

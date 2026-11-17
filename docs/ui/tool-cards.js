@@ -4,9 +4,8 @@
 (function () {
     'use strict';
 
-    const SEPARATOR = ' · ';
     const MULTICOLOR_MODE = 'multicolor';
-    const { NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -18,32 +17,30 @@
         return tool.styles.find((s) => s.style === style) ?? null;
     }
 
-    // Mode, sub-mode and style as the Mouse card's headline and the title bar show them.
-    function nameParts(tool, style) {
-        return [tool.modeName, submodeLabel(tool), styleOf(tool, style)?.name].filter(Boolean);
+    // A pale style colour disappears on the title bar's light pill, so the pill goes dark behind it. The canvas reads any CSS colour
+    // back as #rrggbb.
+    const PALE_LUMINANCE = 0.55;
+    const PILL_ON_PALE = '#2b2f38';
+    function pillFor(colour) {
+        const ctx = document.createElement('canvas').getContext('2d');
+        ctx.fillStyle = colour;
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(ctx.fillStyle.slice(i, i + 2), 16));
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > PALE_LUMINANCE ? PILL_ON_PALE : null;
     }
+
+    // The colour a tool's selected style paints, or null for a tool with no colour style.
+    const styleColour = (tool, style) => styleOf(tool, style)?.swatch ?? null;
 
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 
+    // The tool's one name, with a dot in the selected style's colour; the full name is the tooltip when a narrow card cuts it.
     function headline(tool, style, held) {
-        const h3 = el('h3', { class: 'ui-headline' });
-        const style_ = styleOf(tool, style);
-        // Each part carries its own class, so a missing sub-mode never shifts the style's class or swatch onto another part.
-        const parts = [
-            [tool.modeName, 'ui-hmode'],
-            [submodeLabel(tool), 'ui-hsub'],
-            [style_?.name, 'ui-hstyle']
-        ].filter(([text]) => text);
-        parts.forEach(([text, cls], i) => {
-            if (i) {
-                h3.append(el('span', { class: 'ui-hsep' }, [SEPARATOR]));
-            }
-            const span = el('span', { class: cls }, [text]);
-            if (cls === 'ui-hstyle' && style_.swatch) {
-                span.prepend(el('i', { class: 'ui-dot', style: `background:${style_.swatch}` }));
-            }
-            h3.append(span);
-        });
+        const name = chipLabel(tool);
+        const colour = styleColour(tool, style);
+        const h3 = el('h3', { class: 'ui-headline', title: name }, [
+            ...(colour ? [el('i', { class: 'ui-dot', style: `background:${colour}` })] : []),
+            el('span', { class: 'ui-hname' }, [name])
+        ]);
         if (held) {
             h3.append(el('span', { class: 'ui-held' }, ['held']));
         }
@@ -62,23 +59,19 @@
         ]));
     }
 
-    // The contents that can set the Mouse card's height, as markup: of the contents sharing one set of rows, only the one
-    // with the longest headline, since the headline's wrapping is all that tells them apart. Found once, so measuring at
-    // a new width costs one layout per set of rows, not one render per tool and style.
+    // The contents that can set the Mouse card's height, as markup: one per distinct set of rows, since the headline is one
+    // line whatever the tool. Found once, so measuring at a new width costs one layout per set of rows, not one render per tool and style.
     let mouseContents = null;
     function allMouseContents(probe, tools) {
-        const longest = new Map();
+        const bySetOfRows = new Map();
         tools.forEach((tool) => {
-            (tool.styles.length ? tool.styles : [{ style: null }]).forEach(({ style }) => {
-                renderMouse(probe, tool, style, true);
-                const rows = probe.querySelector('.ui-mrows').innerHTML;
-                const headlineLength = probe.querySelector('.ui-headline').textContent.length;
-                if (headlineLength > (longest.get(rows)?.headlineLength ?? -1)) {
-                    longest.set(rows, { headlineLength, html: probe.innerHTML });
-                }
-            });
+            renderMouse(probe, tool, tool.styles[0]?.style ?? null, true);
+            const rows = probe.querySelector('.ui-mrows').innerHTML;
+            if (!bySetOfRows.has(rows)) {
+                bySetOfRows.set(rows, probe.innerHTML);
+            }
         });
-        return [...longest.values()].map(({ html }) => html);
+        return [...bySetOfRows.values()];
     }
 
     // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
@@ -164,6 +157,7 @@
         const list = el('div', { class: 'ui-list', hidden: '' }, [toolTree.levels, toolTree.tree, none]);
         const toolOptions = el('div', { class: 'ui-toolopts' });
         const picker = el('div', { class: 'ui-picker' }, [input, list]);
+        window.floatList(input, list);
         // pins.js adds the pin toggle to the row.
         body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker]), toolOptions);
 
@@ -171,7 +165,7 @@
 
         function showCurrent() {
             const current = tools.find((t) => toolKey(t) === toolKey(engine.getTool()));
-            input.value = current ? describeTool(current).name : '';
+            input.value = current ? chipLabel(current) : '';
         }
 
         // The focus returns to the board by leaving the picker: nothing else on the page takes keys.
@@ -322,7 +316,16 @@
             drawn = now;
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held);
-            titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
+            titleBarName.textContent = chipLabel(tool);
+            const colour = styleColour(tool, current.style);
+            if (colour) {
+                cards.board.node.style.setProperty('--ui-style-colour', colour);
+                const pill = pillFor(colour);
+                cards.board.node.style[pill ? 'setProperty' : 'removeProperty']('--ui-style-pill', pill);
+            } else {
+                cards.board.node.style.removeProperty('--ui-style-colour');
+                cards.board.node.style.removeProperty('--ui-style-pill');
+            }
             mode.render(tool, current.style, orientation);
         }
 
