@@ -19,8 +19,8 @@
         return tool.styles.find((s) => s.style === style) ?? null;
     }
 
-    // The label's text is the style's colour, so its pill is white or black, whichever shows that colour better: no one pill holds a mid
-    // tone at 4.5:1, and the better of these two never falls under it. The canvas reads any CSS colour back as #rrggbb.
+    // White or black, whichever reads better on `colour`: no one ink holds a mid tone at 4.5:1, and the better of these two never falls
+    // under it. The canvas reads any CSS colour back as #rrggbb.
     const channelLinear = (c) => { const s = c / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4; };
     function pillFor(colour) {
         const ctx = document.createElement('canvas').getContext('2d');
@@ -34,6 +34,8 @@
     // The colour a tool's selected style paints, or null for a tool with no colour style.
     const styleColour = (tool, style) => styleOf(tool, style)?.swatch ?? null;
 
+    const dot = (colour) => el('i', { class: 'ui-dot', style: `background:${colour}` });
+
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 
     // The tool's one name, with a dot in the selected style's colour; the full name is the tooltip when a narrow card cuts it.
@@ -41,7 +43,7 @@
         const name = chipLabel(tool);
         const colour = styleColour(tool, style);
         const h3 = el('h3', { class: 'ui-headline', title: name }, [
-            ...(colour ? [el('i', { class: 'ui-dot', style: `background:${colour}` })] : []),
+            ...(colour ? [dot(colour)] : []),
             el('span', { class: 'ui-hname' }, [name])
         ]);
         if (held) {
@@ -52,7 +54,7 @@
 
     // An effect's words, with a dot in `secondColour` where it names the 2nd colour (no dot when there is none).
     function effectNodes(effect, secondColour) {
-        return effect.split(SECOND_COLOUR_DOT).flatMap((text, i) => (i === 0 || !secondColour ? [text] : [el('i', { class: 'ui-dot', style: `background:${secondColour}` }), text]));
+        return effect.split(SECOND_COLOUR_DOT).flatMap((text, i) => (i === 0 || !secondColour ? [text] : [dot(secondColour), text]));
     }
 
     // A flick tool's nine keys, drawn as a 3×3 keypad.
@@ -356,17 +358,11 @@
             drawn = now;
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held, secondColour);
-            titleBarName.textContent = chipLabel(tool);
+            // Drawn like the current pin's chip, whose colour pins.js gives the card; the dot is the selected style's, as on the Mouse card.
+            const colour = styleColour(tool, current.style);
+            titleBarName.replaceChildren(...(colour ? [dot(colour)] : []), chipLabel(tool));
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
             titleBarName.title = titleBarName.textContent;
-            const colour = styleColour(tool, current.style);
-            if (colour) {
-                cards.board.node.style.setProperty('--ui-style-colour', colour);
-                cards.board.node.style.setProperty('--ui-style-pill', pillFor(colour));
-            } else {
-                cards.board.node.style.removeProperty('--ui-style-colour');
-                cards.board.node.style.removeProperty('--ui-style-pill');
-            }
             mode.render(tool, current.style, orientation);
         }
 
