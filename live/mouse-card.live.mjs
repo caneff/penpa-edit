@@ -8,7 +8,7 @@
 // style number, a symbol) are named once below, read from Penpa+'s code and confirmed on the board.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
+import { newBoardSolveLink, openSolvePage, shareOf, useBrowser } from './page.mjs'
 import { cellPixel } from './replay.mjs'
 
 const browser = useBrowser()
@@ -737,7 +737,7 @@ describe('the Mouse card against the board', () => {
           shapes: engine.listTools().filter((t) => t.mode === 'symbol' && Boolean(pu.onoff_symbolmode_list[t.submode]) === onOff)
             .map((t) => ({ submode: t.submode, parts: pu.onoff_symbolmode_list[t.submode], rows: toolGuide.mouseRows(t) }))
         }), rowSet === 'onOff')
-        const ours = shapes.filter((_, i) => i % SHAPE_PARTS === part)
+        const ours = shareOf(shapes, part, SHAPE_PARTS)
         assert.notEqual(ours.length, 0, `the page offers ${rowSet} shapes`)
         const wrong = []
         for (const { submode, parts, rows } of ours) {
