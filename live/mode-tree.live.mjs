@@ -149,14 +149,14 @@ describe('the Mode card tree', () => {
     await page.keyboard.press('Escape')
   })
 
-  it('keeps a click on a branch from changing the open state while a search holds the tree open, and the Open to buttons wait', async () => {
+  it('keeps a click on a branch from changing the open state while a search holds the tree open, and the Open to row steps aside', async () => {
     const { page } = opened
     await reopen()
     await search().fill('Diagonal')
     await item('Lines through cells').click()
     assert.equal(await item('Lines through cells').getAttribute('aria-expanded'), 'true', 'a search keeps its matches open')
     for (const name of ['Groups', 'Modes', 'Everything']) {
-      assert.equal(await mode().getByRole('button', { name, exact: true }).isDisabled(), true, `${name} waits for the search`)
+      assert.equal(await mode().getByRole('button', { name, exact: true }).isVisible(), false, `${name} steps aside for the search`)
     }
     await search().fill('')
     assert.equal(await item('Lines through cells').getAttribute('aria-expanded'), 'false', 'the click during the search folded nothing, opened nothing')
@@ -189,6 +189,60 @@ describe('the Mode card tree', () => {
     assert.equal((await visibleNames()).includes('XS'), true)
     await search().fill('genre kakuro')
     assert.equal((await visibleNames()).includes('Kakuro clue box'), true, 'a group or subgroup name finds the tools under it')
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('ranks a match on a tool\'s own label above a match on its description, and "center" and "pencil" find tools', async () => {
+    const picked = async (typed) => {
+      await reopen()
+      await search().fill(typed)
+      await search().press('Enter')
+      const tool = await currentTool(opened.page)
+      return [tool.mode, tool.submode]
+    }
+    assert.deepEqual(await picked('sudoku corner'), ['sudoku', '2'], '"sudoku corner" picks Sudoku > Corner marks')
+    assert.deepEqual(await picked('centre'), ['sudoku', '3'], '"centre" picks Sudoku > Centre marks, not a tool that only mentions centres')
+    assert.deepEqual(await picked('center'), ['sudoku', '3'], '"center" is "centre"')
+    await reopen()
+    await search().fill('pencil')
+    const found = await tree().locator('[role=treeitem][data-mode=sudoku]:visible').evaluateAll((rows) => rows.map((row) => row.getAttribute('data-submode')))
+    assert.deepEqual(found, ['2', '3'], '"pencil" finds both pencil-mark tools')
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('highlights the row Enter picks while a search is typed, and the current tool is only bold', async () => {
+    await reopen({ mode: 'line', submode: '1' })
+    await search().fill('e')
+    const best = tree().locator('[role=treeitem].ui-tbest')
+    assert.equal(await best.count(), 1, 'exactly one row is highlighted')
+    assert.equal(await search().getAttribute('aria-activedescendant'), await best.getAttribute('id'), 'the field names the highlighted row')
+    const expected = [await best.getAttribute('data-mode'), await best.getAttribute('data-submode')]
+    await search().press('Enter')
+    const tool = await currentTool(opened.page)
+    assert.deepEqual([tool.mode, tool.submode ?? ''], expected, 'Enter picks the highlighted row')
+    await reopen({ mode: 'line', submode: '1' })
+    assert.equal(await tree().locator('.ui-tbest').count(), 0, 'no highlight without a search')
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('sends a letter typed in the tree back to the search field', async () => {
+    await reopen()
+    await search().fill('e')
+    await search().press('ArrowDown')
+    await opened.page.keyboard.type('x')
+    assert.equal(await search().inputValue(), 'ex')
+    await opened.page.keyboard.press('Backspace')
+    assert.equal(await search().inputValue(), 'e', 'Backspace in the tree edits the field')
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('hides the Open to row while a search is typed', async () => {
+    await reopen()
+    assert.equal(await mode().getByRole('button', { name: 'Modes', exact: true }).isVisible(), true)
+    await search().fill('line')
+    assert.equal(await mode().getByRole('button', { name: 'Modes', exact: true }).isVisible(), false)
+    await search().fill('')
+    assert.equal(await mode().getByRole('button', { name: 'Modes', exact: true }).isVisible(), true)
     await opened.page.keyboard.press('Escape')
   })
 
