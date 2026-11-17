@@ -19,7 +19,7 @@ const ZOOM_STEPS = 10
 
 // Runs in the page: the banner's box, the board canvas's, the Board card body's visible part, the banner's colour and the
 // card's current tool colour, and what the pointer would hit at the banner's centre (null off the page).
-function readBannerInPage (canvasInPage) {
+function readBannerInPage (canvasNode) {
   const box = (node) => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom } }
   const banner = document.querySelector('.ui-flash')
   const b = box(banner)
@@ -28,7 +28,7 @@ function readBannerInPage (canvasInPage) {
   const view = body.getBoundingClientRect()
   return {
     banner: b,
-    canvas: box(new Function(`return (${canvasInPage})()`)()),
+    canvas: box(canvasNode),
     hit: hit === null ? null : hit === banner ? 'banner' : hit.tagName.toLowerCase(),
     view: { left: view.left + body.clientLeft, right: view.left + body.clientLeft + body.clientWidth, top: view.top + body.clientTop, bottom: view.top + body.clientTop + body.clientHeight },
     colour: banner.style.getPropertyValue('--ui-flash-colour'),
@@ -36,7 +36,14 @@ function readBannerInPage (canvasInPage) {
     inHead: Boolean(document.querySelector('section[aria-label="Board"] .ui-head .ui-flash'))
   }
 }
-const readBanner = (page) => page.evaluate(readBannerInPage, boardCanvasInPage.toString())
+async function readBanner (page) {
+  const canvas = await page.evaluateHandle(boardCanvasInPage)
+  try {
+    return await page.evaluate(readBannerInPage, canvas)
+  } finally {
+    await canvas.dispose()
+  }
+}
 
 const within = (inner, outer) => inner.left >= outer.left - SLACK_PX && inner.right <= outer.right + SLACK_PX && inner.top >= outer.top - SLACK_PX && inner.bottom <= outer.bottom + SLACK_PX
 const centreX = (r) => (r.left + r.right) / 2
