@@ -2,21 +2,24 @@
 // as links that open in a new tab, rules text that stays text, and a card of one line when the link has no rules.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { linkFromNewBoard, newBoardRulesSolveLinkInPage, openSolvePage, useBrowser } from './page.mjs'
+import { newBoardSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
 const URL = 'https://example.com/a/very/long/path/that/keeps/going/and/going/and/going/until/it/cannot/fit/in/the/card/at/all'
 const LONG_ITEM = '- ' + 'a wrapped bullet whose text is long enough to need a second line inside the card '.repeat(3).trim()
-const RULES = ['Plain line.', LONG_ITEM, '1. numbered item', `See ${URL}.`, '<b>x</b>', 'x'.repeat(200)].join('\n')
+const WIKI = 'https://en.wikipedia.org/wiki/Nurikabe_(puzzle)'
+// Short enough to fit the card's own height cap, which a long text meets (#199).
+const SIX_LINES = ['Line one.', 'Line two.', 'Line three.', 'Line four.', 'Line five.', 'Line six.'].join('\n')
+const RULES = ['Plain line.', LONG_ITEM, '1. numbered item', `See ${URL}.`, '<b>x</b>', '- <b>y</b>', `(see ${WIKI}).`, 'x'.repeat(200)].join('\n')
 
 describe('the Rules card', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
   const open = async (rules) => {
-    opened = await openSolvePage(browser(), await linkFromNewBoard(browser(), newBoardRulesSolveLinkInPage, rules))
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, rules))
     return opened.page
   }
   const body = (page) => page.locator('section[aria-label="Rules"] .ui-body')
@@ -44,6 +47,7 @@ describe('the Rules card', () => {
     const link = body(page).getByRole('link', { name: URL })
     assert.equal(await link.getAttribute('href'), URL, 'the trailing full stop is not part of the link')
     assert.equal(await link.getAttribute('target'), '_blank')
+    assert.equal(await body(page).getByRole('link', { name: WIKI }).getAttribute('href'), WIKI, 'a ) that closes a ( in the URL stays, the one after it goes')
     assert.equal(await link.getAttribute('rel'), 'noopener noreferrer')
   })
 
@@ -51,11 +55,56 @@ describe('the Rules card', () => {
     const page = await open(RULES)
     assert.equal(await body(page).locator('b').count(), 0, 'no element was made from the rules')
     assert.equal(await body(page).getByText('<b>x</b>', { exact: true }).count(), 1)
+    assert.equal(await body(page).locator('.ui-rules-item-text').getByText('<b>y</b>', { exact: true }).count(), 1, 'also in a list item')
   })
 
   it('shows the rules at 14 px by default', async () => {
     const page = await open(RULES)
     assert.equal(await body(page).evaluate((b) => parseFloat(getComputedStyle(b).fontSize)), 14)
+  })
+
+  it('fits the card to every line of the rules, so none is cut off', async () => {
+    const page = await open(SIX_LINES)
+    const overflow = () => body(page).evaluate((b) => b.scrollHeight - b.clientHeight)
+    assert.equal(await settle(overflow, 0), 0, 'the body shows all six lines without scrolling')
+  })
+
+  it('counts rules made only of spaces and line breaks as none', async () => {
+    const page = await open(' \n  \n')
+    assert.equal(await body(page).textContent(), 'No rules in this link.')
+    assert.equal(await page.getByRole('button', { name: 'Bigger rules text' }).isDisabled(), true)
+  })
+
+  // A layout is kept for every puzzle, so a Rules height from one link must not follow the solver to another.
+  it('sizes the Rules card for the link it opens, whatever layout another link kept', async () => {
+    const withRules = await newBoardSolveLink(browser(), undefined, SIX_LINES)
+    const without = await newBoardSolveLink(browser())
+    // The address changes only after the `#`, so a reload is what opens the link.
+    const loadLink = async (page, link) => {
+      await page.goto(page.url().split('#')[0] + link)
+      await page.reload()
+      await waitForDesk(page)
+    }
+    for (const [first, second] of [[withRules, without], [without, withRules]]) {
+      const page = await open(SIX_LINES)
+      await loadLink(page, first)
+      const pinned = page.getByRole('region', { name: 'Pinned' })
+      const box = await pinned.getByRole('heading', { name: 'Pinned' }).boundingBox()
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2 + 30, { steps: 5 })
+      await page.mouse.up()
+      await loadLink(page, second)
+      if (second === without) {
+        const height = (await page.getByRole('region', { name: 'Rules' }).boundingBox()).height
+        assert.equal(height < 70, true, `a link with no rules: ${height} px`)
+      } else {
+        const overflow = await settle(() => body(page).evaluate((b) => b.scrollHeight - b.clientHeight), 0)
+        assert.equal(overflow, 0, 'a link with rules shows all of them')
+      }
+      await opened.context.close()
+      opened = undefined
+    }
   })
 
   it('is one line tall, with − and + disabled, when the link has no rules', async () => {

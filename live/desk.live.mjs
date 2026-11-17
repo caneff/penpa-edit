@@ -3,14 +3,14 @@
 // accessible name or test id; the board's size is what its canvas draws.
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, boardAgainstCard, linkFromNewBoard, newBoardRulesSolveLinkInPage, openSolvePage, useBrowser } from './page.mjs'
+import { boardAgainstCard, newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 
-// Rules to give a link whose Rules card the test steps or resizes: a link with none leaves it one line tall, with - and + disabled.
+// The desk's link carries rules: with none the Rules card stays one line tall, its - and + disabled and its height unkept.
 const SOME_RULES = 'Put a digit from 1 to 9 in every cell.'
 
 const card = (page, name) => page.getByRole('region', { name })
@@ -52,7 +52,7 @@ describe('the desk', () => {
   let opened
   let page
   beforeEach(async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE)
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES))
     page = opened.page
     await settle(async () => (await boardAgainstCard(page)).inside, true)
   })
@@ -118,16 +118,7 @@ describe('the desk', () => {
     assert.equal(handle.x >= fit.x + fit.width, true, `handle starts at ${handle.x}, the button ends at ${fit.x + fit.width}`)
   })
 
-  // Replaces the opened page with one on a link that carries rules.
-  async function reopenWithRules () {
-    await opened.context.close()
-    opened = await openSolvePage(browser(), await linkFromNewBoard(browser(), newBoardRulesSolveLinkInPage, SOME_RULES))
-    page = opened.page
-    await settle(async () => (await boardAgainstCard(page)).inside, true)
-  }
-
   it('stops the top and left handles at the minimum size and at the desk edge', async () => {
-    await reopenWithRules()
     const start = await boxOf(page, 'Rules')
     await drag(page, await handleCentre(page, 'Rules', 'top-left'), 2000, 2000)
     const shrunk = await boxOf(page, 'Rules')
@@ -183,7 +174,6 @@ describe('the desk', () => {
   const bodyFontSize = (name) => page.evaluate((n) => parseFloat(getComputedStyle(document.querySelector(`section[aria-label="${n}"] .ui-body`)).fontSize), name)
 
   it('steps the Rules text by its own buttons, stops at the ends, keeps the size over a reload and Reset layout restores it', async () => {
-    await reopenWithRules()
     const smaller = page.getByRole('button', { name: 'Smaller rules text' })
     const bigger = page.getByRole('button', { name: 'Bigger rules text' })
     const start = await bodyFontSize('Rules')

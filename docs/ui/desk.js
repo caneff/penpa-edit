@@ -54,17 +54,31 @@
 
     // A rules line that starts a list item: its marker, then the text. The marker is its own flex item so a wrapped line
     // hangs under the text and not under the marker, whatever the marker's width.
-    const RULES_MARKER = /^(\s*(?:[-\u2022*]|\d+[.)])\s+)([\s\S]*)$/;
+    const RULES_MARKER = /^(\s*(?:[-\u2022*]|\d{1,2}[.)])\s+)([\s\S]*)$/;
     const RULES_URL = /https?:\/\/[^\s<>"]+/g;
     // Sentence punctuation that ends a URL's surrounding text and not the URL.
-    const URL_TRAILING = /[.,;:!?)\]'"]+$/;
+    const URL_TRAILING = /[.,;:!?\]'"]+$/;
+    const countOf = (text, char) => text.split(char).length - 1;
+
+    // The URL without the punctuation after it; a closing ")" stays when the URL opened one.
+    function trimUrl(url) {
+        let trimmed = url;
+        for (let previous = ''; previous !== trimmed;) {
+            previous = trimmed;
+            trimmed = trimmed.replace(URL_TRAILING, '');
+            if (trimmed.endsWith(')') && countOf(trimmed, ')') > countOf(trimmed, '(')) {
+                trimmed = trimmed.slice(0, -1);
+            }
+        }
+        return trimmed;
+    }
 
     // Appends `text` to `parent` with each http(s) URL as a link that opens in a new tab. Every node is made with
     // textContent and setAttribute, so the rules never become HTML.
     function appendWithLinks(parent, text) {
         let last = 0;
         for (const match of text.matchAll(RULES_URL)) {
-            const url = match[0].replace(URL_TRAILING, '');
+            const url = trimUrl(match[0]);
             parent.append(text.slice(last, match.index));
             const link = el('a', { href: url, target: '_blank', rel: 'noopener noreferrer' });
             link.textContent = url;
@@ -74,10 +88,17 @@
         parent.append(text.slice(last));
     }
 
+    const isRulesEmpty = (rulesCard) => rulesCard.querySelector('.ui-body').classList.contains('ui-rules-empty');
+
+    // A card's height is kept when the solver sized it, except the Rules card of a link with no rules: its one-line height
+    // belongs to that link, and the layout is shared by every puzzle.
+    const keepsHeight = (id, node) => node.classList.contains('is-sized') && !(id === 'rules' && isRulesEmpty(node));
+
     // The Rules card's body: one block per line, and a note when the link carries no rules.
     function showRules(body, rules) {
-        body.classList.toggle('ui-rules-empty', !rules);
-        if (!rules) {
+        const isEmpty = !rules?.trim();
+        body.classList.toggle('ui-rules-empty', isEmpty);
+        if (isEmpty) {
             body.textContent = 'No rules in this link.';
             return;
         }
@@ -190,11 +211,10 @@
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
         const rulesText = { smaller: headButton('\u2212', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text') };
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
-        const hasRules = Boolean(info.rules);
         showRules(cards.rules.body, info.rules);
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { bar, desk, cards, zoom, rulesText, hasRules };
+        return { bar, desk, cards, zoom, rulesText };
     }
 
     // ---- The kept layout --------------------------------------------------------------------------------------------
@@ -235,7 +255,7 @@
     function saveCard(desk, id, node) {
         isFitted = false;
         const entry = { w: node.offsetWidth };
-        if (node.classList.contains('is-sized')) {
+        if (keepsHeight(id, node)) {
             entry.h = node.offsetHeight;
         }
         if (isMoved(id)) {
@@ -294,7 +314,7 @@
         Object.entries(cards).forEach(([id, { node }]) => {
             node.style.height = '';
             node.classList.remove('is-sized');
-            if (saved[id]?.h) {
+            if (saved[id]?.h && !(id === 'rules' && isRulesEmpty(node))) {
                 setHeight(node, saved[id].h);
             }
         });
@@ -366,7 +386,7 @@
         }
         // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
         // A link with no rules leaves Rules one line tall, under the usual minimum.
-        const rulesFloor = cards.rules.body.classList.contains('ui-rules-empty') ? 0 : MIN_SIZE.rules[1];
+        const rulesFloor = isRulesEmpty(cards.rules.node) ? 0 : MIN_SIZE.rules[1];
         const rulesHeight = clamp(rulesCardHeight(cards.rules, leftWidth), rulesFloor, columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]);
 
         // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
@@ -394,7 +414,7 @@
         ids.forEach((id) => {
             const node = cards[id].node;
             saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight, fitted: 1 };
-            if (node.classList.contains('is-sized')) {
+            if (keepsHeight(id, node)) {
                 saved[id].h = node.offsetHeight;
             }
         });
@@ -670,7 +690,7 @@
 
     // The default size lives in the stylesheet, so the buttons read the size back from the page rather than from a
     // constant. A kept size this code did not write is said in the console and the default is used.
-    function showRulesText({ cards, rulesText, hasRules }) {
+    function showRulesText({ cards, rulesText }) {
         const { min, max } = RULES_TEXT_RANGE_PX;
         const raw = localStorage.getItem(RULES_TEXT_KEY);
         const kept = raw === null ? null : Number(raw);
@@ -680,8 +700,9 @@
         }
         cards.rules.body.style.fontSize = isUsable ? `${kept}px` : '';
         const shown = parseFloat(getComputedStyle(cards.rules.body).fontSize);
-        rulesText.smaller.disabled = !hasRules || shown <= min;
-        rulesText.bigger.disabled = !hasRules || shown >= max;
+        const hasNoRules = isRulesEmpty(cards.rules.node);
+        rulesText.smaller.disabled = hasNoRules || shown <= min;
+        rulesText.bigger.disabled = hasNoRules || shown >= max;
     }
 
     function stepRulesText(desk, steps) {

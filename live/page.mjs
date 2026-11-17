@@ -255,33 +255,24 @@ export async function boardAgainstCard (page) {
 export const DESK_SIZE = { viewport: { width: 1400, height: 900 } }
 
 // Runs in the page. A 6x6 board's solve link `#` part: its Tab set is `names` (Penpa+'s own names for them), or with no
-// names it has none.
-export function newBoardSolveLinkInPage (names) {
+// names it has none; its rules are `rules`, or none.
+export function newBoardSolveLinkInPage ({ names, rules } = {}) {
   document.getElementById('nb_size1').value = 6
   document.getElementById('nb_size2').value = 6
   create_newboard()
   if (names) UserSettings.tab_settings = names
+  if (rules) document.getElementById('saveinforules').value = rules
   const url = pu.maketext_solve()
   return url.slice(url.indexOf('#'))
 }
 
-// Runs in the page. A 6x6 board with the rules `rules`; returns its solve link's `#` part.
-export function newBoardRulesSolveLinkInPage (rules) {
-  document.getElementById('nb_size1').value = 6
-  document.getElementById('nb_size2').value = 6
-  create_newboard()
-  document.getElementById('saveinforules').value = rules
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
-
-// One link per Tab set for a test file, since each costs a page of its own to build.
+// One link per Tab set and rules text for a test file, since each costs a page of its own to build.
 const newBoardLinks = new Map()
 
-// `newBoardSolveLinkInPage`'s link for `names`, built once per test file.
-export function newBoardSolveLink (browser, names) {
-  const key = JSON.stringify(names ?? null)
-  if (!newBoardLinks.has(key)) newBoardLinks.set(key, linkFromNewBoard(browser, newBoardSolveLinkInPage, names))
+// `newBoardSolveLinkInPage`'s link for `names` and `rules`, built once per test file.
+export function newBoardSolveLink (browser, names, rules) {
+  const key = JSON.stringify([names ?? null, rules ?? null])
+  if (!newBoardLinks.has(key)) newBoardLinks.set(key, linkFromNewBoard(browser, newBoardSolveLinkInPage, { names, rules }))
   return newBoardLinks.get(key)
 }
 
