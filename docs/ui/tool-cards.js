@@ -309,6 +309,10 @@
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
         function sizeMouseCard() {
+            // A closed card has no width to measure at; the desk sizes it again when it opens.
+            if (cards.mouse.node.hidden) {
+                return;
+            }
             cards.mouse.body.style.height = '';
             cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, tools) + MOUSE_BODY_SLACK_PX}px`;
         }
@@ -348,6 +352,7 @@
             const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
             return node.offsetHeight - body.offsetHeight + measureMouseBody(body, tools, bodyWidth) + MOUSE_BODY_SLACK_PX;
         };
+        fit.sizeMouseBody = sizeMouseCard;
         sizeMouseCard();
         relayout();
         render();
@@ -356,7 +361,7 @@
         window.addEventListener('resize', () => {
             const before = cards.mouse.node.offsetHeight;
             sizeMouseCard();
-            if (cards.mouse.node.offsetHeight !== before) {
+            if (!cards.mouse.node.hidden && cards.mouse.node.offsetHeight !== before) {
                 relayout();
             }
         });

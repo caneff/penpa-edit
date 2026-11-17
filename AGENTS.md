@@ -65,7 +65,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   nightly, a recording that still differs marked `todo` with its ticket (#80). `.github/workflows/upstream-merge.yml` merges upstream nightly and pushes
   only when both pass on the merged tree and it changes no expected file; it also files one `needs-triage` issue per upstream
   commit that touched an owned file (Chris, 2026-11-14). `.github/scripts/require-checks.sh` makes both
-  jobs required on `master`, with the admin role able to bypass; the nightly posts their statuses on the commit it
+  jobs required on `master` and strict (#221: a PR must contain the current master, else GitHub reports it BEHIND), with the admin role able to bypass; the nightly posts their statuses on the commit it
   tested before it pushes.
 - **Expected-file changes** (#33): a ticket whose fix changes a recording's expected file lists each recording before the
   fix, under a `## Expected changes` heading, one bullet per id: a backticked id, a colon, the change in words. The

@@ -31,7 +31,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   one level below it, each a tool.
 - **Desk**: the solve page's work area under its top bar, holding the cards; its layout is one for every puzzle, fitted to the
   window and puzzle when the desk opens fresh or Reset layout is pressed.
-- **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent.
+- **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
 - **Recording**: one solve kept for replay: a list of steps a human reviewed once, plus the expected states the tool

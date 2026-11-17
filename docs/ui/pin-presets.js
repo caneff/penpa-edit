@@ -125,12 +125,12 @@
 
     onDeskReady(({ cards }) => {
         // The name form is closed on the resting card; the Save pins… button opens it.
-        const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 'small' });
+        const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 's' });
         const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
         const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
         const nameForm = el('div', { class: 'ui-preset-row', hidden: '' }, [nameInput, saveName, cancelName]);
-        // A text button, so saving your own pins is not mistaken for saving the preset in the field; small, to sit level with it.
-        const save = el('wa-button', { class: 'ui-preset-save', appearance: 'outlined', variant: 'neutral', size: 'small' }, [SAVE_LABEL]);
+        // A text button, so saving your own pins is not mistaken for saving the preset in the field; Web Awesome's small size (s), to sit level with it.
+        const save = el('wa-button', { class: 'ui-preset-save', appearance: 'outlined', variant: 'neutral', size: 's' }, [SAVE_LABEL]);
         save.addEventListener('click', openForm);
 
         function openForm() {

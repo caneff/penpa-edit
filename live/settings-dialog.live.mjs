@@ -5,9 +5,10 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
-  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser, waitForDesk
+  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, NURIKABE_IMPORT, openSolvePage, solveLinkOfImport, setTool, typedDigits, useBrowser, waitForDesk
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
+import { IMPORTS } from './tier-c-puzzles.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -23,15 +24,15 @@ const SETTING_NAMES = [
 
 // One control per setting: how the dialog shows it, what a fresh browser holds, and the value a click on the UI gives it.
 const CONTROLS = [
-  { name: 'sudoku_centre_size', group: 'Board look', select: 'Sudoku centre marks', choose: 'Large', from: 1, to: 2 },
-  { name: 'sudoku_normal_size', group: 'Board look', select: 'Sudoku digits', choose: 'Bottom', from: 1, to: 2 },
+  { name: 'sudoku_centre_size', group: 'Board look', on: 'sudoku-9x9', select: 'Sudoku centre marks', choose: 'Large', from: 1, to: 2 },
+  { name: 'sudoku_normal_size', group: 'Board look', on: 'sudoku-9x9', select: 'Sudoku digits', choose: 'Bottom', from: 1, to: 2 },
   { name: 'outline_text', group: 'Board look', toggle: 'Outline on text', from: true, to: false },
   { name: 'secondcolor', group: 'Board look', select: 'Surface second colour', choose: 'Blue', from: 2, to: 5 },
   { name: 'custom_colors_on', group: 'Board look', toggle: 'Custom colours', from: false, to: true },
   { name: 'conflict_detection', group: 'Checking', select: 'Conflict detection', choose: 'Off for every puzzle', from: 1, to: 3 },
   { name: 'check_pencil_marks', group: 'Checking', toggle: 'Check pencil marks', from: false, to: true },
   { name: 'ignore_line_style', group: 'Checking', toggle: 'Any colour matches a green line', from: false, to: true },
-  { name: 'starbattle_dots', group: 'Checking', select: 'Star Battle dots', choose: 'Low range', from: 1, to: 2 },
+  { name: 'starbattle_dots', group: 'Checking', on: 'starbattle', select: 'Star Battle dots', choose: 'Low range', from: 1, to: 2 },
   { name: 'local_storage', group: 'Progress', toggle: 'Save progress in this browser', from: true, to: false },
   { name: 'auto_save_history', group: 'Progress', toggle: 'Save a copy to the browser history on every save', from: false, to: true },
   { name: 'reload_button', group: 'Progress', toggle: 'Ask before leaving the page', from: false, to: true },
@@ -67,6 +68,17 @@ async function openLink (page, query) {
 let otherPuzzle
 const otherLink = async () => (otherPuzzle ??= await makeNumberSolveLink(browser()))
 
+// The solve link of the puzzle `name` of `IMPORTS`, or of Nurikabe, whose genre tag is neither Sudoku nor Star Battle.
+const importedLinks = new Map()
+const importLink = (name) => {
+  if (!importedLinks.has(name)) importedLinks.set(name, solveLinkOfImport(browser(), name === 'nurikabe' ? NURIKABE_IMPORT : IMPORTS[name]))
+  return importedLinks.get(name)
+}
+
+const CLEAR_BUTTON = 'Clear this puzzle\'s saved progress'
+const CONFIRM_CLEAR = 'Clear progress'
+
+const desk = (dialog) => dialog.getByRole('group', { name: 'Desk' })
 const settings = (page) => page.evaluate(() => engine.getSettings())
 
 async function openDialog (page) {
@@ -176,7 +188,7 @@ describe('the Settings dialog', () => {
 
   for (const control of CONTROLS) {
     it(`changes ${control.name} from ${control.group}, and shows it again after a reload`, async () => {
-      const { context, page } = await openSolve()
+      const { context, page } = await openSolve(control.on ? await importLink(control.on) : AKARI_SOLVE)
       try {
         const dialog = await openDialog(page)
         const group = dialog.getByRole('group', { name: control.group })
@@ -199,6 +211,84 @@ describe('the Settings dialog', () => {
       }
     })
   }
+})
+
+describe('the Settings dialog shows what the open puzzle uses', () => {
+  const GENRE_CONTROLS = ['Sudoku centre marks', 'Sudoku digits', 'Star Battle dots']
+  const shown = async (query) => {
+    const { context, page } = await openSolve(query)
+    try {
+      const dialog = await openDialog(page)
+      const names = []
+      for (const name of GENRE_CONTROLS) {
+        if (await dialog.getByRole('combobox', { name }).count() > 0) names.push(name)
+      }
+      return names
+    } finally {
+      await context.close()
+    }
+  }
+
+  it('shows no Sudoku or Star Battle setting on a Nurikabe', async () => {
+    assert.deepEqual(await shown(await importLink('nurikabe')), [])
+  })
+
+  it('shows every genre setting on a puzzle with no genre tag', async () => {
+    assert.deepEqual(await shown(await makeNumberSolveLink(browser())), GENRE_CONTROLS)
+  })
+
+  it('shows the Sudoku settings on a Sudoku and no Star Battle one', async () => {
+    assert.deepEqual(await shown(await importLink('sudoku-9x9')), ['Sudoku centre marks', 'Sudoku digits'])
+  })
+
+  it('shows the Star Battle setting on a Star Battle and no Sudoku one', async () => {
+    assert.deepEqual(await shown(await importLink('starbattle')), ['Star Battle dots'])
+  })
+})
+
+describe('the Settings dialog is readable', () => {
+  // The Penpa+ words, and the one help line under each.
+  const HELP = {
+    'Surface second colour': ['combobox', 'The colour Surface uses for its second shading style.'],
+    'Custom colours': ['switch', 'Adds your own colours to the colour pickers.'],
+    'Any colour matches a green line': ['switch', 'A line of any colour counts as the answer\'s green line when the puzzle is checked.'],
+    'Save a copy to the browser history on every save': ['switch', 'Keeps the puzzle in the browser\'s history list each time it is saved.']
+  }
+
+  it('gives each of the four Penpa+ words a help line under its control', async () => {
+    const { context, page } = await openSolve()
+    try {
+      const dialog = await openDialog(page)
+      for (const [label, [role, help]] of Object.entries(HELP)) {
+        const row = dialog.locator('.ui-setting').filter({ has: page.getByRole(role, { name: label }) })
+        assert.equal(await row.locator('.ui-help').textContent(), help, label)
+      }
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('logs no Web Awesome deprecation warning while loading the page and opening the Settings dialog', async () => {
+    const warnings = []
+    const { context, page } = await openSolve(AKARI_SOLVE, { setup: (ctx) => ctx.on('page', (p) => p.on('console', (m) => { if (/deprecated/i.test(m.text())) warnings.push(m.text()) })) })
+    try {
+      await openDialog(page)
+      assert.deepEqual(warnings, [])
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('closes the dialog on Reset layout, so the result is seen', async () => {
+    const { context, page } = await openSolve()
+    try {
+      const dialog = await openDialog(page)
+      await desk(dialog).getByRole('button', { name: 'Reset layout' }).click()
+      await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+    } finally {
+      await context.close()
+    }
+  })
 })
 
 describe('conflict detection off for this puzzle only', () => {
@@ -289,10 +379,49 @@ describe('Clear saved progress', () => {
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'], 'the digit came back from the saved progress')
 
       const dialog = await openDialog(page)
-      await dialog.getByRole('button', { name: 'Clear saved progress' }).click()
+      await dialog.getByRole('button', { name: CLEAR_BUTTON, exact: true }).click()
+      await page.getByRole('button', { name: CONFIRM_CLEAR, exact: true }).click()
       await closeDialog(page)
       await reload(page)
       assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the saved progress is gone')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('asks first: Cancel leaves the saved progress, and the question says it is this puzzle only', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openSolve(link)
+    try {
+      await typeDigit(page, CELL, '7')
+      await savePenpa(page)
+      assert.notEqual(await storedProgress(page), null, 'the progress is stored')
+      const dialog = await openDialog(page)
+      await dialog.getByRole('button', { name: CLEAR_BUTTON, exact: true }).click()
+      assert.match(await page.locator('wa-dialog[label="Clear this puzzle\'s saved progress?"]').textContent(), /this puzzle only/)
+      const cancel = page.getByRole('button', { name: 'Cancel' })
+      await cancel.click()
+      await cancel.waitFor({ state: 'hidden' })
+      assert.notEqual(await storedProgress(page), null, 'Cancel leaves the saved progress')
+      assert.equal(await page.getByRole('switch', { name: 'Save progress in this browser' }).isChecked(), true, 'saving is still on')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('leaves the global Save progress switch as it was and notes that this puzzle was cleared', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openSolve(link)
+    try {
+      await typeDigit(page, CELL, '7')
+      await savePenpa(page)
+      const dialog = await openDialog(page)
+      await dialog.getByRole('button', { name: CLEAR_BUTTON, exact: true }).click()
+      await page.getByRole('button', { name: CONFIRM_CLEAR, exact: true }).click()
+      await dialog.getByRole('status').filter({ hasText: /^This puzzle's saved progress was cleared\./ }).waitFor()
+      assert.equal(await storedProgress(page), null, 'the progress is gone')
+      assert.equal(await page.getByRole('switch', { name: 'Save progress in this browser' }).isChecked(), true, 'the global switch still shows saving on')
+      assert.equal((await settings(page)).local_storage, true, 'the setting is still on')
     } finally {
       await context.close()
     }
@@ -403,7 +532,7 @@ describe('the keys', () => {
       assert.equal(before.selection.length, 1, 'a cell is selected, so a digit would be entered')
 
       const dialog = await openDialog(page)
-      await dialog.getByRole('combobox', { name: 'Sudoku centre marks' }).focus()
+      await dialog.getByRole('combobox', { name: 'Conflict detection' }).focus()
       await page.keyboard.press('7')
       await dialog.getByRole('switch', { name: 'Outline on text' }).focus()
       await page.keyboard.press('7')
@@ -628,7 +757,6 @@ describe('each Board look and Checking setting, on a board where it applies', ()
 })
 
 describe('the desk\'s own settings in the dialog', () => {
-  const desk = (dialog) => dialog.getByRole('group', { name: 'Desk' })
   // The pins, by their unpin buttons' names.
   const pinNames = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^Unpin / })
     .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')))

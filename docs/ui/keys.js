@@ -82,7 +82,7 @@
         if (dialog.contains(document.activeElement)) {
             return;
         }
-        const controls = [...dialog.querySelectorAll(DIALOG_CONTROL)].filter((control) => !control.disabled);
+        const controls = [...dialog.querySelectorAll(DIALOG_CONTROL)].filter((control) => !control.disabled && control.checkVisibility());
         (fromEnd ? controls.at(-1) : controls[0])?.focus();
     }
 
