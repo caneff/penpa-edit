@@ -4,9 +4,10 @@
 // the board by what Penpa+ would save.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { board, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { board, currentTool, newBoardSolveLink, openPenpa, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
+import { IMPORTS } from './tier-c-puzzles.mjs'
 
 const browser = useBrowser()
 
@@ -20,7 +21,7 @@ const MAX_SHIFT_TABS = 6
 const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
-const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
+const openSolve = async (link) => openSolvePage(browser(), link ?? await newBoardSolveLink(browser(), PINS))
 
 // Runs in the page. The control with focus: its tag and its accessible text.
 const focusInPage = () => ({ host: document.activeElement?.tagName, label: document.activeElement?.textContent?.trim() ?? '' })
@@ -102,7 +103,12 @@ describe('the keyboard on the solve page', () => {
 describe('with Settings open', () => {
   let opened
   before(async () => {
-    opened = await openSolve()
+    // A Sudoku, whose first Settings control is the Sudoku one the wrap test starts from.
+    const penpa = await openPenpa(browser())
+    await penpa.page.evaluate((url) => import_url(url), IMPORTS['sudoku-9x9'])
+    const link = await penpa.page.evaluate(() => { const url = pu.maketext_solve(); return url.slice(url.indexOf('#')) })
+    await penpa.context.close()
+    opened = await openSolve(link)
     await clickCell(opened.page, CELL)
     await opened.page.getByRole('button', { name: 'Settings' }).click()
     await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
@@ -133,7 +139,7 @@ describe('with Settings open', () => {
 
   it('Shift+Tab past the first control wraps to the dialog\'s end, not back to its start', async () => {
     const { page } = opened
-    const first = page.locator('wa-dialog[open] wa-select').first()
+    const first = page.locator('wa-dialog[open] wa-select:visible').first()
     const firstLabel = await first.getAttribute('label')
     await first.focus()
     await page.evaluate(() => {

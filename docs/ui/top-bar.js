@@ -16,7 +16,7 @@
         pause: '<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>',
         resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>',
         darkTheme: '<path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="currentColor" stroke="none"/>',
-        openInPenpa: '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>',
+        openInPenpa: '<path d="M2.5 5.5h10.5"/><path d="M10.5 3l2.5 2.5-2.5 2.5"/><path d="M13.5 10.5H3"/><path d="M5.5 8L3 10.5 5.5 13"/>',
         lightTheme: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'
     };
 
