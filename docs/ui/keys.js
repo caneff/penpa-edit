@@ -1,5 +1,5 @@
-// Where each key goes: the board (Penpa+), the browser or the UI. Answers `engine.onKey`, and returns focus to the board after
-// a board click, a menu choice and a dialog closing. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Where each key goes: the board (Penpa+), the browser or the UI. Answers `engine.onKey`, returns focus to the board after
+// a board click, a menu choice, a dialog closing and a mouse click on a bar or card-head button, and keeps Tab inside an open dialog. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
@@ -18,6 +18,8 @@
     // A control the board still takes keys from while it has focus.
     const PLAIN_CONTROL = 'button, wa-button, .ui-card';
     const BOARD = '.ui-card-board canvas';
+    const HAND_BACK_BUTTON = '.ui-bar wa-button, .ui-head wa-button';
+    const DIALOG_CONTROL = 'wa-button, wa-input, wa-select, wa-switch, wa-checkbox, button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
     function elementsOf(path) {
         return path.filter((node) => node instanceof Element);
@@ -34,12 +36,17 @@
     // Walks the event's path, so it sees inside Web Awesome's shadow DOM.
     function boardHasFocus(path) {
         const nodes = elementsOf(path);
-        if (nodes.some((node) => node.matches(`${TEXT_ENTRY}, ${TOOL_TREE}, ${OPEN_MENU}, ${OPEN_DIALOG}`))) {
+        // A dialog is open for the whole page, whatever the event's path holds: focus that fell out of it must not reach the board.
+        if (document.querySelector(OPEN_DIALOG) || nodes.some((node) => node.matches(`${TEXT_ENTRY}, ${TOOL_TREE}, ${OPEN_MENU}`))) {
             return false;
         }
+        return isBodyOrBoard(nodes) || nodes.some((node) => node.matches(PLAIN_CONTROL));
+    }
+
+    // Focus is on the page itself or on the board, not on a control.
+    function isBodyOrBoard(nodes) {
         const origin = nodes[0];
-        return !origin || origin === document.body || origin === document.documentElement ||
-            nodes.some((node) => node.matches(`${PLAIN_CONTROL}, ${BOARD}`));
+        return !origin || origin === document.body || origin === document.documentElement || nodes.some((node) => node.matches(BOARD));
     }
 
     // Web Awesome closes an open menu or dialog on Escape itself, only the top-most one per press, so the UI only keeps
@@ -68,6 +75,15 @@
     // from the announcement runs after that one.
     function focusBoardAfterWebAwesome() {
         setTimeout(focusBoard);
+    }
+
+    // Where focus lands after Tab (`fromEnd` false) or Shift+Tab left the dialog.
+    function keepFocusIn(dialog, fromEnd) {
+        if (dialog.contains(document.activeElement)) {
+            return;
+        }
+        const controls = [...dialog.querySelectorAll(DIALOG_CONTROL)].filter((control) => !control.disabled);
+        (fromEnd ? controls.at(-1) : controls[0])?.focus();
     }
 
     // The files that own keys of their own add a handler: it answers 'ui', 'browser' or nothing for a key the board would
@@ -104,7 +120,28 @@
             if (!boardHasFocus(e.composedPath()) || isBrowserKey(e)) {
                 return 'browser';
             }
+            // From a control Tab is the browser's, so the bar, the card buttons and the chips can be reached.
+            if (e.key === 'Tab' && !isBodyOrBoard(elementsOf(e.composedPath()))) {
+                return 'browser';
+            }
             return answerOfHandlers(e) ?? (e.key === '?' ? 'ui' : undefined);
+        });
+
+        // The browser's Tab may leave an open dialog (headless Chromium lets it reach the body): bring it back to the dialog's
+        // first control, or its last after Shift+Tab. Runs after the browser has moved focus.
+        document.addEventListener('keydown', (e) => {
+            const dialog = document.querySelector(OPEN_DIALOG);
+            if (e.key === 'Tab' && dialog) {
+                setTimeout(() => keepFocusIn(dialog, e.shiftKey));
+            }
+        }, true);
+
+        // A mouse click on a button of the bar or of a card's head hands the keyboard back, so Enter does not click it again.
+        // A key press that clicks it (`detail` 0) keeps focus: the keyboard user is still on it.
+        document.addEventListener('click', (e) => {
+            if (e.detail > 0 && elementsOf(e.composedPath()).some((node) => node.matches(HAND_BACK_BUTTON))) {
+                focusBoardAfterWebAwesome();
+            }
         });
 
         // Capture, because Penpa+ may stop a click's default before focus would move.

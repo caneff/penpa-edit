@@ -1,10 +1,13 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause, the light/dark toggle and Open in Penpa+, and the cover a paused board wears.
+// The top bar's controls: undo, redo, Restart, the timer, Pause and Open in Penpa+, and the cover a paused board wears. The theme
+// is chosen in the Settings dialog (#181); this file still applies it to the page.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
     const { iconButton, onDeskReady } = window.uiKit;
 
+    // Penpa+'s pause toggle (main.js), which a paused board still answers.
+    const PAUSE_KEY = 'F4';
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
 
@@ -15,9 +18,7 @@
         restart: '<path d="M2.9 8.6a5.2 5.2 0 1 0 1.5-4.3"/><path d="M2.6 1.9v3.2h3.2"/>',
         pause: '<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>',
         resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>',
-        darkTheme: '<path d="M13.2 9.6A5.6 5.6 0 0 1 6.4 2.8a5.6 5.6 0 1 0 6.8 6.8z" fill="currentColor" stroke="none"/>',
-        openInPenpa: '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>',
-        lightTheme: '<circle cx="8" cy="8" r="3"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>'
+        openInPenpa: '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>'
     };
 
     const twoDigits = (n) => String(n).padStart(2, '0');
@@ -32,11 +33,11 @@
     }
 
     onDeskReady(({ bar, cards }) => {
-        const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo());
-        const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo());
+        // The shortcuts are Penpa+'s own keys (main.js), which the solve page passes on.
+        const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo(), 'Ctrl+Z');
+        const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo(), 'Ctrl+Y');
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
-        const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()));
-        const themeButton = iconButton(ICONS.darkTheme, 'Dark theme', () => engine.setTheme(engine.getSettings().theme === 'dark' ? 'light' : 'dark'));
+        const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()), PAUSE_KEY);
 
         // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
         // unload alone loses the race with the navigation, and with no save the progress would be gone from both pages.
@@ -74,10 +75,10 @@
         cover.className = 'ui-paused';
         cover.setAttribute('aria-label', 'Paused');
         cover.hidden = true;
-        cover.innerHTML = '<div>Paused</div><div class="ui-paused-hint">Press F4 or Resume to continue</div>';
+        cover.innerHTML = `<div>Paused</div><div class="ui-paused-hint">Press ${PAUSE_KEY} or Resume to continue</div>`;
         cards.board.node.append(cover);
 
-        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, themeButton.node, openInPenpa.node);
+        bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, openInPenpa.node);
         bar.after(restartDialog, notSavedDialog);
 
         function renderTimer() {
@@ -104,7 +105,6 @@
             const dark = engine.getSettings().theme === 'dark';
             document.documentElement.classList.toggle('wa-dark', dark);
             bar.parentElement.classList.toggle('ui-dark', dark);
-            themeButton.show(dark ? ICONS.lightTheme : ICONS.darkTheme, dark ? 'Light theme' : 'Dark theme');
         }
 
         engine.on('timer', renderTimer);
