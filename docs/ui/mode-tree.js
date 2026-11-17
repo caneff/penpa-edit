@@ -22,7 +22,7 @@
         ['Everything', () => true]
     ];
 
-    // The tree's nodes: a branch has `children`, a leaf has its `tool` and the text it is searched by.
+    // The tree's nodes: a branch has `children`, a leaf has its `tool`, the Penpa+ names it also answers to (`oldNames`) and the text it is searched by.
     function buildNodes(tools) {
         const node = (parent, label, level, tool = null, place = null) => {
             const made = { key: parent ? `${parent.key}/${label}` : label, label, level, parent, children: [], tool, description: place?.description };
@@ -31,7 +31,7 @@
                 for (let at = parent; at; at = at.parent) {
                     ancestors.push(at.label);
                 }
-                made.oldNames = [...new Set([...tool.labels, tool.mode, tool.submode].filter(Boolean))];
+                made.oldNames = [...tool.labels, tool.mode, /^\d*$/.test(tool.submode ?? '') ? null : tool.submode].filter(Boolean);
                 made.text = searchText([...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames]);
             }
             parent?.children.push(made);
@@ -84,11 +84,12 @@
         // The mouse press keeps the focus where it is, so the click that follows is a pick or a fold.
         tree.addEventListener('mousedown', (e) => e.preventDefault());
 
-        // Names the Penpa+ name a match came by when the row's own label does not hold the search: the first Penpa+ label, mode
-        // or sub-mode name that holds a typed word.
+        // A radio's sub-mode value is a bare digit nobody saw in Penpa+, so it is neither searched nor shown. The hint names the
+        // old name that holds the whole search, so it appears only when the row's own label does not.
         function showOldName(node, matched) {
             const hint = node.row.querySelector('.ui-tmatch');
-            const name = matched && !matchesSearch(searchText([node.label]), words) ? node.oldNames.find((old) => words.some((word) => squash(old).includes(word))) : null;
+            const name = matched && !matchesSearch(searchText([node.label]), words)
+                ? node.oldNames.find((old) => matchesSearch(searchText([old]), words)) : undefined;
             hint.textContent = name ? `Penpa+: ${name}` : '';
             hint.hidden = !name;
         }

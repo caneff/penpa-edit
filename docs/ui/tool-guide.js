@@ -173,11 +173,12 @@
     }
 
     // A search ignores case, spaces and punctuation, so "linex" finds Penpa+'s "Line x". Each field is squashed alone and the
-    // fields are joined by a space, which a squashed word never holds, so a word cannot match across two fields.
+    // fields are joined by a space, which a squashed word never holds, so a word cannot match across two fields. The fields
+    // follow once more as typed, for a word made only of symbols ("×", "/"), which squashing would empty.
     const squash = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
-    const searchText = (fields) => fields.map(squash).join(' ');
+    const searchText = (fields) => `${fields.map(squash).join(' ')} | ${fields.join(' ').toLowerCase()}`;
     // The words a search box splits its text into, and whether a tool's search text holds every one.
-    const searchWords = (text) => text.trim().split(/\s+/).map(squash).filter(Boolean);
+    const searchWords = (text) => text.trim().split(/\s+/).filter(Boolean).map((word) => squash(word) || word.toLowerCase());
     const matchesSearch = (haystack, words) => words.every((word) => haystack.includes(word));
 
     // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
