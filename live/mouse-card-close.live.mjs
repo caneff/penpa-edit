@@ -3,8 +3,11 @@
 // Read through the cards' bounding boxes; the clicks are real.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { AKARI_SOLVE, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { newBoardSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
+
+// The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a control to focus.
+const SOME_RULES = 'Put a digit from 1 to 9 in every cell.'
 
 const browser = useBrowser()
 
@@ -57,7 +60,7 @@ describe('The Mouse card closes and reopens', () => {
   }
 
   it('closes with its x, stays closed after a reload with Rules filling the column, and reopens from Settings', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     const before = await read(page)
     assert.notEqual(before.cards.Mouse, null, 'Mouse starts open')
@@ -84,7 +87,7 @@ describe('The Mouse card closes and reopens', () => {
   })
 
   it('keeps Mouse closed through Reset layout', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
     await page.getByRole('button', { name: 'Reset layout' }).click()
@@ -92,7 +95,7 @@ describe('The Mouse card closes and reopens', () => {
   })
 
   it('gives Mouse its place back under Rules after a card was moved while Mouse was closed', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     const before = await read(page)
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
@@ -107,7 +110,7 @@ describe('The Mouse card closes and reopens', () => {
   })
 
   it('sizes Mouse again for a window that was resized while it was closed', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
     await page.setViewportSize({ width: 1500, height: 900 })
@@ -120,7 +123,7 @@ describe('The Mouse card closes and reopens', () => {
   })
 
   it('leaves focus on a control when the x is pressed from the keyboard', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     await page.getByRole('button', { name: 'Close Mouse card' }).focus()
     await page.keyboard.press('Enter')
@@ -128,7 +131,7 @@ describe('The Mouse card closes and reopens', () => {
   })
 
   it('keeps a zoom the solver set when Mouse closes and opens', async () => {
-    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     const cellSize = () => page.evaluate(() => engine.getState().cellSize)
     const fitted = await cellSize()
