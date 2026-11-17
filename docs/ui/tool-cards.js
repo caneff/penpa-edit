@@ -4,9 +4,8 @@
 (function () {
     'use strict';
 
-    const SEPARATOR = ' · ';
     const MULTICOLOR_MODE = 'multicolor';
-    const { NOTHING, describeTool, mouseRows, toolKey, submodeLabel } = window.toolGuide;
+    const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -18,32 +17,19 @@
         return tool.styles.find((s) => s.style === style) ?? null;
     }
 
-    // Mode, sub-mode and style as the Mouse card's headline and the title bar show them.
-    function nameParts(tool, style) {
-        return [tool.modeName, submodeLabel(tool), styleOf(tool, style)?.name].filter(Boolean);
-    }
+    // The colour a tool's selected style paints, or null for a tool with no colour style.
+    const styleColour = (tool, style) => styleOf(tool, style)?.swatch ?? null;
 
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 
+    // The tool's one name, with a dot in the selected style's colour; the full name is the tooltip when a narrow card cuts it.
     function headline(tool, style, held) {
-        const h3 = el('h3', { class: 'ui-headline' });
-        const style_ = styleOf(tool, style);
-        // Each part carries its own class, so a missing sub-mode never shifts the style's class or swatch onto another part.
-        const parts = [
-            [tool.modeName, 'ui-hmode'],
-            [submodeLabel(tool), 'ui-hsub'],
-            [style_?.name, 'ui-hstyle']
-        ].filter(([text]) => text);
-        parts.forEach(([text, cls], i) => {
-            if (i) {
-                h3.append(el('span', { class: 'ui-hsep' }, [SEPARATOR]));
-            }
-            const span = el('span', { class: cls }, [text]);
-            if (cls === 'ui-hstyle' && style_.swatch) {
-                span.prepend(el('i', { class: 'ui-dot', style: `background:${style_.swatch}` }));
-            }
-            h3.append(span);
-        });
+        const name = chipLabel(tool);
+        const colour = styleColour(tool, style);
+        const h3 = el('h3', { class: 'ui-headline', title: name }, [
+            ...(colour ? [el('i', { class: 'ui-dot', style: `background:${colour}` })] : []),
+            el('span', { class: 'ui-hname' }, [name])
+        ]);
         if (held) {
             h3.append(el('span', { class: 'ui-held' }, ['held']));
         }
@@ -165,7 +151,7 @@
 
         function showCurrent() {
             const current = tools.find((t) => toolKey(t) === toolKey(engine.getTool()));
-            input.value = current ? describeTool(current).name : '';
+            input.value = current ? chipLabel(current) : '';
         }
 
         // The focus returns to the board by leaving the picker: nothing else on the page takes keys.
@@ -309,7 +295,13 @@
             drawn = now;
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held);
-            titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
+            titleBarName.textContent = chipLabel(tool);
+            const colour = styleColour(tool, current.style);
+            if (colour) {
+                cards.board.node.style.setProperty('--ui-style-colour', colour);
+            } else {
+                cards.board.node.style.removeProperty('--ui-style-colour');
+            }
             mode.render(tool, current.style, orientation);
         }
 

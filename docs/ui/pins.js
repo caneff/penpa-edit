@@ -21,6 +21,9 @@
     const PIN_LIGHTNESS_PERCENT = 38;
     const NEUTRAL_COLOUR = '#7d828c';
     const BUTTON = 'button, wa-button';
+    // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
+    const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
+        'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
 
     const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + pin.id * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
 
@@ -141,7 +144,8 @@
             const main = el('button', {
                 type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), title: toolOf(pin).name
             }, [el('span', { class: 'ui-chip-num' }, [String(number)]), label]);
-            const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}` }, ['×']);
+            const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}` });
+            unpin.innerHTML = REMOVE_ICON;
             main.addEventListener('click', () => {
                 applyPin(pin);
                 main.blur();
@@ -211,7 +215,7 @@
 
         // Restarts the CSS animation, which fades the name out on its own.
         function flashTool(tool, colour) {
-            flash.replaceChildren(el('i', { class: 'ui-flash-dot', style: `background:${colour}` }), tool.name);
+            flash.replaceChildren(el('i', { class: 'ui-flash-dot', style: `background:${colour}` }), chipLabel(tool));
             flash.classList.remove('is-flashing');
             void flash.offsetWidth;
             flash.classList.add('is-flashing');

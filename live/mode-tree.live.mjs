@@ -201,7 +201,7 @@ describe('the Mode card tree', () => {
     assert.equal((await currentTool(page)).submode, '3')
     assert.equal(await settle(() => page.evaluate(() => document.activeElement === document.body), true), true)
     assert.equal(await search().getAttribute('aria-expanded'), 'false')
-    assert.equal(await search().inputValue(), 'Free line', 'the field names the tool again')
+    assert.equal(await search().inputValue(), 'Line > Free', 'the field names the tool again')
   })
 
   it('picks with the keyboard: Enter on a row, and Enter in the field picks the first match', async () => {

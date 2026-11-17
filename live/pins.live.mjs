@@ -18,8 +18,8 @@ const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolve
 const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save these pins as a preset)/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map((text) => text.replace(/^\d+\s*/, '').trim())
 
-// The colour of the board's frame, as the Board card draws it.
-const frameColour = (page) => page.getByRole('region', { name: 'Board' }).evaluate((card) => getComputedStyle(card).outlineColor)
+// The colour the Board card keeps for the current pin (the frame shows the selected style's colour instead where the tool has one).
+const frameColour = (page) => page.getByRole('region', { name: 'Board' }).evaluate((card) => card.style.getPropertyValue('--ui-tool-colour'))
 
 describe('engine.tabSet', () => {
   let opened
