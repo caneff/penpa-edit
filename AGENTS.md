@@ -81,6 +81,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   #32), which replays the whole corpus with JS coverage on and hunts every plant. It is run by hand, and nothing
   enforces when; its last tables are in `research/safety-net-measure-2026-11.md`.
 - **Playwright** is an approved dev dependency (Chris, 2026-11-09).
+- **fast-check** is an approved dev dependency, for the solve.html UI fuzz (#195) (Chris, 2026-11-16).
 - **CI runs on GitHub Actions here**, an exception to the local-CI rule: the repo is public, so Actions minutes are free, and
   the nightly upstream merge (#3) must run unattended (Chris, 2026-11-09).
 - **The test plan** is `research/fork-audit-2026-11.md` § Test plan: each audit bug gets a red test, marked `todo` with its
