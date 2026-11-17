@@ -158,3 +158,4 @@ function readEngineState() {
         document.addEventListener('DOMContentLoaded', addButton);
     }
 })();
+// Probe for #268: a docs/js change.
