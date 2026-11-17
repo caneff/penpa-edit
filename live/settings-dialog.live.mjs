@@ -464,6 +464,7 @@ describe('the Progress settings', () => {
       await closeDialog(page)
       // Choosing the tool in `openSolve` was saved while the setting was still on; the store holds that and no digit.
       const before = await storedProgress(page)
+      assert.notEqual(before, null, 'the tool chosen while the setting was on was saved')
       await typeDigit(page, CELL, '7')
       await savePenpa(page)
       assert.equal(await storedProgress(page), before, 'nothing more is stored')
