@@ -536,6 +536,10 @@
     // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
+    // The key that picks each Surface colour, which Penpa+'s `surfaceKeys` (main.js) deals out in a different order from the colours' own
+    // numbers. Multicolor's keys pick the same colours.
+    const SURFACE_KEY_OF_STYLE = { 1: '1', 8: '2', 3: '3', 4: '4', 2: '5', 5: '6', 6: '7', 7: '8', 9: '9', 10: '0', 11: '11', 12: '12' };
+
     const SUBMODE_NAMES = {
         line: { 1: 'normal', 2: 'diagonal', 3: 'free', 5: 'middle', 4: 'helper ×' },
         lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'erase' },
@@ -638,7 +642,7 @@
                 swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
             }
             const sample = box === 'number' && style in TEXT_STYLE_DISC ? textSampleOf(style) : null;
-            return [{ style, name, swatch, sample }];
+            return [{ style, name, swatch, sample, key: box === 'surface' ? SURFACE_KEY_OF_STYLE[style] ?? null : null }];
         });
     }
 
@@ -909,8 +913,8 @@
         },
 
         // Every tool the link offers, in the order of Penpa+'s mode list. `labels` are the names Penpa+'s own menus give it,
-        // `styles` its colours and line looks with a display name, the swatch colour (null where the style is no colour) and, for Number's text styles drawn as outline or on a disc,
-        // a `sample` of how Penpa+ paints the digit and its disc.
+        // `styles` its colours and line looks with a display name, the swatch colour (null where the style is no colour), the `key` that picks a Surface
+        // or Multicolor colour (null elsewhere) and, for Number's text styles drawn as outline or on a disc, a `sample` of how Penpa+ paints the digit and its disc.
         listTools() {
             return toolCatalog().map((tool) => ({
                 ...tool, labels: [...tool.labels], styles: tool.styles.map((style) => ({ ...style, sample: structuredClone(style.sample) }))

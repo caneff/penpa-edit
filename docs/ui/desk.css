@@ -182,6 +182,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-toolopts[hidden] { display: none; }
 .ui-sub { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; }
 .ui-styles { display: flex; flex-wrap: wrap; gap: 3px; padding: 2px; }
+.ui-styles.is-grid { display: grid; grid-template-columns: repeat(var(--ui-swatch-columns), auto); justify-content: start; }
 .ui-stylebtn { width: 28px; height: 28px; padding: 3px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: #23262c; cursor: pointer; }
 .ui-stylebtn:hover { border-color: #8aa6e0; }
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
@@ -197,6 +198,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .ui-recent .ui-chip.is-current { --ui-pin-colour: #585d68; }
+/* A Recent chip has no pin, so no colour bar. */
+.ui-recent .ui-chip { border-left-width: 1px; }
+.ui-chip:not(.is-current):hover { background: #f3f0e6; }
+.ui-chip.is-current:hover { filter: brightness(1.12); }
+.ui-chip[draggable="true"] { cursor: grab; }
+.ui-pins-empty { margin: 0; font-size: 12px; color: #6b6656; }
 .ui-chip-main { display: flex; gap: 5px; padding: 1px 2px 1px 6px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset field, the save row under it and the undo line for a deleted preset. */
@@ -204,6 +211,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-preset-row > .ui-picker, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
 .ui-preset-row[hidden] { display: none; }
 .ui-preset-row > wa-button { flex: none; }
+/* Set apart from the load field: a gap and a rule, so it does not read as part of it. */
+.ui-preset-save { margin-left: 8px; padding-left: 8px; border-left: 1px solid #cfcabd; }
+.ui-dark .ui-preset-save { border-left-color: #4a5060; }
 .ui-preset-row > wa-button::part(base) { height: 28px; min-height: 0; padding: 0 8px; }
 /* The name field's label is for assistive tech: the placeholder says what to type. */
 .ui-preset-name::part(form-control-label) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
@@ -213,10 +223,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-entry-btn:hover { background: #f0ede4; color: inherit; }
 .ui-entry-star[aria-pressed="true"] { color: #b8860b; }
 .ui-entry-star[aria-pressed="true"] svg { fill: currentColor; }
-.ui-preset-undo { margin-top: 6px; font-size: 12px; }
+/* Above the open preset list, which floats over this line, so a delete can still be undone while the list is open. */
+.ui-preset-undo { position: relative; z-index: 5; margin-top: 6px; padding: 2px 6px; border-radius: 6px; background: #f3f0e6; font-size: 12px; }
 .ui-preset-undo:empty { display: none; }
 .ui-preset-undo-btn { margin-left: 6px; border: 0; background: transparent; color: #3b6fd4; text-decoration: underline; cursor: pointer; font: inherit; }
-.ui-chip-unpin { padding: 0 6px; opacity: .55; }
+/* The negative margin grows the click target without growing the chip. */
+.ui-chip-unpin { padding: 4px 8px; margin: -4px 0; opacity: .55; }
 .ui-chip-unpin:hover { opacity: 1; }
 .ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
 
@@ -274,12 +286,16 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-entry-btn { color: #a9b0bd; }
 .ui-dark .ui-entry-star[aria-pressed="true"] { color: #e0b84a; }
 .ui-dark .ui-preset-undo-btn { color: #8aa6e0; }
+.ui-dark .ui-preset-undo { background: #343946; }
 .ui-dark .ui-entry[aria-selected="true"], .ui-dark .ui-searching .ui-trow.ui-tbest { background: #2c3d5e; }
 .ui-dark .ui-group-title { color: #a9b0bd; }
 .ui-dark .ui-stylebtn { background: #2f333d; color: #eef0f4; border-color: #4a5060; }
 .ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
 .ui-dark .ui-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--ui-pin-colour, #4a5060); }
 .ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
+.ui-dark .ui-recent .ui-chip:not(.is-current) { border-left-color: #4a5060; }
+.ui-dark .ui-chip:not(.is-current):hover { background: #343946; }
+.ui-dark .ui-pins-empty { color: #a9b0bd; }
 
 /* The dark board: Penpa+'s own dark canvas ground (dark_theme.css `#canvas`), which the UI root's revert of Penpa+'s stylesheets drops. */
 .ui-dark .ui-card-board .ui-body > *, .ui-dark .ui-card-board canvas { background: #000; }
