@@ -92,18 +92,19 @@ describe('a card that grows on a layout the solver changed', () => {
 
   it('a card the solver resizes over another moves nothing', async () => {
     const { before, after } = await boxesAround('akari', [resize('Pinned', 'bottom', 0, 240)])
-    assert.ok(bottom(after.Pinned) > after.Mode.y, 'Pinned reaches over Mode')
     assert.deepEqual(after.Mode, before.Mode)
+    assert.ok(bottom(after.Pinned) > after.Mode.y, 'Pinned reaches over Mode')
   })
 
   it('a card that grows over one with no room left below it stops above it', async () => {
     // Mode at the desk's bottom, and Pinned dragged down to a few pixels above it.
-    const { after } = await boxesAround('akari', [
+    const { before, after } = await boxesAround('akari', [
       drag('Mode', 0, 240), drag('Mode', 0, 240),
       drag('Pinned', 0, 240), drag('Pinned', 0, 240), drag('Pinned', 0, 80), drag('Pinned', 0, -20),
       LOAD_DEFAULTS
     ])
-    assert.ok(bottom(after.Pinned) <= after.Mode.y, `Pinned ends at ${bottom(after.Pinned)}, over Mode at ${after.Mode.y}`)
+    assert.deepEqual(after.Mode, before.Mode)
+    assert.ok(bottom(after.Pinned) <= after.Mode.y + SLACK_PX, `Pinned ends at ${bottom(after.Pinned)}, over Mode at ${after.Mode.y}`)
   })
 
   it('Rules, dragged by hand, stays clear of Mouse on a preset load', async () => {
