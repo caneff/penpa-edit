@@ -33,7 +33,7 @@
         return null;
     }
 
-    const { el } = window.uiKit;
+    const { el, setDark } = window.uiKit;
     const EXAMPLE_LINK = 'https://caneff.github.io/penpa-edit/solve.html?m=solve&p=…';
     const input = el('wa-input', { id: 'paste-link-input', label: 'Penpa+ link', placeholder: EXAMPLE_LINK, autocomplete: 'off', spellcheck: 'false' });
     const error = el('p', { class: 'ui-paste-error', role: 'alert', hidden: '' }, [
@@ -55,9 +55,9 @@
             location.reload();
         }
     });
-    const dark = engine.savedTheme === 'dark';
-    document.documentElement.classList.toggle('wa-dark', dark);
-    document.body.append(el('div', { class: 'ui-paste-page' + (dark ? ' ui-dark' : '') }, [form]));
+    const page = el('div', { class: 'ui-paste-page' }, [form]);
+    setDark(page, engine.savedTheme === 'dark');
+    document.body.append(page);
     // Web Awesome upgrades the box after this script runs; the focus waits for it.
     customElements.whenDefined('wa-input').then(() => input.focus());
 })();

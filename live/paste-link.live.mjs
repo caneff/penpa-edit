@@ -9,6 +9,8 @@ const browser = useBrowser()
 
 const UPSTREAM = 'https://swaroopg92.github.io/penpa-edit/'
 const FORK = 'https://caneff.github.io/penpa-edit/'
+// The localStorage key `engine_bridge.js` keeps the theme under; `engine.setTheme` needs a puzzle, which the bare page has none of.
+const THEME_KEY = 'chinstrap-solve-theme-v1'
 
 // Opens bare solve.html: the paste box shows, no desk is built.
 async function openBare () {
@@ -100,6 +102,8 @@ describe('the paste page\'s look (#193)', () => {
       upgraded: [...card.querySelectorAll('wa-input, wa-button')].every((n) => n.matches(':defined')),
       htmlDark: document.documentElement.classList.contains('wa-dark'),
       cardBackground: parse(getComputedStyle(card).backgroundColor),
+      cardText: parse(getComputedStyle(card).color),
+      pageBackground: parse(getComputedStyle(document.body).backgroundColor),
       pageText: card.innerText
     }
   }
@@ -127,31 +131,48 @@ describe('the paste page\'s look (#193)', () => {
     } finally { await bare.context.close() }
   })
 
-  it('shows the error below the box, in the danger colours of the theme', async () => {
-    const bare = await openBare()
-    try {
-      await bare.page.keyboard.type('hello')
-      await bare.page.keyboard.press('Enter')
-      await bare.error.waitFor()
-      assert.notEqual(await bare.error.evaluate((n) => getComputedStyle(n).backgroundColor), 'rgba(0, 0, 0, 0)', 'a filled panel')
-      const [boxBottom, errorTop] = await bare.page.evaluate(() => [
-        document.querySelector('#paste-link-input').getBoundingClientRect().bottom,
-        document.querySelector('[role=alert]').getBoundingClientRect().top])
-      assert.equal(errorTop >= boxBottom, true, `the error (top ${errorTop}) is below the box (bottom ${boxBottom})`)
-    } finally { await bare.context.close() }
-  })
+  // Runs in the page: the error's background against what the theme's danger token paints.
+  const errorColoursInPage = () => {
+    const probe = document.createElement('div')
+    probe.style.background = 'var(--wa-color-danger-fill-quiet)'
+    document.body.append(probe)
+    const expected = getComputedStyle(probe).backgroundColor
+    probe.remove()
+    return { actual: getComputedStyle(document.querySelector('[role=alert]')).backgroundColor, expected }
+  }
 
-  for (const [theme, dark] of [['light', false], ['dark', true]]) {
-    it(`follows the saved ${theme} theme`, async () => {
+  for (const theme of ['light', 'dark']) {
+    it(`shows the error below the box, in the ${theme} theme's danger colours`, async () => {
       const bare = await openBare()
       try {
-        await bare.page.evaluate((t) => localStorage.setItem('chinstrap-solve-theme-v1', t), theme)
+        await bare.page.evaluate(([key, t]) => localStorage.setItem(key, t), [THEME_KEY, theme])
+        await bare.page.reload()
+        await bare.box.fill('hello')
+        await bare.open.click()
+        await bare.error.waitFor()
+        const { actual, expected } = await bare.page.evaluate(errorColoursInPage)
+        assert.equal(actual, expected)
+        const [boxBottom, errorTop] = await bare.page.evaluate(() => [
+          document.querySelector('#paste-link-input').getBoundingClientRect().bottom,
+          document.querySelector('[role=alert]').getBoundingClientRect().top])
+        assert.equal(errorTop >= boxBottom, true, `the error (top ${errorTop}) is below the box (bottom ${boxBottom})`)
+      } finally { await bare.context.close() }
+    })
+  }
+
+  for (const [theme, dark] of [['light', false], ['dark', true]]) {
+    it(`follows the saved ${theme} theme: page, card and text`, async () => {
+      const bare = await openBare()
+      try {
+        await bare.page.evaluate(([key, t]) => localStorage.setItem(key, t), [THEME_KEY, theme])
         await bare.page.reload()
         await bare.page.getByRole('textbox', { name: 'Penpa+ link' }).waitFor()
         const look = await bare.page.evaluate(lookInPage)
         assert.equal(look.htmlDark, dark)
-        const [r, g, b] = look.cardBackground
-        assert.equal((r + g + b) / 3 < 100, dark, `card background ${look.cardBackground}`)
+        const mean = ([r, g, b]) => (r + g + b) / 3
+        assert.equal(mean(look.cardBackground) < 100, dark, `card background ${look.cardBackground}`)
+        assert.equal(mean(look.pageBackground) < 100, dark, `page background ${look.pageBackground}`)
+        assert.equal(mean(look.cardText) > 150, dark, `card text ${look.cardText}`)
       } finally { await bare.context.close() }
     })
   }

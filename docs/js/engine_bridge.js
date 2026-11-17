@@ -764,7 +764,7 @@
         // False when the page opened with no link: `ready` then never settles and no puzzle is loaded.
         hasPuzzle: hasPuzzleData(),
 
-        // The theme the page opens in, 'light' or 'dark': what the page with no link shows, since `getSettings` needs a puzzle.
+        // The theme the page opens in, 'light' or 'dark': read without a puzzle open, which `getSettings` needs.
         savedTheme: savedTheme(),
 
         // The state the UI draws from. Read it when `change` fires. `tool` is `getTool()`'s, `held` is true while a held Shift
