@@ -11,7 +11,7 @@ const browser = useBrowser()
 const LAPTOPS = [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { width: 1536, height: 864 }]
 const WIDE = { width: 1920, height: 1080 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-// desk.js's margins: the top one above each column, the gap between two cards, the bar's own side padding (desk.css).
+// desk.js's margins: the top one above each column, the gap between two cards; and desk.css's --ui-bar-padding.
 const TOP_MARGIN_PX = 12
 const CARD_GAP_PX = 10
 const BAR_PADDING_PX = 14
@@ -36,6 +36,9 @@ const ICEBREAKER = {
 }
 // A title too long for the bar's left end beside full-size buttons at 1280 wide, short enough for it beside smaller ones.
 const LONG_TITLE = { ...ICEBREAKER, title: 'Icebreaker (Nurikabe + Icelom), longer title' }
+
+// The Icebreaker rules four times over: more than Rules can show at a laptop size.
+const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
 
 // Runs in the page: a new 10x10 board with `puzzle`'s title, author, rules and Tab set; returns its solve link's `#` part.
 function solveLinkInPage ({ title, author, rules, tabs }) {
@@ -83,6 +86,12 @@ function readDeskInPage (names) {
       return inner.top >= outer.top && inner.bottom <= outer.bottom
     })),
     zoomButtons: [...section('Board').querySelectorAll('.ui-head .ui-zoom wa-button')].map(rect),
+    // Each header group's buttons, by the corner radii of their drawn boxes [top-left, top-right]: a joined group rounds
+    // only its outer corners.
+    groupCorners: [...document.querySelectorAll('.ui-zoom, .ui-rules-text')].map((group) => [...group.querySelectorAll('wa-button')].map((button) => {
+      const base = getComputedStyle(button.shadowRoot.querySelector('[part~="base"]'))
+      return [parseFloat(base.borderTopLeftRadius) > 0, parseFloat(base.borderTopRightRadius) > 0]
+    })),
     overflowY: Object.fromEntries(['Board', 'Rules', 'Mouse'].map((name) => [name, body(name).scrollHeight - body(name).clientHeight]))
   }
 }
@@ -92,8 +101,30 @@ const near = (a, b) => Math.abs(a - b) <= SLACK_PX
 
 // The tooltips showing now, by text. A Web Awesome tooltip is marked `open` while it shows.
 const shownTooltips = async (page) => (await page.locator('wa-tooltip[open]').allTextContents()).map((t) => t.trim())
-// Runs in the page: a role locator finds the native button inside a `wa-button`'s shadow root; this is the `wa-button`.
-const hostOf = (node) => node.getRootNode().host ?? node
+// The top bar's `wa-button` named `name` to screen readers. Not a role locator, which finds the native button inside its
+// shadow root, and which a disabled button (Undo with nothing to undo) does not let the pointer reach.
+const barButton = (page, name) => page.locator('.ui-bar wa-button').filter({ has: page.locator('.ui-sr-only').getByText(name, { exact: true }) })
+
+// One link per puzzle for the file, since each costs a page of its own to build.
+const links = new Map()
+function linkFor (puzzle) {
+  const key = JSON.stringify(puzzle)
+  if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), solveLinkInPage, puzzle))
+  return links.get(key)
+}
+
+// Reads `inPage` until two reads in a row agree, and returns the last: the page lays out after it renders, so a read
+// is taken once nothing moves.
+async function steady (page, inPage, arg) {
+  let last = null
+  await settle(async () => {
+    const now = JSON.stringify(await page.evaluate(inPage, arg))
+    const same = now === last
+    last = now
+    return same
+  }, true)
+  return JSON.parse(last)
+}
 
 // Each bar control the heading overlaps, by name; none when the bar is clear.
 const overlapping = (read) => read.controls.filter((c) => overlaps(read.heading, c)).map((c) => c.name || `control at ${c.x}`)
@@ -110,17 +141,13 @@ describe('the top bar on a laptop screen', () => {
   afterEach(async () => { await opened?.context.close() })
 
   async function open (puzzle, viewport) {
-    const link = await linkFromNewBoard(browser(), solveLinkInPage, puzzle)
-    opened = await openSolvePage(browser(), link, { contextOptions: { viewport } })
+    opened = await openSolvePage(browser(), await linkFor(puzzle), { contextOptions: { viewport } })
     return opened.page
   }
 
-  // The bar places its heading after its controls have rendered, so each read waits for it to stop moving.
   const barAt = async (page, viewport) => {
     await page.setViewportSize(viewport)
-    let last = null
-    await settle(async () => { const now = JSON.stringify(await page.evaluate(readBarInPage)); const same = now === last; last = now; return same }, true)
-    return JSON.parse(last)
+    return steady(page, readBarInPage)
   }
 
   it('centres the title and author when there is room, and moves them to the left end when centring would overlap', async () => {
@@ -136,6 +163,20 @@ describe('the top bar on a laptop screen', () => {
     assert.deepEqual(overlapping(laptop), [])
     assert.equal(laptop.buttonHeight, wide.buttonHeight, 'the buttons keep their size while the left end has room')
     assert.equal(laptop.titleCut, false, 'the title is whole')
+  })
+
+  it('moves the heading clear of a control added to the bar after it was placed', async () => {
+    const page = await open(ICEBREAKER, WIDE)
+    const before = await barAt(page, WIDE)
+    assert.equal(near(before.heading.x + before.heading.w / 2, before.bar.x + before.bar.w / 2), true, 'centred to start with')
+    await page.evaluate(() => {
+      const wide = document.createElement('span')
+      Object.assign(wide.style, { display: 'inline-block', width: '600px', height: '20px' })
+      document.querySelector('.ui-bar').append(wide)
+    })
+    const after = await steady(page, readBarInPage)
+    assert.deepEqual(overlapping(after), [])
+    assert.equal(near(after.heading.x, after.bar.x + BAR_PADDING_PX), true, `at the left end: ${JSON.stringify(after.heading)}`)
   })
 
   for (const viewport of LAPTOPS) {
@@ -160,10 +201,8 @@ describe('the top bar on a laptop screen', () => {
   it('has no theme button, and Reset layout is an icon unlike Restart\'s', async () => {
     const page = await open(ICEBREAKER, LAPTOPS[1])
     assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
-    const read = (name) => page.locator('.ui-bar').getByRole('button', { name, exact: true }).evaluate((node, hostOfSource) => {
-      const host = eval(hostOfSource)(node)
-      return { icons: host.querySelectorAll('svg').length, icon: host.querySelector('svg')?.innerHTML, text: host.textContent.trim(), label: host.querySelector('.ui-sr-only')?.textContent }
-    }, hostOf.toString())
+    const read = (name) => barButton(page, name).evaluate((host) =>
+      ({ icons: host.querySelectorAll('svg').length, icon: host.querySelector('svg')?.innerHTML, text: host.textContent.trim(), label: host.querySelector('.ui-sr-only').textContent }))
     const reset = await read('Reset layout')
     const restart = await read('Restart')
     assert.equal(reset.icons, 1, 'Reset layout shows an icon')
@@ -173,25 +212,22 @@ describe('the top bar on a laptop screen', () => {
 
   it('shows each top-bar button\'s label on hover, with its shortcut, and the current one after it changes', async () => {
     const page = await open(ICEBREAKER, LAPTOPS[1])
-    const bar = page.locator('.ui-bar')
-    const hoverLabel = async (name) => {
-      // The `wa-button` itself, since a disabled one (Undo with nothing to undo) still shows its label.
-      await bar.locator('wa-button').filter({ has: page.locator('.ui-sr-only').getByText(name, { exact: true }) }).hover()
-      return settle(() => shownTooltips(page), [want[name] ?? `${name} (F4)`])
+    const hoverLabel = async (name, label) => {
+      await barButton(page, name).hover()
+      return settle(() => shownTooltips(page), [label])
     }
     const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Open in Penpa+': 'Open in Penpa+', Settings: 'Settings', 'Reset layout': 'Reset layout' }
-    const names = await bar.getByRole('button').evaluateAll((nodes, hostOfSource) => nodes.map((node) => {
-      const host = eval(hostOfSource)(node)
-      return host.querySelector('.ui-sr-only')?.textContent ?? host.textContent.trim()
-    }), hostOf.toString())
+    const buttons = page.locator('.ui-bar wa-button')
+    const names = await buttons.locator('.ui-sr-only').allTextContents()
+    assert.equal(names.length, await buttons.count(), 'every top-bar button has a name')
     assert.deepEqual(names.sort(), Object.keys(want).sort(), 'every top-bar button is listed here')
     for (const [name, label] of Object.entries(want)) {
-      assert.deepEqual(await hoverLabel(name), [label], `hovering ${name}`)
+      assert.deepEqual(await hoverLabel(name, label), [label], `hovering ${name}`)
     }
-    await bar.getByRole('button', { name: 'Pause', exact: true }).click()
+    await barButton(page, 'Pause').click()
     // The pointer is still on the button after the click, so the next hover starts off it.
     await page.mouse.move(0, 0)
-    assert.deepEqual(await hoverLabel('Resume'), ['Resume (F4)'])
+    assert.deepEqual(await hoverLabel('Resume', 'Resume (F4)'), ['Resume (F4)'])
   })
 })
 
@@ -199,18 +235,12 @@ describe('the desk on a laptop screen', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
-  async function open (viewport) {
-    const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
-    opened = await openSolvePage(browser(), link, { contextOptions: { viewport } })
+  async function open (viewport, puzzle = ICEBREAKER) {
+    opened = await openSolvePage(browser(), await linkFor(puzzle), { contextOptions: { viewport } })
     return opened.page
   }
 
-  // Cards render their controls after the desk is laid out, so the reads wait for the layout to stop moving.
-  const deskSettled = async (page) => {
-    let last = null
-    await settle(async () => { const now = JSON.stringify(await page.evaluate(readDeskInPage, CARDS)); const same = now === last; last = now; return same }, true)
-    return JSON.parse(last)
-  }
+  const deskSettled = (page) => steady(page, readDeskInPage, CARDS)
 
   for (const viewport of LAPTOPS) {
     describe(`at ${viewport.width}x${viewport.height}`, () => {
@@ -245,9 +275,69 @@ describe('the desk on a laptop screen', () => {
         for (const buttons of [read.zoomButtons, read.rulesButtons]) {
           buttons.slice(1).forEach((button, i) => assert.equal(button.x - (buttons[i].x + buttons[i].w) <= SLACK_PX, true, `joined: ${JSON.stringify(buttons)}`))
         }
+        for (const corners of read.groupCorners) {
+          assert.deepEqual(corners, corners.map((_, i) => [i === 0, i === corners.length - 1]), 'rounded only at the group\'s outer corners')
+        }
       })
     })
   }
+
+  it('puts Rules over Mouse in the default layout too, after a window resize', async () => {
+    const page = await open(LAPTOPS[1])
+    await deskSettled(page)
+    await page.setViewportSize(LAPTOPS[0])
+    const read = await deskSettled(page)
+    assert.equal(read.cards.Rules.y < read.cards.Mouse.y, true, `Rules at ${read.cards.Rules.y}, Mouse at ${read.cards.Mouse.y}`)
+    assert.deepEqual(cardOverlaps(read), [])
+  })
+
+  it('gives Rules the larger share when its text cannot fit, leaving Mouse its minimum', async () => {
+    const read = await deskSettled(await open(LAPTOPS[0], LONG_RULES))
+    const { Rules, Mouse } = read.cards
+    assert.equal(read.overflowY.Rules > 0, true, 'the long rules do not fit')
+    assert.equal(Rules.h > Mouse.h, true, `Rules ${Rules.h}px, Mouse ${Mouse.h}px`)
+    assert.equal(near(Mouse.h, MOUSE_MIN_HEIGHT_PX), true, `Mouse is ${Mouse.h}px`)
+  })
+
+  // A right-column card resized by its corner, in the fitted layout and in the default one a window resize leaves: the
+  // restack that follows a card's change of height must not undo the solver's own resize.
+  for (const after of ['the fitted layout', 'a window resize']) {
+    it(`keeps a right-column card's resize in ${after}`, async () => {
+      const page = await open(LAPTOPS[1])
+      await deskSettled(page)
+      if (after === 'a window resize') {
+        await page.setViewportSize(LAPTOPS[2])
+        await deskSettled(page)
+      }
+      const before = (await deskSettled(page)).cards.Pinned
+      const handle = await page.getByRole('region', { name: 'Pinned' }).getByTestId('resize-bottom-right').boundingBox()
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(handle.x + handle.width / 2 - 30, handle.y + handle.height / 2 + 40, { steps: 5 })
+      await page.mouse.up()
+      const read = await deskSettled(page)
+      assert.deepEqual({ w: Math.round(read.cards.Pinned.w), h: Math.round(read.cards.Pinned.h) }, { w: Math.round(before.w) - 30, h: Math.round(before.h) + 40 })
+    })
+  }
+
+  it('restacks the right column when a card grows after the solver moved a card of another column', async () => {
+    const page = await open(LAPTOPS[1])
+    await deskSettled(page)
+    const head = await page.getByRole('region', { name: 'Board' }).getByRole('heading', { name: 'Board' }).boundingBox()
+    await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(head.x + head.width / 2 + 20, head.y + head.height / 2 + 20, { steps: 5 })
+    await page.mouse.up()
+    await page.evaluate(() => {
+      const taller = document.createElement('div')
+      taller.style.height = '120px'
+      document.querySelector('section[aria-label="Pinned"] .ui-body').append(taller)
+    })
+    const read = await deskSettled(page)
+    const { Pinned, Mode } = read.cards
+    assert.equal(near(Mode.y, Pinned.y + Pinned.h + CARD_GAP_PX), true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
+    assert.deepEqual(cardOverlaps(read).filter((pair) => !pair.includes('Board')), [])
+  })
 
   it('names each header button of the Board and Rules cards on hover', async () => {
     const page = await open(LAPTOPS[1])

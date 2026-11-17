@@ -6,6 +6,8 @@
 
     const { iconButton, onDeskReady } = window.uiKit;
 
+    // Penpa+'s pause toggle (main.js), which a paused board still answers.
+    const PAUSE_KEY = 'F4';
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
 
@@ -35,7 +37,7 @@
         const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo(), 'Ctrl+Z');
         const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo(), 'Ctrl+Y');
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
-        const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()), 'F4');
+        const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()), PAUSE_KEY);
 
         // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
         // unload alone loses the race with the navigation, and with no save the progress would be gone from both pages.
@@ -73,7 +75,7 @@
         cover.className = 'ui-paused';
         cover.setAttribute('aria-label', 'Paused');
         cover.hidden = true;
-        cover.innerHTML = '<div>Paused</div><div class="ui-paused-hint">Press F4 or Resume to continue</div>';
+        cover.innerHTML = `<div>Paused</div><div class="ui-paused-hint">Press ${PAUSE_KEY} or Resume to continue</div>`;
         cards.board.node.append(cover);
 
         bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, openInPenpa.node);

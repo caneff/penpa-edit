@@ -96,15 +96,12 @@
     window.uiKit = { el, iconButton, onDeskReady };
 
     function build(info) {
-        const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', () => {}).node;
-        resetButton.classList.add('ui-reset');
         const bar = el('header', { class: 'ui-bar' }, [
             el('div', { class: 'ui-heading' }, [
                 el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
                 el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
             ]),
-            el('span', { class: 'ui-spacer' }),
-            resetButton
+            el('span', { class: 'ui-spacer' })
         ]);
         const desk = el('div', { class: 'ui-desk' });
         const cards = {};
@@ -122,26 +119,26 @@
             desk.append(cards[id].node);
         });
         // A card header's button: `content` is what it shows, `label` its name to screen readers when it differs, and
-        // `hoverLabel` what it shows on hover.
-        const headButton = (content, label, hoverLabel) => {
+        // `hoverLabel` what it shows on hover, the label unless given.
+        const headButton = (content, label, hoverLabel = label) => {
             const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' },
                 label ? [el('span', { 'aria-hidden': 'true' }, [content]), el('span', { class: 'ui-sr-only' }, [label])] : [content]);
             addTooltip(node, hoverLabel);
             return node;
         };
         const zoom = {
-            out: headButton('\u2212', 'Zoom out', 'Zoom out'),
-            in: headButton('+', 'Zoom in', 'Zoom in'),
+            out: headButton('\u2212', 'Zoom out'),
+            in: headButton('+', 'Zoom in'),
             fit: headButton('Fit', null, 'Fit board')
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
-        const rulesText = { smaller: headButton('\u2212', 'Smaller rules text', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text', 'Bigger rules text') };
+        const rulesText = { smaller: headButton('\u2212', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text') };
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { bar, desk, cards, zoom, rulesText, resetButton };
+        return { bar, desk, cards, zoom, rulesText };
     }
 
     // ---- The kept layout --------------------------------------------------------------------------------------------
@@ -333,11 +330,12 @@
         keepFitted(desk, cards, Object.keys(cards));
     }
 
-    // Records the cards `ids` where the fitted layout has them, as places of their own.
+    // Records the cards `ids` where the fitted layout has them, as places of their own marked `fitted`, which the solver's
+    // first move or resize of that card clears (saveCard writes a new entry).
     function keepFitted(desk, cards, ids) {
         ids.forEach((id) => {
             const node = cards[id].node;
-            saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight };
+            saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight, fitted: 1 };
             if (node.classList.contains('is-sized')) {
                 saved[id].h = node.offsetHeight;
             }
@@ -345,9 +343,13 @@
     }
 
     // A right-column card that changes height after the layout (its controls rendering, a tool with more options) moves
-    // the cards below it, while the solver has moved none of them: they stay stacked top-down, none over another (#181).
+    // the cards below it, while the solver has moved or resized none of the column's cards: they stay stacked top-down,
+    // none over another (#181). Never while the solver drags, which would undo the drag's resize.
     function restackRight(desk, cards) {
-        if (isFitted) {
+        if (isDragging) {
+            return;
+        }
+        if (RIGHT_COLUMN.every((id) => saved[id]?.fitted)) {
             const x = cards[RIGHT_COLUMN[0]].node.offsetLeft;
             stack(cards, RIGHT_COLUMN, x, cards[RIGHT_COLUMN[0]].node.offsetWidth);
             // keepInside reads each card's kept place, so the new one is kept first and again once it has been clamped.
@@ -409,18 +411,21 @@
         }
     }
 
-    // Places the heading again whenever the bar, the heading or a control changes size, controls added later included.
+    // Places the heading again whenever the bar, the heading or the controls change size. The spacer takes the room the
+    // controls leave, so it changes size with any control, one added later included.
     function watchHeading(bar) {
         const resized = new ResizeObserver(() => placeHeading(bar));
-        const observeAll = () => [bar, ...bar.children].forEach((node) => resized.observe(node));
-        new MutationObserver(observeAll).observe(bar, { childList: true });
-        observeAll();
+        [bar, bar.querySelector('.ui-heading'), bar.querySelector('.ui-spacer')].forEach((node) => resized.observe(node));
     }
 
     // ---- Moving, resizing and raising ---------------------------------------------------------------------------------
 
+    // True while the solver moves or resizes a card.
+    let isDragging = false;
+
     // Runs `onMove(dx, dy)` for a pointer drag begun by `event` on `target`, and `onEnd(didMove)` when it ends.
     function trackPointer(event, target, onMove, onEnd) {
+        isDragging = true;
         event.preventDefault();
         event.stopPropagation();
         const startX = event.clientX;
@@ -435,6 +440,7 @@
             target.removeEventListener('pointermove', move);
             target.removeEventListener('pointerup', end);
             target.removeEventListener('pointercancel', end);
+            isDragging = false;
             onEnd(didMove);
         };
         target.addEventListener('pointermove', move);
@@ -605,7 +611,9 @@
             showRulesText(desk);
             relayout();
         };
-        desk.resetButton.addEventListener('click', resetLayout);
+        const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', resetLayout).node;
+        resetButton.classList.add('ui-reset');
+        desk.bar.append(resetButton);
         showRulesText(desk);
         desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));
         desk.rulesText.bigger.addEventListener('click', () => stepRulesText(desk, 1));

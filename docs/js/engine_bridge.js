@@ -23,8 +23,8 @@
         Puzzle.prototype.__export_text_shared = function (...args) {
             const real = { size: this.size, canvasx: this.canvasx, canvasy: this.canvasy };
             const size = Math.min(real.size, PENPA_CELL_SIZE_MAX);
-            // Through the cells across, `canvasx / size`, which index.html reads back with parseInt: scaling by
-            // `size / real.size` can land a hair under the whole number (629.99... for 1225 px at 175 px a cell) (#181).
+            // Scaled through the cell count, `canvasx / size`: index.html reads the canvas size with parseInt, and scaling by
+            // `size / real.size` can land a hair under a whole number (629.99... for 1225 px at 175 px a cell) (#181).
             this.size = size;
             this.canvasx = real.canvasx / real.size * size;
             this.canvasy = real.canvasy / real.size * size;

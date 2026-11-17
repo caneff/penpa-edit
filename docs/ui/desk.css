@@ -4,6 +4,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 
 .ui-root {
     --ui-bar-height: 60px;
+    --ui-bar-padding: 14px;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -19,7 +20,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 14px;
+    padding: 0 var(--ui-bar-padding);
     background: #2b2f38;
     color: #eef0f4;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
@@ -28,7 +29,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* Title and author sit at the bar's centre, or at its left end when centred they would reach the controls; never cut
    short (desk.js's placeHeading). */
 .ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; white-space: nowrap; pointer-events: none; }
-.ui-bar.is-heading-left .ui-heading { left: 14px; transform: translateY(-50%); }
+.ui-bar.is-heading-left .ui-heading { left: var(--ui-bar-padding); transform: translateY(-50%); }
 .ui-root .ui-title { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.1; color: #fff; }
 .ui-author { font-size: 19px; color: #c9cfda; }
 /* Smaller controls, for a heading that reaches them even at the bar's left end. */
