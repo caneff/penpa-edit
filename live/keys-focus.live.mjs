@@ -18,7 +18,8 @@ const TABS_PAST_THE_DIALOG = 60
 // Longer than the zero-delay timeouts the key rules queue.
 const AFTER_TIMEOUT_MS = 150
 const MAX_SHIFT_TABS = 6
-const DIALOG_LABEL = 'Settings'
+// The kinds of control the Settings dialog holds.
+const DIALOG_CONTROL = 'wa-button, wa-select, wa-switch'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
 const openSolve = async (link) => openSolvePage(browser(), link ?? await newBoardSolveLink(browser(), PINS))
@@ -134,26 +135,25 @@ describe('with Settings open', () => {
     assert.equal(await boardAndTool(page), before)
   })
 
-  it('Shift+Tab past the first control wraps to the dialog\'s end, not back to its start', async () => {
+  it('Shift+Tab past the first control moves on to another control of the dialog, not back to its start', async () => {
     const { page } = opened
     const first = page.locator('wa-dialog[open] wa-select').first()
     const firstLabel = await first.getAttribute('label')
     await first.focus()
-    await page.evaluate(() => {
-      window.focusLog = []
-      document.addEventListener('focusin', (e) => window.focusLog.push(e.target.getAttribute?.('label') ?? e.target.tagName))
-    })
-    // Shift+Tab until the log shows the wrap: the entry after the dialog's own (its close button).
-    let log = []
-    let wrapped
-    for (let i = 0; i < MAX_SHIFT_TABS && wrapped === undefined; i++) {
+    // Shift+Tab until focus is on a control of the settings groups other than the first (the dialog's own close button may stop it first).
+    const focusAfterWrap = () => page.evaluate(({ selector, first }) => {
+      const dialog = document.querySelector('wa-dialog[open]')
+      const controls = [...dialog.querySelectorAll(`.ui-settings-group :is(${selector})`)].filter((control) => !control.disabled)
+      const at = document.activeElement
+      return { onWrapTarget: controls.includes(at) && at.getAttribute('label') !== first, name: at.getAttribute('label') ?? at.tagName }
+    }, { selector: DIALOG_CONTROL, first: firstLabel })
+    let focus
+    for (let i = 0; i < MAX_SHIFT_TABS && !focus?.onWrapTarget; i++) {
       await page.keyboard.press('Shift+Tab')
       await afterTimeouts(page)
-      log = await page.evaluate(() => window.focusLog)
-      const at = log.indexOf(DIALOG_LABEL)
-      wrapped = at < 0 ? undefined : log[at + 1]
+      focus = await focusAfterWrap()
     }
-    assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
+    assert.equal(focus.onWrapTarget, true, `focus went to ${focus.name}, not on to a control of the dialog`)
     assert.equal(await focusIsInDialog(page), true)
   })
 })
