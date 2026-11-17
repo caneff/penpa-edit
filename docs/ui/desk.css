@@ -125,7 +125,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-tool-name { margin-left: auto; font-size: 15px; line-height: 1.2; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
     /* One line, cut short with its whole text as its tooltip, so a long name never makes the header taller (#181). */
     min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
+    /* A pill behind it (white or black once a style colour is set, tool-cards.js), so any tool colour reads at 4.5:1. */
     padding: 1px 10px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
 
 /* The Mouse card. */
@@ -189,7 +189,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip { display: flex; align-items: center; font-size: 12px; border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
-.ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: #585d68; }
 .ui-chip-main { display: flex; gap: 5px; padding: 1px 2px 1px 6px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset field, the save row under it and the undo line for a deleted preset. */
@@ -272,6 +272,23 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
 .ui-dark .ui-chip { background: #2a2e37; border-color: #4a5060; border-left-color: var(--ui-pin-colour, #4a5060); }
 .ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
+
+/* The dark board: Penpa+'s own dark canvas ground (dark_theme.css `#canvas`), which the UI root's revert of Penpa+'s stylesheets drops. */
+.ui-dark .ui-card-board .ui-body > *, .ui-dark .ui-card-board canvas { background: #000; }
+/* A light ring round a colour swatch, so a dark one (dark grey) still shows against its dark button. */
+.ui-dark .ui-swatch { stroke: rgba(255, 255, 255, .65); }
+
+/* The top bar is dark in both themes, so its buttons are too: a fill clear of the bar, a clearer one on hover, and a disabled
+   button dimmed but still shaped, its icon at 3:1. Web Awesome dims a disabled button on the host (`:host([disabled])`), so
+   the host's opacity is reset there, not on the part. */
+:root { --ui-btn-fill: #3a3f4b; --ui-btn-hover: #4a5060; --ui-btn-edge: #4a5060; --ui-btn-ink: #eef0f4; }
+.ui-bar wa-button::part(base) { background: var(--ui-btn-fill); border-color: var(--ui-btn-edge); color: var(--ui-btn-ink); }
+.ui-bar wa-button:not([disabled])::part(base):hover { background: var(--ui-btn-hover); }
+.ui-bar wa-button[disabled] { opacity: 1; }
+.ui-bar wa-button[disabled]::part(base) { color: #8d94a1; }
+/* The Settings dialog's buttons, which Web Awesome fills light in the dark theme. */
+.wa-dark wa-dialog wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"])::part(base) { background: var(--ui-btn-fill); border-color: var(--ui-btn-edge); color: var(--ui-btn-ink); }
+.wa-dark wa-dialog wa-button:is(:not([variant]), [variant="neutral"]):not([appearance="plain"]):not([disabled])::part(base):hover { background: var(--ui-btn-hover); }
 
 /* The Settings dialog: one fieldset per group, one setting per row. */
 .ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }
