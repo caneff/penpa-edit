@@ -5,6 +5,11 @@ on:
     branches: [master]
   pull_request:
   workflow_call:
+    inputs:
+      # The nightly's call turns the engine replay's full mode on (#267): the duplicate link at every checkpoint.
+      full-round-trips:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -45,6 +50,7 @@ jobs:
       - shell: bash
         env:
           BASE: ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '' }}
+          REPLAY_FULL_ROUND_TRIPS: ${{ inputs.full-round-trips && '1' || '' }}
         run: |
           mkdir -p "$RUNNER_TEMP/logs"
           node live/run-live.mjs $BASE --part ${{ matrix.part }}/${{ strategy.job-total }} 2>&1 | tee "$RUNNER_TEMP/logs/live-${{ matrix.part }}.log"

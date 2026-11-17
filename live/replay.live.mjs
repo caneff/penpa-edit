@@ -224,6 +224,7 @@ describe('the engine driver', () => {
         id: SURFACE_ID,
         expected: await readExpected(SURFACE_ID),
         served: true,
+        roundTripEvery: 1,
         setup: (context) => context.route(jsRequest('class_p.js'), (route) => route.fulfill({
           contentType: 'text/javascript', body: planted
         }))
