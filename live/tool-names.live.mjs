@@ -110,14 +110,14 @@ describe('the Board card\'s colour cue', () => {
     })
   }
 
-  it('puts a pale style colour on a dark pill so the label can be read', async () => {
+  it('puts a pale style colour on a black pill so the label can be read', async () => {
     const { page } = opened
     const yellow = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'surface').styles.find((s) => s.name === 'yellow').style)
     await setTool(page, { mode: 'surface', style: yellow })
     const pill = () => boardLabel(page).evaluate((label) => getComputedStyle(label).backgroundColor)
-    assert.equal(await settle(pill, 'rgb(43, 47, 56)'), 'rgb(43, 47, 56)')
+    assert.equal(await settle(pill, 'rgb(0, 0, 0)'), 'rgb(0, 0, 0)')
     await setTool(page, { mode: 'number', submode: '1', style: 1 })
-    assert.notEqual(await settle(pill, 'rgb(246, 243, 236)'), 'rgb(43, 47, 56)')
+    assert.notEqual(await settle(pill, 'rgb(255, 255, 255)'), 'rgb(0, 0, 0)')
   })
 })
 
