@@ -93,7 +93,17 @@
         return window.deskReady.then(build, () => {});
     }
 
-    window.uiKit = { el, iconButton, onDeskReady };
+    // A wa-dialog asking `label` with `text` under it, a plain `cancel` button and a danger `confirm` one that runs `onConfirm`.
+    // Both buttons close it. The caller adds the node to the page and opens it with `.open = true`.
+    function confirmDialog({ label, text, cancel, confirm, onConfirm }) {
+        const dialog = el('wa-dialog', { label }, [text,
+            el('wa-button', { slot: 'footer', appearance: 'plain', 'data-dialog': 'close' }, [cancel]),
+            el('wa-button', { slot: 'footer', variant: 'danger', 'data-dialog': 'close' }, [confirm])]);
+        dialog.lastElementChild.addEventListener('click', onConfirm);
+        return dialog;
+    }
+
+    window.uiKit = { el, iconButton, onDeskReady, confirmDialog };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
@@ -518,6 +528,14 @@
 
     // The cell size the board is drawn at; the - and + buttons step it from here.
     let cellPx = null;
+    // True from the solver's first - or + until Fit (or a layout reset) refits the board.
+    let isZoomed = false;
+    // The Board card's - and + buttons, which are disabled at the cell-size limits.
+    let zoomButtons = null;
+    // The cursor's cell as the last change saw it (read when the desk opens, so the starting cell is not a move), and
+    // whether it has moved since (until it has, the cursor is Penpa+'s starting cell, not a place the solver chose).
+    let cursorCell = null;
+    let hasCursorMoved = false;
 
     // The box inside the body's padding (desk.css), which is the room the board has.
     function bodyRoom(body) {
@@ -528,9 +546,16 @@
         };
     }
 
+    function showZoomLimits() {
+        const { min, max } = engine.CELL_SIZE_RANGE;
+        zoomButtons.out.disabled = cellPx <= min;
+        zoomButtons.in.disabled = cellPx >= max;
+    }
+
     // Redrawing the board can change the room it has (a scrollbar going, the layout settling), so the fit repeats until
     // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
+        isZoomed = false;
         for (let pass = 0; pass < FIT_PASSES; pass++) {
             const room = bodyRoom(boardBody);
             const w = room.w - BOARD_FRAME_PX;
@@ -541,18 +566,54 @@
             cellPx = engine.fitBoard(w, h);
             const after = bodyRoom(boardBody);
             if (after.w === room.w && after.h === room.h) {
-                return;
+                break;
             }
         }
+        showZoomLimits();
     }
 
-    function zoomBoard(steps) {
+    // Scrolls the Board card's body so the cursor's cell is in view: only when it is not, or always (centred) with `centre`.
+    function showCursor(boardBody, centre) {
+        const focus = engine.getFocusRect();
+        if (!focus) {
+            return;
+        }
+        const box = boardBody.getBoundingClientRect();
+        const left = box.left + boardBody.clientLeft;
+        const top = box.top + boardBody.clientTop;
+        const visible = { left, top, right: left + boardBody.clientWidth, bottom: top + boardBody.clientHeight };
+        const isInside = focus.left >= visible.left && focus.right <= visible.right && focus.top >= visible.top && focus.bottom <= visible.bottom;
+        if (isInside && !centre) {
+            return;
+        }
+        boardBody.scrollLeft += (focus.left + focus.right - visible.left - visible.right) / 2;
+        boardBody.scrollTop += (focus.top + focus.bottom - visible.top - visible.bottom) / 2;
+    }
+
+    // Follows the cursor when it moves to a cell the card does not show.
+    function followCursor(boardBody) {
+        const focus = engine.getFocusRect();
+        const cell = focus ? focus.cell : null;
+        if (cell === cursorCell) {
+            return;
+        }
+        cursorCell = cell;
+        hasCursorMoved = true;
+        showCursor(boardBody, false);
+    }
+
+    function zoomBoard(boardBody, steps) {
         if (cellPx === null) {
             return;
         }
         const { min, max } = engine.CELL_SIZE_RANGE;
         cellPx = clamp(cellPx + steps * ZOOM_STEP_PX, min, max);
+        isZoomed = true;
         engine.setCellSize(cellPx);
+        showZoomLimits();
+        if (hasCursorMoved) {
+            showCursor(boardBody, true);
+        }
     }
 
     // ---- The Rules card's text size ---------------------------------------------------------------------------------
@@ -617,12 +678,21 @@
         showRulesText(desk);
         desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));
         desk.rulesText.bigger.addEventListener('click', () => stepRulesText(desk, 1));
-        desk.zoom.out.addEventListener('click', () => zoomBoard(-1));
-        desk.zoom.in.addEventListener('click', () => zoomBoard(1));
-        desk.zoom.fit.addEventListener('click', () => fitBoard(desk.cards.board.body));
-        // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit drops any zoom.
-        // The card is watched, not its body, since a scrollbar appearing narrows the body and would undo the zoom at once.
-        new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.node);
+        const boardBody = desk.cards.board.body;
+        zoomButtons = desk.zoom;
+        desk.zoom.out.addEventListener('click', () => zoomBoard(boardBody, -1));
+        desk.zoom.in.addEventListener('click', () => zoomBoard(boardBody, 1));
+        desk.zoom.fit.addEventListener('click', () => fitBoard(boardBody));
+        cursorCell = engine.getFocusRect()?.cell ?? null;
+        engine.on('change', () => followCursor(boardBody));
+        // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit, unless the solver
+        // zoomed, which only Fit or a layout reset drops. The card is watched, not its body, since a scrollbar appearing
+        // narrows the body and would undo the zoom at once.
+        new ResizeObserver(() => {
+            if (!isZoomed) {
+                fitBoard(boardBody);
+            }
+        }).observe(desk.cards.board.node);
         return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown

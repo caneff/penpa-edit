@@ -10,6 +10,10 @@
     const PENPA_CELL_SIZE_MAX = 90;
     const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
+    // The translucent blue a selected cell is filled with on this page; the conflict pink is a light red, so the two never read alike.
+    // MVP gap: draw_selection fills with `Puzzle.prototype.selection_fill` when it is set (a caneff: line in class_p.js).
+    Puzzle.prototype.selection_fill = 'rgba(40, 90, 255, 0.22)';
+
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
 
@@ -70,6 +74,17 @@
         auto_save_history: BOOLEAN,
         reload_button: BOOLEAN,
         shortcuts_enabled: BOOLEAN
+    };
+
+    // The settings that only some puzzles use, by the genre tags that make them apply. Sudoku's tags are Penpa+'s own "Sudoku"
+    // group of genre tags, and a Sudoku grid applies whatever its tags.
+    // A puzzle with no genre tag shows them all: its genre is not known, and a tag a setter left off must not hide a setting it uses.
+    const untagged = () => pu.user_tags.length === 0;
+    const isSudoku = () => untagged() || pu.gridtype === 'sudoku' || pu.user_tags.some((tag) => penpa_tags.options.Sudoku.includes(tag));
+    const SETTING_GENRES = {
+        sudoku_centre_size: isSudoku,
+        sudoku_normal_size: isSudoku,
+        starbattle_dots: () => untagged() || pu.user_tags.includes('starbattle')
     };
 
     // MVP gap: most setters save their own cookie, but custom_colors_on's does not, and shortcuts_enabled is in no cookie
@@ -968,6 +983,12 @@
             return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
         },
 
+        // The settings of the fixed list the open puzzle uses: every one, less the genre ones its genre tags rule out.
+        getPuzzleSettings() {
+            boardCanvas();
+            return Object.keys(SETTINGS).filter((name) => SETTING_GENRES[name]?.() ?? true);
+        },
+
         // Changes one setting and saves it where Penpa+ saves it. An unknown name or a value the setting does not take throws and
         // changes nothing. conflict_detection 2 is "off for this puzzle": Penpa+ keeps it in memory only and turns it back on for
         // the next puzzle it loads, so the UI keeps it per puzzle.
@@ -1106,6 +1127,28 @@
                 UserSettings._displaysize = px;
                 redraw_grid();
             }
+        },
+
+        // The cursor's cell: its number as `cell`, and where it lies on the page as `{ left, top, right, bottom }` in viewport px.
+        // Null when the cursor is not on a cell: it is on an edge or a corner, or names no point (a board with no cells).
+        // MVP gap: the cursor is `pu.cursol`, a point id, and the canvas is drawn 1 CSS px per canvas px (see fixPointerOffset).
+        getFocusRect() {
+            const canvas = boardCanvas();
+            const cell = pu.point[pu.cursol];
+            if (!cell || cell.type !== 0) {
+                return null;
+            }
+            const corners = cell.surround.map((id) => pu.point[id]);
+            const xs = corners.map((p) => p.x);
+            const ys = corners.map((p) => p.y);
+            const origin = canvas.getBoundingClientRect();
+            return {
+                cell: pu.cursol,
+                left: origin.left + Math.min(...xs),
+                top: origin.top + Math.min(...ys),
+                right: origin.left + Math.max(...xs),
+                bottom: origin.top + Math.max(...ys)
+            };
         },
 
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.

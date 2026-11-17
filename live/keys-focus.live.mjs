@@ -4,9 +4,10 @@
 // the board by what Penpa+ would save.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { board, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { board, currentTool, newBoardSolveLink, NURIKABE_IMPORT, openSolvePage, solveLinkOfImport, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
+import { IMPORTS } from './tier-c-puzzles.mjs'
 
 const browser = useBrowser()
 
@@ -20,7 +21,7 @@ const MAX_SHIFT_TABS = 6
 const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
-const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
+const openSolve = async (link) => openSolvePage(browser(), link ?? await newBoardSolveLink(browser(), PINS))
 
 // Runs in the page. The control with focus: its tag and its accessible text.
 const focusInPage = () => ({ host: document.activeElement?.tagName, label: document.activeElement?.textContent?.trim() ?? '' })
@@ -103,7 +104,8 @@ describe('the keyboard on the solve page', () => {
 describe('with Settings open', () => {
   let opened
   before(async () => {
-    opened = await openSolve()
+    // A Sudoku, whose first Settings control is the Sudoku one the wrap test starts from.
+    opened = await openSolve(await solveLinkOfImport(browser(), IMPORTS['sudoku-9x9']))
     await clickCell(opened.page, CELL)
     await opened.page.getByRole('button', { name: 'Settings' }).click()
     await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
@@ -153,5 +155,25 @@ describe('with Settings open', () => {
     }
     assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
     assert.equal(await focusIsInDialog(page), true)
+  })
+})
+
+describe('with Settings open on a puzzle that hides its first Sudoku control', () => {
+  let opened
+  before(async () => {
+    opened = await openSolve(await solveLinkOfImport(browser(), NURIKABE_IMPORT))
+    await opened.page.getByRole('button', { name: 'Settings' }).click()
+    await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  })
+  after(async () => { await opened?.context.close() })
+
+  it('Tab past the last control wraps to a control of the dialog, not to the page body', async () => {
+    const { page } = opened
+    await page.evaluate(() => { document.querySelector('wa-dialog[open] wa-button:last-of-type')?.focus() })
+    for (let i = 0; i < TABS_PAST_THE_DIALOG; i++) {
+      await page.keyboard.press('Tab')
+      await afterTimeouts(page)
+      assert.equal(await focusIsInDialog(page), true, `Tab ${i + 1} left focus in the dialog`)
+    }
   })
 })

@@ -292,12 +292,14 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-settings-group { border: 0; border-top: 1px solid #ddd7c8; margin: 0 0 12px; padding: 8px 0 0; display: grid; gap: 10px; }
 .ui-settings-group legend { padding: 0 8px 0 0; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6b6656; }
 .ui-setting { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
+.ui-setting[hidden] { display: none; }
 .ui-setting wa-select { min-width: 250px; }
 .ui-tag { padding: 2px 8px; border-radius: 999px; background: #e3ebfb; color: #2f5bb2; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .ui-tag[hidden] { display: none; }
+.ui-help { flex-basis: 100%; color: #5f5b4c; font-size: 12px; }
 .ui-settings-note { color: #5f5b4c; font-size: 12px; }
 .ui-dark .ui-settings-group { border-top-color: #3a3f4b; }
-.ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note { color: #a9b0bd; }
+.ui-dark .ui-settings-group legend, .ui-dark .ui-settings-note, .ui-dark .ui-help { color: #a9b0bd; }
 .ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }
 
 /* The pin toggles: beside the Mode card's picker and inside each Recent chip. */

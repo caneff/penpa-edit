@@ -124,13 +124,13 @@
 
     onDeskReady(({ cards }) => {
         // The name form is closed on the resting card; the save icon opens it.
-        const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 'small' });
+        const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 's' });
         const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
         const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
         const nameForm = el('div', { class: 'ui-preset-row', hidden: '' }, [nameInput, saveName, cancelName]);
         const save = iconButton(SAVE_ICON, SAVE_LABEL, openForm);
-        // Web Awesome's small size, to sit level with the picker's field.
-        save.node.setAttribute('size', 'small');
+        // Web Awesome's small size (s), to sit level with the picker's field.
+        save.node.setAttribute('size', 's');
         save.node.setAttribute('title', SAVE_LABEL);
 
         function openForm() {
