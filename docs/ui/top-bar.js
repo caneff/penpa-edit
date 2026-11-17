@@ -1,11 +1,11 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause and Open in Penpa+, the cover a paused board wears (and what it
+// The top bar's controls: undo, redo, Restart, the timer, Pause and the Penpa+ button, the cover a paused board wears (and what it
 // switches off), and the dialog that says the puzzle is solved. The theme is chosen in the Settings dialog (#181); this file
 // still applies it to the page.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
-    const { confirmDialog, iconButton, onDeskReady, setDark } = window.uiKit;
+    const { confirmDialog, iconButton, onDeskReady, setDark, textButton } = window.uiKit;
 
     // Penpa+'s pause toggle (main.js), which a paused board still answers.
     const PAUSE_KEY = 'F4';
@@ -18,8 +18,7 @@
         redo: '<path d="M12.5 6.5H6a3.5 3.5 0 0 0 0 7h3"/><path d="M9.5 3.5l3 3-3 3"/>',
         restart: '<path d="M2.9 8.6a5.2 5.2 0 1 0 1.5-4.3"/><path d="M2.6 1.9v3.2h3.2"/>',
         pause: '<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>',
-        resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>',
-        openInPenpa: '<path d="M2.5 5.5h10.5"/><path d="M10.5 3l2.5 2.5-2.5 2.5"/><path d="M13.5 10.5H3"/><path d="M5.5 8L3 10.5 5.5 13"/>'
+        resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>'
     };
 
     const twoDigits = (n) => String(n).padStart(2, '0');
@@ -43,7 +42,7 @@
         // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
         // unload alone loses the race with the navigation, and with no save the progress would be gone from both pages.
         const goToPenpa = () => { location.href = `index.html${location.search}${location.hash}`; };
-        const openInPenpa = iconButton(ICONS.openInPenpa, 'Open in Penpa+', async () => {
+        const openInPenpa = textButton('Penpa+', 'Open this puzzle in Penpa+', async () => {
             if (await engine.saveProgress()) {
                 goToPenpa();
             } else {
@@ -107,7 +106,7 @@
             solvedDialog.open = true;
         });
 
-        // While the board is paused, only Resume, Settings and Open in Penpa+ work: the pins, Mode and Recent are inert.
+        // While the board is paused, only Resume, Settings and Penpa+ work: the pins, Mode and Recent are inert.
         const pausedOff = [cards.pins.body, cards.mode.body, cards.recent.body];
 
         bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, openInPenpa.node);

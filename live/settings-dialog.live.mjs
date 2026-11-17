@@ -9,6 +9,7 @@ import {
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
+import { choosePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -78,7 +79,8 @@ const importLink = (name) => {
 const CLEAR_BUTTON = 'Clear this puzzle\'s saved progress'
 const CONFIRM_CLEAR = 'Clear progress'
 
-const desk = (dialog) => dialog.getByRole('group', { name: 'Desk' })
+const pageGroup = (dialog) => dialog.getByRole('group', { name: 'Page' })
+const pinsGroup = (dialog) => dialog.getByRole('group', { name: 'Pins' })
 const settings = (page) => page.evaluate(() => engine.getSettings())
 
 async function openDialog (page) {
@@ -174,11 +176,11 @@ describe('engine.getSettings and engine.setSetting', () => {
 })
 
 describe('the Settings dialog', () => {
-  it('shows the four groups of Penpa+ settings and the desk\'s own', async () => {
+  it('shows the four groups of Penpa+ settings and the page\'s own', async () => {
     const { context, page } = await openSolve()
     try {
       const dialog = await openDialog(page)
-      for (const group of ['Board look', 'Checking', 'Progress', 'Keys', 'Desk']) {
+      for (const group of ['Board look', 'Checking', 'Progress', 'Keys', 'Page', 'Pins']) {
         assert.equal(await dialog.getByRole('group', { name: group }).isVisible(), true, `${group} is a group`)
       }
     } finally {
@@ -283,7 +285,7 @@ describe('the Settings dialog is readable', () => {
     const { context, page } = await openSolve()
     try {
       const dialog = await openDialog(page)
-      await desk(dialog).getByRole('button', { name: 'Reset layout' }).click()
+      await pageGroup(dialog).getByRole('button', { name: 'Reset layout' }).click()
       await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
     } finally {
       await context.close()
@@ -765,13 +767,13 @@ describe('the desk\'s own settings in the dialog', () => {
     const { context, page } = await openSolve()
     try {
       const dialog = await openDialog(page)
-      await desk(dialog).getByRole('combobox', { name: 'Theme' }).click()
+      await pageGroup(dialog).getByRole('combobox', { name: 'Theme' }).click()
       await page.getByRole('option', { name: 'Dark' }).click()
       assert.equal(await settle(async () => (await settings(page)).theme, 'dark'), 'dark')
       await closeDialog(page)
       await reload(page)
       assert.equal((await settings(page)).theme, 'dark', 'dark after a reload')
-      assert.equal(await desk(await openDialog(page)).getByRole('combobox', { name: 'Theme' }).inputValue(), 'Dark')
+      assert.equal(await pageGroup(await openDialog(page)).getByRole('combobox', { name: 'Theme' }).inputValue(), 'Dark')
     } finally {
       await context.close()
     }
@@ -789,22 +791,21 @@ describe('the desk\'s own settings in the dialog', () => {
       await page.mouse.up()
       assert.notDeepEqual(await rules.boundingBox(), start, 'the card moved')
       const dialog = await openDialog(page)
-      await desk(dialog).getByRole('button', { name: 'Reset layout' }).click()
+      await pageGroup(dialog).getByRole('button', { name: 'Reset layout' }).click()
       assert.deepEqual(await settle(() => rules.boundingBox(), start), start)
     } finally {
       await context.close()
     }
   })
 
-  it('resets the pins to the link\'s Tab set', async () => {
+  it('the Puzzle defaults preset resets the pins to the link\'s Tab set', async () => {
     const { context, page } = await openSolve()
     try {
       assert.equal(await settle(async () => (await pinNames(page)).length > 1, true), true, 'the Tab set seeds two pins or more')
       const seeded = await pinNames(page)
       await page.getByRole('button', { name: seeded[0] }).click()
       assert.deepEqual(await settle(() => pinNames(page), seeded.slice(1)), seeded.slice(1), 'a pin is gone')
-      const dialog = await openDialog(page)
-      await desk(dialog).getByRole('button', { name: 'Reset pins to the puzzle\'s default pins' }).click()
+      await choosePreset(page, 'Puzzle defaults')
       assert.deepEqual(await settle(() => pinNames(page), seeded), seeded)
     } finally {
       await context.close()
@@ -828,9 +829,9 @@ describe('the desk\'s own settings in the dialog', () => {
       assert.equal(await offered(), true, 'the saved preset is offered')
 
       const dialog = await openDialog(page)
-      const deleteButton = desk(dialog).getByRole('button', { name: 'Delete preset' })
+      const deleteButton = pinsGroup(dialog).getByRole('button', { name: 'Delete preset' })
       assert.equal(await deleteButton.isDisabled(), true, 'nothing to delete until one is chosen')
-      await desk(dialog).getByRole('combobox', { name: 'Your presets' }).click()
+      await pinsGroup(dialog).getByRole('combobox', { name: 'Your presets' }).click()
       await page.getByRole('option', { name: 'Mine' }).click()
       await deleteButton.click()
       await closeDialog(page)
