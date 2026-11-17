@@ -371,7 +371,7 @@ describe('the desk on a laptop screen', () => {
     assert.equal(read.overflowY.Board, 0, 'the board body does not scroll')
   })
 
-  // Chris's case (Loop + edge × at 1366) and the longest Composite name, at each laptop size.
+  // Chris's case (Line + edge × at 1366) and the longest Composite name, at each laptop size.
   for (const viewport of LAPTOPS) {
     it(`keeps the Board card's tool label on one line at ${viewport.width}x${viewport.height}, so a Composite tool never makes the board scroll`, async () => {
       const page = await open(viewport)
