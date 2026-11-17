@@ -1,0 +1,40 @@
+name: Nightly seam
+
+# The full seam on master every night (#268): CI's own jobs with no change to select by, so `npm test` and every live
+# file run. A PR runs only the live files its change needs, so this is where a skip-list mistake shows. A failure files
+# one issue, or comments on the open one. `ui-corpus.yml` replays every recording on the UI driver beside it.
+on:
+  schedule:
+    - cron: '37 4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seam:
+    uses: ./.github/workflows/ci.yml
+    # A called workflow's jobs may ask for no more than this grants; CI's `expected-files` job, skipped off a PR, asks
+    # for these.
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: write
+
+  report:
+    needs: seam
+    if: failure()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: test-log-*
+          path: ${{ runner.temp }}/logs
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/nightly-seam-issue.sh "$RUNNER_TEMP/logs" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
