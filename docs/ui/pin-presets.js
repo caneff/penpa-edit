@@ -123,26 +123,28 @@
     }
 
     onDeskReady(({ cards }) => {
-        // The name form: closed on the resting card; the save icon opens it, Save or Enter stores the preset, Cancel or Escape closes it.
+        // The name form is closed on the resting card; the save icon opens it.
         const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 'small' });
         const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
         const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
-        const nameForm = el('div', { class: 'ui-preset-row ui-preset-form', hidden: '' }, [nameInput, saveName, cancelName]);
-        const save = iconButton(SAVE_ICON, SAVE_LABEL, () => openForm());
+        const nameForm = el('div', { class: 'ui-preset-row', hidden: '' }, [nameInput, saveName, cancelName]);
+        const save = iconButton(SAVE_ICON, SAVE_LABEL, openForm);
         // Web Awesome's small size, to sit level with the picker's field.
         save.node.setAttribute('size', 'small');
         save.node.setAttribute('title', SAVE_LABEL);
 
         function openForm() {
-            nameForm.hidden = false;
-            nameInput.value = '';
+            // Another click on the icon while the form is open keeps what was typed.
+            if (nameForm.hidden) {
+                nameForm.hidden = false;
+                nameInput.value = '';
+            }
             nameInput.focus();
         }
 
+        // Hiding the form takes the focus with it, whichever way it closes, so the next key goes to the board and not to the save icon.
         function closeForm() {
             nameForm.hidden = true;
-            nameInput.value = '';
-            save.node.focus();
         }
 
         function saveFromForm() {
@@ -154,16 +156,20 @@
             // An undo for a delete would put the older preset of that name over this one.
             undoRow.replaceChildren();
             closeForm();
-            save.node.blur();
         }
 
         saveName.addEventListener('click', saveFromForm);
         cancelName.addEventListener('click', closeForm);
+        // Enter in the name field saves, unless it confirms an input method's composition; a half-typed name is not a name.
         nameInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.isComposing) {
                 e.preventDefault();
                 saveFromForm();
-            } else if (e.key === 'Escape') {
+            }
+        });
+        // Escape anywhere in the form closes it; stopPropagation keeps it from also reaching the key handlers that treat Escape as a board key.
+        nameForm.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
                 e.preventDefault();
                 e.stopPropagation();
                 closeForm();
