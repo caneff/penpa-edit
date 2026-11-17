@@ -2189,6 +2189,8 @@ async function load(urlParam, type = 'url', origurl = null) {
                             }
                         }
                     }
+                    // caneff: each click above reset the Tab set to the list's order; the link's order is the one the pins seed from (#281)
+                    UserSettings.tab_settings = tabOptions;
                 }
             }
         }
