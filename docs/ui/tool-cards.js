@@ -106,7 +106,7 @@
     const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
 
     // A sample (drawn on a 20 px grid, scaled with its button) of a style: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
-    // `digit` is the key that picks a swatch's colour, or null where no key does; it is printed white or black, whichever reads better on the swatch.
+    // `digit` is the key that picks a swatch's colour, or null where no key does.
     function styleSample(name, swatch, sample, digit) {
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
