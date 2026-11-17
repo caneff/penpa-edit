@@ -1,11 +1,12 @@
 // solve.html on a laptop screen (#181): the top bar keeps its title clear of the controls (centred, else at the left end,
 // else with smaller buttons, never cut short), every top-bar button names itself on hover, and the fitted desk puts Rules
-// over Mouse with no card over another and the right column stacked top-down. Read through bounding boxes and scroll sizes.
+// over Mouse with no card over another and the right column in order down to the desk's bottom. Read through bounding boxes
+// and scroll sizes.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
 import { CARD_GAP_PX, ICEBREAKER, MOUSE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, solveLinkInPage, steady } from './desk-puzzles.mjs'
-import { afterChange, linkFromNewBoard, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { afterChange, linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -26,8 +27,6 @@ const EDGE_MARGIN_PX = 8
 // The share of the left column Rules stops at when Mouse needs the rest (Chris, 2026-11-17).
 const RULES_SHARE = 0.55
 
-// A title too long for the bar's left end beside full-size buttons at 1280 wide, short enough for it beside smaller ones.
-const LONG_TITLE = { ...ICEBREAKER, title: 'Icebreaker (Nurikabe + Icelom), longer title' }
 
 // The Icebreaker rules four times over: more than Rules can show at a laptop size.
 const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
@@ -88,7 +87,8 @@ const near = (a, b) => Math.abs(a - b) <= SLACK_PX
 const shownTooltips = async (page) => (await page.locator('wa-tooltip[open]').allTextContents()).map((t) => t.trim())
 // The top bar's `wa-button` named `name` to screen readers. Not a role locator, which finds the native button inside its
 // shadow root, and which a disabled button (Undo with nothing to undo) does not let the pointer reach.
-const barButton = (page, name) => page.locator('.ui-bar wa-button').filter({ has: page.locator('.ui-sr-only').getByText(name, { exact: true }) })
+const barButton = (page, name) => page.locator('.ui-bar wa-button')
+  .filter({ hasText: new RegExp(`^\\s*${name.replace(/[+]/g, '\\$&')}\\s*$`) })
 
 // One link per puzzle for the file, since each costs a page of its own to build.
 const links = new Map()
@@ -161,25 +161,34 @@ describe('the top bar on a laptop screen', () => {
   }
 
   it('makes the buttons smaller only when the title still overlaps them at the left end', async () => {
-    const page = await open(LONG_TITLE, WIDE)
+    const page = await open(ICEBREAKER, LAPTOPS[0])
+    // The title grows one narrow letter at a time until the bar goes compact, so the title is the longest the left end takes beside full-size buttons whatever the font.
+    const grown = await page.evaluate(async () => {
+      const bar = document.querySelector('.ui-bar')
+      const title = bar.querySelector('.ui-title')
+      const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      for (let letters = 0; letters < 80 && !bar.classList.contains('is-compact'); letters++) {
+        title.textContent += 'i'
+        await frames()
+      }
+      return bar.classList.contains('is-compact')
+    })
+    assert.equal(grown, true, 'a long enough title makes the bar compact')
+    const small = await steady(page, readBarInPage)
     const full = await barAt(page, WIDE)
-    const small = await barAt(page, LAPTOPS[0])
     assert.equal(small.buttonHeight < full.buttonHeight, true, `buttons ${small.buttonHeight}px at 1280, ${full.buttonHeight}px at ${WIDE.width}`)
     assert.equal(near(small.heading.x, small.bar.x + BAR_PADDING_PX), true, `at the left end: ${JSON.stringify(small.heading)}`)
     assert.deepEqual(overlapping(small), [])
     assert.equal(small.titleCut, false, 'the title is whole')
   })
 
-  it('has no theme button, and Reset layout is an icon unlike Restart\'s', async () => {
+  it('has no theme button and no Reset layout button, and Penpa+ is a text button', async () => {
     const page = await open(ICEBREAKER, LAPTOPS[1])
-    assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
-    const read = (name) => barButton(page, name).evaluate((host) =>
-      ({ icons: host.querySelectorAll('svg').length, icon: host.querySelector('svg')?.innerHTML, text: host.textContent.trim(), label: host.querySelector('.ui-sr-only').textContent }))
-    const reset = await read('Reset layout')
-    const restart = await read('Restart')
-    assert.equal(reset.icons, 1, 'Reset layout shows an icon')
-    assert.equal(reset.text, reset.label, 'and no visible text')
-    assert.notEqual(reset.icon, restart.icon)
+    const bar = page.locator('.ui-bar')
+    assert.equal(await bar.getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
+    assert.equal(await bar.getByRole('button', { name: 'Reset layout' }).count(), 0, 'Reset layout is in Settings')
+    const penpa = await barButton(page, 'Penpa+').evaluate((host) => ({ icons: host.querySelectorAll('svg').length, text: host.textContent.trim() }))
+    assert.deepEqual(penpa, { icons: 0, text: 'Penpa+' })
   })
 
   it('shows each top-bar button\'s label on hover, with its shortcut, and the current one after it changes', async () => {
@@ -188,9 +197,9 @@ describe('the top bar on a laptop screen', () => {
       await barButton(page, name).hover()
       return settle(() => shownTooltips(page), [label])
     }
-    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Open in Penpa+': 'Open in Penpa+', Settings: 'Settings', 'Reset layout': 'Reset layout' }
+    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Penpa+': 'Open this puzzle in Penpa+', Settings: 'Settings' }
     const buttons = page.locator('.ui-bar wa-button')
-    const names = await buttons.locator('.ui-sr-only').allTextContents()
+    const names = await buttons.evaluateAll((hosts) => hosts.map((host) => host.querySelector('.ui-sr-only')?.textContent ?? host.textContent.trim()))
     assert.equal(names.length, await buttons.count(), 'every top-bar button has a name')
     assert.deepEqual(names.sort(), Object.keys(want).sort(), 'every top-bar button is listed here')
     for (const [name, label] of Object.entries(want)) {
@@ -642,7 +651,7 @@ describe('the desk holds together', () => {
       const rows = (tool) => window.toolGuide.mouseRows(tool).more.length
       window.pinBoard.replace([...engine.listTools()].sort((a, b) => rows(b) - rows(a)).slice(0, 6))
     })
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     const read = await deskSettled(page)
     const column = read.desk.h - 2 * TOP_MARGIN_PX
     assert.equal(read.cards.Rules.h <= RULES_SHARE * column + SLACK_PX, true, `Rules is ${read.cards.Rules.h}px of a ${column}px column`)

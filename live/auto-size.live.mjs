@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { CARD_GAP_PX, ICEBREAKER, MODE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, solveLinkInPage, steady } from './desk-puzzles.mjs'
-import { linkFromNewBoard, openSolvePage, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
+import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
 import { choosePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -71,7 +71,7 @@ describe('the Mode card while stepping through the pins', () => {
     const { page } = opened
     // Fitted while the pin with the fewest Mode rows is current, so a card sized for the current tool alone is too short.
     await page.evaluate(pinByNameInPage, { names: ICEBREAKER_PINS, current: 'Line > Normal' })
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     const reads = await stepThroughPins(page)
     assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: { ...reads[0].mode, overflow: 0 }, recentTop: reads[0].recentTop })), JSON.stringify(reads))
   })
@@ -235,7 +235,6 @@ describe('a double-click on a dragged edge', () => {
   }
   const cards = (page) => steady(page, readCardsInPage, CARDS)
   const drag = async (page, card, handle, dx, dy) => dragFrom(page, await handlePoint(page, card, handle), dx, dy)
-  const resetLayout = (page) => page.getByRole('button', { name: 'Reset layout' }).click()
 
   it('names itself on every resize handle', async () => {
     const page = await open()
@@ -260,7 +259,7 @@ describe('a double-click on a dragged edge', () => {
     await handleOf(page, 'Mode', 'bottom').dblclick()
     const fitted = (await cards(page)).Mode
     assert.equal(fitted.h > dragged.h, true, `automatic, Mode follows Number to ${fitted.h}px, past the dragged ${dragged.h}px`)
-    await resetLayout(page)
+    await resetLayoutInSettings(page)
     assert.deepEqual(fitted, (await cards(page)).Mode, 'the double-click gives the height Reset layout gives')
   })
 
@@ -270,7 +269,7 @@ describe('a double-click on a dragged edge', () => {
     await drag(page, 'Mode', 'bottom', 0, 40)
     await handleOf(page, 'Mode', 'bottom').dblclick()
     const fitted = await cards(page)
-    await resetLayout(page)
+    await resetLayoutInSettings(page)
     assert.deepEqual(fitted, await cards(page))
   })
 

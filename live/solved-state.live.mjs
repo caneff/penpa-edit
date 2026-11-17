@@ -246,7 +246,7 @@ describe('a paused board', () => {
       for (const card of ['Pinned', 'Mode', 'Recent']) {
         assert.equal(await cardIsInert(page, card), true, `${card} is disabled`)
       }
-      assert.equal(await button(page, 'Open in Penpa+').isDisabled(), false, 'Open in Penpa+ works')
+      assert.equal(await button(page, 'Penpa+').isDisabled(), false, 'Penpa+ works')
       await cover.getByRole('button', { name: 'Resume' }).click()
       await cover.waitFor({ state: 'hidden' })
       assert.equal((await timer(page)).paused, false, 'the clock runs')
