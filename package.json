@@ -3,6 +3,7 @@
   "scripts": {
     "test": "node --test --test-concurrency=4 --test-timeout=60000 \"test/**/*.test.mjs\"",
     "test:live": "node --test --test-concurrency=4 --test-timeout=60000 \"live/**/*.live.mjs\"",
+    "test:live:changed": "node live/run-live.mjs --base origin/master",
     "measure": "node live/measure.mjs",
     "recordings:approve": "node live/approve-recordings.mjs",
     "test:browser": "nodemon --watch test/test_server.js test/test_server.js",

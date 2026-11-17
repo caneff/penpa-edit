@@ -12,8 +12,13 @@ const NIGHTLY = readFileSync(path('.github/workflows/upstream-merge.yml'), 'utf8
 const ruleset = JSON.parse(execFileSync('bash', [path('.github/scripts/require-checks.sh'), '--dry-run'], { encoding: 'utf8' }))
 const required = ruleset.rules.find((r) => r.type === 'required_status_checks').parameters.required_status_checks.map((c) => c.context).sort()
 
-// The job ids under `jobs:` in a workflow file, each a check context of its own.
-const jobIds = (file) => [...readFileSync(path(file), 'utf8').split(/^jobs:\n/m)[1].matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]).sort()
+// The job ids under `jobs:` in a workflow file, each a check context of its own, less each part another job `needs`:
+// the job that waits on its parts is the check (#268).
+function checkIds (file) {
+  const jobs = readFileSync(path(file), 'utf8').split(/^jobs:\n/m)[1]
+  const parts = [...jobs.matchAll(/^ {4}needs: \[([\w, -]+)\]$/gm)].flatMap((m) => m[1].split(/,\s*/))
+  return [...jobs.matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]).filter((id) => !parts.includes(id)).sort()
+}
 
 describe('the master ruleset', () => {
   it('targets master alone, with only the admin role able to bypass it', () => {
@@ -27,8 +32,8 @@ describe('the master ruleset', () => {
     assert.equal(parameters.strict_required_status_checks_policy, true)
   })
 
-  it('requires exactly the jobs of ci.yml', () => {
-    assert.deepEqual(required, jobIds('.github/workflows/ci.yml'))
+  it("requires exactly ci.yml's checks, and not the parts `test` waits on", () => {
+    assert.deepEqual(required, checkIds('.github/workflows/ci.yml'))
   })
 
   it('is satisfied by the statuses the nightly upstream merge posts', () => {
