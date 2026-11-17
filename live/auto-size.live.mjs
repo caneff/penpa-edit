@@ -20,6 +20,8 @@ const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 const ICEBREAKER_PINS = ['Surface', 'Line > Normal', 'Line + edge ×']
 // Box edges may differ by rounding.
 const SLACK_PX = 1
+// The Mode card's smallest height (desk.js's MIN_SIZE).
+const MODE_MIN_HEIGHT_PX = 170
 // desk.js's Mouse body slack for its borders, and rounding.
 const MOUSE_SLACK_PX = 3
 // What every resize handle says on hover.
@@ -79,15 +81,15 @@ describe('the Mode card while stepping through the pins', () => {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
-    // Line > Normal, and the tool with the most styles, whose rows need more than the card's smallest height.
+    // Line > Normal, and Number > Normal, whose Style and Orientation rows need more than the card's smallest height.
     await page.evaluate(() => {
-      const line = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === 'Line > Normal')
-      const most = [...engine.listTools()].sort((a, b) => b.styles.length - a.styles.length)[0]
-      window.pinBoard.replace([line, most])
-      engine.setTool(line)
+      const named = (name) => engine.listTools().find((t) => window.toolGuide.chipLabel(t) === name)
+      window.pinBoard.replace([named('Line > Normal'), named('Number > Normal')])
+      engine.setTool(named('Line > Normal'))
     })
     await page.getByRole('button', { name: 'Reset layout' }).click()
     const reads = await stepThroughPins(page)
+    assert.equal(reads[0].mode.h > MODE_MIN_HEIGHT_PX, true, `Mode is ${reads[0].mode.h}px, more than its smallest height`)
     assert.deepEqual(reads.map(({ mode }) => mode), reads.map(() => ({ ...reads[0].mode, overflow: 0 })), JSON.stringify(reads))
   })
 
