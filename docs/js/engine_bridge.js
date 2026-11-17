@@ -534,8 +534,8 @@
         }
     };
     const COMPOSITE_NAMES = {
-        blpo: 'Shade + dot', shaka: 'Corner triangles + dot', linex: 'Loop + edge ×', lineox: 'Loop + cell ○ ×',
-        linedir: 'Line + direction marks', yajilin: 'Shade + loop', hashi: 'Bridges', rassisillai: 'Line + cell marks',
+        blpo: 'Shade + dot', shaka: 'Corner triangles + dot', linex: 'Line + edge ×', lineox: 'Line + cell ○ ×',
+        linedir: 'Line + direction marks', yajilin: 'Shade + line', hashi: 'Bridges', rassisillai: 'Line + cell marks',
         edgex: 'Edges + ×', edgexoi: 'Edges + inside / outside', edgesub: 'Edges + helper line', numfl: 'Numbers by flick',
         alfl: 'Letters by flick', blwh: 'Black + white circles', star: 'Stars + ×', akari: 'Bulbs + dots',
         battleship: 'Ship pieces + water', tents: 'Tents + ×', mines: 'Mines + ×', doublemines: 'One or two mines + ×',
