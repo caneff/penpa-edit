@@ -1,5 +1,5 @@
 // Reset layout (#156) arranges the desk for the window and the puzzle: the board as tall as the desk, its card only as
-// wide as the board needs (capped so the side columns keep their minimum), and the spare width going to Mouse and Rules.
+// wide as the board needs (capped so the side columns keep their minimum), and the spare width going to the side columns.
 // Read through the cards' bounding boxes, the board canvas's drawn size and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
@@ -22,6 +22,7 @@ const FIT_SLACK_PX = 12
 const WIDE_BOARD_SLACK_PX = 50
 // How far apart the equal gaps may be, for rounding.
 const GAP_SLACK_PX = 2
+const SHORT_RULES = 'Put a digit from 1 to 9 in every cell.'
 const RULES = Array.from({ length: 6 }, (_, i) => `Paragraph ${i + 1}: put a digit from 1 to 9 in every cell so no row, column or box repeats one, and the clues around the grid hold.`).join('\n\n')
 
 // Runs in the page. A new board of `cols` x `rows` cells with the rules `rules`; returns its solve link's `#` part.
@@ -67,7 +68,7 @@ describe('Reset layout fits the desk to the puzzle', () => {
   afterEach(async () => { await opened?.context.close() })
 
   async function open (puzzle, contextOptions = FULL_HD) {
-    const link = await linkFromNewBoard(browser(), solveLinkInPage, { ...puzzle, rules: RULES })
+    const link = await linkFromNewBoard(browser(), solveLinkInPage, { rules: RULES, ...puzzle })
     opened = await openSolvePage(browser(), link, { contextOptions })
     await settle(() => boardFills(opened.page), true)
     return opened.page
@@ -129,8 +130,9 @@ describe('Reset layout fits the desk to the puzzle', () => {
     assertCardsOnDesk(read)
   })
 
-  it('shares the width left over as equal gaps, not stretched into the left column', async () => {
-    const page = await open({ cols: 9, rows: 9 })
+  it('gives the width the board leaves to both side columns alike, with no gap past the margin', async () => {
+    // Rules that fit, so the left column starts at its narrowest rather than taking the width for long rules.
+    const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
     const { cards, desk } = await reset(page)
     const gaps = [
       cards.Mouse.x - desk.x,
@@ -138,8 +140,8 @@ describe('Reset layout fits the desk to the puzzle', () => {
       cards.Pinned.x - (cards.Board.x + cards.Board.w),
       desk.x + desk.w - (cards.Pinned.x + cards.Pinned.w)
     ]
-    assert.equal(Math.max(...gaps) - Math.min(...gaps) <= GAP_SLACK_PX, true, `the gaps are ${gaps}`)
-    assert.equal(gaps[0] > DESK_MARGIN_PX, true, `the spare width is shared out, not stretched into the left column (gaps ${gaps})`)
+    assert.equal(gaps.every((gap) => Math.abs(gap - DESK_MARGIN_PX) <= GAP_SLACK_PX), true, `the gaps are ${gaps}`)
+    assert.equal(Math.abs(cards.Mouse.w - cards.Pinned.w) <= GAP_SLACK_PX, true, `the left column is ${cards.Mouse.w}px, the right ${cards.Pinned.w}px`)
   })
 
   it('keeps every card on the desk, none over another, when the window shrinks after Reset layout', async () => {
@@ -159,7 +161,8 @@ describe('Reset layout fits the desk to the puzzle', () => {
   })
 
   it('shows every tool\'s Mouse rows without a scrollbar after Reset layout', async () => {
-    const page = await open({ cols: 9, rows: 9 })
+    // Rules that fit: long ones take 55% of the column, and Mouse then scrolls for its tallest tools.
+    const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
     await reset(page)
     const scrolling = await page.evaluate(async () => {
       const body = document.querySelector('section[aria-label="Mouse"] .ui-body')

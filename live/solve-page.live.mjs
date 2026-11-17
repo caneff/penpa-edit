@@ -73,7 +73,7 @@ describe('solve.html on a solve link', () => {
     assert.equal(await settle(read, true), true, 'smaller window, smaller board that still fits')
     const small = await boardAgainstCard(page)
     await page.setViewportSize({ width: 1400, height: 900 })
-    // A resize restacks a fitted desk into variant L's fixed layout, so the board grows but need not return to its fitted size.
+    // A resize fits an untouched desk again, so the board grows back with the window.
     const grown = async () => { const r = await boardAgainstCard(page); return r.inside && r.w > small.w }
     assert.equal(await settle(grown, true), true, 'larger window, the board grows')
   })

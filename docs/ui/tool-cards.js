@@ -65,8 +65,9 @@
     }
 
     // The contents that can set the Mouse card's height, as markup: one per distinct set of rows, since the headline is one
-    // line whatever the tool. Found once, so measuring at a new width costs one layout per set of rows, not one render per tool and style.
-    let mouseContents = null;
+    // line whatever the tool. Found once per set of tools, so measuring at a new width costs one layout per set of rows, not
+    // one render per tool and style.
+    const mouseContents = { key: null, contents: null };
     function allMouseContents(probe, tools) {
         const bySetOfRows = new Map();
         tools.forEach((tool) => {
@@ -79,15 +80,18 @@
         return [...bySetOfRows.values()];
     }
 
-    // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
-    // body at `width` (the card's own by default). Shorter content sits at the top.
+    // The Mouse card keeps one height: the tallest content any of `tools` needs, measured in a hidden copy of its body at
+    // `width` (the card's own by default). Shorter content sits at the top.
     function measureMouseBody(body, tools, width = body.clientWidth) {
         const probe = el('div', { class: 'ui-body ui-mouse-probe' });
         probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${width}px;box-sizing:border-box;height:auto;`;
         body.parentElement.append(probe);
-        mouseContents ??= allMouseContents(probe, tools);
+        const key = tools.map(toolKey).join(' ');
+        if (mouseContents.key !== key) {
+            Object.assign(mouseContents, { key, contents: allMouseContents(probe, tools) });
+        }
         let tallest = 0;
-        mouseContents.forEach((html) => {
+        mouseContents.contents.forEach((html) => {
             probe.innerHTML = html;
             tallest = Math.max(tallest, probe.offsetHeight);
         });
@@ -311,13 +315,21 @@
         const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style),
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
+        // The tools the Mouse card is sized for: the link's Tab set and the pins (#199), which the solver mostly moves between;
+        // another tool's rows may scroll. Every tool when the puzzle names none. Read from the fit on, after pins.js is up.
+        function puzzleTools() {
+            const keys = new Set([...engine.tabSet(), ...window.pinBoard.snapshot()].map(toolKey));
+            const named = tools.filter((tool) => keys.has(toolKey(tool)));
+            return named.length ? named : tools;
+        }
+
         function sizeMouseCard() {
             // A closed card has no width to measure at; the desk sizes it again when it opens.
             if (cards.mouse.node.hidden) {
                 return;
             }
             cards.mouse.body.style.height = '';
-            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, tools) + MOUSE_BODY_SLACK_PX}px`;
+            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, puzzleTools()) + MOUSE_BODY_SLACK_PX}px`;
         }
 
         // The engine's `change` also fires for this file's own DOM changes, so a render that would draw the same tool
@@ -348,17 +360,20 @@
             mode.render(tool, current.style, orientation);
         }
 
-        // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
-        fit.mouseCardHeight = (cardWidth) => {
-            const { node, body } = cards.mouse;
-            const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
-            return node.offsetHeight - body.offsetHeight + measureMouseBody(body, tools, bodyWidth) + MOUSE_BODY_SLACK_PX;
-        };
-        fit.sizeMouseBody = sizeMouseCard;
-        sizeMouseCard();
-        relayout();
         render();
         engine.on('change', render);
+        // pins.js builds `window.pinBoard` in its own deskReady callback, which runs after this one: the fit waits for it.
+        onDeskReady(() => {
+            // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
+            fit.mouseCardHeight = (cardWidth) => {
+                const { node, body } = cards.mouse;
+                const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
+                return node.offsetHeight - body.offsetHeight + measureMouseBody(body, puzzleTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
+            };
+            fit.sizeMouseBody = sizeMouseCard;
+            sizeMouseCard();
+            relayout();
+        });
         // The desk relays itself out on every resize; only a change in the Mouse card's height needs another pass.
         window.addEventListener('resize', () => {
             const before = cards.mouse.node.offsetHeight;
