@@ -657,7 +657,7 @@ describe('the desk holds together', () => {
 
   it('sizes Mouse for the pins as well as the Tab set on a fresh load, the same as after a refit', async () => {
     const page = await open(LAPTOPS[1], LONG_LINE_RULES)
-    await deskSettled(page)
+    const lineOnly = (await deskSettled(page)).cards
     // A pin with more Mouse rows than Line's, kept for the puzzle across the reload.
     await page.evaluate(() => {
       const rows = (tool) => window.toolGuide.mouseRows(tool).more.length
@@ -666,6 +666,7 @@ describe('the desk holds together', () => {
     await page.reload()
     await waitForDesk(page)
     const fresh = (await deskSettled(page)).cards
+    assert.equal(fresh.Mouse.h > lineOnly.Mouse.h, true, `Mouse is ${fresh.Mouse.h}px with the pin, ${lineOnly.Mouse.h}px without`)
     await page.setViewportSize(LAPTOPS[0])
     await settle(async () => (await cardsOf(page)).Board.w < fresh.Board.w, true)
     await page.setViewportSize(LAPTOPS[1])
