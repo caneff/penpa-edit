@@ -72,39 +72,43 @@
         ]));
     }
 
-    // The contents that can set the Mouse card's height, as markup: one per distinct set of rows, since the headline is one
-    // line whatever the tool. Found once per set of tools, so measuring at a new width costs one layout per set of rows, not
-    // one render per tool and style.
-    const mouseContents = { key: null, contents: null };
-    function allMouseContents(probe, tools) {
-        const bySetOfRows = new Map();
-        tools.forEach((tool) => {
-            renderMouse(probe, tool, tool.styles[0]?.style ?? null, true);
-            const rows = probe.querySelector('.ui-mrows').innerHTML;
-            if (!bySetOfRows.has(rows)) {
-                bySetOfRows.set(rows, probe.innerHTML);
+    // The tallest of `tools`' heights, each kept in `heights` by tool and `size` (a width and text size), so a change of tool
+    // measures only a tool not seen at that size. `measure(unseen)` gives the missing heights, in order; a height of 0 was
+    // read with no layout (its card closed) and is not kept.
+    function tallestOf(heights, tools, size, measure) {
+        const keyOf = (tool) => `${toolKey(tool)}@${size}`;
+        const unseen = tools.filter((tool) => !heights.has(keyOf(tool)));
+        const fresh = new Map(unseen.length ? measure(unseen).map((height, i) => [keyOf(unseen[i]), height]) : []);
+        fresh.forEach((height, key) => {
+            if (height > 0) {
+                heights.set(key, height);
             }
         });
-        return [...bySetOfRows.values()];
+        return Math.max(0, ...tools.map((tool) => heights.get(keyOf(tool)) ?? fresh.get(keyOf(tool))));
     }
+
+    // A hidden copy of `body` at `width`, appended beside it; the caller removes it.
+    function probeOf(body, width, cls = body.className) {
+        const probe = el('div', { class: cls });
+        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${width}px;box-sizing:border-box;height:auto;`;
+        body.parentElement.append(probe);
+        return probe;
+    }
+
+    const mouseHeights = new Map();
 
     // The Mouse card keeps one height: the tallest content any of `tools` needs, measured in a hidden copy of its body at
     // `width` (the card's own by default). Shorter content sits at the top.
     function measureMouseBody(body, tools, width = body.clientWidth) {
-        const probe = el('div', { class: 'ui-body ui-mouse-probe' });
-        probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${width}px;box-sizing:border-box;height:auto;`;
-        body.parentElement.append(probe);
-        const key = tools.map(toolKey).join(' ');
-        if (mouseContents.key !== key) {
-            Object.assign(mouseContents, { key, contents: allMouseContents(probe, tools) });
-        }
-        let tallest = 0;
-        mouseContents.contents.forEach((html) => {
-            probe.innerHTML = html;
-            tallest = Math.max(tallest, probe.offsetHeight);
+        return tallestOf(mouseHeights, tools, `${width}/${getComputedStyle(body).fontSize}`, (unseen) => {
+            const probe = probeOf(body, width, 'ui-body ui-mouse-probe');
+            const heights = unseen.map((tool) => {
+                renderMouse(probe, tool, tool.styles[0]?.style ?? null, true);
+                return probe.offsetHeight;
+            });
+            probe.remove();
+            return heights;
         });
-        probe.remove();
-        return tallest;
     }
 
     // ---- The Mode card ----------------------------------------------------------------------------------------------
@@ -181,6 +185,7 @@
         body.replaceChildren(el('div', { class: 'ui-picker-row' }, [picker]), toolOptions);
 
         let open = false;
+        const modeHeights = new Map();
 
         function showCurrent() {
             const current = tools.find((t) => toolKey(t) === toolKey(engine.getTool()));
@@ -291,10 +296,10 @@
             return [el('div', { class: 'ui-sub' }, ['Orientation']), group];
         }
 
-        function renderToolOptions(tool, style, orientation) {
+        function renderToolOptions(target, tool, style, orientation) {
             const parts = [...(tool.styles.length ? styleGroup(tool, style) : []), ...(orientation ? orientationGroup(orientation) : [])];
-            toolOptions.replaceChildren(...parts);
-            toolOptions.hidden = parts.length === 0;
+            target.replaceChildren(...parts);
+            target.hidden = parts.length === 0;
         }
 
         return {
@@ -303,14 +308,31 @@
                 if (!open) {
                     showCurrent();
                 }
-                renderToolOptions(tool, style, orientation);
+                renderToolOptions(toolOptions, tool, style, orientation);
+            },
+            // The body's height that shows the options of the tallest of `sized` at a body `width` wide, measured in a hidden
+            // copy of the body: the picker row, then each tool's options in turn.
+            measure(sized, width) {
+                return tallestOf(modeHeights, sized, `${width}/${getComputedStyle(body).fontSize}`, (unseen) => {
+                    const probe = probeOf(body, width);
+                    const options = el('div', { class: 'ui-toolopts' });
+                    probe.append(el('div', { style: `height:${body.firstElementChild.offsetHeight}px` }), options);
+                    const heights = unseen.map((tool) => {
+                        // Number is the one tool with an orientation; which direction is picked changes no height.
+                        const orientation = tool.mode === 'number' && orientations.list().length ? orientations.list()[0] : null;
+                        renderToolOptions(options, tool, tool.styles[0]?.style ?? null, orientation);
+                        return probe.offsetHeight;
+                    });
+                    probe.remove();
+                    return heights;
+                });
             }
         };
     }
 
     // ---- Wiring -----------------------------------------------------------------------------------------------------
 
-    onDeskReady(({ cards, relayout, fit }) => {
+    onDeskReady(({ cards, relayout, fit, fitToTools }) => {
         const tools = engine.listTools();
         // A tool the link does not list (Penpa+ was put in a hidden mode) is drawn with its mode's name alone.
         const toolFor = (current) => tools.find((t) => toolKey(t) === toolKey(current)) ??
@@ -324,12 +346,11 @@
 
         const surfaceTool = tools.find((t) => t.mode === 'surface');
 
-        // The tools the Mouse card is sized for: the link's Tab set and the pins (#199), which the solver mostly moves between;
-        // another tool's rows may scroll. Every tool when the puzzle names none. Read from the fit on, after pins.js is up.
-        function puzzleTools() {
-            const keys = new Set([...engine.tabSet(), ...window.pinBoard.snapshot()].map(toolKey));
-            const named = tools.filter((tool) => keys.has(toolKey(tool)));
-            return named.length ? named : tools;
+        // The tools the Mode and Mouse cards are sized for: the pins and the current tool (#252), so stepping through the pins
+        // never changes either card's height. Read from the fit on, after pins.js is up.
+        function sizedTools() {
+            const keys = new Set([...window.pinBoard.snapshot(), engine.getTool()].map(toolKey));
+            return tools.filter((tool) => keys.has(toolKey(tool)));
         }
 
         function sizeMouseCard() {
@@ -338,7 +359,7 @@
                 return;
             }
             cards.mouse.body.style.height = '';
-            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, puzzleTools()) + MOUSE_BODY_SLACK_PX}px`;
+            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, sizedTools()) + MOUSE_BODY_SLACK_PX}px`;
         }
 
         // The engine's `change` also fires for this file's own DOM changes, so a render that would draw the same tool
@@ -372,11 +393,37 @@
             fit.mouseCardHeight = (cardWidth) => {
                 const { node, body } = cards.mouse;
                 const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
-                return node.offsetHeight - body.offsetHeight + measureMouseBody(body, puzzleTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
+                return node.offsetHeight - body.offsetHeight + measureMouseBody(body, sizedTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
+            };
+            fit.modeCardHeight = (cardWidth) => {
+                const { node, body } = cards.mode;
+                return node.offsetHeight - body.offsetHeight + mode.measure(sizedTools(), cardWidth - (node.offsetWidth - body.offsetWidth));
             };
             fit.sizeMouseBody = sizeMouseCard;
             sizeMouseCard();
             relayout();
+            // A pin added or dropped, or a current tool outside the pins, changes what the two cards are sized for; the desk is
+            // laid out again only when that changes the height either card needs at its width.
+            const needs = () => [[cards.mouse.node, fit.mouseCardHeight], [cards.mode.node, fit.modeCardHeight]]
+                .map(([node, height]) => (node.hidden ? '' : `${node.offsetWidth}:${height(node.offsetWidth)}`)).join(' ');
+            let sizedFor = sizedTools().map(toolKey).join(' ');
+            let needed = needs();
+            const resizeForTools = () => {
+                const now = sizedTools().map(toolKey).join(' ');
+                if (now === sizedFor) {
+                    return;
+                }
+                sizedFor = now;
+                const need = needs();
+                if (need === needed) {
+                    return;
+                }
+                needed = need;
+                sizeMouseCard();
+                fitToTools();
+            };
+            window.pinBoard.onChange(resizeForTools);
+            engine.on('change', resizeForTools);
         });
         // The desk relays itself out on every resize; only a change in the Mouse card's height needs another pass.
         window.addEventListener('resize', () => {
