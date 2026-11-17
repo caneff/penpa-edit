@@ -12,6 +12,14 @@ const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
 const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
+// The chip name the shared name gives `tool`.
+const labelOf = (page, tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
+// Waits until the first Recent chip is `tool`'s, not an earlier tool's still on show, and returns it.
+const recentChipOf = async (page, tool) => {
+  const label = await labelOf(page, tool)
+  await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
+  return region(page, 'Recent').locator('.ui-chip-main').first()
+}
 const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map(chipName)
 
 const pin = (page, entries) => page.evaluate((e) => window.pinBoard.replace(e), entries)
@@ -62,7 +70,7 @@ describe('one name per tool', () => {
       const unequal = []
       for (const tool of shareOf(await listedTools(page), share, RECENT_SHARES)) {
         await setTool(page, tool)
-        const label = await page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
+        const label = await labelOf(page, tool)
         const first = await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
         if (first !== label) unequal.push({ tool, name: label, recent: first })
       }
@@ -76,9 +84,9 @@ describe('one name per tool', () => {
     await pin(page, [{ ...surface, style: null }])
     await setTool(page, { mode: 'line', submode: '1' })
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
-    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
+    const lineChip = await recentChipOf(page, { mode: 'line', submode: '1' })
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), 'Shade cells')
-    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), 'Line', 'a Recent chip too')
+    assert.equal(await lineChip.getAttribute('title'), 'Line', 'a Recent chip too')
     const unknown = await page.evaluate(() => engine.listTools().find((t) => !window.toolGuide.tooltipAttrs(t).title))
     assert.ok(unknown, 'some listed tool has no plain name')
     await pin(page, [{ mode: unknown.mode, submode: unknown.submode, style: null }])
@@ -86,8 +94,8 @@ describe('one name per tool', () => {
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), null)
     await pin(page, [])
     await setTool(page, { mode: unknown.mode, submode: unknown.submode })
-    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
-    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), null, 'a Recent chip too')
+    const unknownChip = await recentChipOf(page, unknown)
+    assert.equal(await unknownChip.getAttribute('title'), null, 'a Recent chip too')
   })
 
   it('shows the same name in the tool-change banner', async () => {
