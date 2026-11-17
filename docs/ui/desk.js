@@ -603,9 +603,13 @@
 
     // A card's automatic height where it sits, on its own: Mode and Mouse as tall as their tools need, Rules its text, and
     // Board and Recent down to the columns' bottom; never past that bottom, nor under the card's minimum. Pinned's
-    // automatic height is no height set at all.
+    // automatic height is no height set at all. A Rules card with no rules is one line tall, under its minimum, as
+    // `rulesHeightFor` fits it (#288).
     function automaticHeight(desk, cards, id) {
         const { node } = cards[id];
+        if (id === 'rules' && isRulesEmpty(node)) {
+            return rulesCardHeight(cards.rules, node.offsetWidth);
+        }
         const content = { mode: fit.modeCardHeight, mouse: fit.mouseCardHeight, rules: (w) => rulesCardHeight(cards.rules, w) }[id];
         const toBottom = desk.clientHeight - TOP_MARGIN_PX - node.offsetTop;
         return Math.max(minHeightOf(id, cards[id]), Math.min(content ? content(node.offsetWidth) : toBottom, toBottom));
@@ -776,6 +780,57 @@
                 above = node;
             });
         }
+    }
+
+    // Each shown card's height when the cards last changed size, so a card that grows can tell which cards it newly covers.
+    const heightsSeen = new Map();
+
+    const boxOf = (node) => ({ left: node.offsetLeft, top: node.offsetTop, right: node.offsetLeft + node.offsetWidth, bottom: node.offsetTop + node.offsetHeight });
+    const boxesMeet = (p, q) => p.left < q.right && q.left < p.right && p.top < q.bottom && q.top < p.bottom;
+
+    // Card `id` grew from the box `was`: each card below it that `was` left clear and that it covers now moves down to
+    // CARD_GAP_PX under it, shorter where the desk's bottom leaves less room, and in turn moves down whatever it now covers
+    // (#288). Wherever the solver placed it, since the growth, not the solver, closed the gap; cards that already met stay.
+    function clearBelow(desk, cards, id, was) {
+        const now = boxOf(cards[id].node);
+        shownIds(cards).filter((other) => other !== id).forEach((other) => {
+            const { node } = cards[other];
+            const box = boxOf(node);
+            if (box.top < was.top || boxesMeet(box, was) || !boxesMeet(box, now)) {
+                return;
+            }
+            const top = now.bottom + CARD_GAP_PX;
+            const room = desk.clientHeight - EDGE_MARGIN_PX - top;
+            if (node.offsetHeight > room) {
+                setHeight(node, Math.max(minHeightOf(other, cards[other]), room));
+            }
+            node.style.top = `${Math.max(box.top, Math.min(top, desk.clientHeight - node.offsetHeight))}px`;
+            if (saved[other]?.fitted) {
+                keepFitted(desk, cards, [other]);
+            } else {
+                keepPlace(other, node);
+                saveCard(desk, other, node);
+            }
+            heightsSeen.set(other, node.offsetHeight);
+            clearBelow(desk, cards, other, box);
+        });
+    }
+
+    // The cards changed size: each that grew while the solver was not dragging (a pin, a preset's undo line, a tool's
+    // option rows) moves the cards it newly covers out from under it. A card that was closed is placed by the layout as
+    // it opens, so its first height is no growth.
+    function keepGrowthClear(desk, cards) {
+        const grown = shownIds(cards).filter((id) => heightsSeen.has(id) && cards[id].node.offsetHeight > heightsSeen.get(id))
+            .map((id) => [id, heightsSeen.get(id)]);
+        heightsSeen.clear();
+        shownIds(cards).forEach((id) => heightsSeen.set(id, cards[id].node.offsetHeight));
+        if (isDragging) {
+            return;
+        }
+        grown.forEach(([id, height]) => {
+            const { node } = cards[id];
+            clearBelow(desk, cards, id, { ...boxOf(node), bottom: node.offsetTop + height });
+        });
     }
 
     // A card's smallest height: MIN_SIZE's, and for Rules at least one line of its text at the size it shows, which the
@@ -1202,6 +1257,8 @@
         watchHeading(desk.bar);
         const restack = new ResizeObserver(() => restackRight(desk.desk, desk.cards));
         RIGHT_COLUMN.forEach((id) => restack.observe(desk.cards[id].node));
+        const growth = new ResizeObserver(() => keepGrowthClear(desk.desk, desk.cards));
+        Object.values(desk.cards).forEach(({ node }) => growth.observe(node));
         // Every card back to the layout fitted to the window and puzzle, and the Rules text to its default size.
         const resetLayout = () => {
             startFit();
