@@ -330,7 +330,7 @@
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 
-        // What the presets and the Settings dialog read and replace. A pin for a tool the link lacks is left out, like a saved
+        // What the presets read and replace. A pin for a tool the link lacks is left out, like a saved
         // pin the link no longer offers.
         window.pinBoard = {
             // `toggleButton(toolNow)` is a pin toggle for the tool `toolNow()` names; `isPinned(tool)` tells whether a tool is pinned.

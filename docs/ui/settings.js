@@ -1,5 +1,5 @@
 // The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the desk's own
-// (theme, layout, pins and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// (theme, layout and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
 // Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -136,9 +136,6 @@
             resetLayout();
         });
 
-        const resetPins = el('wa-button', { size: 's' }, ['Reset pins to the puzzle\'s default pins']);
-        resetPins.addEventListener('click', () => window.pinBoard.reseed());
-
         const presets = el('wa-select', { label: 'Your presets', size: 's', placeholder: 'None saved' });
         const deletePreset = el('wa-button', { size: 's' }, ['Delete preset']);
         function showPresets() {
@@ -154,7 +151,7 @@
 
         const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
             el('div', { class: 'ui-setting' }, [theme]),
-            el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
+            el('div', { class: 'ui-setting' }, [resetLayoutButton]),
             el('div', { class: 'ui-setting' }, [presets, deletePreset]),
             el('div', { class: 'ui-setting' }, [showMouse])]);
 
