@@ -16,6 +16,9 @@
     const DELETE_KEY = 'Delete';
     const FAVOURITES = 'Favourites';
     const YOUR_PRESETS = 'Your presets';
+    const THIS_PUZZLE = 'This puzzle';
+    const PUZZLE_DEFAULTS = 'Puzzle defaults';
+    const PUZZLE_DEFAULTS_NOTE = 'the pins this puzzle\'s link opens with';
     // How long the line offering an Undo stays, when nothing else clears it.
     const UNDO_VISIBLE_MS = 8000;
 
@@ -252,6 +255,13 @@
             picker.redraw();
         }
 
+        // The entry that resets the pins to the Tab set; its description stays out of the haystack, or a partial genre name ("pen", "li") would match it and Enter would load it.
+        const puzzleDefaults = {
+            key: 'puzzle-defaults',
+            preset: { name: PUZZLE_DEFAULTS, isPuzzleDefaults: true },
+            haystack: `${PUZZLE_DEFAULTS} reset`.toLowerCase()
+        };
+
         function groups() {
             const presets = allPresets();
             const starred = new Set(starredKeys());
@@ -263,6 +273,7 @@
             }));
             const unstarred = (group) => entries(presets.filter((p) => p.group === group && !starred.has(p.key)));
             return [
+                { title: THIS_PUZZLE, entries: [puzzleDefaults] },
                 { title: FAVOURITES, entries: entries(presets.filter((p) => starred.has(p.key))) },
                 ...FAMILIES.map((title) => ({ title, entries: unstarred(title) })),
                 { title: YOUR_PRESETS, entries: unstarred(YOUR_PRESETS) }
@@ -272,8 +283,13 @@
         const picker = window.combobox.create({
             idPrefix: 'preset', label: 'Pin presets', listLabel: 'Presets', placeholder: 'Load a preset…', noMatch: 'No preset matches.',
             groups,
-            renderEntry: ({ preset }) => [preset.name],
+            renderEntry: ({ preset }) => preset.isPuzzleDefaults
+                ? [preset.name, ' ', el('span', { class: 'ui-entry-note', 'aria-hidden': 'true' }, [PUZZLE_DEFAULTS_NOTE])]
+                : [preset.name],
             rowButtons: ({ preset }) => {
+                if (preset.isPuzzleDefaults) {
+                    return [];
+                }
                 const isStarred = starredKeys().includes(preset.key);
                 const star = entryButton('ui-entry-star', `Favourite ${preset.name}`, STAR_KEY, icon(STAR_ICON), () => toggleStar(preset));
                 star.setAttribute('aria-pressed', String(isStarred));
@@ -284,7 +300,11 @@
             currentText: () => '',
             onPick: ({ preset }) => {
                 const earlier = window.pinBoard.snapshot();
-                window.pinBoard.replace(preset.tools);
+                if (preset.isPuzzleDefaults) {
+                    window.pinBoard.reseed();
+                } else {
+                    window.pinBoard.replace(preset.tools);
+                }
                 showUndo(`Loaded “${preset.name}”.`, `Undo load of ${preset.name}`, () => window.pinBoard.replace(earlier));
             },
             onClose: () => {
@@ -302,7 +322,7 @@
                 }
                 // With nothing highlighted Shift+Enter does nothing, rather than picking the first match.
                 if (e.key === STAR_KEY) {
-                    if (entry) {
+                    if (entry && !entry.preset.isPuzzleDefaults) {
                         toggleStar(entry.preset);
                     }
                     return true;
