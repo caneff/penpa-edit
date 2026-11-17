@@ -283,9 +283,10 @@ export const KINDS = [
     kind: 'unpin',
     area: 'pinned',
     weight: 1,
+    // The chips' own buttons: "Unpin all" also starts with "Unpin ", and it is disabled with no pin.
     arg: PICK,
     label: (pick) => `unpin pin ${pick} in the Pinned card`,
-    run: (page, pick) => clickNth(pinnedCard(page).getByRole('button', { name: /^Unpin / }), pick, 'no pin')
+    run: (page, pick) => clickNth(pinnedCard(page).locator('.ui-pins .ui-chip-unpin'), pick, 'no pin')
   },
   {
     kind: 'pin pick',
