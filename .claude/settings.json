@@ -1,4 +1,7 @@
 {
+  "permissions": {
+    "allow": ["Bash(npm ci)"]
+  },
   "hooks": {
     "PreToolUse": [
       {

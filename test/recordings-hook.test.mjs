@@ -107,4 +107,11 @@ describe('.claude/settings.json', () => {
     const matcher = new RegExp(`^(${entry.matcher})$`)
     for (const tool of ['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash']) assert.equal(matcher.test(tool), true, tool)
   })
+
+  // Chris, 2026-11-17 (#239): `npm ci` in a worker worktree must not prompt. The docs' rule syntax: a Bash rule with no `*`
+  // matches one exact command, so `npm ci --foo` and `npm install` still prompt (https://code.claude.com/docs/en/permissions).
+  it('allows exactly `npm ci` without a prompt, and no other command', () => {
+    const { permissions } = JSON.parse(readFileSync(new URL('../.claude/settings.json', import.meta.url), 'utf8'))
+    assert.deepEqual(permissions.allow, ['Bash(npm ci)'])
+  })
 })
