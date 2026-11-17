@@ -151,6 +151,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-mrow.is-more { background: transparent; font-size: calc(12.5px * var(--ui-text-scale, 1)); padding: 2px 8px; color: #555; }
 .ui-mg { font-weight: 700; color: #2f5bb2; }
 .ui-mrow.is-more .ui-mg { font-weight: 600; color: #5d6985; }
+.ui-keypad { display: grid; grid-template-columns: repeat(3, max-content); gap: 2px 12px; margin-top: 4px; font-family: monospace; }
+.ui-mrow .ui-dot { width: 10px; height: 10px; margin: 0 0 0 4px; vertical-align: -1px; }
 
 /* The Mode card: the combobox, its list, then the style buttons. */
 .ui-picker { position: relative; }

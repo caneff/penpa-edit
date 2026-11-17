@@ -129,9 +129,9 @@ const selectingTool = ({ digit, removeDrag = false, double = [['selects every ce
   'Right click': nothing(rightClick(at(A)), [click(at(B))]),
   Drag: [['selects many cells', [], [stage(drag([A, B, C]), [`selection=${A},${B},${C}`])]]],
   ...(removeDrag
-    ? { 'Ctrl / Shift + drag from a selected cell': MODIFIERS.map((m) => [`with ${m}: removes cells`, [drag([A, B, C])], [stage(drag([A, B], [m]), [`selection=${C}`])]]) }
+    ? { 'Ctrl/Shift + drag': MODIFIERS.map((m) => [`with ${m}: removes cells`, [drag([A, B, C])], [stage(drag([A, B], [m]), [`selection=${C}`])]]) }
     : {}),
-  'Ctrl / Shift + click': MODIFIERS.map((m) => [`with ${m}: adds the cell, again removes it`, [click(at(A))], cycle(click(at(B), [m]), [`selection=${A},${B}`], [])]),
+  'Ctrl/Shift + click': MODIFIERS.map((m) => [`with ${m}: adds the cell, again removes it`, [click(at(A))], cycle(click(at(B), [m]), [`selection=${A},${B}`], [])]),
   'Alt + drag': [['selects a rectangle', [], [stage(drag([A, E], ['Alt']), [`selection=${A},${B},${D},${E}`])]]],
   'Double click': double,
   Digit: [digit]
@@ -246,7 +246,7 @@ const CASES = {
     'Left click': nothing(click(at(A))),
     'Right click': [['× on the edge, then clears it', [], cycle(rightClick(rightEdge(A)), [EDGE_CROSS], [])]],
     Drag: drawAndErase([A, B, C], times(2, `line@cell-cell=${LINE}`)),
-    'Right drag from an edge': [
+    'Right drag': [
       ...crossEdgeCases(),
       ['sent as a touchpad does: × on each edge it passes', [], [stage(touchpadRightDrag(EDGES_ABC), times(3, EDGE_CROSS))]],
       ['sent as a touchpad does, starting on a cell centre: marks nothing', [], [stage(touchpadRightDrag([A, B, C]), [])]]
@@ -262,9 +262,9 @@ const CASES = {
     'Right click': [['on an edge: ×, arrowhead, the other way, then clears', [],
       cycle(rightClick(rightEdge(A)), [EDGE_CROSS], [ARROW_LEFT], [ARROW_RIGHT], [])]],
     Drag: drawAndErase([A, B, C], times(2, `line@cell-cell=${LINE}`)),
-    'Right drag from a cell toward an edge': [['an arrowhead, again the same way: clear', [],
-      cycle(rightDrag([at(A), toward(A, 'e')]), [ARROW_RIGHT], [])]],
-    'Right drag from an edge': [
+    'Right drag': [
+      ['from a cell toward an edge: an arrowhead, again the same way: clear', [],
+        cycle(rightDrag([at(A), toward(A, 'e')]), [ARROW_RIGHT], [])],
       ['× on each edge it passes', [], [stage(rightDrag(EDGES_ABC), times(3, EDGE_CROSS))]],
       ['starting on a × steps only that one on', [rightDrag(EDGES_ABC)], [stage(rightDrag(EDGES_ABC), ['line@edge=-', ARROW_LEFT])]],
       ['starting on the last arrowhead clears them', [rightDrag(EDGES_ABC), rightClick(rightEdge(A)), rightClick(rightEdge(A))],
@@ -324,7 +324,7 @@ const CASES = {
       ['nothing on an edge line', [drag([{ cell: A, dx: 0.5, dy: -0.5 }, cornerOf(A)])], [stage(rightClick(rightEdge(A)), [])]]
     ],
     Drag: drawAndErase([cornerOf(A), cornerOf(B), cornerOf(C)], times(2, `lineE@corner-corner=${LINE}`)),
-    'Right drag from an edge': crossEdgeCases('lineE@edge')
+    'Right drag': crossEdgeCases('lineE@edge')
   },
   'combi/edgexoi': {
     'Left click': [['on a cell: yellow, 2nd colour, then clears', [], cycle(click(at(A)), [SURFACE_7], [`surface@cell=${SECOND}`], [])]],
@@ -357,7 +357,7 @@ const CASES = {
   'number/9': cursorTool({ dx: 0.35, dy: 0 }, 'type5', 'numberS@type5=["5",2]'),
   'sudoku/1': {
     ...selectingTool({ digit: ['writes a digit in the selected cells', [click(at(A))], [stage(key('5'), ['number@cell=["5",9,"1"]'])]], removeDrag: true }),
-    'Shift held': [['writes corner marks', [click(at(A))], [stage(key('5', ['Shift']), ['numberS@type4=["5",9]'])]]],
+    'Shift + digit': [['writes corner marks', [click(at(A))], [stage(key('5', ['Shift']), ['numberS@type4=["5",9]'])]]],
     'Ctrl + digit': [['writes a centre mark', [click(at(A))], [stage(key('5', ['Control']), ['number@cell=["5",9,"6"]'])]]]
   },
   'sudoku/2': selectingTool({ double: [
@@ -450,8 +450,13 @@ const CASES = {
   'special/direction': specialTool('direction'),
   'special/squareframe': specialTool('squareframe'),
   'special/polygon': {
-    'Left click': [['corner by corner, the first again finishes', [], [
-      // While it is drawn, the list also holds the corner following the pointer.
+    // While it is drawn, the list also holds the corner following the pointer. A polygon left unfinished breaks the next case's
+    // pointer moves, so the first case finishes it.
+    'Left click': [['corner by corner', [], [
+      stage([click(cornerOf(A)), click(cornerOf(B)), click(cornerOf(E))], ['polygon+4']),
+      stage(click(cornerOf(E)), ['polygon+3'])
+    ]]],
+    'Closing click': [['the first corner again finishes', [], [
       stage([click(cornerOf(A)), click(cornerOf(B)), click(cornerOf(E))], ['polygon+4']),
       stage(click(cornerOf(A)), ['polygon+3'])
     ]], ['the last corner again finishes', [], [
@@ -674,7 +679,7 @@ async function checkedChanges (page, tool, setup, stages) {
 const casesExpectChange = (stagesOfCases) => stagesOfCases.some((stages) => stages.some(([, change]) => change.length > 0))
 
 // A tool's Mouse card rows, as `toolGuide.mouseRows` gives them, as gesture -> words.
-const byGesture = ({ left, right, drag, more }) => Object.fromEntries([['Left click', left], ['Right click', right], ['Drag', drag], ...more])
+const byGesture = ({ left, right, drag, digit, more }) => Object.fromEntries([['Left click', left], ['Right click', right], ['Drag', drag], ...(digit ? [['Digit', digit]] : []), ...more])
 
 // The words of a Given row, the card's other way to name no change.
 const LEFT_ALONE = 'left alone'
