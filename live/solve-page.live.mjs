@@ -160,6 +160,31 @@ describe('the engine', () => {
   })
 })
 
+describe('getState\'s historyLength', () => {
+  it('grows with each entry, falls back with an undo, rises with a redo and is 0 after a restart', async () => {
+    const link = await makeNumberSolveLink(browser())
+    const { context, page } = await openPenpa(browser(), link, { solve: true })
+    try {
+      await page.evaluate(() => engine.ready)
+      const length = () => page.evaluate(() => engine.getState().historyLength)
+      assert.equal(await length(), 0, 'a fresh puzzle has no history')
+      await page.evaluate(typeDigitInPage, { index: ANSWER_CELL, digit: '3' })
+      const one = await length()
+      await page.evaluate(typeDigitInPage, { index: ANSWER_CELL + 1, digit: '4' })
+      const two = await length()
+      assert.ok(one > 0 && two > one, `each entry lengthens the history (${one}, then ${two})`)
+      await page.evaluate(() => engine.undo())
+      assert.equal(await length(), one, 'an undo takes back the second entry only')
+      await page.evaluate(() => engine.redo())
+      assert.equal(await length(), two, 'a redo brings it back')
+      await page.evaluate(() => engine.restart())
+      assert.equal(await length(), 0, 'a restart clears the history')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
 describe('getState on a solved board', () => {
   it('says solved', async () => {
     const link = await makeNumberSolveLink(browser())

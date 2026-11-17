@@ -1,10 +1,11 @@
-// The top bar of `solve.html` (#94): undo, redo, Restart, Pause, the timer, and the theme it applies. The UI is found by role
-// and accessible name and the state by `engine.getState()`; what the solver has entered is read as Penpa+ would save it
-// (`readEngineState`, defined by recorder.js); the keys and clicks are real.
+// The top bar of `solve.html` (#94): undo, redo, trial mode (#258), Restart, Pause, the timer, and the theme it applies.
+// The UI is found by role and accessible name and the state by `engine.getState()`; what the solver has entered is read
+// as Penpa+ would save it (`readEngineState`, defined by recorder.js); the keys and clicks are real.
 import assert from 'node:assert/strict'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { describe, it } from 'node:test'
-import { ANSWER_CELL, makeNumberSolveLink, openSolvePage, setTool, typedDigits, useBrowser } from './page.mjs'
+import { afterChange, ANSWER_CELL, makeNumberSolveLink, openSolvePage, SAME_ROW_CELL, setTool, typedDigits, useBrowser, waitForDesk } from './page.mjs'
+import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -17,9 +18,9 @@ const CELL = 12
 const HOLD_WATCH_MS = 1500
 
 let numberLink
-async function openSolve () {
+async function openSolve (options) {
   numberLink ??= await makeNumberSolveLink(browser())
-  const opened = await openSolvePage(browser(), numberLink)
+  const opened = await openSolvePage(browser(), numberLink, options)
   // The Number tool takes a digit in a selected cell.
   await setTool(opened.page, { mode: 'number', submode: '1' })
   return opened
@@ -251,6 +252,181 @@ describe('light and dark', () => {
 
       await page.evaluate(() => engine.setTheme('light'))
       assert.equal(await settle(ground, light), light, 'and back')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+// Trial mode (#258): Try marks a point in the undo history, Keep and Discard end the innermost stage, Keep all and Discard all
+// every stage. The depth shows as "Trial <n>" in the bar.
+describe('trial mode', () => {
+  // The bar's "Trial <n>", or null when no trial is on.
+  const trialShown = async (page) => {
+    const label = page.getByText(/^Trial \d+$/)
+    return (await label.isVisible()) ? label.textContent() : null
+  }
+  const expectTrial = async (page, expected, message) => {
+    assert.equal(await settle(() => trialShown(page), expected), expected, message)
+  }
+  const press = async (page, name) => {
+    await button(page, name).click()
+    await afterChange(page)
+  }
+  const expectDigits = async (page, expected, message) => {
+    assert.deepEqual(await settle(() => typedDigits(page), expected), expected, message)
+  }
+
+  it('Discard takes the board back to before Try, and redo brings the discarded entries back', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await expectTrial(page, null, 'no trial on a fresh puzzle')
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await expectTrial(page, 'Trial 1', 'Try starts a trial')
+      await enterDigit(page, '2', CELL + 1)
+      await enterDigit(page, '3', CELL + 2)
+      await press(page, 'Discard')
+      await expectDigits(page, ['1'], 'the board is as it was before Try')
+      await expectTrial(page, null, 'and the trial is over')
+      await press(page, 'Redo')
+      await press(page, 'Redo')
+      await expectDigits(page, ['1', '2', '3'], 'redo brings both entries back')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('Discard in a nested trial removes only its own entry, and Keep then ends the outer one', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await press(page, 'Try')
+      for (const name of ['Keep all', 'Discard all']) {
+        assert.equal(await button(page, name).isVisible(), false, `${name} is hidden with one trial on`)
+      }
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await expectTrial(page, 'Trial 2', 'a Try inside a trial nests')
+      for (const name of ['Keep all', 'Discard all']) {
+        assert.equal(await button(page, name).isVisible(), true, `${name} shows with two trials on`)
+      }
+      await enterDigit(page, '2', CELL + 1)
+      await press(page, 'Discard')
+      await expectDigits(page, ['1'], 'only the inner entry is gone')
+      await expectTrial(page, 'Trial 1', 'the outer trial is still on')
+      await press(page, 'Keep')
+      await expectDigits(page, ['1'], 'Keep leaves the entry')
+      await expectTrial(page, null, 'and no trial is shown')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('Discard all from depth 2 returns to the board before the first Try; Keep all keeps every entry', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await enterDigit(page, '2', CELL + 1)
+      await press(page, 'Try')
+      await enterDigit(page, '3', CELL + 2)
+      await press(page, 'Discard all')
+      await expectDigits(page, ['1'], 'every trial entry is gone')
+      await expectTrial(page, null, 'and every trial is over')
+
+      await press(page, 'Try')
+      await enterDigit(page, '2', CELL + 1)
+      await press(page, 'Try')
+      await enterDigit(page, '3', CELL + 2)
+      await press(page, 'Keep all')
+      await expectDigits(page, ['1', '2', '3'], 'Keep all leaves every entry')
+      await expectTrial(page, null, 'and ends every trial')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('an undo by hand past a stage\'s start ends that stage', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await press(page, 'Try')
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await enterDigit(page, '2', CELL + 1)
+      await press(page, 'Undo')
+      await expectTrial(page, 'Trial 2', 'an undo back to the stage\'s start keeps it')
+      await press(page, 'Undo')
+      await expectTrial(page, 'Trial 1', 'an undo past it ends it')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('turns every trial button off while the board is paused', async () => {
+    const { context, page } = await openSolve()
+    const names = ['Try', 'Keep', 'Discard', 'Keep all', 'Discard all']
+    try {
+      await press(page, 'Try')
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await button(page, 'Pause').click()
+      for (const name of names) await assertDisabled(page, name, true, `${name} while paused`)
+      await button(page, 'Resume').first().click() // the top bar's; the cover has one too
+      for (const name of names) await assertDisabled(page, name, false, `${name} after Resume`)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('Restart ends every stage', async () => {
+    const { context, page } = await openSolve()
+    try {
+      await press(page, 'Try')
+      await enterDigit(page, '1', CELL)
+      await press(page, 'Try')
+      await expectTrial(page, 'Trial 2', 'two trials are on (the premise)')
+      await button(page, 'Restart').click()
+      await button(page, 'Restart puzzle').click()
+      await expectDigits(page, [], 'the restart cleared the board (the premise)')
+      await expectTrial(page, null, 'no trial is left')
+    } finally {
+      await context.close()
+    }
+  })
+
+  // A solve link carries no genre tags, so the page is tagged here for its sudoku conflict check to run.
+  it('keeps the timer running, and the conflict marks and saved progress follow a Discard', async () => {
+    const { context, page } = await openSolve({ served: true })
+    try {
+      await page.evaluate(() => { pu.user_tags = ['classic'] })
+      const conflicts = async () => canonicalState(await page.evaluate(readEngineState)).split('\n').filter((l) => l.startsWith('conflict_cells'))
+      const expectRunning = async (step) => {
+        const before = (await timer(page)).seconds
+        await page.waitForFunction((s) => engine.getTimer().seconds > s, before)
+        assert.equal((await timer(page)).paused, false, `the timer runs after ${step}`)
+      }
+      await enterDigit(page, '3', CELL)
+      const conflictsBefore = await conflicts()
+      await press(page, 'Try')
+      await expectRunning('Try')
+      // The given 1 shares row 0 with this cell.
+      await clickCell(page, SAME_ROW_CELL)
+      await page.keyboard.press('1')
+      await expectDigits(page, ['1', '3'], 'the trial entry is on the board')
+      assert.notDeepEqual(await conflicts(), conflictsBefore, 'the trial entry is a conflict (the premise)')
+      await press(page, 'Try')
+      await press(page, 'Keep')
+      await expectRunning('Keep')
+      await press(page, 'Discard')
+      await expectRunning('Discard')
+      await expectDigits(page, ['3'], 'the conflicting entry is gone')
+      assert.deepEqual(await conflicts(), conflictsBefore, 'and so are its conflict marks')
+
+      assert.equal(await page.evaluate(() => engine.saveProgress()), true, 'the progress is saved (the premise)')
+      await page.reload()
+      await waitForDesk(page)
+      await expectDigits(page, ['3'], 'the saved progress holds the board after the Discard')
+      await expectTrial(page, null, 'a reload keeps the entries and drops the stages')
     } finally {
       await context.close()
     }
