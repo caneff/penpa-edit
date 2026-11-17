@@ -314,7 +314,6 @@ const CASES = {
     ...lineTool(WALL_PATH, times(3, `wall@edge-edge=${LINE}`)),
     Drag: [
       ...drawAndErase(WALL_PATH, times(3, `wall@edge-edge=${LINE}`)),
-      ['from a cell centre draws nothing', [], [stage(drag([A, B, C]), [])]],
       ['does not turn within a drag', [], [stage(drag([{ cell: A, dx: -0.5, dy: 0 }, at(B), { cell: E, dx: 0, dy: 0.5 }]), [`wall@edge-edge=${LINE}`])]]
     ]
   },

@@ -525,7 +525,7 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'line through cell centres; starting on it: erase']]],
     [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', 'as a click where it starts']]],
-    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); it does not turn within a drag; starting on it: erase']]],
+    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on it: erase']]],
     [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor to the nearest cell corner spot; selects the cell'],
       ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
     [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],

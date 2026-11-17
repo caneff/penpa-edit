@@ -254,7 +254,7 @@
         'lineE/4': { left: `× on the grid line → ${CYCLE_END}`, right: NOTHING, drag: AS_A_CLICK, more: [] },
         'lineE/5': { left: NOTHING, right: NOTHING,
             drag: 'erase the grid lines it runs along; starting on an erased one: restore them', more: [] },
-        'wall/': line('from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); it does not turn within a drag'),
+        'wall/': line('from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag'),
         'combi/edgex': { left: NOTHING, right: `× on the edge, if no edge line is there → ${CYCLE_END}`,
             drag: `line along grid lines; ${ERASE}`, more: crossEdges },
         'combi/edgexoi': { left: `cell: yellow → 2nd colour → ${CYCLE_END}`,
