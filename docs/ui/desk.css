@@ -229,11 +229,19 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 
 /* The top bar's controls. */
 .ui-timer { font: 700 15px ui-monospace, monospace; font-variant-numeric: tabular-nums; color: #fff; min-width: 3.4em; text-align: center; }
+.ui-timer.is-solved { color: #7bd88f; }
 
 /* The cover a paused board wears: over the whole Board card, opaque, taking every click. */
 .ui-paused { position: absolute; inset: 0; z-index: 30; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 6px; border-radius: 9px; background: #ece8de; color: #3b3e45; font-size: 28px; font-weight: 700; }
 .ui-paused[hidden] { display: none; }
+.ui-paused wa-button { margin-top: 14px; }
+/* A paused board takes only Resume, Settings and Open in Penpa+: the cards that change the tool are dimmed and inert. */
+.ui-body[inert] { opacity: 0.45; }
+
+/* The solved dialog's words: the setter's message is text, its line breaks kept. */
+.ui-solved-title { font-weight: 700; margin-bottom: 8px; }
+.ui-solved-message { white-space: pre-wrap; }
 .ui-paused-hint { font-size: 13px; font-weight: 400; color: #6b6656; }
 
 /* Dark: the desk, the cards and their text; the bar is dark already. */

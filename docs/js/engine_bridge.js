@@ -220,6 +220,7 @@
             // and the CSS keeps it hidden. Nothing here waits on it: `ready` never settles.
             return penpaBoot.apply(this, arguments);
         }
+        holdClockWhenSolved();
         UserSettings.outline_text = getCookie(OUTLINE_COOKIE) !== '0';
         const savedShortcuts = getCookie(SHORTCUTS_COOKIE);
         if (savedShortcuts !== null) {
@@ -233,6 +234,12 @@
                 return reopenInSolveMode();
             }
             applyTheme(savedTheme());
+            bootDone = true;
+            // The clock was started by the restore of the saved progress, with a time that is the solve time.
+            if (solvedWhileBooting || localStorage.getItem(solvedKey())) {
+                latchSolved();
+                sw_timer.pause();
+            }
             resolveBoot();
         }, rejectBoot).catch((error) => {
             errorMsg(DOMPurify.sanitize(String(error)));
@@ -240,6 +247,84 @@
         });
         return booting;
     };
+
+    // ---- The solved state (#198). Penpa+ shows its SweetAlert2 popup (fireworks, its own fonts) on every solve and pauses the
+    // clock, which Pause and Resume then restart. The solve page keeps the popup out, tells the UI once (`solved` event, the
+    // first solve only) and holds the clock stopped for good: once latched, `sw_timer.start` does nothing until `restart()`.
+    // A puzzle that opens already solved (a reload) is latched at the end of boot, with no event.
+    // MVP gap: wraps Puzzle.check_solution, whose popup is a `Swal.fire` call 20 ms later, and the timer's start on the page.
+    let latched = false;
+    let bootDone = false;
+    let solvedWhileBooting = false;
+    // Set when a solve just happened: the next success popup is that solve's, and `announce` says whether the UI is told.
+    let solvePopupDue = false;
+    let announce = false;
+    const solvedHandlers = new Set();
+
+    // Kept per puzzle, so a reload of a board that was solved and then undone still opens with the clock stopped.
+    const solvedKey = () => `chinstrap-solved-v1-${engine.getPuzzleId()}`;
+
+    function latchSolved() {
+        latched = true;
+        localStorage.setItem(solvedKey(), '1');
+        wakeTimerHandlers();
+    }
+
+    function unlatchSolved() {
+        latched = false;
+        localStorage.removeItem(solvedKey());
+        wakeTimerHandlers();
+    }
+
+    const penpaCheckSolution = Puzzle.prototype.check_solution;
+    Puzzle.prototype.check_solution = function () {
+        const before = this.sol_flag;
+        const result = penpaCheckSolution.apply(this, arguments);
+        if (before === 0 && this.sol_flag === 1) {
+            solvePopupDue = true;
+            if (bootDone) {
+                announce = !latched;
+                latchSolved();
+            } else {
+                solvedWhileBooting = true;
+            }
+        }
+        return result;
+    };
+
+    // The text of the popup's HTML, which Penpa+ builds from the setter's sanitized message.
+    const textOfHtml = (html) => (html ? new DOMParser().parseFromString(html, 'text/html').body.textContent.trim() : '');
+
+    const penpaFire = Swal.fire;
+    Swal.fire = function (options) {
+        if (solvePopupDue && options && options.icon === 'success') {
+            solvePopupDue = false;
+            if (announce) {
+                announce = false;
+                const detail = { title: textOfHtml(options.title), message: textOfHtml(options.html) };
+                solvedHandlers.forEach((handler) => handler(detail));
+            }
+            return Promise.resolve({ isConfirmed: true });
+        }
+        return penpaFire.apply(this, arguments);
+    };
+
+    // Penpa+ covers the board whenever it redraws the grid with a paused clock (general.js redraw_grid, which the desk's fit and
+    // zoom call), and a solved clock is paused: so a solved board would be covered by its first resize. A solved board is never
+    // covered (`pauseTimer` does nothing then).
+    const penpaShowPauseLayer = Puzzle.prototype.show_pause_layer;
+    Puzzle.prototype.show_pause_layer = function () {
+        if (!latched) {
+            return penpaShowPauseLayer.apply(this, arguments);
+        }
+    };
+
+    function holdClockWhenSolved() {
+        const penpaStart = sw_timer.start;
+        sw_timer.start = function () {
+            return latched ? undefined : penpaStart.apply(this, arguments);
+        };
+    }
 
     // ---- Holds: in Sudoku mode Penpa+ lends Corner to a held Shift and Centre to a held Ctrl, and gives the sub-mode back on
     // the key's key-up. Penpa+ keeps no record the bridge can read, and a key-up that never comes (the window lost focus)
@@ -638,13 +723,16 @@
         return tool;
     }
 
-    const ENGINE_EVENTS = ['change', 'timer'];
+    const ENGINE_EVENTS = ['change', 'timer', 'solved'];
 
     // easytimer's events that change the clock's reading or whether it runs. `secondsUpdated` is Penpa+'s own once-a-second tick.
     const TIMER_EVENTS = ['secondsUpdated', 'started', 'paused', 'stopped', 'reset'];
     const timerHandlers = new Set();
+    function wakeTimerHandlers() {
+        timerHandlers.forEach((handler) => handler());
+    }
     function watchTimer() {
-        TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, () => timerHandlers.forEach((handler) => handler())));
+        TIMER_EVENTS.forEach((name) => sw_timer.addEventListener(name, wakeTimerHandlers));
     }
 
     // MVP gap: Penpa+'s pause and start closures live in main.js's onload and are reached only through their buttons, which
@@ -685,7 +773,9 @@
         },
 
         // `change` runs `handler()` at most once per frame after the state may have changed; `timer` runs it on every tick of
-        // the clock and whenever it starts, pauses or resets. Read `getTimer()` then.
+        // the clock and whenever it starts, pauses, resets or becomes solved. Read `getTimer()` then; `solved` runs
+        // `handler({ title, message })` (the setter's words, as text) when the puzzle is solved and was not solved since it
+        // was last restarted or its progress cleared: not for a puzzle that opened solved, nor a redo back into the solved state.
         on(event, handler) {
             if (!ENGINE_EVENTS.includes(event)) {
                 throw new RangeError(`engine.on: no event "${String(event)}"; the events are ${ENGINE_EVENTS.join(', ')}`);
@@ -693,7 +783,9 @@
             if (typeof handler !== 'function') {
                 throw new TypeError('engine.on: handler must be a function');
             }
-            if (event === 'timer') {
+            if (event === 'solved') {
+                solvedHandlers.add(handler);
+            } else if (event === 'timer') {
                 boardCanvas();
                 if (!timerHandlers.size) {
                     watchTimer();
@@ -732,40 +824,46 @@
         },
 
         // Clears the solver's entries (never the givens), the selection and the undo history, then restarts the clock from
-        // zero, running. A paused board is uncovered.
+        // zero, running, and the puzzle is unsolved again. A paused board is uncovered.
         restart() {
             boardCanvas();
             pu.reset_board();
             pu.selection = [];
             pu.redraw();
+            unlatchSolved();
             sw_timer.reset();
             pressTimerButton('sw_start');
         },
 
         // The clock: whole and fractional `seconds` elapsed, and whether it is `paused`. `covered` is true while the solver's
         // own pause (the Pause button or F4) has Penpa+'s pause layer up; a solve also pauses the clock, with no layer (#119).
+        // `solved` is true from the puzzle's first solve (or its opening solved) until `restart()`: the clock then never runs.
         getTimer() {
             boardCanvas();
             return {
                 seconds: sw_timer.getTotalTimeValues().secondTenths / 10,
                 paused: sw_timer.isPaused(),
+                solved: latched,
                 // MVP gap: read from Penpa+'s pause layer, which its Pause and Start buttons show and hide.
                 covered: document.getElementById('pause_canvas').style.display !== 'none'
             };
         },
 
-        // Pauses the clock and covers Penpa+'s own board with its pause layer; nothing happens when the layer is already up.
+        // Pauses the clock and covers Penpa+'s own board with its pause layer; nothing happens when the layer is already up or the
+        // puzzle is solved (its clock is stopped for good).
         pauseTimer() {
             boardCanvas();
-            if (!engine.getTimer().covered) {
+            if (!latched && !engine.getTimer().covered) {
                 pressTimerButton('sw_pause');
             }
         },
 
-        // Resumes the clock and uncovers the board.
+        // Resumes the clock and uncovers the board. A solved puzzle's clock stays stopped, so the timer handlers are woken here:
+        // no `started` event does it.
         startTimer() {
             boardCanvas();
             pressTimerButton('sw_start');
+            wakeTimerHandlers();
         },
 
         // 'light' or 'dark': the page's theme and the board's, kept in localStorage for the next visit.
@@ -912,6 +1010,7 @@
                 return;
             }
             UserSettings.save_current_puzzle = false;
+            localStorage.removeItem(solvedKey());
             const hash = PenpaProgress.getHash(pu.url);
             await PenpaProgress.clearPuzzle(hash);
             if (await PenpaProgress.canSaveProgress()) {
