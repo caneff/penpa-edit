@@ -1180,15 +1180,9 @@
             showRulesText(desk);
             relayout();
         };
-        // The tools Mode and Mouse are sized for changed: a fitted layout is fitted again, and in one the solver changed, each
-        // column the solver left alone.
-        const fitToTools = () => {
-            if (isFitted) {
-                refit();
-                return;
-            }
-            fitAutomatic(desk.desk, desk.cards);
-        };
+        // The tools Mode and Mouse are sized for changed. Only the side columns' heights depend on them, so the board is not
+        // fitted again: a solver stepping through tools outside the pins would redraw it at every step.
+        const fitToTools = () => fitAutomatic(desk.desk, desk.cards);
         const isMouseClosed = () => desk.cards.mouse.node.hidden;
         // Closing or opening Mouse refits a layout nobody has changed, so Rules takes the column or gives Mouse its split back.
         const setMouseClosed = (closed) => {
