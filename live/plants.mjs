@@ -294,8 +294,9 @@ const STEP_THREW = /^.*: step \d+ \(.*\) could not be replayed: /
 // differs from its expected file, fails its round trip or its final board, throws at a step, or raises a page error.
 // Returns `caught`, that recording's id (null when none was caught), `why`, the first line of its report, page error
 // or throw, `error`, the first line of a harness error that stopped the hunt (null when none did), and `replayed`, how
-// many replays ran. A recording with no expected file rejects the hunt, never counts as a catch.
-export async function hunt (browser, plant, ids, { lanes = 1 } = {}) {
+// many replays ran. A recording with no expected file rejects the hunt, never counts as a catch. `read` swaps the two file
+// reads, so a test can make one settle before the other.
+export async function hunt (browser, plant, ids, { lanes = 1, read = { recording: readRecording, expected: readExpected } } = {}) {
   const setup = await plantSetup(plant)
   let replayed = 0
   let caught = null
@@ -304,8 +305,8 @@ export async function hunt (browser, plant, ids, { lanes = 1 } = {}) {
   await inLanes(huntOrder(plant, ids), lanes, async (id) => {
     replayed++
     // In order, not Promise.all: for an id with neither file both reads reject, and the first to settle would be thrown.
-    const recording = await readRecording(id)
-    const expected = await readExpected(id)
+    const recording = await read.recording(id)
+    const expected = await read.expected(id)
     let failure
     try {
       const { report, errors } = await replay(browser, recording, { id, expected, served: true, setup })
