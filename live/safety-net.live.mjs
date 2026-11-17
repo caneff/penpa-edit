@@ -59,6 +59,14 @@ describe('a hunt', () => {
     await assert.rejects(hunt(browser(), SURFACE_PLANT, ['paint/no-such-recording']), /ENOENT/)
   })
 
+  it('reports the missing recording even when the expected-file read fails first', async () => {
+    const read = {
+      recording: async () => { await new Promise((resolve) => setTimeout(resolve, 20)); throw new Error('ENOENT: no recording') },
+      expected: async () => { throw new Error('has no expected file') }
+    }
+    await assert.rejects(hunt(browser(), SURFACE_PLANT, [SURFACE_ID], { read }), /ENOENT/)
+  })
+
   it('reports a plant no replayed recording reaches as missed', async () => {
     const { caught, error, replayed } = await hunt(browser(), LINE_PLANT, [SURFACE_ID])
     assert.deepEqual({ caught, error, replayed }, { caught: null, error: null, replayed: 1 })
