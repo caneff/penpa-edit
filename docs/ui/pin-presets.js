@@ -5,19 +5,20 @@
 (function () {
     'use strict';
 
-    const { el, iconButton, onDeskReady } = window.uiKit;
+    const { el, onDeskReady } = window.uiKit;
     const { toolKey } = window.toolGuide;
 
     const STORAGE_KEY = 'chinstrap.pinPresets';
     const STARS_KEY = 'chinstrap.pinPresetStars';
-    const SAVE_LABEL = 'Save pins as a preset';
+    const SAVE_LABEL = 'Save pins…';
     // Keys that act on the highlighted preset, with Shift held; the buttons' hints name the same chords.
     const STAR_KEY = 'Enter';
     const DELETE_KEY = 'Delete';
     const FAVOURITES = 'Favourites';
     const YOUR_PRESETS = 'Your presets';
+    // How long the line offering an Undo stays, when nothing else clears it.
+    const UNDO_VISIBLE_MS = 8000;
 
-    const SAVE_ICON = '<path d="M2.5 2.5h9l2 2v9h-11z"/><path d="M5 2.5v3.5h5V2.5"/><path d="M4.5 13.5V9h7v4.5"/>';
     const STAR_ICON = '<path d="M8 1.8l1.9 4 4.3.6-3.1 3 .8 4.3L8 11.6l-3.9 2.1.8-4.3-3.1-3 4.3-.6z"/>';
     const TRASH_ICON = '<path d="M2.5 4h11M6 4V2.5h4V4M4 4l.7 9.5h6.6L12 4M6.5 6.5v4.5M9.5 6.5v4.5"/>';
     const ICON_ATTRS = 'width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"';
@@ -123,18 +124,17 @@
     }
 
     onDeskReady(({ cards }) => {
-        // The name form is closed on the resting card; the save icon opens it.
+        // The name form is closed on the resting card; the Save pins… button opens it.
         const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 's' });
         const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
         const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
         const nameForm = el('div', { class: 'ui-preset-row', hidden: '' }, [nameInput, saveName, cancelName]);
-        const save = iconButton(SAVE_ICON, SAVE_LABEL, openForm);
-        // Web Awesome's small size (s), to sit level with the picker's field.
-        save.node.setAttribute('size', 's');
-        save.node.setAttribute('title', SAVE_LABEL);
+        // A text button, so saving your own pins is not mistaken for saving the preset in the field; Web Awesome's small size (s), to sit level with it.
+        const save = el('wa-button', { class: 'ui-preset-save', appearance: 'outlined', variant: 'neutral', size: 's' }, [SAVE_LABEL]);
+        save.addEventListener('click', openForm);
 
         function openForm() {
-            // Another click on the icon while the form is open keeps what was typed.
+            // Another click on the button while the form is open keeps what was typed.
             if (nameForm.hidden) {
                 nameForm.hidden = false;
                 nameInput.value = '';
@@ -155,9 +155,17 @@
             if (!name) {
                 return;
             }
-            writePresets([...savedPresets().filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
-            // An undo for a delete would put the older preset of that name over this one.
-            undoRow.replaceChildren();
+            const all = savedPresets();
+            const index = all.findIndex((p) => p.name === name);
+            writePresets([...all.filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
+            // An undo for an earlier delete would put the older preset of that name over this one.
+            clearUndo();
+            if (index >= 0) {
+                showUndo(`Replaced “${name}”.`, `Undo replace of ${name}`, () => {
+                    restoreSaved(all[index], index);
+                    picker.redraw();
+                });
+            }
             closeForm();
         }
 
@@ -178,8 +186,35 @@
                 closeForm();
             }
         });
-        // The line offering to undo the last delete, until the next delete or save.
+        // The line offering to undo the last load, delete or replacing save, until the next one, a few seconds, or (for a delete) the
+        // list closing.
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
+        let undoTimer = null;
+        let clearOnListClose = false;
+        // What Ctrl+Z in the preset field does: undoes a delete, whose line goes when the list closes and so cannot be reached by Tab.
+        let undoDeleteByKey = null;
+
+        function clearUndo() {
+            clearTimeout(undoTimer);
+            clearOnListClose = false;
+            undoDeleteByKey = null;
+            undoRow.replaceChildren();
+        }
+
+        function showUndo(message, label, action, { untilListCloses = false } = {}) {
+            clearUndo();
+            const undo = el('button', { type: 'button', class: 'ui-preset-undo-btn', 'aria-label': label }, ['Undo']);
+            // The press keeps the focus where it is: taking it from the preset field would close the list and clear this line before the click.
+            undo.addEventListener('mousedown', (e) => e.preventDefault());
+            undo.addEventListener('click', () => {
+                action();
+                clearUndo();
+            });
+            undoRow.replaceChildren(el('span', {}, [message]), undo);
+            clearOnListClose = untilListCloses;
+            undoDeleteByKey = untilListCloses ? () => undo.click() : null;
+            undoTimer = setTimeout(clearUndo, UNDO_VISIBLE_MS);
+        }
 
         function toggleStar(preset) {
             const starred = starredKeys();
@@ -198,22 +233,22 @@
             return { preset: all[index], index, wasStarred: starred.includes(key) };
         }
 
-        function undoDelete({ preset, index, wasStarred }) {
+        // Puts `preset` back among the saved ones at `index`, in place of one of its name.
+        function restoreSaved(preset, index) {
             const others = savedPresets().filter((p) => p.name !== preset.name);
             others.splice(index, 0, preset);
             writePresets(others);
-            if (wasStarred) {
-                writeStars([...starredKeys(), savedKey(preset.name)]);
-            }
-            undoRow.replaceChildren();
-            picker.redraw();
         }
 
         function deleteSaved(preset) {
-            const removed = removeSaved(preset.name);
-            const undo = el('button', { type: 'button', class: 'ui-preset-undo-btn', 'aria-label': `Undo delete of ${preset.name}` }, ['Undo']);
-            undo.addEventListener('click', () => undoDelete(removed));
-            undoRow.replaceChildren(el('span', {}, [`Deleted “${preset.name}”.`]), undo);
+            const { preset: removed, index, wasStarred } = removeSaved(preset.name);
+            showUndo(`Deleted “${preset.name}”.`, `Undo delete of ${preset.name}`, () => {
+                restoreSaved(removed, index);
+                if (wasStarred) {
+                    writeStars([...starredKeys(), savedKey(preset.name)]);
+                }
+                picker.redraw();
+            }, { untilListCloses: true });
             picker.redraw();
         }
 
@@ -247,8 +282,21 @@
                     : [star];
             },
             currentText: () => '',
-            onPick: ({ preset }) => window.pinBoard.replace(preset.tools),
+            onPick: ({ preset }) => {
+                const earlier = window.pinBoard.snapshot();
+                window.pinBoard.replace(preset.tools);
+                showUndo(`Loaded “${preset.name}”.`, `Undo load of ${preset.name}`, () => window.pinBoard.replace(earlier));
+            },
+            onClose: () => {
+                if (clearOnListClose) {
+                    clearUndo();
+                }
+            },
             onKey: (e, entry) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && undoDeleteByKey) {
+                    undoDeleteByKey();
+                    return true;
+                }
                 if (!e.shiftKey) {
                     return false;
                 }
@@ -267,7 +315,7 @@
             }
         });
 
-        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node, save.node]), nameForm, undoRow);
+        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node, save]), nameForm, undoRow);
 
         // The solver's saved presets, for the Settings dialog to list and delete.
         window.pinPresets = {

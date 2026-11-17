@@ -124,7 +124,7 @@ Chris, 2026-11-14, on round 5: "the auto generated descriptions in mouse card wi
 
 Chris, 2026-11-14, on round 6 (`13d3cb9`): "i think we are pretty much there. doesn't need to be capped at 8 though." Variant L is close to final. Pin colours are not limited to a fixed palette: every pin gets its own colour, however many pins there are. Built in round 7.
 
-Chris, 2026-11-14: "and recent should use the same chips". Recent's entries are the same one-line chips as Pinned modes, without a number or a ×. Built in round 7.
+Chris, 2026-11-14: "and recent should use the same chips". Recent's entries are the same one-line chips as Pinned modes, without a key or a ×. Built in round 7.
 
 Chris, 2026-11-14, on round 7 (`054359b`, `aa0824e`): "basically good. cards should be spread out vertically on each side in order to give them room to grow down if need be." The default layout spreads each side column's cards down the window's height, each with free space below it to grow into. Built in round 8.
 
