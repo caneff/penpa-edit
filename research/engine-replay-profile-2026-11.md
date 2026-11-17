@@ -31,7 +31,7 @@ comparison is CPU time (`time` of `node --test live/engine-replay-1.live.mjs`, b
 | first, every 8th, last | 126 | -52% |
 | first and last only | 75 | -71% |
 
-k = 8 is the smallest that takes the part's cost down by half. Wall time of the three parts summed, k = 4 against full:
+k = 8 took the part's CPU time down by half, but CI's summed replay time fell only 34% (841 s on master 67510ab, 553 s at k = 8, d4cf0f7; the controller's sum of the 268 "replays … to its expected states" tests), so the default is now the first and last checkpoint only (k = Infinity). Wall time of the three parts summed, k = 4 against full:
 517 s to 375 s (-27%), a noisy reading.
 
 Per replay, part 1 is 178 replays: full mode 1.47 s of CPU each, first/every 8th/last 0.71 s each.

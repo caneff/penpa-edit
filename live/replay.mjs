@@ -49,10 +49,10 @@ const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFac
 // Pages one `roundTrips` loads links in at once.
 const ROUND_TRIP_LANES = 4
 // A replay under the engine driver round-trips the duplicate link of its board at the first checkpoint, at every
-// ROUND_TRIP_EVERY-th one after it and at the last (#267: a load boots a page and cost about three quarters of a
+// ROUND_TRIP_EVERY-th one after it and at the last; Infinity makes that the first and last only (#267: a load boots a page and cost about three quarters of a
 // replay's time, `research/engine-replay-profile-2026-11.md`). With this environment variable set to `1` it
 // round-trips every checkpoint, the full mode a run that wants nothing skipped sets.
-export const ROUND_TRIP_EVERY = 8
+export const ROUND_TRIP_EVERY = Infinity
 export const FULL_ROUND_TRIPS_ENV = 'REPLAY_FULL_ROUND_TRIPS'
 
 export function roundTripEvery (env = process.env) {
