@@ -10,9 +10,10 @@
     const PENPA_CELL_SIZE_MAX = 90;
     const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
-    // The translucent blue a selected cell is filled with on this page; the conflict pink is a light red, so the two never read alike.
+    // The translucent grey a selected cell is filled with on this page: it darkens the white board a little and has no hue, so it
+    // never reads like the conflict pink (#242). Penpa+ paints the board white in both themes.
     // MVP gap: draw_selection fills with `Puzzle.prototype.selection_fill` when it is set (a caneff: line in class_p.js).
-    Puzzle.prototype.selection_fill = 'rgba(40, 90, 255, 0.22)';
+    Puzzle.prototype.selection_fill = 'rgba(110, 110, 110, 0.12)';
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
@@ -533,7 +534,7 @@
     };
     // The modes whose colour styles are pen strokes, so their swatch is the stroke colour of Penpa+'s `set_line_style`.
     const PEN_BOXES = new Set(['line', 'lineE', 'wall']);
-    // The styles that are colours: only these have a swatch, since a checked legacy label has a grey ground of its own.
+    // The styles that are colours: only these have a swatch.
     const COLOUR_STYLE_NAMES = new Set([...Object.values(SURFACE_STYLE), 'green', 'black', 'grey', 'red', 'blue', 'dark blue']);
 
     // The key that picks each Surface colour, which Penpa+'s `surfaceKeys` (main.js) deals out in a different order from the colours' own
@@ -594,18 +595,28 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
-    // MVP gap: calls Penpa+'s `set_line_style` on a scratch canvas to read the colour it strokes pen style `style` with.
-    // A legacy label's background is no source: a checked label has a ground of its own, and the greys differ.
-    function penColourOf(style) {
+    const SAMPLE_FONT_PX = 10;
+
+    // MVP gap: reads the colour Penpa+'s own paint setter gives colour style `style` of style box `box`, on a scratch canvas.
+    // A legacy label's background is no source: its colour is a variable of the theme stylesheet, undefined while a theme
+    // switch reloads it, and a checked label has a grey ground of its own.
+    function colourOf(box, style) {
         const scratch = document.createElement('canvas').getContext('2d');
-        set_line_style(scratch, style);
-        return scratch.strokeStyle;
+        if (PEN_BOXES.has(box)) {
+            set_line_style(scratch, style);
+            return scratch.strokeStyle;
+        }
+        if (box === 'surface') {
+            set_surface_style(scratch, style);
+        } else {
+            set_font_style(scratch, SAMPLE_FONT_PX, style);
+        }
+        return scratch.fillStyle;
     }
 
     // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it
     // with, or null for a style that is only listed here to get a sample.
     const TEXT_STYLE_DISC = { 0: null, 6: 1, 7: 2, 11: 11 };
-    const SAMPLE_FONT_PX = 10;
 
     // MVP gap: calls Penpa+'s `set_font_style` and `set_circle_style` on a scratch canvas to read how it paints a digit of text
     // style `style` and the disc behind it, so the Mode card's sample is the board's own drawing. `text()` strokes at
@@ -636,11 +647,7 @@
             }
             const name = STYLE_NAMES[box]?.[radio.value] ?? `style ${radio.value}`;
             const style = parseInt(radio.value, 10);
-            const background = getComputedStyle(label).backgroundColor;
-            let swatch = null;
-            if (COLOUR_STYLE_NAMES.has(name)) {
-                swatch = PEN_BOXES.has(box) ? penColourOf(style) : background !== 'rgba(0, 0, 0, 0)' ? background : null;
-            }
+            const swatch = COLOUR_STYLE_NAMES.has(name) ? colourOf(box, style) : null;
             const sample = box === 'number' && style in TEXT_STYLE_DISC ? textSampleOf(style) : null;
             return [{ style, name, swatch, sample, key: box === 'surface' ? SURFACE_KEY_OF_STYLE[style] ?? null : null }];
         });
@@ -1155,6 +1162,26 @@
                 top: origin.top + Math.min(...ys),
                 right: origin.left + Math.max(...xs),
                 bottom: origin.top + Math.max(...ys)
+            };
+        },
+
+        // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
+        // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
+        // leaves its row and column in place. Null for any other grid type.
+        // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside two margin cells and
+        // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
+        getGridAxes() {
+            const origin = boardCanvas().getBoundingClientRect();
+            if (!pu.grid_is_square()) {
+                return null;
+            }
+            const [top, bottom, left, right] = pu.space;
+            const firstRow = 2 + top;
+            const firstColumn = 2 + left;
+            const span = (count, at) => Array.from({ length: count }, (_, k) => at(k));
+            return {
+                columns: span(pu.nx0 - 4 - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
+                rows: span(pu.ny0 - 4 - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
             };
         },
 

@@ -6,7 +6,7 @@
     'use strict';
 
     const { chipLabel, toolKey } = window.toolGuide;
-    const { el, onDeskReady } = window.uiKit;
+    const { el, luminance, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
@@ -16,16 +16,30 @@
     const NUMBER_MODE = 'number';
     const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
     // Colour number `n` is the golden angle times `n` around the hue wheel, so each new colour lands in the widest gap left and no
-    // count of pins runs out; the lightness keeps white text on it, and the colour as text on the dark theme's #dfe3ea label pill, at 4.5:1 for every hue.
+    // count of pins runs out. Every hue is lit to one luminance: white on 0.16 is 5:1, past WCAG's 4.5:1 for a filled chip and the
+    // Board label, while as light as that allows, so hues are told apart at chip size.
     const GOLDEN_ANGLE_DEG = 137.508;
     const PIN_HUE_OFFSET_DEG = 220;
-    const PIN_SATURATION_PERCENT = 62;
-    const PIN_LIGHTNESS_PERCENT = 24;
-    const NEUTRAL_COLOUR = '#585d68';
+    const PIN_SATURATION_PERCENT = 80;
+    const PIN_LUMINANCE = 0.16;
+    const LIGHTNESS_STEPS = 20;
+    const NEUTRAL_COLOUR = 'var(--ui-neutral-colour)';
     const BUTTON = 'button, wa-button';
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
         'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
+
+    // The pin colour of hue `h`: the lightest, to a tenth of a percent, whose luminance stays under PIN_LUMINANCE. One lightness for
+    // every hue would leave yellow too light for white text or blue darker than it need be.
+    function pinColourOfHue(h) {
+        const hsl = (lightness) => `hsl(${h} ${PIN_SATURATION_PERCENT}% ${lightness}%)`;
+        let [dark, light] = [0, 100];
+        for (let i = 0; i < LIGHTNESS_STEPS; i++) {
+            const mid = (dark + light) / 2;
+            [dark, light] = luminance(hsl(mid)) < PIN_LUMINANCE ? [mid, light] : [dark, mid];
+        }
+        return hsl(Math.floor(dark * 10) / 10);
+    }
 
     // Penpa+ tells Caps Lock by the letter's case against Shift, so a keyboard with it on is read the same here.
     function capsLockIsOn(e) {
@@ -91,7 +105,7 @@
             });
         }
 
-        const pinColour = (pin) => `hsl(${(PIN_HUE_OFFSET_DEG + validColours[toolKey(pin)] * GOLDEN_ANGLE_DEG) % 360} ${PIN_SATURATION_PERCENT}% ${PIN_LIGHTNESS_PERCENT}%)`;
+        const pinColour = (pin) => pinColourOfHue((PIN_HUE_OFFSET_DEG + validColours[toolKey(pin)] * GOLDEN_ANGLE_DEG) % 360);
 
         function save() {
             assignColours();
@@ -330,7 +344,7 @@
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 
-        // What the presets and the Settings dialog read and replace. A pin for a tool the link lacks is left out, like a saved
+        // What the presets read and replace. A pin for a tool the link lacks is left out, like a saved
         // pin the link no longer offers.
         window.pinBoard = {
             // `toggleButton(toolNow)` is a pin toggle for the tool `toolNow()` names; `isPinned(tool)` tells whether a tool is pinned.

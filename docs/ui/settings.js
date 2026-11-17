@@ -1,5 +1,5 @@
-// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the desk's own
-// (theme, layout, pins and saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
+// The Settings dialog: the settings that matter for solving, in four groups, each change saved at once, and the page's own
+// (Page: theme, Mouse card, row and column numbers and layout; Pins: saved presets). Conflict detection off for this puzzle only is kept here, per puzzle, because
 // Penpa+ forgets it on the next puzzle. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -58,11 +58,17 @@
         ]]
     ];
 
+    const PENPA_URL = 'https://github.com/swaroopg92/penpa-edit';
+    const PENPA_LICENCE_URL = `${PENPA_URL}/blob/master/LICENSE`;
+    const FORK_URL = 'https://github.com/caneff/penpa-edit';
+
+    const newTabLink = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, [text]);
+
     const THEMES = [['light', 'Light'], ['dark', 'Dark']];
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed }) => {
+    onDeskReady(({ bar, resetLayout, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -130,14 +136,15 @@
         const showMouse = el('wa-switch', {}, ['Show Mouse card']);
         showMouse.addEventListener('change', () => setMouseClosed(!showMouse.checked));
 
+        const numbersSwitch = el('wa-switch', {}, ['Show row and column numbers']);
+        numbersSwitch.addEventListener('change', () => setNumbersWanted(numbersSwitch.checked));
+        const numbersRow = el('div', { class: 'ui-setting' }, [numbersSwitch]);
+
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
             dialog.open = false;
             resetLayout();
         });
-
-        const resetPins = el('wa-button', { size: 's' }, ['Reset pins to the puzzle\'s default pins']);
-        resetPins.addEventListener('click', () => window.pinBoard.reseed());
 
         const presets = el('wa-select', { label: 'Your presets', size: 's', placeholder: 'None saved' });
         const deletePreset = el('wa-button', { size: 's' }, ['Delete preset']);
@@ -152,14 +159,24 @@
             showPresets();
         });
 
-        const deskGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Desk']),
+        const pageGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Page']),
             el('div', { class: 'ui-setting' }, [theme]),
-            el('div', { class: 'ui-setting' }, [resetLayoutButton, resetPins]),
-            el('div', { class: 'ui-setting' }, [presets, deletePreset]),
-            el('div', { class: 'ui-setting' }, [showMouse])]);
+            el('div', { class: 'ui-setting' }, [showMouse]),
+            numbersRow,
+            el('div', { class: 'ui-setting' }, [resetLayoutButton])]);
+        const pinsGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Pins']),
+            el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
+
+        const aboutGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['About']),
+            el('div', { class: 'ui-settings-about' }, [
+                el('p', {}, ['This page is a solving-focused UI fork of ', newTabLink(PENPA_URL, 'Penpa+'), ' by swaroopg92. The puzzle engine is Penpa+\'s.']),
+                el('p', {}, ['Penpa+ is under the ', newTabLink(PENPA_LICENCE_URL, 'MIT licence'), ':']),
+                el('p', {}, ['Original Work/Project Initiator - Copyright (c) 2019 Opt-Pan']),
+                el('p', {}, ['New Features/Upgrades - Copyright (c) 2020 Swaroop Guggilam']),
+                el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), pageGroup, pinsGroup, aboutGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
@@ -167,6 +184,8 @@
             controls.forEach((show, name) => show(current[name]));
             const applies = engine.getPuzzleSettings();
             settingRows.forEach((row, name) => { row.hidden = !applies.includes(name); });
+            numbersSwitch.checked = areNumbersWanted();
+            numbersRow.hidden = !canShowNumbers();
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
             theme.value = current.theme;

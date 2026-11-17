@@ -3,7 +3,7 @@
 // accessible name or test id; the board's size is what its canvas draws.
 import assert from 'node:assert/strict'
 import { afterEach, beforeEach, describe, it } from 'node:test'
-import { boardAgainstCard, newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
+import { boardAgainstCard, newBoardSolveLink, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -72,7 +72,7 @@ describe('the desk', () => {
     await card(page, 'Rules').waitFor()
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), changed), changed)
 
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), start), start)
   })
 
@@ -196,7 +196,7 @@ describe('the desk', () => {
     await card(page, 'Rules').waitFor()
     assert.equal(await settle(() => bodyFontSize('Rules'), 20), 20, 'the size survives a reload')
 
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     assert.equal(await settle(() => bodyFontSize('Rules'), start), start, 'Reset layout restores the default')
     assert.equal(await bigger.isEnabled(), true)
 

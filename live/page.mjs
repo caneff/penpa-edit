@@ -58,10 +58,11 @@ export function jsRequest (file) {
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
 // `url` opens that address (plus `query`) instead of the checkout's page, `solve: true` opens `solve.html` in place of the
-// default page, and `setup(context)` runs before the page opens.
+// default page, `ready` is the page function that says the page is up (default: `pu` exists), and `setup(context)` runs
+// before the page opens.
 // `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
 // dismissed, and `errors` every page error and `console.error` so far.
-export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, setup, contextOptions } = {}) {
+export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, ready = () => typeof pu !== 'undefined', setup, contextOptions } = {}) {
   const context = await penpaContext(browser, { served, setup, contextOptions })
   if (cookies.length) await context.addCookies(cookies)
   const page = await context.newPage()
@@ -71,7 +72,7 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   const dialogs = []
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await page.goto((url ?? penpaAddress(served, solve)) + query)
-  await page.waitForFunction(() => typeof pu !== 'undefined')
+  await page.waitForFunction(ready)
   return { context, page, dialogs, errors }
 }
 
@@ -155,6 +156,9 @@ export function shadeInPage (cell) {
 
 // Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle, of the cell its answer fills and of an
 // empty cell in the given's row.
+// The localStorage key `engine_bridge.js` keeps the solve page's theme under.
+export const THEME_KEY = 'chinstrap-solve-theme-v1'
+
 export const GIVEN_CELL = 0
 export const ANSWER_CELL = 1
 export const SAME_ROW_CELL = 2
@@ -183,6 +187,34 @@ export const solveLinkOfImport = (browser, url) => linkFromNewBoard(browser, asy
   const solve = pu.maketext_solve()
   return solve.slice(solve.indexOf('#'))
 }, url)
+
+// The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
+export const ICEBREAKER = {
+  title: 'Icebreaker (Nurikabe + Icelom)',
+  author: 'Agent',
+  rules: 'Shade some cells so that the shaded cells form one connected area. Each number is part of an unshaded region of ' +
+    'that size, and every unshaded region holds exactly one number. No 2x2 area is all shaded.\n\nIcelom: draw a path ' +
+    'from the entrance to the exit that follows every arrow it passes and visits every ice cell; on ice it goes straight ' +
+    'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
+  tabs: ['Surface', 'Line Normal', 'Composite']
+}
+
+// Runs in the page: a new board, 10x10 unless `size` says otherwise, with `puzzle`'s title, author, rules and Tab set; returns
+// its solve link's `#` part. `outsideClues` (numbers) give the board a one-cell margin all round and fill its first margin
+// cells with them.
+export function puzzleSolveLinkInPage ({ title, author, rules, tabs, size = 10, outsideClues = [] }) {
+  document.getElementById('nb_size1').value = size
+  document.getElementById('nb_size2').value = size
+  for (const side of [1, 2, 3, 4]) document.getElementById(`nb_space${side}`).value = outsideClues.length ? 1 : 0
+  create_newboard()
+  outsideClues.forEach((clue, i) => { pu.pu_q.number[pu.centerlist[i]] = [String(clue), 1, '1'] })
+  document.getElementById('saveinfotitle').value = title
+  document.getElementById('saveinfoauthor').value = author
+  document.getElementById('saveinforules').value = rules
+  UserSettings.tab_settings = tabs
+  const url = pu.maketext_solve()
+  return url.slice(url.indexOf('#'))
+}
 
 // Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
 // answer is a 2 in the cell at `answer`.
@@ -287,6 +319,14 @@ export async function openSolvePage (browser, query, options = {}) {
   const opened = await openPenpa(browser, query, { solve: true, contextOptions: DESK_SIZE, ...options })
   await waitForDesk(opened.page)
   return opened
+}
+
+// Presses Settings' Reset layout, which closes the dialog, as a visitor does now that the top bar has no such button.
+export async function resetLayoutInSettings (page) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  await page.locator('wa-dialog[open]').getByRole('group', { name: 'Page' }).getByRole('button', { name: 'Reset layout' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
 }
 
 // A chip's text is its shortcut key (Z, X, C or V) and then the tool's name; a later chip has no key.

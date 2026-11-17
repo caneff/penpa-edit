@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
-import { afterChange, linkFromNewBoard, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { afterChange, ICEBREAKER, linkFromNewBoard, openSolvePage, puzzleSolveLinkInPage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -32,19 +32,6 @@ const RULES_SHARE = 0.55
 // desk.js's Mouse body slack for its borders, and rounding.
 const MOUSE_SLACK_PX = 3
 
-// The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
-const ICEBREAKER = {
-  title: 'Icebreaker (Nurikabe + Icelom)',
-  author: 'Agent',
-  rules: 'Shade some cells so that the shaded cells form one connected area. Each number is part of an unshaded region of ' +
-    'that size, and every unshaded region holds exactly one number. No 2x2 area is all shaded.\n\nIcelom: draw a path ' +
-    'from the entrance to the exit that follows every arrow it passes and visits every ice cell; on ice it goes straight ' +
-    'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
-  tabs: ['Surface', 'Line Normal', 'Composite']
-}
-// A title too long for the bar's left end beside full-size buttons at 1280 wide, short enough for it beside smaller ones.
-const LONG_TITLE = { ...ICEBREAKER, title: 'Icebreaker (Nurikabe + Icelom), longer title' }
-
 // The Icebreaker rules four times over: more than Rules can show at a laptop size.
 const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
 // The long rules with only Line's three Mouse rows to show.
@@ -53,19 +40,6 @@ const LONG_LINE_RULES = { ...LONG_RULES, tabs: ['Line Normal'] }
 const OTHER_PUZZLE = { ...LONG_RULES, size: 8 }
 // One short line of rules.
 const ONE_LINE_RULES = { ...ICEBREAKER, rules: 'Shade some cells.' }
-
-// Runs in the page: a new board, 10x10 unless `size` says otherwise, with `puzzle`'s title, author, rules and Tab set; returns its solve link's `#` part.
-function solveLinkInPage ({ title, author, rules, tabs, size = 10 }) {
-  document.getElementById('nb_size1').value = size
-  document.getElementById('nb_size2').value = size
-  create_newboard()
-  document.getElementById('saveinfotitle').value = title
-  document.getElementById('saveinfoauthor').value = author
-  document.getElementById('saveinforules').value = rules
-  UserSettings.tab_settings = tabs
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
 
 // Runs in the page. The bar's box, the heading's, every visible control's, and whether the title is cut short.
 function readBarInPage () {
@@ -117,13 +91,14 @@ const near = (a, b) => Math.abs(a - b) <= SLACK_PX
 const shownTooltips = async (page) => (await page.locator('wa-tooltip[open]').allTextContents()).map((t) => t.trim())
 // The top bar's `wa-button` named `name` to screen readers. Not a role locator, which finds the native button inside its
 // shadow root, and which a disabled button (Undo with nothing to undo) does not let the pointer reach.
-const barButton = (page, name) => page.locator('.ui-bar wa-button').filter({ has: page.locator('.ui-sr-only').getByText(name, { exact: true }) })
+const barButton = (page, name) => page.locator('.ui-bar wa-button')
+  .filter({ hasText: new RegExp(`^\\s*${name.replace(/[+]/g, '\\$&')}\\s*$`) })
 
 // One link per puzzle for the file, since each costs a page of its own to build.
 const links = new Map()
 function linkFor (puzzle) {
   const key = JSON.stringify(puzzle)
-  if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), solveLinkInPage, puzzle))
+  if (!links.has(key)) links.set(key, linkFromNewBoard(browser(), puzzleSolveLinkInPage, puzzle))
   return links.get(key)
 }
 
@@ -203,25 +178,34 @@ describe('the top bar on a laptop screen', () => {
   }
 
   it('makes the buttons smaller only when the title still overlaps them at the left end', async () => {
-    const page = await open(LONG_TITLE, WIDE)
+    const page = await open(ICEBREAKER, LAPTOPS[0])
+    // The title grows one narrow letter at a time until the bar goes compact, so the title is the longest the left end takes beside full-size buttons whatever the font.
+    const grown = await page.evaluate(async () => {
+      const bar = document.querySelector('.ui-bar')
+      const title = bar.querySelector('.ui-title')
+      const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      for (let letters = 0; letters < 80 && !bar.classList.contains('is-compact'); letters++) {
+        title.textContent += 'i'
+        await frames()
+      }
+      return bar.classList.contains('is-compact')
+    })
+    assert.equal(grown, true, 'a long enough title makes the bar compact')
+    const small = await steady(page, readBarInPage)
     const full = await barAt(page, WIDE)
-    const small = await barAt(page, LAPTOPS[0])
     assert.equal(small.buttonHeight < full.buttonHeight, true, `buttons ${small.buttonHeight}px at 1280, ${full.buttonHeight}px at ${WIDE.width}`)
     assert.equal(near(small.heading.x, small.bar.x + BAR_PADDING_PX), true, `at the left end: ${JSON.stringify(small.heading)}`)
     assert.deepEqual(overlapping(small), [])
     assert.equal(small.titleCut, false, 'the title is whole')
   })
 
-  it('has no theme button, and Reset layout is an icon unlike Restart\'s', async () => {
+  it('has no theme button and no Reset layout button, and Penpa+ is a text button', async () => {
     const page = await open(ICEBREAKER, LAPTOPS[1])
-    assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
-    const read = (name) => barButton(page, name).evaluate((host) =>
-      ({ icons: host.querySelectorAll('svg').length, icon: host.querySelector('svg')?.innerHTML, text: host.textContent.trim(), label: host.querySelector('.ui-sr-only').textContent }))
-    const reset = await read('Reset layout')
-    const restart = await read('Restart')
-    assert.equal(reset.icons, 1, 'Reset layout shows an icon')
-    assert.equal(reset.text, reset.label, 'and no visible text')
-    assert.notEqual(reset.icon, restart.icon)
+    const bar = page.locator('.ui-bar')
+    assert.equal(await bar.getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
+    assert.equal(await bar.getByRole('button', { name: 'Reset layout' }).count(), 0, 'Reset layout is in Settings')
+    const penpa = await barButton(page, 'Penpa+').evaluate((host) => ({ icons: host.querySelectorAll('svg').length, text: host.textContent.trim() }))
+    assert.deepEqual(penpa, { icons: 0, text: 'Penpa+' })
   })
 
   it('shows each top-bar button\'s label on hover, with its shortcut, and the current one after it changes', async () => {
@@ -230,9 +214,9 @@ describe('the top bar on a laptop screen', () => {
       await barButton(page, name).hover()
       return settle(() => shownTooltips(page), [label])
     }
-    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Open in Penpa+': 'Open in Penpa+', Settings: 'Settings', 'Reset layout': 'Reset layout' }
+    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Penpa+': 'Open this puzzle in Penpa+', Settings: 'Settings' }
     const buttons = page.locator('.ui-bar wa-button')
-    const names = await buttons.locator('.ui-sr-only').allTextContents()
+    const names = await buttons.evaluateAll((hosts) => hosts.map((host) => host.querySelector('.ui-sr-only')?.textContent ?? host.textContent.trim()))
     assert.equal(names.length, await buttons.count(), 'every top-bar button has a name')
     assert.deepEqual(names.sort(), Object.keys(want).sort(), 'every top-bar button is listed here')
     for (const [name, label] of Object.entries(want)) {
@@ -681,7 +665,7 @@ describe('the desk holds together', () => {
       const rows = (tool) => window.toolGuide.mouseRows(tool).more.length
       window.pinBoard.replace([...engine.listTools()].sort((a, b) => rows(b) - rows(a)).slice(0, 6))
     })
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     const read = await deskSettled(page)
     const column = read.desk.h - 2 * TOP_MARGIN_PX
     assert.equal(read.cards.Rules.h <= RULES_SHARE * column + SLACK_PX, true, `Rules is ${read.cards.Rules.h}px of a ${column}px column`)
