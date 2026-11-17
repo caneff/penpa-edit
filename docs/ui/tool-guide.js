@@ -172,8 +172,12 @@
         return { group, trail: [tool.modeName], label: capitalised(tool.submodeName), name, description, rank: 0 };
     }
 
-    // The words a search box splits its text into, and whether a tool's lower-case search text holds every one.
-    const searchWords = (text) => text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    // A search ignores case, spaces and punctuation, so "linex" finds Penpa+'s "Line x". Each field is squashed alone and the
+    // fields are joined by a space, which a squashed word never holds, so a word cannot match across two fields.
+    const squash = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+    const searchText = (fields) => fields.map(squash).join(' ');
+    // The words a search box splits its text into, and whether a tool's search text holds every one.
+    const searchWords = (text) => text.trim().split(/\s+/).map(squash).filter(Boolean);
     const matchesSearch = (haystack, words) => words.every((word) => haystack.includes(word));
 
     // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
@@ -348,5 +352,5 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, placeTool, searchWords, matchesSearch, mouseRows, toolKey, chipLabel, submodeLabel };
+    window.toolGuide = { TOOL_GROUPS, NOTHING, describeTool, placeTool, squash, searchText, searchWords, matchesSearch, mouseRows, toolKey, chipLabel, submodeLabel };
 })();

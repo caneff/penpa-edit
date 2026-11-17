@@ -192,6 +192,30 @@ describe('the Mode card tree', () => {
     await opened.page.keyboard.press('Escape')
   })
 
+  it('finds a tool by an old Penpa+ name typed without spaces, and says which name matched', async () => {
+    await reopen()
+    const hint = (name) => item(name).locator('.ui-tmatch')
+    for (const typed of ['linex', 'line x', 'Line X', 'LineX']) {
+      await search().fill(typed)
+      assert.equal(await item('Loop + edge ×').count(), 1, `"${typed}" finds the Line x composite tool`)
+    }
+    assert.equal(await hint('Loop + edge ×').textContent(), 'Penpa+: Line x', 'the row says which old name matched')
+    assert.equal(await hint('Loop + edge ×').isVisible(), true)
+    await search().fill('combi')
+    assert.equal(await item('Loop + edge ×').count(), 1, 'the internal mode name finds its sub-modes')
+    await search().fill('lineox')
+    assert.equal(await item('Loop + cell ○ ×').count(), 1, 'an internal sub-name finds its tool')
+    await search().fill('helperx')
+    await search().press('Enter')
+    assert.deepEqual([(await currentTool(opened.page)).mode, (await currentTool(opened.page)).submode], ['line', '4'], 'the sub-mode label "Helper (x)" is found without its space and brackets')
+    await reopen()
+    await search().fill('Diagonal')
+    assert.equal(await tree().locator('.ui-tmatch:not([hidden])').count(), 0, 'a match the row already shows adds no hint')
+    await search().fill('')
+    assert.equal(await tree().locator('.ui-tmatch:not([hidden])').count(), 0, 'no hint without a search')
+    await opened.page.keyboard.press('Escape')
+  })
+
   it('picks a leaf with a click, sets the tool and returns focus to the board', async () => {
     const { page } = opened
     await reopen()

@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { TOOL_GROUPS, placeTool, searchWords, matchesSearch, toolKey } = window.toolGuide;
+    const { TOOL_GROUPS, placeTool, squash, searchText, searchWords, matchesSearch, toolKey } = window.toolGuide;
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
@@ -31,7 +31,8 @@
                 for (let at = parent; at; at = at.parent) {
                     ancestors.push(at.label);
                 }
-                made.text = [...ancestors, label, place.name, place.description, tool.modeName, ...tool.labels].join(' ').toLowerCase();
+                made.oldNames = [...new Set([...tool.labels, tool.mode, tool.submode].filter(Boolean))];
+                made.text = searchText([...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames]);
             }
             parent?.children.push(made);
             return made;
@@ -64,6 +65,7 @@
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [node.label]),
+                el('span', { class: 'ui-tmatch', 'aria-hidden': 'true', hidden: '' }),
                 el('span', { class: 'ui-tcount', 'aria-hidden': 'true' })
             ]);
             node.row = row;
@@ -82,6 +84,15 @@
         // The mouse press keeps the focus where it is, so the click that follows is a pick or a fold.
         tree.addEventListener('mousedown', (e) => e.preventDefault());
 
+        // Names the Penpa+ name a match came by when the row's own label does not hold the search: the first Penpa+ label, mode
+        // or sub-mode name that holds a typed word.
+        function showOldName(node, matched) {
+            const hint = node.row.querySelector('.ui-tmatch');
+            const name = matched && !matchesSearch(searchText([node.label]), words) ? node.oldNames.find((old) => words.some((word) => squash(old).includes(word))) : null;
+            hint.textContent = name ? `Penpa+: ${name}` : '';
+            hint.hidden = !name;
+        }
+
         // Shows what the open set and the search say: a leaf shows when it matches; a branch shows when a leaf below does,
         // and is open while searching, so every match shows under its ancestors.
         function refresh() {
@@ -89,6 +100,9 @@
             let shown = 0;
             const count = (node) => {
                 const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(leaf.text, words)) : node.children.flatMap(count);
+                if (node.tool) {
+                    showOldName(node, matching.length > 0 && searching);
+                }
                 const expanded = searching || open.has(node.key);
                 node.wrap.hidden = matching.length === 0;
                 if (!node.tool) {
