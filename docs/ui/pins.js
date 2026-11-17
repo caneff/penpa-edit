@@ -6,7 +6,7 @@
     'use strict';
 
     const { chipLabel, tooltipAttrs, toolKey } = window.toolGuide;
-    const { el, iconButton, luminance, onDeskReady } = window.uiKit;
+    const { el, iconButton, luminance, onDeskReady, visibleBox } = window.uiKit;
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
@@ -309,11 +309,29 @@
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
         const flash = el('div', { class: 'ui-flash', 'aria-hidden': 'true' });
-        cards.board.head.append(flash);
+        cards.board.node.append(flash);
+
+        // The flash sits at the top of the grid's visible part, centred: the board canvas's box cut to what the body shows, so a
+        // zoomed or scrolled board keeps it in view. The canvas, not the board's wrapper, which also holds the coordinate bands.
+        const FLASH_INSET_PX = 6;
+        function placeFlash() {
+            const card = cards.board.node.getBoundingClientRect();
+            const view = visibleBox(cards.board.body);
+            const canvas = [...cards.board.body.querySelectorAll('canvas')].find((c) => c.offsetWidth > 0).getBoundingClientRect();
+            const left = Math.max(view.left, canvas.left);
+            const right = Math.min(view.right, canvas.right);
+            const top = Math.max(view.top, canvas.top);
+            // A board scrolled out of the body's view leaves no overlap: the flash then sits on the body's own top edge.
+            const box = left < right && top < view.bottom ? { left, right, top } : view;
+            flash.style.left = `${(box.left + box.right) / 2 - card.left}px`;
+            flash.style.top = `${box.top - card.top + FLASH_INSET_PX}px`;
+        }
 
         // Restarts the CSS animation, which fades the name out on its own.
         function flashTool(tool, colour) {
-            flash.replaceChildren(el('i', { class: 'ui-flash-dot', style: `background:${colour}` }), chipLabel(tool));
+            flash.replaceChildren(chipLabel(tool));
+            flash.style.setProperty('--ui-flash-colour', colour);
+            placeFlash();
             flash.classList.remove('is-flashing');
             void flash.offsetWidth;
             flash.classList.add('is-flashing');
