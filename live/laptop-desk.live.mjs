@@ -418,15 +418,17 @@ describe('the desk holds together', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
-  async function open (viewport, puzzle = ICEBREAKER, context) {
-    if (context) {
-      const page = await context.newPage()
-      await page.goto(opened.page.url().replace(/#.*/, '') + await linkFor(puzzle))
-      await waitForDesk(page)
-      return page
-    }
+  async function open (viewport, puzzle = ICEBREAKER) {
     opened = await openSolvePage(browser(), await linkFor(puzzle), { contextOptions: { viewport } })
     return opened.page
+  }
+
+  // `puzzle` in a second page of the opened page's context, which shares its localStorage.
+  async function openBeside (puzzle) {
+    const page = await opened.context.newPage()
+    await page.goto(opened.page.url().replace(/#.*/, '') + await linkFor(puzzle))
+    await waitForDesk(page)
+    return page
   }
 
   const deskSettled = (page) => steady(page, readDeskInPage, CARDS)
@@ -558,6 +560,20 @@ describe('the desk holds together', () => {
     })
   }
 
+  it('opens on the mended layout after a reload, once a smaller window had it fitted again', async () => {
+    opened = await openSolvePage(browser(), KILLER, { contextOptions: { viewport: WIDE } })
+    const { page } = opened
+    await deskSettled(page)
+    await dragFrom(page, await headPoint(page, 'Recent'), 0, 20)
+    await page.setViewportSize(LAPTOPS[1])
+    await afterChange(page)
+    const mended = (await deskSettled(page)).cards
+    await page.reload()
+    await waitForDesk(page)
+    assert.deepEqual(await settle(() => cardsOf(page), mended), mended)
+  })
+
+  // This and the one-line Rules test held before #199 too (#181's restack and minimums); they keep its acceptance checks.
   it('lays the right column out again when nine pins make Pinned taller', async () => {
     const page = await open(LAPTOPS[1])
     await deskSettled(page)
@@ -566,6 +582,15 @@ describe('the desk holds together', () => {
     assert.deepEqual(await settle(pinnedMode, []), [])
     const read = await deskSettled(page)
     assert.equal(near(read.cards.Mode.y, read.cards.Pinned.y + read.cards.Pinned.h + CARD_GAP_PX), true, `Mode at ${read.cards.Mode.y}, Pinned ends at ${read.cards.Pinned.y + read.cards.Pinned.h}`)
+  })
+
+  it('moves an untouched card down from under Pinned when Pinned grows in a column the solver changed', async () => {
+    const page = await open(LAPTOPS[1])
+    await deskSettled(page)
+    await dragFrom(page, await headPoint(page, 'Pinned'), -10, 0)
+    await page.evaluate(() => window.pinBoard.replace(engine.listTools().slice(0, 9)))
+    const pinnedMode = async () => cardOverlaps(await page.evaluate(readDeskInPage, CARDS)).filter((pair) => pair === 'Mode/Pinned' || pair === 'Mode/Recent')
+    assert.deepEqual(await settle(pinnedMode, []), [])
   })
 
   it('shows the Mode card\'s Style row at its smallest size', async () => {
@@ -584,6 +609,16 @@ describe('the desk holds together', () => {
     const page = await open(LAPTOPS[1], ONE_LINE_RULES)
     await deskSettled(page)
     await dragFrom(page, await handlePoint(page, 'Rules', 'bottom-right'), -2000, -2000)
+    assert.equal((await deskSettled(page)).overflowY.Rules, 0)
+  })
+
+  it('shows one line of rules without a scrollbar at the Rules card\'s smallest size on a wide desk with its largest text', async () => {
+    const page = await open(HUGE, ONE_LINE_RULES)
+    await deskSettled(page)
+    const bigger = page.getByRole('button', { name: 'Bigger rules text' })
+    while (await bigger.isEnabled()) await bigger.click()
+    // Only the height: at the narrowest width this text is more than one line.
+    await dragFrom(page, await handlePoint(page, 'Rules', 'bottom'), 0, -3000)
     assert.equal((await deskSettled(page)).overflowY.Rules, 0)
   })
 
@@ -608,14 +643,33 @@ describe('the desk holds together', () => {
     assert.equal(Math.abs(spare - padding) <= MOUSE_SLACK_PX, true, `Mouse has ${spare}px below the tallest tool's last row, its padding ${padding}px`)
   })
 
-  it('keeps Mouse its tools\' rows or Rules at about 55% of the column on Icebreaker', async () => {
+  // Icebreaker's tools need more than 45% of the column, so Rules stops at 55% and Mouse takes the rest (the controller's
+  // reading of Chris's ruling: the cap guarantees Mouse the lesser of its tallest tool and 45%).
+  it('stops Rules at 55% of the column on Icebreaker, whose tools need the rest', async () => {
     const page = await open(LAPTOPS[1], LONG_RULES)
     const read = await deskSettled(page)
     const column = read.desk.h - 2 * TOP_MARGIN_PX
+    assert.equal(Math.abs(read.cards.Rules.h - Math.floor(RULES_SHARE * column)) <= SLACK_PX, true, `Rules is ${read.cards.Rules.h}px of a ${column}px column`)
+    assert.equal(read.overflowY.Rules > 0, true, 'and scrolls')
     const { spare, padding } = await mouseSpare(page)
     assert.equal(spare <= padding + MOUSE_SLACK_PX, true, `Mouse has ${spare}px below the tallest tool's last row`)
-    assert.equal(spare >= padding - MOUSE_SLACK_PX || read.cards.Rules.h <= RULES_SHARE * column + SLACK_PX, true,
-      `Mouse cuts its rows (${spare}px) while Rules is ${read.cards.Rules.h}px of a ${column}px column`)
+  })
+
+  it('sizes Mouse for the pins as well as the Tab set on a fresh load, the same as after a refit', async () => {
+    const page = await open(LAPTOPS[1], LONG_LINE_RULES)
+    await deskSettled(page)
+    // A pin with more Mouse rows than Line's, kept for the puzzle across the reload.
+    await page.evaluate(() => {
+      const rows = (tool) => window.toolGuide.mouseRows(tool).more.length
+      window.pinBoard.replace([...window.pinBoard.snapshot(), [...engine.listTools()].sort((a, b) => rows(b) - rows(a))[0]])
+    })
+    await page.reload()
+    await waitForDesk(page)
+    const fresh = (await deskSettled(page)).cards
+    await page.setViewportSize(LAPTOPS[0])
+    await settle(async () => (await cardsOf(page)).Board.w < fresh.Board.w, true)
+    await page.setViewportSize(LAPTOPS[1])
+    assert.deepEqual(await settle(() => cardsOf(page), fresh), fresh)
   })
 
   it('keeps Mouse about 45% of the column when its tools need it, Rules scrolling past about 55%', async () => {
@@ -638,7 +692,7 @@ describe('the desk holds together', () => {
     await deskSettled(page)
     await dragFrom(page, await headPoint(page, 'Recent'), 0, 40)
     const moved = (await deskSettled(page)).cards.Recent
-    const other = await open(null, OTHER_PUZZLE, opened.context)
+    const other = await openBeside(OTHER_PUZZLE)
     const there = (await deskSettled(other)).cards
     await other.close()
     const fresh = await openSolvePage(browser(), await linkFor(OTHER_PUZZLE), { contextOptions: { viewport: LAPTOPS[1] } })
@@ -646,6 +700,15 @@ describe('the desk holds together', () => {
     await fresh.context.close()
     assert.deepEqual({ x: there.Recent.x, y: there.Recent.y }, { x: moved.x, y: moved.y }, 'Recent keeps its place')
     assert.deepEqual(there.Rules, fitted.Rules, 'Rules is sized for the long rules, as on a fresh desk')
+  })
+
+  it('mends a card kept from another puzzle that would sit over that puzzle\'s fitted cards', async () => {
+    const page = await open(LAPTOPS[1])
+    await deskSettled(page)
+    // Mouse just under Icebreaker's short Rules, where the long rules' taller Rules card reaches.
+    await dragFrom(page, await headPoint(page, 'Mouse'), 0, 10)
+    const other = await openBeside(OTHER_PUZZLE)
+    assert.deepEqual(cardOverlaps(await deskSettled(other)), [])
   })
 
   it('gives a wide desk\'s spare width to the side columns, and their text grows with the desk', async () => {

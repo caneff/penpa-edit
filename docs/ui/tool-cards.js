@@ -302,9 +302,9 @@
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
         // The tools the Mouse card is sized for: the link's Tab set and the pins (#199), which the solver mostly moves between;
-        // another tool's rows may scroll. Every tool when the puzzle names none.
+        // another tool's rows may scroll. Every tool when the puzzle names none. Read from the fit on, after pins.js is up.
         function puzzleTools() {
-            const keys = new Set([...engine.tabSet(), ...(window.pinBoard?.snapshot() ?? [])].map(toolKey));
+            const keys = new Set([...engine.tabSet(), ...window.pinBoard.snapshot()].map(toolKey));
             const named = tools.filter((tool) => keys.has(toolKey(tool)));
             return named.length ? named : tools;
         }
@@ -347,17 +347,20 @@
             mode.render(tool, current.style, orientation);
         }
 
-        // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
-        fit.mouseCardHeight = (cardWidth) => {
-            const { node, body } = cards.mouse;
-            const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
-            return node.offsetHeight - body.offsetHeight + measureMouseBody(body, puzzleTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
-        };
-        fit.sizeMouseBody = sizeMouseCard;
-        sizeMouseCard();
-        relayout();
         render();
         engine.on('change', render);
+        // pins.js builds `window.pinBoard` in its own deskReady callback, which runs after this one: the fit waits for it.
+        onDeskReady(() => {
+            // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
+            fit.mouseCardHeight = (cardWidth) => {
+                const { node, body } = cards.mouse;
+                const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
+                return node.offsetHeight - body.offsetHeight + measureMouseBody(body, puzzleTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
+            };
+            fit.sizeMouseBody = sizeMouseCard;
+            sizeMouseCard();
+            relayout();
+        });
         // The desk relays itself out on every resize; only a change in the Mouse card's height needs another pass.
         window.addEventListener('resize', () => {
             const before = cards.mouse.node.offsetHeight;
