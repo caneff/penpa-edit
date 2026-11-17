@@ -247,7 +247,7 @@ describe('light and dark', () => {
       assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0)
 
       await page.evaluate(() => engine.setTheme('dark'))
-      assert.notEqual(await settle(ground, null), light, 'the page changed')
+      assert.equal(await settle(async () => (await ground()) !== light, true), true, 'the page changed')
 
       await page.evaluate(() => engine.setTheme('light'))
       assert.equal(await settle(ground, light), light, 'and back')
