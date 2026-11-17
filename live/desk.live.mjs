@@ -226,6 +226,15 @@ describe('the desk', () => {
     }
   })
 
+  it('keeps Recent inside the window, clear of Mode, when Pinned the solver moved down changes height (#294)', async () => {
+    await drag(page, await headCentre(page, 'Pinned'), -240, 240)
+    await card(page, 'Mode').getByRole('button', { name: /^Pin / }).click()
+    assert.deepEqual(await settle(() => cardsOutside(page), []), [])
+    const [pinned, mode, recent] = await Promise.all(['Pinned', 'Mode', 'Recent'].map((name) => boxOf(page, name)))
+    assert.ok(mode.y >= pinned.y + pinned.height, `Mode (top ${mode.y}) clears Pinned (bottom ${pinned.y + pinned.height})`)
+    assert.ok(recent.y >= mode.y + mode.height, `Recent (top ${recent.y}) clears Mode (bottom ${mode.y + mode.height})`)
+  })
+
   it('refits the board when its card resizes, and + then − zooms it with the card scrolling', async () => {
     await drag(page, await handleCentre(page, 'Board'), -200, -150)
     const fitted = await settle(async () => { const r = await boardAgainstCard(page); return r.inside }, true)
