@@ -11,6 +11,7 @@ const region = (page, name) => page.getByRole('region', { name })
 const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
+const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
 const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map(chipName)
 
 // Every tool the link lists, as `{ mode, submode }`.
@@ -22,7 +23,7 @@ describe('one name per tool', () => {
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })
   after(async () => { await opened?.context.close() })
 
-  it('reads the same on the Board label, the Mouse headline, the Mode card and the Pinned chip, for every tool', async () => {
+  it('reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool', async () => {
     const { page } = opened
     const tools = await listed(page)
     assert.ok(tools.length > 100, `${tools.length} tools listed`)
@@ -33,9 +34,9 @@ describe('one name per tool', () => {
     const unequal = []
     for (const [i, tool] of tools.entries()) {
       await setTool(page, tool)
-      const seen = await settle(async () => [await boardLabel(page).textContent(), await mouseName(page).textContent(), await modeName(page)],
-        [names[i], names[i], names[i]])
-      if (seen.some((text) => text !== names[i])) unequal.push({ tool, chip: names[i], board: seen[0], mouse: seen[1], mode: seen[2] })
+      const seen = await settle(async () => [await boardLabel(page).textContent(), await mouseName(page).textContent(), await modeName(page), await pickerName(page, tool)],
+        [names[i], names[i], names[i], names[i]])
+      if (seen.some((text) => text !== names[i])) unequal.push({ tool, chip: names[i], board: seen[0], mouse: seen[1], mode: seen[2], picker: seen[3] })
     }
     assert.deepEqual(unequal, [])
   })
@@ -53,13 +54,24 @@ describe('one name per tool', () => {
     assert.deepEqual(unequal, [])
   })
 
-  it('gives a chip no tooltip with a second name', async () => {
+  it('gives a chip the tool\'s plain name as its tooltip, and none when the plain names do not know the tool', async () => {
     const { page } = opened
-    await pin(page, [{ mode: 'sudoku', submode: '1', style: null }])
+    const [surface] = (await listed(page)).filter((t) => t.mode === 'surface')
+    await pin(page, [{ ...surface, style: null }])
     await setTool(page, { mode: 'line', submode: '1' })
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
     await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
-    assert.equal(await page.locator('.ui-chip-main[title]').count(), 0)
+    assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), 'Shade cells')
+    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), 'Line', 'a Recent chip too')
+    const unknown = await page.evaluate(() => engine.listTools().find((t) => !window.toolGuide.tooltipAttrs(t).title))
+    assert.ok(unknown, 'some listed tool has no plain name')
+    await pin(page, [{ mode: unknown.mode, submode: unknown.submode, style: null }])
+    await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)
+    assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').getAttribute('title'), null)
+    await pin(page, [])
+    await setTool(page, { mode: unknown.mode, submode: unknown.submode })
+    await settle(async () => (await chipTexts(region(page, 'Recent'))).length > 0, true)
+    assert.equal(await region(page, 'Recent').locator('.ui-chip-main').first().getAttribute('title'), null, 'a Recent chip too')
   })
 
   it('shows the same name in the tool-change banner', async () => {
