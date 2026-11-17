@@ -181,38 +181,44 @@ describe('top-bar buttons', () => {
   }
 })
 
+// The least relative luminance a pin colour may have: under it hues darken toward one another and are hard to tell apart at chip size.
+const PIN_MIN_LUMINANCE = 0.14
+
 describe('pin colours', () => {
-  it('hold white text on a current chip and show on the dark Board label, at 4.5:1, for 24 pins', async () => {
-    const { context, page } = await openIn('dark')
-    // The saved pin set the Pinned card reads on load: pin ids 0..23 run round the hue wheel on the golden angle.
-    await page.evaluate(() => {
-      const keys = Object.keys(localStorage).filter((key) => localStorage.getItem(key).includes('"pins"'))
-      if (keys.length !== 1) throw new Error(`expected one saved pin set, found ${keys.length}`)
-      const pins = Array.from({ length: 24 }, (_, id) => ({ id, mode: 'surface', submode: null, style: null }))
-      localStorage.setItem(keys[0], JSON.stringify({ nextId: pins.length, pins }))
-    })
-    await page.reload()
-    await waitForDesk(page)
-    await page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}` })
-    const worst = await page.evaluate(() => {
-      const { parse, ratio } = window.__helpers()
-      // The label with no style colour set, as a pinned tool of no colour style shows it: `initial` leaves the CSS's own fallback pill.
-      const label = document.querySelector('.ui-tool-name').cloneNode()
-      label.style.setProperty('--ui-style-pill', 'initial')
-      document.querySelector('.ui-card-board').append(label)
-      const pill = parse(getComputedStyle(label).backgroundColor)
-      label.remove()
-      return [...document.querySelectorAll('.ui-chip')].map((chip) => {
-        const value = getComputedStyle(chip).getPropertyValue('--ui-pin-colour').trim()
-        if (!value) throw new Error('a chip has no --ui-pin-colour')
-        const colour = parse(value)
-        return Math.min(ratio([255, 255, 255, 255], colour), ratio(colour, pill))
+  for (const theme of ['light', 'dark']) {
+    it(`are mid-light, hold white text when filled, and tint each chip readably, for 24 pins in the ${theme} theme`, async () => {
+      const { context, page } = await openIn(theme)
+      // The saved pin set the Pinned card reads on load: 24 pins run round the hue wheel on the golden angle.
+      await page.evaluate(() => {
+        const keys = Object.keys(localStorage).filter((key) => localStorage.getItem(key).includes('"pins"'))
+        if (keys.length !== 1) throw new Error(`expected one saved pin set, found ${keys.length}`)
+        const pins = engine.listTools().slice(0, 24).map(({ mode, submode }, id) => ({ id, mode, submode, style: null }))
+        localStorage.setItem(keys[0], JSON.stringify({ nextId: pins.length, pins }))
       })
+      await page.reload()
+      await waitForDesk(page)
+      await page.addScriptTag({ content: `window.__helpers = ${contrastHelpersInPage}; window.__groundOf = ${groundOfInPage}` })
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+      const chips = await page.evaluate(() => {
+        const { parse, over, luminance, ratio } = window.__helpers()
+        return [...document.querySelectorAll('.ui-pins .ui-chip')].map((chip) => {
+          const value = getComputedStyle(chip).getPropertyValue('--ui-pin-colour').trim()
+          if (!value) throw new Error('a chip has no --ui-pin-colour')
+          const colour = parse(value)
+          const ground = window.__groundOf(chip, parse, over)
+          const text = over(parse(getComputedStyle(chip.querySelector('.ui-chip-main')).color), ground)
+          return { name: chip.innerText, current: chip.classList.contains('is-current'), luminance: luminance(colour), white: ratio([255, 255, 255, 255], colour), text: ratio(text, ground), ground: ground.join() }
+        })
+      })
+      assert.equal(chips.length, 24, 'every pin has a chip')
+      assert.deepEqual(chips.filter((c) => c.white < WCAG_AA_TEXT).map((c) => c.name), [], 'white text on each pin colour, as a filled chip and the Board label show it')
+      assert.deepEqual(chips.filter((c) => c.luminance < PIN_MIN_LUMINANCE).map((c) => `${c.name} ${c.luminance.toFixed(3)}`), [], 'no pin colour is dark')
+      assert.deepEqual(chips.filter((c) => c.text < WCAG_AA_TEXT).map((c) => `${c.name} ${c.text.toFixed(2)}`), [], 'each chip\'s text on its own ground')
+      const resting = chips.filter((c) => !c.current)
+      assert.equal(new Set(resting.map((c) => c.ground)).size, resting.length, 'each resting chip is tinted with its own colour')
+      await context.close()
     })
-    assert.equal(worst.length, 24, 'every pin has a chip')
-    assert.deepEqual(worst.filter((r) => r < WCAG_AA_TEXT), [], 'white on each pin colour, and each pin colour on the label pill')
-    await context.close()
-  })
+  }
 })
 
 describe('the dark theme elsewhere', () => {
