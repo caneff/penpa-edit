@@ -4,6 +4,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 
 .ui-root {
     --ui-bar-height: 60px;
+    --ui-bar-padding: 14px;
     --ui-bar-z: 950;
     position: fixed;
     inset: 0;
@@ -20,16 +21,22 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 0 14px;
+    padding: 0 var(--ui-bar-padding);
     background: #2b2f38;
     color: #eef0f4;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
     z-index: var(--ui-bar-z);
 }
-/* Title and author sit at the bar's centre, whatever the controls on either side. */
-.ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; max-width: 46%; min-width: 0; pointer-events: none; }
-.ui-root .ui-title { font-size: 30px; font-weight: 800; line-height: 1.1; color: #fff; min-width: 0; flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ui-author { font-size: 19px; color: #c9cfda; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 0 1 auto; min-width: 0; }
+/* Title and author sit at the bar's centre, or at its left end when centred they would reach the controls; never cut
+   short (desk.js's placeHeading). */
+.ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; white-space: nowrap; pointer-events: none; }
+.ui-bar.is-heading-left .ui-heading { left: var(--ui-bar-padding); transform: translateY(-50%); }
+.ui-root .ui-title { margin: 0; font-size: 30px; font-weight: 800; line-height: 1.1; color: #fff; }
+.ui-author { font-size: 19px; color: #c9cfda; }
+/* Smaller controls, for a heading that reaches them even at the bar's left end. */
+.ui-bar.is-compact { gap: 4px; }
+.ui-bar.is-compact wa-button { --wa-form-control-height: 28px; --wa-form-control-padding-inline: .6em; }
+.ui-bar.is-compact .ui-timer { font-size: 13px; }
 .ui-spacer { flex: 1; }
 /* Reset layout ends the bar, after the controls the other files add to it. */
 .ui-reset { order: 99; }
@@ -59,8 +66,11 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 10px;
-    min-height: 26px;
+    /* One slim height for every card, with or without controls (#181); the controls are sized to fit inside it. */
+    box-sizing: border-box;
+    height: 28px;
+    flex: none;
+    padding: 0 10px;
     background: #ece8de;
     border-bottom: 1px solid #ddd7c8;
     border-radius: 9px 9px 0 0;
@@ -74,8 +84,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card.is-sized .ui-body { flex: 1 1 auto; min-height: 0; }
 .ui-card-rules.is-sized .ui-body { max-height: none; }
 .ui-head { cursor: grab; }
-.ui-head wa-button { cursor: pointer; }
-.ui-zoom, .ui-rules-text { order: 2; display: flex; gap: 4px; }
+.ui-root .ui-head h2 { margin: 0; flex: none; }
+.ui-head wa-button { cursor: pointer; font-size: 12px; --wa-form-control-height: 22px; --wa-form-control-padding-inline: .65em; }
+/* Board's - / + / Fit and Rules's - / +: one joined group each. */
+.ui-zoom, .ui-rules-text { order: 2; display: flex; flex: none; }
+:is(.ui-zoom, .ui-rules-text) wa-button:not(:first-child)::part(base) { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left: 1px solid rgba(0, 0, 0, .12); }
+:is(.ui-zoom, .ui-rules-text) wa-button:not(:last-child)::part(base) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 
 /* The edges a card is resized by: inside the card, over its border. The top edge is a thin strip, so the rest of the
    title bar still moves the card, and the top corners are narrower than the others so they stay clear of the title bar's
@@ -106,9 +120,11 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 
 /* The board's title bar: the current tool's name, after the card's title. */
-.ui-tool-name { margin-left: auto; font-size: 20px; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
+.ui-tool-name { margin-left: auto; font-size: 15px; line-height: 1.2; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
+    /* One line, cut short with its whole text as its tooltip, so a long name never makes the header taller (#181). */
+    min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     /* A light pill behind it, so a dark tool colour (dark blue, black) still reads on the dark theme's title bar. */
-    padding: 2px 12px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
+    padding: 1px 10px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
 
 /* The Mouse card. */
 .ui-headline { font-size: 22px; font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
