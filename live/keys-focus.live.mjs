@@ -65,25 +65,26 @@ describe('the keyboard on the solve page', () => {
     assert.equal(await page.evaluate(() => engine.getTimer().covered), false, 'still running')
   })
 
-  it('the theme button and Board zoom buttons hand focus back after a click', async () => {
+  it('the Pause and Board zoom buttons hand focus back after a click', async () => {
     const { page } = opened
-    for (const name of [/theme/i, 'Zoom out', 'Zoom in', 'Fit']) {
+    // Pause is last: a paused board is covered, and the zoom buttons come before it.
+    for (const name of ['Zoom out', 'Zoom in', 'Fit', 'Pause']) {
       await page.getByRole('button', { name }).click()
       assert.equal(await settle(() => pageBodyHasFocus(page), true), true, `${name} hands focus back`)
     }
+    await page.getByRole('button', { name: 'Resume' }).click()
   })
 
   it('a key press that clicks a bar button leaves focus on it', async () => {
     const { page } = opened
-    const theme = page.getByRole('button', { name: /theme/i })
-    const was = await page.evaluate(() => engine.getSettings().theme)
-    await theme.focus()
+    await page.getByRole('button', { name: 'Pause' }).focus()
     await page.keyboard.press('Enter')
-    // The toggled theme shows the click has happened; a hand-back would run as a timeout after it.
-    await settle(() => page.evaluate(() => engine.getSettings().theme), was === 'dark' ? 'light' : 'dark')
+    // The paused board shows the click has happened; a hand-back would run as a timeout after it.
+    await settle(() => page.evaluate(() => engine.getTimer().covered), true)
     // A "nothing happened" check, so a wait: a hand-back would run as a timeout queued by the click.
     await afterTimeouts(page)
-    assert.equal(await page.evaluate(() => document.activeElement.matches('.ui-bar wa-button') && /theme/i.test(document.activeElement.textContent)), true)
+    assert.equal(await page.evaluate(() => document.activeElement.matches('.ui-bar wa-button') && document.activeElement.textContent.trim() === 'Resume'), true)
+    await page.getByRole('button', { name: 'Resume' }).click()
   })
 
   it('Escape in the pin-name field closes the form, empties the field and gives the board the focus', async () => {
