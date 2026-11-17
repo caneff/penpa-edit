@@ -41,6 +41,8 @@ async function runList (openTarget, puzzle, actions) {
     // The snapshot before the first step, which the undo-to-start rule compares with until a reload; and the last one read.
     let opened = await target.snapshot()
     let before = opened
+    // The kinds of the steps run so far, for a rule that reads what came before the last step.
+    const history = []
     const checked = actions.map((action) => ({
       check: () => true,
       toString: () => String(action),
@@ -54,14 +56,17 @@ async function runList (openTarget, puzzle, actions) {
         ran = step
         await target.drawn()
         const now = await target.snapshot()
-        if (action.kind === 'reload') opened = null
-        assertClean(now, { before, action: { kind: action.kind, arg: action.arg }, opened }, `after step ${step} (${action})`, step)
+        // fast-check hands a hunted list's steps out wrapped, the step itself as `cmd`; a scripted list's come bare.
+        const { kind, arg } = action.cmd ?? action
+        if (kind === 'reload') opened = null
+        history.push(kind)
+        assertClean(now, { before, action: { kind, arg }, opened, history: [...history] }, `after step ${step} (${action})`, step)
         before = now
       }
     }))
     await fc.asyncModelRun(() => ({ model: {}, real: { page: target.page } }), checked)
     await sleep(ERRORS_LAND_MS)
-    assertClean(await target.snapshot(), { before, action: null, opened }, 'after the last step', ran)
+    assertClean(await target.snapshot(), { before, action: null, opened, history }, 'after the last step', ran)
   } finally {
     await target.close()
   }

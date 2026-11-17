@@ -32,9 +32,9 @@ function quietPage (overrides = {}) {
 }
 
 const rule = (name) => RULES.find((r) => r.name === name)
-// `now` and `before` are overrides of a quiet page; `opened` is one too, or null.
-const check = (name, now, { before = {}, action = null, opened = {} } = {}) =>
-  rule(name).check({ now: quietPage(now), before: quietPage(before), action, opened: opened && quietPage(opened) })
+// `now` and `before` are overrides of a quiet page; `opened` is one too, or null. `history` is the kinds run so far.
+const check = (name, now, { before = {}, action = null, opened = {}, history = [] } = {}) =>
+  rule(name).check({ now: quietPage(now), before: quietPage(before), action, opened: opened && quietPage(opened), history })
 const action = (kind, arg) => ({ kind, arg })
 
 describe('the UI fuzz rules', () => {
@@ -44,8 +44,8 @@ describe('the UI fuzz rules', () => {
   })
 
   it('a quiet page breaks none, and a violation is reported with its rule name', () => {
-    assert.deepEqual(ruleViolations({ now: quietPage(), before: quietPage(), action: null, opened: quietPage() }), [])
-    assert.deepEqual(ruleViolations({ now: quietPage({ toolName: 'Surface' }), before: quietPage(), action: null, opened: quietPage() }),
+    assert.deepEqual(ruleViolations({ now: quietPage(), before: quietPage(), action: null, opened: quietPage(), history: [] }), [])
+    assert.deepEqual(ruleViolations({ now: quietPage({ toolName: 'Surface' }), before: quietPage(), action: null, opened: quietPage(), history: [] }),
       ['board-label-names-tool: the Board label reads "Sudoku > Normal" but the tool is Surface'])
   })
 
@@ -59,6 +59,13 @@ describe('the UI fuzz rules', () => {
     })
     it('leaves a closed card out', () => {
       assert.deepEqual(check('cards-do-not-overlap', { cards: [card('Board', 0, 0, 100, 100), card('Mouse', 50, 50, 100, 100, { shown: false })] }), [])
+    })
+    it('asks nothing of a layout the solver made by dragging or resizing a card, until Reset layout', () => {
+      const cards = [card('Board', 0, 0, 100, 100), card('Mode', 80, 50, 50, 100)]
+      for (const placing of ['card drag', 'card resize', 'interrupted drag']) {
+        assert.deepEqual(check('cards-do-not-overlap', { cards }, { history: ['click', placing, 'reload'] }), [], placing)
+      }
+      assert.deepEqual(check('cards-do-not-overlap', { cards }, { history: ['card drag', 'reset layout', 'click'] }), ['Board and Mode overlap by 20x50 px'])
     })
   })
 
@@ -163,10 +170,20 @@ describe('the UI fuzz rules', () => {
     it('holds when a reload leaves the cards and pins as they were', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', {}, { action: action('reload') }), [])
     })
+    it('holds when a reload changes a card by under a pixel', () => {
+      const cards = quietPage().cards.map((c) => c.name === 'Rules' ? card('Rules', 15, 72, 260, 60.890625) : c)
+      assert.deepEqual(check('reload-keeps-layout-and-pins', { cards }, { action: action('reload') }), [])
+    })
     it('fails when a reload moves a card', () => {
       const cards = quietPage().cards.map((c) => c.name === 'Pinned' ? card('Pinned', 1005, 300, 380, 96) : c)
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards }, { action: action('reload') }),
         ['the reload moved Pinned from 1005,72 380x96 to 1005,300 380x96'])
+    })
+    it('holds when a reload empties Recent and its card gets shorter, but fails when it moves', () => {
+      const before = { cards: [card('Recent', 1005, 326, 380, 136)], recent: [pin(null, 'Line > Normal')] }
+      assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 326, 380, 98)] }, { action: action('reload'), before }), [])
+      assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 300, 380, 98)] }, { action: action('reload'), before }),
+        ['the reload moved Recent from 1005,326 380x136 to 1005,300 380x98'])
     })
     it('fails when a reload drops a pin', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', { pins: [pin('Z', 'Surface')] }, { action: action('reload') }),

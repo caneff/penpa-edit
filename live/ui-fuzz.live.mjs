@@ -84,22 +84,32 @@ function overlapOnToolPickInPage () {
   })
 }
 
-// Hunts on Akari with `setup` planted, checks the run shrinks to the one tool pick with an error matching `error`, and that
-// its printed replay command fails again on the same step.
-async function findsAndReplays (setup, error) {
+// Runs in the page, before its scripts: swallows the pin keys Z X C V, so pressing one selects no pin, which breaks the
+// pin-keys-select-their-pin rule (a rule that reads the step's action) and throws nothing.
+function swallowPinKeysInPage () {
+  addEventListener('keydown', (e) => {
+    if (/^Key[ZXCV]$/.test(e.code)) e.stopImmediatePropagation()
+  }, true)
+}
+
+// Hunts on Akari with `setup` planted and `focus`, checks the run fails with an error matching `error` after a shrunk list
+// whose last step matches `last` (`only`: the list is that one step), and that its printed replay command fails again on
+// the same step.
+async function findsAndReplays (setup, error, { focus = PLANT_RUN.focus, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
   const planted = openTarget(browser(), { setup: (context) => context.addInitScript(setup) })
   const akari = puzzles.filter((p) => p.name === 'akari')
-  const found = await runFuzz({ openTarget: planted, puzzles: akari, ...PLANT_RUN })
+  const found = await runFuzz({ openTarget: planted, puzzles: akari, ...PLANT_RUN, focus })
   assert.equal(found.failed, true, 'the run finds the plant')
   assert.match(found.error, error)
-  assert.deepEqual(found.sequence.map((step) => step.replace(/ \(.*\)$/, '').replace(/\d+/, 'N')), ['pick tool N in the Mode card'], 'shrunk to the one tool pick')
+  assert.match(found.sequence.at(-1), last, 'the shrunk list ends on the planted step')
+  if (only) assert.equal(found.sequence.length, 1, `shrunk to the one step, got ${found.sequence.join('; ')}`)
   assert.equal(found.step, found.sequence.length, 'the failure is read after the last step of the shrunk list')
 
   const command = replayCommand(found)
   const [, args] = command.split(' -- ')
-  assert.match(command, / --focus mode$/, 'the replay command carries the focus')
-  const { seed, path, focus } = parseFuzzArgs(args.split(' '))
-  const replayed = await runFuzz({ openTarget: planted, puzzles: akari, seed, path, focus, maxCommands: PLANT_RUN.maxCommands })
+  assert.match(command, new RegExp(`${focus.map((area) => ` --focus ${area}`).join('')}$`), 'the replay command carries the focus')
+  const replay = parseFuzzArgs(args.split(' '))
+  const replayed = await runFuzz({ openTarget: planted, puzzles: akari, ...replay, maxCommands: PLANT_RUN.maxCommands })
   assert.deepEqual(
     { failed: replayed.failed, step: replayed.step, sequence: replayed.sequence, error: replayed.error },
     { failed: true, step: found.step, sequence: found.sequence, error: found.error },
@@ -147,5 +157,9 @@ describe('the solve page\'s UI fuzz', () => {
 
   it('finds a broken rule on a seeded run and prints a replay command that fails again on the same step', async () => {
     await findsAndReplays(overlapOnToolPickInPage, /^rules? broken after step \d+ \(.*\): cards-do-not-overlap: Board and Pinned overlap/)
+  })
+
+  it('finds a broken rule that reads the step\'s action on a seeded run, and its replay fails again on the same step', async () => {
+    await findsAndReplays(swallowPinKeysInPage, /pin-keys-select-their-pin: pressing [ZXCV] left /, { focus: ['pinned'], last: /^press pin key [ZXCV]/, only: false })
   })
 })

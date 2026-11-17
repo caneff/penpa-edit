@@ -2,9 +2,10 @@
 // (`engine.mjs`) checks every rule after every action and once more after the last; a broken rule fails the run as a
 // crash does. A rule tracks the page as master had it when the rule was written, not an older layout. Not a check itself.
 //
-// A rule is `{ name, check({ now, before, action, opened }) }`: `now` is the snapshot after the action and `before` the one
-// before it; `action` is the step's `{ kind, arg }` (`actions.mjs`), null for the check after the last step; `opened` is the
-// snapshot read before the first step, null once a reload has run. It returns one readable line per violation; none means
+// A rule is `{ name, check({ now, before, action, opened, history }) }`: `now` is the snapshot after the action and `before`
+// the one before it; `action` is the step's `{ kind, arg }` (`actions.mjs`), null for the check after the last step; `opened`
+// is the snapshot read before the first step, null once a reload has run; `history` is the kinds of the steps run so far, in
+// order, this one last. It returns one readable line per violation; none means
 // the rule holds. A snapshot (`page-state.mjs`) holds:
 //   window            the window's { width, height }
 //   cards             one { name, shown, rect: { x, y, width, height }, heading: { text, lines }, background } per card,
@@ -22,6 +23,12 @@
 
 // The keys the first pins show, in order (`SHORTCUT_SLOT_BY_CODE` in docs/ui/pins.js).
 const PIN_KEYS = ['Z', 'X', 'C', 'V']
+// The action kinds by which the solver places a card by hand, and the one that gives the page its own layout back.
+// The desk lets the solver put a card anywhere on the desk (docs/ui/desk.js), over another one included.
+const PLACING_KINDS = ['card drag', 'card resize', 'interrupted drag']
+const RESET_LAYOUT = 'reset layout'
+// The card whose chips last for the visit only (docs/ui/recent.js): a reload empties it, so its height follows.
+const RECENT_CARD = 'Recent'
 // The mode in which a pin key types a letter instead (pins.js).
 const NUMBER_MODE = 'number'
 // Layout sizes are fractional pixels; this much of an overlap or an overhang is rounding, not a broken layout.
@@ -31,6 +38,8 @@ const SLACK_PX = 1
 const LIGHT_MIN_LUMINANCE = 0.4
 
 const shownCards = (page) => page.cards.filter((c) => c.shown)
+// Whether the layout is the solver's: a card placed by hand since the page's own layout was last given back.
+const solverPlaced = (history) => history.findLastIndex((kind) => PLACING_KINDS.includes(kind)) > history.lastIndexOf(RESET_LAYOUT)
 const box = ({ x, y, width, height }) => `${x},${y} ${width}x${height}`
 
 // WCAG relative luminance of a computed `rgb(...)` or `rgba(...)` colour.
@@ -45,8 +54,10 @@ const themeOf = (colour) => luminance(colour) >= LIGHT_MIN_LUMINANCE ? 'light' :
 
 export const RULES = [
   {
+    // The page's own layout only: a card the solver put over another stays there.
     name: 'cards-do-not-overlap',
-    check: ({ now }) => {
+    check: ({ now, history }) => {
+      if (solverPlaced(history)) return []
       const cards = shownCards(now)
       return cards.flatMap((a, i) => cards.slice(i + 1).flatMap((b) => {
         const w = Math.min(a.rect.x + a.rect.width, b.rect.x + b.rect.width) - Math.max(a.rect.x, b.rect.x)
@@ -117,7 +128,9 @@ export const RULES = [
       const moved = before.cards.flatMap((was) => {
         const is = now.cards.find((c) => c.name === was.name)
         if (!is || is.shown !== was.shown) return [`the reload ${was.shown ? 'closed' : 'opened'} ${was.name}`]
-        return was.shown && box(is.rect) !== box(was.rect) ? [`the reload moved ${was.name} from ${box(was.rect)} to ${box(is.rect)}`] : []
+        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - was.rect[side]) > SLACK_PX &&
+          !(side === 'height' && was.name === RECENT_CARD))
+        return was.shown && moved ? [`the reload moved ${was.name} from ${box(was.rect)} to ${box(is.rect)}`] : []
       })
       const pins = (page) => page.pins.map((p) => p.label).join(', ')
       return [...moved, ...(pins(now) === pins(before) ? [] : [`the reload changed the pins from ${pins(before)} to ${pins(now)}`])]
