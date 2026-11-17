@@ -223,13 +223,14 @@ describe('the desk on a laptop screen', () => {
 
   for (const viewport of LAPTOPS) {
     describe(`at ${viewport.width}x${viewport.height}`, () => {
-      it('puts no card over another, and stacks the right column top-down with the card gap', async () => {
+      it('puts no card over another, and keeps the right column in order down to the desk\'s bottom', async () => {
         const read = await deskSettled(await open(viewport))
         assert.deepEqual(cardOverlaps(read), [])
         const { Pinned, Mode, Recent } = read.cards
         assert.equal(near(Pinned.y, read.desk.y + TOP_MARGIN_PX), true, `Pinned at ${Pinned.y}`)
-        assert.equal(near(Mode.y, Pinned.y + Pinned.h + CARD_GAP_PX), true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
+        assert.equal(Mode.y >= Pinned.y + Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
         assert.equal(near(Recent.y, Mode.y + Mode.h + CARD_GAP_PX), true, `Recent at ${Recent.y}, Mode ends at ${Mode.y + Mode.h}`)
+        assert.equal(near(Recent.y + Recent.h, read.desk.y + read.desk.h - TOP_MARGIN_PX), true, `Recent ends at ${Recent.y + Recent.h}`)
       })
 
       it('puts Rules over Mouse, Rules showing its whole text or taking the larger share', async () => {
@@ -313,7 +314,7 @@ describe('the desk on a laptop screen', () => {
     })
     const read = await deskSettled(page)
     const { Pinned, Mode } = read.cards
-    assert.equal(near(Mode.y, Pinned.y + Pinned.h + CARD_GAP_PX), true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
+    assert.equal(Mode.y >= Pinned.y + Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
     assert.deepEqual(cardOverlaps(read).filter((pair) => !pair.includes('Board')), [])
   })
 
@@ -546,7 +547,7 @@ describe('the desk holds together', () => {
     const pinnedMode = async () => cardOverlaps(await page.evaluate(readDeskInPage, CARDS)).filter((pair) => pair === 'Mode/Pinned')
     assert.deepEqual(await settle(pinnedMode, []), [])
     const read = await deskSettled(page)
-    assert.equal(near(read.cards.Mode.y, read.cards.Pinned.y + read.cards.Pinned.h + CARD_GAP_PX), true, `Mode at ${read.cards.Mode.y}, Pinned ends at ${read.cards.Pinned.y + read.cards.Pinned.h}`)
+    assert.equal(read.cards.Mode.y >= read.cards.Pinned.y + read.cards.Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${read.cards.Mode.y}, Pinned ends at ${read.cards.Pinned.y + read.cards.Pinned.h}`)
   })
 
   it('moves an untouched card down from under Pinned when Pinned grows in a column the solver changed', async () => {
@@ -622,6 +623,8 @@ describe('the desk holds together', () => {
 
   it('sizes Mouse for the pins as well as the Tab set on a fresh load, the same as after a refit', async () => {
     const page = await open(LAPTOPS[1], LONG_LINE_RULES)
+    // The page opens on Surface, outside the pins; on the Line pin, Mouse is sized for Line alone.
+    await page.keyboard.press('Tab')
     const lineOnly = (await deskSettled(page)).cards
     // A pin with more Mouse rows than Line's, kept for the puzzle across the reload.
     await page.evaluate(() => {

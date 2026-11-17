@@ -20,6 +20,8 @@ const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 const ICEBREAKER_PINS = ['Surface', 'Line > Normal', 'Line + edge ×']
 // Box edges may differ by rounding.
 const SLACK_PX = 1
+// desk.js's Mouse body slack for its borders, and rounding.
+const MOUSE_SLACK_PX = 3
 // What every resize handle says on hover.
 const FIT_TOOLTIP = 'Double-click to fit automatically'
 
@@ -133,7 +135,8 @@ describe('the Mouse card while stepping through the pins', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
-  // Every pin in turn: the Mouse card's height, its body's hidden overflow, and how far the last row ends below the body.
+  // Every pin in turn: the Mouse card's height, its body's hidden overflow, how far the last row ends below the body, and
+  // the room left under it past the body's padding.
   async function mouseAtEachPin (page) {
     const count = await page.evaluate(() => window.pinBoard.snapshot().length)
     const reads = []
@@ -146,7 +149,8 @@ describe('the Mouse card while stepping through the pins', () => {
         return {
           h: Math.round(card.getBoundingClientRect().height),
           overflow: body.scrollHeight - body.clientHeight,
-          lastRowBelow: Math.max(0, Math.round(body.querySelector('.ui-mrows').lastElementChild.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom))
+          lastRowBelow: Math.max(0, Math.round(body.querySelector('.ui-mrows').lastElementChild.getBoundingClientRect().bottom - body.getBoundingClientRect().bottom)),
+          spare: body.getBoundingClientRect().bottom - body.querySelector('.ui-mrows').lastElementChild.getBoundingClientRect().bottom - parseFloat(getComputedStyle(body).paddingBottom)
         }
       }))
     }
@@ -154,16 +158,21 @@ describe('the Mouse card while stepping through the pins', () => {
   }
 
   const cases = [
-    { name: 'Icebreaker at 2560x1440', viewport: HUGE, link: (b) => linkFromNewBoard(b, solveLinkInPage, ICEBREAKER) },
+    { name: 'Icebreaker at 2560x1440', viewport: HUGE, link: (b) => linkFromNewBoard(b, solveLinkInPage, ICEBREAKER), hasRules: true },
     { name: 'the Classic sudoku preset at 1920x1080', viewport: FULL_HD, link: (b) => solveLinkOfImport(b, IMPORTS['sudoku-9x9']), preset: 'Classic sudoku' }
   ]
-  for (const { name, viewport, link, preset } of cases) {
-    it(`shows every pin's rows in full, with no scrollbar and one height, on ${name}`, async () => {
+  for (const { name, viewport, link, preset, hasRules } of cases) {
+    it(`shows every pin's rows in full, with no scrollbar and one height${hasRules ? ', leaving Rules the spare room,' : ''} on ${name}`, async () => {
       opened = await openSolvePage(browser(), await link(browser()), { contextOptions: { viewport } })
       const { page } = opened
       if (preset) await choosePreset(page, preset)
       const reads = await mouseAtEachPin(page)
-      assert.deepEqual(reads, reads.map(() => ({ h: reads[0].h, overflow: 0, lastRowBelow: 0 })))
+      assert.deepEqual(reads.map(({ spare, ...read }) => read), reads.map(() => ({ h: reads[0].h, overflow: 0, lastRowBelow: 0 })))
+      // Rules takes the room the tallest pin leaves (Chris, 2026-11-17); a link with no rules keeps Rules one line tall,
+      // and Mouse takes the column.
+      if (!hasRules) return
+      const tightest = Math.min(...reads.map((read) => read.spare))
+      assert.equal(tightest <= MOUSE_SLACK_PX, true, `Mouse keeps ${tightest}px below its tallest pin's last row`)
     })
   }
 })
