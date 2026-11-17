@@ -23,7 +23,7 @@ const browser = await chromium.launch()
 try {
   for (const id of ids) {
     const recording = await readRecording(id)
-    const { checkpoints, report } = await replay(browser, recording, { id })
+    const { checkpoints, report } = await replay(browser, recording, { id, roundTripEvery: 1 })
     if (report) throw new Error(report)
     const changes = expectedDiff({ steps: recording.steps, before: await readExpectedFile(id), after: expectedFile(checkpoints) })
     console.log(`${id}: ${changes.length ? 'changes:' : 'unchanged'}`)

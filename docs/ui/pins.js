@@ -52,7 +52,7 @@
         return e.getModifierState('CapsLock') || (isLetter && (e.key === e.key.toUpperCase()) !== e.shiftKey);
     }
 
-    onDeskReady(({ cards }) => {
+    onDeskReady(({ cards, fit }) => {
         const tools = engine.listTools();
         const storageKey = STORAGE_PREFIX + puzzleHash();
         const toolOf = (pin) => tools.find((t) => toolKey(t) === toolKey(pin));
@@ -184,6 +184,14 @@
 
         const strip = el('div', { class: 'ui-pins' });
         cards.pins.body.replaceChildren(strip);
+        // The strip's rows are told apart by their tops; with no pin, its one row is the empty note.
+        fit.pinsCardHeightAtTwoRows = () => {
+            const items = [...strip.children];
+            const rows = new Set(items.map((item) => item.offsetTop)).size;
+            // A strip with no gap set reads `normal`, which is none.
+            const rowHeight = Math.max(0, ...items.map((item) => item.offsetHeight)) + (parseFloat(getComputedStyle(strip).rowGap) || 0);
+            return cards.pins.node.offsetHeight + Math.max(0, 2 - rows) * rowHeight;
+        };
 
         // No confirm: "Puzzle defaults" or a saved preset brings pins back.
         const unpinAll = iconButton(UNPIN_ALL_ICON, 'Unpin all', () => window.pinBoard.replace([]));
