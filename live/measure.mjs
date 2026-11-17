@@ -8,7 +8,10 @@
 // `live/**/*.live.mjs` skips it.
 import { chromium } from 'playwright'
 import { hunt, inLanes, PLANTS } from './plants.mjs'
-import { listRecordings, readExpected, readRecording, replay } from './replay.mjs'
+import { FULL_ROUND_TRIPS_ENV, listRecordings, readExpected, readRecording, replay } from './replay.mjs'
+
+// Every replay and hunt here round-trips every checkpoint, so the tables stay comparable with the ones before #267.
+process.env[FULL_ROUND_TRIPS_ENV] = '1'
 
 // Replays at once: the box is shared, and the seam's own runs use 4.
 const LANES = 2

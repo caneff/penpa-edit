@@ -356,7 +356,7 @@ export function answerLinkInPage ({ writes, boxes }) {
 }
 
 // The puzzles whose kept recording is a solve of only some of their cells, and how many it leaves open: the rest are
-// given. The engine replay round-trips a duplicate link at every checkpoint, so a recording's cost grows faster than
+// given. The engine replay in full mode round-trips a duplicate link at every checkpoint, so a recording's cost grows faster than
 // its length, and a full 9x9 or killer solve went past the seam's 60-second test limit on CI (#34, controller's
 // ruling). The answer-aimed fuzz still solves these puzzles whole.
 export const KEPT_OPEN_CELLS = { 'sudoku-9x9': 20, killer: 20 }

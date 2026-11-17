@@ -365,7 +365,7 @@ try {
     const { text, recording } = made
     await mkdir(new URL(id.slice(0, id.lastIndexOf('/') + 1), RECORDINGS), { recursive: true })
     await writeFile(new URL(id + '.steps.json', RECORDINGS), text)
-    const { checkpoints, report } = await replay(browser, recording, { id })
+    const { checkpoints, report } = await replay(browser, recording, { id, roundTripEvery: 1 })
     if (report) {
       refused.push(report)
       await rm(new URL(id + '.expected.json', RECORDINGS), { force: true })
