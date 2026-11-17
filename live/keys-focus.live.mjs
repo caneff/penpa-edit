@@ -15,7 +15,7 @@ const PINS = ['Line Normal', 'Sudoku Corner']
 // More Tab presses than the Settings dialog has controls, so every press past the last one tries to leave it.
 const TABS_PAST_THE_DIALOG = 60
 // Longer than the zero-delay timeouts the key rules queue.
-const AFTER_TIMEOUT_MS = 50
+const AFTER_TIMEOUT_MS = 150
 const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
