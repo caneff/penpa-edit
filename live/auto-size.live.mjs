@@ -58,7 +58,7 @@ describe('the Mode card while stepping through the pins', () => {
     for (let step = 0; step <= 2 * count; step++) {
       if (step > 0) await page.keyboard.press('Tab')
       const read = await cards(page)
-      reads.push({ tool: await page.evaluate(() => engine.getTool().mode), mode: { y: read.Mode.y, h: read.Mode.h }, recentTop: read.Recent.y })
+      reads.push({ tool: await page.evaluate(() => engine.getTool().mode), mode: { y: read.Mode.y, h: read.Mode.h, overflow: read.Mode.overflow }, recentTop: read.Recent.y })
     }
     return reads
   }
@@ -68,9 +68,11 @@ describe('the Mode card while stepping through the pins', () => {
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
     await page.evaluate(pinByNameInPage, ICEBREAKER_PINS)
+    // Fitted while the pin with the fewest Mode rows is current, so a card sized for the current tool alone is too short.
+    await page.evaluate(() => engine.setTool(engine.listTools().find((t) => window.toolGuide.chipLabel(t) === 'Line > Normal')))
     await page.getByRole('button', { name: 'Reset layout' }).click()
     const reads = await stepThroughPins(page)
-    assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: reads[0].mode, recentTop: reads[0].recentTop })), JSON.stringify(reads))
+    assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: { ...reads[0].mode, overflow: 0 }, recentTop: reads[0].recentTop })), JSON.stringify(reads))
   })
 
   it('keeps one height, and Recent one top, with the Classic sudoku preset', async () => {
@@ -78,7 +80,7 @@ describe('the Mode card while stepping through the pins', () => {
     const { page } = opened
     await choosePreset(page, 'Classic sudoku')
     const reads = await stepThroughPins(page)
-    assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: reads[0].mode, recentTop: reads[0].recentTop })), JSON.stringify(reads))
+    assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: { ...reads[0].mode, overflow: 0 }, recentTop: reads[0].recentTop })), JSON.stringify(reads))
   })
 })
 
