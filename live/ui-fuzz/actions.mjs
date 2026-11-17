@@ -39,6 +39,9 @@ const INTERRUPTIONS = ['Escape', 'resize', 'blur']
 // A reload waits this long for the page: a navigation on a busy box takes longer than an action's click.
 const RELOAD_TIMEOUT_MS = 30000
 const PAUSE_KEY = 'F4'
+// The pins' own unpin buttons (docs/ui/pins.js): a role-and-name match on "Unpin " also takes the disabled "Unpin all" button.
+// `live/unpin-all.live.mjs` checks it finds one per pin on the real page.
+export const UNPIN_SELECTOR = '.ui-pins .ui-chip-unpin'
 
 // The points the current mode takes, each `{ x, y, num }`, and the cell size.
 async function boardPoints (page) {
@@ -283,10 +286,9 @@ export const KINDS = [
     kind: 'unpin',
     area: 'pinned',
     weight: 1,
-    // The chips' own buttons: "Unpin all" also starts with "Unpin ", and it is disabled with no pin.
     arg: PICK,
     label: (pick) => `unpin pin ${pick} in the Pinned card`,
-    run: (page, pick) => clickNth(pinnedCard(page).locator('.ui-pins .ui-chip-unpin'), pick, 'no pin')
+    run: (page, pick) => clickNth(pinnedCard(page).locator(UNPIN_SELECTOR), pick, 'no pin')
   },
   {
     kind: 'pin pick',

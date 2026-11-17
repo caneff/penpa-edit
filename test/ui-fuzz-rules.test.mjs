@@ -1,8 +1,8 @@
 // The UI fuzz's rules (`live/ui-fuzz/rules.mjs`, #195) on hand-made snapshots: each rule fires on a bad page and holds on a
-// good one, without a browser.
+// good one, without a browser. Also its unpin action (`live/ui-fuzz/actions.mjs`, #295) on a fake page.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { KINDS } from '../live/ui-fuzz/actions.mjs'
+import { KINDS, UNPIN_SELECTOR } from '../live/ui-fuzz/actions.mjs'
 import { RULES, ruleViolations } from '../live/ui-fuzz/rules.mjs'
 
 const LIGHT = 'rgb(251, 250, 247)'
@@ -296,7 +296,7 @@ describe('the unpin action (#295)', () => {
     const log = { looked: [], clicked: 0 }
     const chipButtons = { count: async () => chips, nth: () => { log.clicked++; throw new Error('clicked a chip') } }
     const region = {
-      locator: (selector) => { log.looked.push(selector); return selector === '.ui-pins .ui-chip-unpin' ? chipButtons : { count: async () => 0 } },
+      locator: (selector) => { log.looked.push(selector); return selector === UNPIN_SELECTOR ? chipButtons : { count: async () => 0 } },
       getByRole: (role, { name }) => { log.looked.push(`${role} ${name}`); return { count: async () => 1, nth: () => { log.clicked++; throw new Error('clicked Unpin all') } } }
     }
     return { page: { getByRole: () => region }, log }
@@ -311,6 +311,6 @@ describe('the unpin action (#295)', () => {
   it('looks only at the pins\' own buttons, never at "Unpin all"', async () => {
     const { page, log } = fakePage(2)
     await assert.rejects(unpin.run(page, 1), /clicked a chip/)
-    assert.deepEqual(log.looked, ['.ui-pins .ui-chip-unpin'])
+    assert.deepEqual(log.looked, [UNPIN_SELECTOR])
   })
 })
