@@ -9,6 +9,8 @@
 
     // Penpa+'s pause toggle (main.js), which a paused board still answers.
     const PAUSE_KEY = 'F4';
+    const UNDO_KEY = 'Ctrl+Z';
+    const REDO_KEY = 'Ctrl+Y';
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
 
@@ -34,8 +36,8 @@
 
     onDeskReady(({ bar, cards }) => {
         // The shortcuts are Penpa+'s own keys (main.js), which the solve page passes on.
-        const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo(), 'Ctrl+Z');
-        const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo(), 'Ctrl+Y');
+        const undo = iconButton(ICONS.undo, 'Undo', () => engine.undo(), UNDO_KEY);
+        const redo = iconButton(ICONS.redo, 'Redo', () => engine.redo(), REDO_KEY);
 
         // Trial mode (#258): each stage is the history's length when its Try was pressed, innermost last. Kept in memory only,
         // so a reload keeps the entries and drops the stages.
@@ -82,6 +84,11 @@
         }
 
         const restartButton = iconButton(ICONS.restart, 'Restart', () => { restartDialog.open = true; });
+        window.uiKeys.describe('Page', [
+            { keys: UNDO_KEY, text: 'Undo' },
+            { keys: REDO_KEY, text: 'Redo' },
+            { keys: PAUSE_KEY, text: 'Pause or resume the clock' }
+        ]);
         const pause = iconButton(ICONS.pause, 'Pause', () => (engine.getTimer().covered ? engine.startTimer() : engine.pauseTimer()), PAUSE_KEY);
 
         // index.html reads the progress back from the store by the same link, so the link and a finished save carry it. Saving on
