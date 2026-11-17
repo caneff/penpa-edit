@@ -175,7 +175,7 @@ describe('Pause', () => {
       await button(page, 'Undo').click({ force: true })
       await button(page, 'Redo').click({ force: true })
       assert.deepEqual(await typedDigits(page), ['1'], 'the board did not change')
-      await button(page, 'Resume').click()
+      await button(page, 'Resume').first().click() // the top bar's; the cover has one too
       await assertDisabled(page, 'Undo', false, 'undo after resuming')
       await assertDisabled(page, 'Redo', false, 'redo after resuming')
     } finally {
@@ -188,7 +188,7 @@ describe('Pause', () => {
     try {
       await button(page, 'Pause').click()
       await page.getByRole('region', { name: 'Paused' }).waitFor()
-      await button(page, 'Resume').click()
+      await button(page, 'Resume').first().click() // the top bar's; the cover has one too
       await page.getByRole('region', { name: 'Paused' }).waitFor({ state: 'hidden' })
       assert.equal((await timer(page)).paused, false)
     } finally {

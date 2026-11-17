@@ -223,7 +223,8 @@ describe('Multicolor', () => {
     await page.evaluate(() => engine.pauseTimer())
     try {
       assert.equal(await settle(() => page.evaluate(() => engine.getTimer().covered), true), true, 'the board is covered')
-      await swatch('red').click()
+      // The Mode card is inert while paused, so even a forced press reaches nothing.
+      await swatch('red').click({ force: true })
       assert.equal(await page.evaluate(() => engine.colourSelection(6)), false, 'colourSelection says it did nothing')
       assert.deepEqual((await cellAndUndo()).colours, [], 'the selected cell is not coloured')
     } finally {
