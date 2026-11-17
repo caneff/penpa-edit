@@ -1,6 +1,6 @@
 # Mouse card wording, draft (#103)
 
-Status: accepted by Chris for now, to be revisited (2026-11-16, Q19). Cycles as `A → B → clear` (Q20); no entries that only restate another gesture. The six rows first marked unsure were settled live the same day.
+Status: accepted by Chris for now, to be revisited (2026-11-16, Q19). Rows corrected by #186 on 2026-11-17, each against the board; see § Rows #186 changed. Cycles as `A → B → clear` (Q20); no entries that only restate another gesture. The six rows first marked unsure were settled live the same day.
 
 Drafted 2026-11-16 against `origin/spec-90` (`8e94949`). Every row was read from `docs/js/class_p.js` in solve mode
 (`pu.mode.qa === "pu_a"`), on a square grid, desktop mouse (`ondown_key === "mousedown"`, so the `*_reduced` and
@@ -36,11 +36,11 @@ Things that hold for many rows, so they are not repeated in every cell:
 | line/2 | Diagonal line | — | — | line through cell centres, diagonals too; starting on it: erase | — | reworded | yes | `mouse_line`, `re_linemove` (submode "2") |
 | line/3 | Free line | — | — | straight line from one cell centre to another, any angle, drawn on release; over the same line: erase | — | reworded | yes | `mouse_linefree`, `re_lineup_free` |
 | line/5 | Midpoint line | — | — | line in half steps, cell centre to edge middle, so it can stop at an edge; starting on it: erase | — | fixed | yes | `mouse_line`, `re_linemove` (submode "5", `point.neighbor`) |
-| line/4 | Line helper × | × on the edge between two cells → clear | — | — | — | same | yes | `mouse_lineX`, `re_lineX` |
-| combi/linex | Loop + edge × | — | × on the edge → clear | loop through cell centres; starting on it: erase | Right drag: × on each edge crossed (starting on a ×: clear them) | reworded | yes | `re_combi_linex_move`, `re_combi_cross_downright` |
-| combi/lineox | Loop + cell ○ × | ○ in the cell → × → clear | × in the cell → ○ → clear | loop through cell centres; starting on it: erase | — | reworded | yes (right drag checked live) | `re_combi_lineox`, `re_combi_lineox_move`, `re_combi_lineox_up` |
-| combi/linedir | Line + direction marks | — | edge: × → arrowhead one way → the other way → clear | line through cell centres; starting on it: erase | Right drag from a cell toward an edge: arrowhead on that edge pointing that way → clear (same way); Right drag from an edge: × on each edge crossed (starting on a mark: clear them) | new | yes | `re_combi_linedir_move`, `re_combi_linedir_downright`, `re_combi_linedir_up` |
-| combi/yajilin | Shade + loop | shade the cell → clear | cell: dot · → clear; edge: × → clear | loop through cell centres; starting on it: erase | Right drag: dot · on many cells (starting on a dot: clear many) | reworded | yes | `re_combi_yajilin_move`, `re_combi_yajilin_up_reduced`, `re_combi_yajilin_downright` |
+| line/4 | Line helper × | × on the edge between two cells → clear | — | as a click where it starts | — | same | yes | `mouse_lineX`, `re_lineX` |
+| combi/linex | Line + edge × | — | × on the edge → clear | line through cell centres; starting on it: erase | Right drag from an edge: × on each edge it passes (starting on a ×: clear them) | reworded | yes | `re_combi_linex_move`, `re_combi_cross_downright` |
+| combi/lineox | Line + cell ○ × | ○ in the cell → × → clear | × in the cell → ○ → clear | line through cell centres; starting on it: erase | — | reworded | yes (right drag checked live) | `re_combi_lineox`, `re_combi_lineox_move`, `re_combi_lineox_up` |
+| combi/linedir | Line + direction marks | — | edge: × → arrowhead one way → the other way → clear | line through cell centres; starting on it: erase | Right drag from a cell toward an edge: arrowhead on that edge pointing that way → clear (same way); Right drag from an edge: × on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes) | new | yes | `re_combi_linedir_move`, `re_combi_linedir_downright`, `re_combi_linedir_up` |
+| combi/yajilin | Shade + line | shade the cell → clear | cell: dot · → clear; edge: × → clear | line through cell centres; starting on it: erase | Right drag: dot · on many cells (starting on a dot: clear many) | reworded | yes | `re_combi_yajilin_move`, `re_combi_yajilin_up_reduced`, `re_combi_yajilin_downright` |
 | combi/hashi | Bridges | × in the cell → clear | × in the cell → clear | bridge between cells → double → clear | — | fixed | yes (clicks checked live) | `re_combi_hashi`, `re_combi_hashi_move`, `re_combi_hashi_up` |
 | combi/rassisillai | Line + cell marks | ○ in the cell → clear | shade the cell → clear | line through cell centres; starting on it: erase | Right drag: shade many cells (starting on a shaded cell: clear many) | new | yes | `re_combi_rassisillai_move`, `re_combi_rassisillai_up_reduced`, `re_combi_rassisillai_downright` |
 
@@ -52,10 +52,10 @@ Things that hold for many rows, so they are not repeated in every cell:
 | lineE/2 | Diagonal edge line | — | — | line along grid lines, and across cells corner to corner; starting on it: erase | — | reworded | yes | `mouse_lineE`, `re_linemoveE` (submode "2") |
 | lineE/3 | Free edge line | — | — | straight line from one corner to another, any angle, drawn on release; over the same line: erase | — | reworded | yes | `mouse_lineEfree`, `re_lineEup_free` |
 | lineE/6 | Midpoint edge line | — | — | line along grid lines in half steps, corner to edge middle, so it can stop mid-edge; starting on it: erase | — | fixed | yes | `mouse_lineE`, `re_linemoveE` (submode "6", `edge_to_vertex`) |
-| lineE/4 | Edge helper × | × on the grid line → clear | — | — | — | same | yes | `mouse_lineEX`, `re_lineEX` |
+| lineE/4 | Edge helper × | × on the grid line → clear | — | as a click where it starts | — | same | yes | `mouse_lineEX`, `re_lineEX` |
 | lineE/5 | Erase grid lines | — | — | erase the grid lines it runs along; starting on an erased one: restore them | — | reworded | yes | `re_linemoveE` (submode "5", `deletelineE`) |
-| wall/ | Wall | — | — | straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag; starting on it: erase | — | reworded | yes (checked live) | `mouse_wall`, `re_wallmove` |
-| combi/edgex | Edges + × | — | × on the edge, if no edge line is there → clear | line along grid lines; starting on it: erase | Right drag: × on each edge crossed (starting on a ×: clear them) | reworded | yes | `re_combi_edgex_move`, `re_combi_cross_downright` |
+| wall/ | Wall | — | — | from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); it does not turn within a drag; starting on it: erase | — | reworded | yes (checked live) | `mouse_wall`, `re_wallmove` |
+| combi/edgex | Edges + × | — | × on the edge, if no edge line is there → clear | line along grid lines; starting on it: erase | Right drag from an edge: × on each edge it passes (starting on a ×: clear them) | reworded | yes | `re_combi_edgex_move`, `re_combi_cross_downright` |
 | combi/edgexoi | Edges + inside / outside | cell: yellow → 2nd colour → clear | edge: × → clear; cell: 2nd colour → yellow → clear | line along grid lines; starting on it: erase | — | reworded | yes | `re_combi_edgexoi_move`, `re_combi_edgexoi_up`, `re_combi_cross_downright` |
 | combi/edgesub | Edges + helper line | — | — | from a corner: line along grid lines; from a cell: grey helper line through cell centres; starting on either: erase | — | new | yes | `re_combi_edgesub`, `re_combi_edgesub_move` |
 
@@ -67,12 +67,12 @@ Things that hold for many rows, so they are not repeated in every cell:
 | number/10 | Large number | select the cell (drops the rest) | — | select many cells | as Number; Digit: large number in the selected cells | fixed | yes | as number/1 |
 | number/6 | Medium number | select the cell (drops the rest) | — | select many cells | as Number; Digit: medium number in the selected cells | fixed | yes | as number/1 |
 | number/5 | Small number | select the cell (drops the rest) | — | select many cells | as Number; Digit: small number in the selected cells | fixed | yes | as number/1 |
-| number/7 | Candidates | select the cell (drops the rest) | — | select many cells | as Number; Digit: add or remove that candidate in the selected cells | fixed | yes | as number/1 |
+| number/7 | Candidates | select the cell (drops the rest) | — | select many cells | as Number, but Double click on candidates: just that cell; Digit: add or remove that candidate in the selected cells | fixed | yes | as number/1 |
 | number/8 | Long number | select the cell (drops the rest) | — | select many cells | as Number; Digit: add it to the long number in the selected cells | fixed | yes | as number/1 |
-| number/3 | Quarter numbers | cursor to the nearest cell corner spot | cursor to the nearest cell corner spot | — | Digit: number at the cursor | reworded | yes (checked live: Alt + drag selects cells it does not show, and the digit still goes to the cursor, so no Alt + drag row) | `mouse_numberS` |
-| number/9 | Side numbers | cursor to the nearest cell side spot | cursor to the nearest cell side spot | — | Digit: number at the cursor | reworded | yes (checked live, as number/3) | `mouse_numberS` |
-| sudoku/1 | Digits | select the cell (drops the rest) | — | select many cells | Ctrl/Shift + click: add or remove the cell; Ctrl/Shift + drag from a selected cell: remove cells; Alt + drag: select a rectangle; Double click: select every cell with the same digit; Digit: digit in the selected cells; Shift held: corner marks; Ctrl held: centre marks | fixed | yes (right click checked live) | `mouse_sudoku`, `dblmouseevent`, `handle_rect_mousedown` |
-| sudoku/2 | Corner marks | select the cell (drops the rest) | — | select many cells | as Digits; Digit: corner mark in the selected cells | fixed | yes | as sudoku/1 |
+| number/3 | Quarter numbers | cursor to the nearest cell corner spot; selects the cell | cursor to the nearest cell corner spot | as a click where it starts | Digit: number at the cursor | reworded | yes (checked live: Alt + drag selects cells it does not show, and the digit still goes to the cursor, so no Alt + drag row) | `mouse_numberS` |
+| number/9 | Side numbers | cursor to the nearest cell side spot; selects the cell | cursor to the nearest cell side spot | as a click where it starts | Digit: number at the cursor | reworded | yes (checked live, as number/3) | `mouse_numberS` |
+| sudoku/1 | Digits | select the cell (drops the rest) | — | select many cells | Ctrl/Shift + click: add or remove the cell; Ctrl/Shift + drag from a selected cell: remove cells; Alt + drag: select a rectangle; Double click: select every cell with the same digit; Digit: digit in the selected cells; Shift held: corner marks; Ctrl + digit: — (the browser keeps it) | fixed | yes (right click checked live) | `mouse_sudoku`, `dblmouseevent`, `handle_rect_mousedown` |
+| sudoku/2 | Corner marks | select the cell (drops the rest) | — | select many cells | as Digits, but Double click on corner marks only: clear the selection; Digit: corner mark in the selected cells | fixed | yes | as sudoku/1 |
 | sudoku/3 | Centre marks | select the cell (drops the rest) | — | select many cells | as Digits; Digit: centre mark in the selected cells | fixed | yes | as sudoku/1 |
 | combi/numfl | Numbers by flick | 5 in the cell → clear | — | from a cell: a digit by direction, laid out like a phone keypad around 5 (↖1 ↑2 ↗3 ←4 →6 ↙7 ↓8 ↘9) | — | new | yes (click and ↑ checked live) | `re_combi_numfl`, `re_combi_numfl_move`, `re_combi_numfl_up`, `direction_num8` |
 | combi/alfl | Letters by flick | E in the cell → clear | — | from a cell: a letter by direction, around E (↖A ↑B ↗C ←D →F ↙G ↓H ↘ -) | — | new | yes (↘ checked live) | `re_combi_alfl`, `re_combi_alfl_move`, `re_combi_alfl_up` |
@@ -81,7 +81,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 
 | key | name | Left click | Right click | Drag | More | Changed? | Sure? | Handler |
 |---|---|---|---|---|---|---|---|---|
-| symbol/* (every shape except the on/off ones below; 86 tools) | the shape's name | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | — | Digit: shape variant n at the cursor → clear (same digit) | fixed | yes (checked live: picking a Shape turns on Penpa's input-panel setting, which solve.html keeps hidden and has no control to turn off, so each click types the panel's variant 1) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `mode_set` (`panelflag`), `key_number` |
+| symbol/* (every shape except the on/off ones below; 86 tools) | the shape's name | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | as a click where it starts | Digit: shape variant n at the cursor → clear (same digit) | fixed | yes (checked live: picking a Shape turns on Penpa's input-panel setting, which solve.html keeps hidden and has no control to turn off, so each click types the panel's variant 1) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `mode_set` (`panelflag`), `key_number` |
 | symbol/* on/off shapes: cross, arrow_cross, arrow_fourtip, degital_B/G/E/f, arrow_eight, arrow_fouredge_B/G/E, dice, polyomino, polyhex (14 tools) | the shape's name | cursor to the cell | cursor to the cell | — | Digit: add or remove part n of the shape at the cursor | fixed | yes (left click checked live on arrow_cross: places nothing) | `mouse_symbol`, `onoff_symbolmode_list`, `onofftext` |
 | combi/blwh | Black + white circles | white ○ → black ● → clear | black ● → white ○ → clear | repeat the first cell's change on each cell | given circles are left alone | fixed | yes (drag checked live) | `re_combi_blwh`, `re_combi_blwh_downright`, `re_combi_blwh_move` |
 | combi/star | Stars + × | star ★ → clear, also clears dots on the cell's corners and edges; on a ×: clear | cell: × → clear; corner or edge: green dot → clear | starting on a marked cell: clear many | Right drag: × on many cells (starting on a mark: clear many) | fixed | yes (left drag checked live) | `re_combi_star_reduced`, `re_combi_star_downright`, `re_combi_star_move` |
@@ -89,8 +89,8 @@ Things that hold for many rows, so they are not repeated in every cell:
 | combi/battleship | Ship pieces + water | ship middle ■ → ● → · → water ≈ → clear; on a ship end: clear | water ≈ → clear | from an empty cell: ship end, its body toward where you drag (round side away); starting on · or ≈: that mark on each cell | Right drag: water on many cells (starting on water: clear many); given ship pieces are left alone | fixed | yes (click cycle and drag checked live) | `re_combi_battleship`, `re_combi_battleship_move`, `re_combi_battleship_up`, `re_combi_battleship_downright` |
 | combi/tents | Tents + × | tent ▲ → dot · → clear | cell: dot · → ▲ → clear; edge: × → clear | line between cell centres, to link a tent to its tree; starting on it: erase | — | fixed | yes (right click on a cell checked live) | `re_combi_tents_move`, `re_combi_tents_up`, `re_combi_cross_downright` |
 | combi/mines | Mines + × | mine 💣 → clear, also clears dots on the cell's corners and edges | cell: × → clear; corner or edge: green dot → clear | starting on a marked cell: clear many | Right drag: × on many cells (starting on a mark: clear many) | fixed | yes | `re_combi_mines_reduced`, `re_combi_mines_downright`, `re_combi_mines_move` |
-| combi/doublemines | One or two mines + × | mine 💣 → two 💣💣 → clear, also clears dots on the cell's corners and edges | cell: × → clear; corner or edge: green dot → clear | starting on a marked cell: clear many | Right drag: × on many cells (starting on a mark: clear many) | fixed | yes | `re_combi_doublemines_reduced`, `re_combi_mines_downright`, `re_combi_mines_move` |
-| combi/magnets | Magnet poles + − | + → − → shade → clear | shade → − → + → clear | — | — | new | yes (left cycle checked live) | `re_combi_magnets`, `re_combi_magnets_downright` |
+| combi/doublemines | One or two mines + × | mine 💣 → two 💣💣 → clear, also clears dots on the cell's corners and edges | cell: × → clear; corner or edge: green dot → clear | starting on 💣💣 or ×: clear many | Right drag: × on many cells (starting on a mark: clear many) | fixed | yes | `re_combi_doublemines_reduced`, `re_combi_mines_downright`, `re_combi_mines_move` |
+| combi/magnets | Magnet poles + − | + → − → shade → clear | shade → − → + → clear | as a click where it starts | — | new | yes (left cycle checked live) | `re_combi_magnets`, `re_combi_magnets_downright` |
 | combi/arrowS | Arrows in cells | on an arrow: clear it | — | from a cell: arrow pointing the way you drag (8 directions) | — | new | yes | `re_combi_arrowS`, `re_combi_arrowS_move`, `re_combi_arrowS_up`, `direction_arrow8`, `draw_arrowS` |
 
 ## Objects and cages
@@ -102,7 +102,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 | special/arrows | Arrow with circle | on its circle: erase it | — | arrow from the circled cell through cells, diagonals too; drag back to undo a step | — | fixed | yes | as special/thermo |
 | special/direction | Arrow | on its tail cell: erase it | — | arrow through cells, head at the last cell, diagonals too; drag back to undo a step | — | fixed | yes | as special/thermo |
 | special/squareframe | Rectangle frame | on its first cell: erase it | — | grey band through the cells, following the path (an L stays an L); drag back to undo a step | — | fixed | yes (checked live; diagonal steps read from `re_special` only) | as special/thermo |
-| special/polygon | Polygon | first click starts at a grid corner; each click adds a corner; click the first or the last corner again to finish (closed, filled shape either way) | — | — (the next corner follows the pointer until you finish) | — | fixed | yes (checked live, including a right click mid-shape: nothing, drawing goes on) | `mouse_special`, `re_polygondown`, `re_polygonmove` |
+| special/polygon | Polygon | first click starts at a grid corner; each click adds a corner; click the first or the last corner again to finish (closed, filled shape either way) | — | as a click where it starts (the next corner follows the pointer until you finish) | — | fixed | yes (checked live, including a right click mid-shape: nothing, drawing goes on) | `mouse_special`, `re_polygondown`, `re_polygonmove` |
 | cage/1 | Cage | free cell: 1-cell cage → clear; caged cell: erase its whole cage (a cage in another style: restyle it to this one → erase) | — | cage around the cells; nothing if any of them is already caged | — | fixed | yes (checked live; an overlapping or inside drag makes nothing, so nested cages cannot be drawn here) | `mouse_cage` (`sub_cage1`), `flood_cage`, `cage_for_selection` |
 | cage/2 | Free cage lines | — | — | cage line through points a quarter cell in from the corners; starting on it: erase | — | reworded | yes | `mouse_cage` (`sub_cage2`), `re_linecage` |
 
@@ -243,7 +243,7 @@ variant. The Mode-card description is also wrong for the on/off shapes, because 
 
 | key | name | Left click | Right click | Drag | More | Sure? | Handler |
 |---|---|---|---|---|---|---|---|
-| symbol/* except the on/off shapes (86 tools on square) | the shape's name (see the shape-name list) | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | — | Digit: variant n at the cursor → clear (same digit) | yes: live on square and hex (circle_L, arrow_B_B) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `key_number` (`edit_mode === "symbol"`) |
+| symbol/* except the on/off shapes (86 tools on square) | the shape's name (see the shape-name list) | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | as a click where it starts | Digit: variant n at the cursor → clear (same digit) | yes: live on square and hex (circle_L, arrow_B_B) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `key_number` (`edit_mode === "symbol"`) |
 | symbol/ cross, arrow_cross, arrow_fourtip, arrow_eight, arrow_fouredge_B/G/E, degital_B/G/E, degital_f, dice, polyomino, polyhex (14 tools on square) | the shape's name | cursor to the cell | cursor to the cell | — | Digit: part n of the shape at the cursor on / off | yes for cross, live on square and hex; the rest read from code | `mouse_symbol` (`!this.onoff_symbolmode_list[...]`), `onofftext` |
 
 On/off part counts, read from each grid class's `onoff_symbolmode_list`:
@@ -332,3 +332,46 @@ Polyhex, Firefly, Pencils, Arc, Darts, Spans, Neighbors and Pills.
   (`mouseevent`, `mouse_symbol`, `key_number`, `onofftext`, `handle_rect_mousedown`), each grid class's `type_set`
   and `onoff_symbolmode_list`, `docs/js/general.js` (`set_solvemode`, `set_contestmode`, `advancecontrol_off`) and
   `docs/js/interface.js`.
+
+---
+
+# Rows #186 changed
+
+2026-11-17. `live/mouse-card.live.mjs` performs every gesture each Mouse card row names, with Playwright's mouse and
+keyboard on `solve.html` (6x6 new board, 1400x900), and compares the board as Penpa+ saves it with the row. The rows
+below failed and were changed in `docs/ui/tool-guide.js` (and in the tables above); the engine was not touched. Each
+names the case that showed it.
+
+| tool | row | old text | new text | case that failed | why, in Penpa+ |
+|---|---|---|---|---|---|
+| `combi/linex`, `combi/edgex` | More | Right drag: × on each edge crossed (starting on a ×: clear them) | Right drag from an edge: × on each edge it passes (starting on a ×: clear them) | right drag over three cell centres marked nothing | the press sets the marking mode only on an edge point (`re_combi_cross_downright`) |
+| `combi/linedir` | Right drag from an edge | × on each edge crossed (starting on a mark: clear them) | × on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes) | starting on a ×, only that × changed, to an arrowhead | the press steps the mark; only mode 50 clears along the drag (`re_combi_linedir_move`) |
+| `line/4`, `lineE/4` | Drag | — | as a click where it starts | a drag put a × where it started | they act on the press (`mouse_lineX`, `mouse_lineEX`) |
+| `combi/magnets` | Drag | — | as a click where it starts | a drag put + on its first cell | the press cycles the cell |
+| `special/polygon` | Drag | — (the next corner follows the pointer until you finish) | as a click where it starts (…) | a drag started a polygon | the press adds a corner |
+| `symbol/*` (variant shapes, 86) | Drag | — | as a click where it starts | a drag placed the first variant | the press places it (`mouse_symbol`) |
+| `wall/` | Drag | straight wall through cell centres, from edge middle to edge middle; … | from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); … | a drag through three cell centres drew nothing | each centre is equally near four edge middles, so the next point is not opposite the last |
+| `number/3`, `number/9` | Left click | cursor to the nearest cell corner / side spot | …; selects the cell | the click also selected the cell | `mouse_numberS` sets `selection` |
+| `number/3`, `number/9` | Drag | — | as a click where it starts | a drag moved the cursor and selected the cell | the press does |
+| `number/7` | Double click | select every cell with the same number | …; on candidates: just that cell | double click on candidates selected only that cell | `dblmouseevent` compares `number[c][0]`, an array for candidates |
+| `sudoku/2` | Double click | select every cell with the same digit | …; on corner marks only: clear the selection | the selection emptied | corner marks are in `numberS`, which `dblmouseevent` does not read; it clears first |
+| `sudoku/1` | Ctrl held: centre marks | Ctrl held: centre marks (square grids only) | Ctrl + digit: — (the browser keeps it) | Ctrl + 5 wrote nothing | `docs/ui/keys.js` leaves Ctrl + digit to the browser, and Penpa+ ignores a digit with Ctrl down |
+| `combi/doublemines` | Drag | starting on a marked cell: clear many | starting on 💣💣 or ×: clear many | a drag from one 💣 made it 💣💣 and cleared nothing | only the clearing press sets `drawing_mode` 2 |
+
+The Digits description lost "Ctrl: centre" for the same reason. Chris's ruling of 2026-11-16 renamed "loop" to "line" in
+three Composite names and their text (`Line + edge ×`, `Line + cell ○ ×`, `Shade + line`); "Angle loop" stays.
+
+**The Line + edge × right drag Chris reported missing** works from an edge and does nothing from a cell centre, whether
+sent by Playwright's mouse or as a touchpad sends it (pointer and mouse events dispatched on the canvas, button 2 held).
+A right drag started on a cell, the natural way to sweep a row, marks nothing.
+
+Gestures Penpa+ supports that the card leaves out (not added; read from the code, not run unless marked):
+
+- Shift + click and Ctrl + click act as Right click in Shading and every Composite tool (`mouseevent`), noted above and
+  left out on purpose.
+- Double click on a cell with nothing to match (an empty cell, or only corner marks) clears the selection, in Number,
+  Sudoku and Multicolor alike (`dblmouseevent` clears first; run for corner marks only).
+- Ctrl + Delete and Ctrl + Backspace in Sudoku call `key_space` with Ctrl, a clear of the selected cells (main.js `onKeyDown`).
+- Holding Ctrl in Sudoku lends Centre marks while held (`docs/js/engine_bridge.js` holds); a digit typed meanwhile
+  writes nothing (run), so the card has no row for the hold.
+

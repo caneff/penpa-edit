@@ -512,10 +512,10 @@ describe('the Mouse card and the title bar', () => {
       ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
     [{ mode: 'line', submode: '1' }, 'Line · Normal', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'line through cell centres; starting on it: erase']]],
-    [{ mode: 'lineE', submode: '4' }, 'Edge · helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', '—']]],
-    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'straight wall through cell centres, from edge middle to edge middle; it does not turn within a drag; starting on it: erase']]],
-    [{ mode: 'number', submode: '3' }, 'Number · quarter', [['Left click', 'cursor to the nearest cell corner spot'],
-      ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', '—'], ['Digit', 'number at the cursor']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge · helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', 'as a click where it starts']]],
+    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); it does not turn within a drag; starting on it: erase']]],
+    [{ mode: 'number', submode: '3' }, 'Number · quarter', [['Left click', 'cursor to the nearest cell corner spot; selects the cell'],
+      ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
     [{ mode: 'combi', submode: 'blwh' }, 'Composite · Black + white circles', [['Left click', 'white ○ → black ● → clear'],
       ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
     [{ mode: 'special', submode: 'thermo' }, 'Special · Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
@@ -525,7 +525,7 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'move', submode: '2' }, 'Move · numbers', [['Left click', '—'], ['Right click', '—'],
       ['Drag', 'move a number you entered to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Shape · Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
-      ['Right click', 'cursor to the cell'], ['Drag', '—'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
+      ['Right click', 'cursor to the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Shape · Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
       ['Drag', '—'], ['Digit', 'add or remove part n of the shape at the cursor']]]
   ]
