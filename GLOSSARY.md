@@ -32,9 +32,11 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Desk**: the solve page's work area under its top bar, holding the cards; its layout is fitted to the window and puzzle when
   the desk opens fresh, when Reset layout is pressed, and when the window changes size while no card has been moved or
   resized. The places the solver gives cards hold for every puzzle; the cards' sizes hold only for the puzzle they were set on.
-- **Automatic size**: a card's width or height while the solver has not dragged that edge: Mode and Mouse as tall as the
-  tallest of the pinned tools and the current tool, Rules and Recent filling their column down to the desk's bottom. A
-  double-click on a dragged edge's handle makes that axis automatic again; Reset layout does it for every card.
+- **Automatic size**: a card's width or height while the solver has not dragged that edge: the size a fresh load would
+  give it. Mode and Mouse are as tall as the tallest of the pinned tools and the current tool; in a column the solver
+  has not changed, Rules and Recent take the rest of it, down to the desk's bottom. A double-click on a dragged edge's
+  handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
+  does it for every card.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).

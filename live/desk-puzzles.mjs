@@ -1,6 +1,16 @@
 // The puzzles and reads the live tests of solve.html's desk share. Not a check itself, so `live/**/*.live.mjs` skips it.
 import { settle } from './settle.mjs'
 
+// Box edges may differ by rounding.
+export const SLACK_PX = 1
+// desk.js's gap between two cards of a column.
+export const CARD_GAP_PX = 10
+// desk.js's Mouse body slack for its borders, and rounding.
+export const MOUSE_SLACK_PX = 3
+// The Mouse and Mode cards' smallest heights (desk.js's MIN_SIZE).
+export const MOUSE_MIN_HEIGHT_PX = 140
+export const MODE_MIN_HEIGHT_PX = 170
+
 // The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
 export const ICEBREAKER = {
   title: 'Icebreaker (Nurikabe + Icelom)',

@@ -161,7 +161,8 @@
         fit.pinsCardHeightAtTwoRows = () => {
             const items = [...strip.children];
             const rows = new Set(items.map((item) => item.offsetTop)).size;
-            const rowHeight = Math.max(0, ...items.map((item) => item.offsetHeight)) + parseFloat(getComputedStyle(strip).rowGap);
+            // A strip with no gap set reads `normal`, which is none.
+            const rowHeight = Math.max(0, ...items.map((item) => item.offsetHeight)) + (parseFloat(getComputedStyle(strip).rowGap) || 0);
             return cards.pins.node.offsetHeight + Math.max(0, 2 - rows) * rowHeight;
         };
 

@@ -4,8 +4,8 @@
 // cards' bounding boxes and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { ICEBREAKER, solveLinkInPage, steady } from './desk-puzzles.mjs'
-import { linkFromNewBoard, openSolvePage, solveLinkOfImport, useBrowser } from './page.mjs'
+import { CARD_GAP_PX, ICEBREAKER, MODE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, solveLinkInPage, steady } from './desk-puzzles.mjs'
+import { linkFromNewBoard, openSolvePage, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
 import { choosePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -18,12 +18,11 @@ const HUGE = { width: 2560, height: 1440 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 // The pins the ticket steps through on Icebreaker, by their chip names.
 const ICEBREAKER_PINS = ['Surface', 'Line > Normal', 'Line + edge ×']
-// Box edges may differ by rounding.
-const SLACK_PX = 1
-// The Mode card's smallest height (desk.js's MIN_SIZE).
-const MODE_MIN_HEIGHT_PX = 170
-// desk.js's Mouse body slack for its borders, and rounding.
-const MOUSE_SLACK_PX = 3
+// Line > Normal, and Number > Normal, whose Style and Orientation rows need more than the Mode card's smallest height.
+const TALL_PINS = ['Line > Normal', 'Number > Normal']
+// A window too short for Mode at the right column's middle once Pinned holds one row: Mode sits under where two rows
+// of pins would end.
+const SHORT = { width: 1366, height: 500 }
 // What every resize handle says on hover.
 const FIT_TOOLTIP = 'Double-click to fit automatically'
 
@@ -37,14 +36,15 @@ function readCardsInPage (names) {
   }))
 }
 
-// Runs in the page: pins the tools named `names` (chip names), in order.
-function pinByNameInPage (names) {
-  const label = window.toolGuide.chipLabel
-  window.pinBoard.replace(names.map((name) => {
-    const tool = engine.listTools().find((t) => label(t) === name)
+// Runs in the page: pins the tools named `names` (chip names), in order, then picks the tool named `current` when given.
+function pinByNameInPage ({ names, current }) {
+  const named = (name) => {
+    const tool = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === name)
     if (!tool) throw new Error(`no tool named ${name}`)
     return tool
-  }))
+  }
+  window.pinBoard.replace(names.map(named))
+  if (current) engine.setTool(named(current))
 }
 
 describe('the Mode card while stepping through the pins', () => {
@@ -69,25 +69,19 @@ describe('the Mode card while stepping through the pins', () => {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
-    await page.evaluate(pinByNameInPage, ICEBREAKER_PINS)
     // Fitted while the pin with the fewest Mode rows is current, so a card sized for the current tool alone is too short.
-    await page.evaluate(() => engine.setTool(engine.listTools().find((t) => window.toolGuide.chipLabel(t) === 'Line > Normal')))
+    await page.evaluate(pinByNameInPage, { names: ICEBREAKER_PINS, current: 'Line > Normal' })
     await page.getByRole('button', { name: 'Reset layout' }).click()
     const reads = await stepThroughPins(page)
     assert.deepEqual(reads.map(({ mode, recentTop }) => ({ mode, recentTop })), reads.map(() => ({ mode: { ...reads[0].mode, overflow: 0 }, recentTop: reads[0].recentTop })), JSON.stringify(reads))
   })
 
-  it('is as tall as its tallest pin needs, though fitted while a shorter pin was current', async () => {
+  it('grows to its tallest pin as the pins change, and keeps that height on a shorter pin', async () => {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
     const { page } = opened
-    // Line > Normal, and Number > Normal, whose Style and Orientation rows need more than the card's smallest height.
-    await page.evaluate(() => {
-      const named = (name) => engine.listTools().find((t) => window.toolGuide.chipLabel(t) === name)
-      window.pinBoard.replace([named('Line > Normal'), named('Number > Normal')])
-      engine.setTool(named('Line > Normal'))
-    })
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    // No Reset layout: the change of pins alone resizes the card.
+    await page.evaluate(pinByNameInPage, { names: TALL_PINS, current: 'Line > Normal' })
     const reads = await stepThroughPins(page)
     assert.equal(reads[0].mode.h > MODE_MIN_HEIGHT_PX, true, `Mode is ${reads[0].mode.h}px, more than its smallest height`)
     assert.deepEqual(reads.map(({ mode }) => mode), reads.map(() => ({ ...reads[0].mode, overflow: 0 })), JSON.stringify(reads))
@@ -122,6 +116,33 @@ describe('the side columns end at the desk\'s bottom', () => {
   }
 })
 
+const rowsOfChips = (page) => page.evaluate(() => new Set([...document.querySelectorAll('.ui-pins > *')].map((chip) => chip.offsetTop)).size)
+
+// Pins the tools not yet pinned, one at a time, from a single row of chips until the chips wrap to a second.
+async function pinUntilTwoRows (page) {
+  assert.equal(await rowsOfChips(page), 1, 'the pins start in one row')
+  while (await rowsOfChips(page) < 2) {
+    await page.evaluate(() => {
+      const { toolKey } = window.toolGuide
+      const pinned = new Set(window.pinBoard.snapshot().map(toolKey))
+      window.pinBoard.replace([...window.pinBoard.snapshot(), engine.listTools().find((t) => !pinned.has(toolKey(t)))])
+    })
+  }
+}
+
+const box = ({ x, y, w, h }) => ({ x, y, w, h })
+
+const handleOf = (page, card, handle) => page.getByRole('region', { name: card }).getByTestId(`resize-${handle}`)
+const centre = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 })
+const handlePoint = async (page, card, handle) => centre(await handleOf(page, card, handle).boundingBox())
+const headPoint = async (page, card) => centre(await page.getByRole('region', { name: card }).getByRole('heading', { name: card }).boundingBox())
+async function dragFrom (page, point, dx, dy) {
+  await page.mouse.move(point.x, point.y)
+  await page.mouse.down()
+  await page.mouse.move(point.x + dx, point.y + dy, { steps: 5 })
+  await page.mouse.up()
+}
+
 describe('the Mode card on a tall desk', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
@@ -131,23 +152,25 @@ describe('the Mode card on a tall desk', () => {
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: HUGE } })
     const { page } = opened
     const before = await steady(page, readCardsInPage, CARDS)
-    const rowsOfChips = () => page.evaluate(() => new Set([...document.querySelectorAll('.ui-pins > *')].map((chip) => chip.offsetTop)).size)
-    assert.equal(await rowsOfChips(), 1, 'Icebreaker\'s pins start in one row')
-    // Pins from the tools not yet pinned, one at a time, until the chips wrap.
-    while (await rowsOfChips() < 2) {
-      await page.evaluate(() => {
-        const pinned = window.pinBoard.snapshot()
-        const key = (t) => `${t.mode}/${t.submode}`
-        const others = engine.listTools().filter((t) => !pinned.some((p) => key(p) === key(t)))
-        window.pinBoard.replace([...pinned, ...others.slice(0, 1)])
-      })
-    }
+    await pinUntilTwoRows(page)
     const after = await steady(page, readCardsInPage, CARDS)
     assert.equal(after.Pinned.h > before.Pinned.h, true, `Pinned grew: ${before.Pinned.h} to ${after.Pinned.h}`)
-    const box = ({ x, y, w, h }) => ({ x, y, w, h })
     assert.deepEqual({ Mode: box(after.Mode), Recent: box(after.Recent) }, { Mode: box(before.Mode), Recent: box(before.Recent) })
     const columnMiddle = (before.Pinned.y + before.Recent.bottom) / 2
     assert.equal(Math.abs(before.Mode.y + before.Mode.h / 2 - columnMiddle) <= SLACK_PX, true, `Mode's middle ${before.Mode.y + before.Mode.h / 2}, the column's ${columnMiddle}`)
+  })
+
+  it('sits under where two rows of pins would end on a short desk, so the second row still moves nothing', async () => {
+    const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
+    opened = await openSolvePage(browser(), link, { contextOptions: { viewport: SHORT } })
+    const { page } = opened
+    await page.evaluate(pinByNameInPage, { names: ['Surface'] })
+    const before = await steady(page, readCardsInPage, CARDS)
+    const columnMiddle = (before.Pinned.y + before.Recent.bottom) / 2
+    assert.equal(before.Mode.y + before.Mode.h / 2 > columnMiddle + SLACK_PX, true, `Mode's middle ${before.Mode.y + before.Mode.h / 2} is below the column's ${columnMiddle}`)
+    await pinUntilTwoRows(page)
+    const after = await steady(page, readCardsInPage, CARDS)
+    assert.deepEqual({ Mode: box(after.Mode), Recent: box(after.Recent) }, { Mode: box(before.Mode), Recent: box(before.Recent) })
   })
 })
 
@@ -204,25 +227,11 @@ describe('a double-click on a dragged edge', () => {
   async function open () {
     const link = await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER)
     opened = await openSolvePage(browser(), link, { contextOptions: { viewport: LAPTOP } })
-    await opened.page.evaluate(pinByNameInPage, ICEBREAKER_PINS)
+    await opened.page.evaluate(pinByNameInPage, { names: ICEBREAKER_PINS })
     return opened.page
   }
   const cards = (page) => steady(page, readCardsInPage, CARDS)
-  const handleOf = (page, card, handle) => page.getByRole('region', { name: card }).getByTestId(`resize-${handle}`)
-  async function drag (page, card, handle, dx, dy) {
-    const box = await handleOf(page, card, handle).boundingBox()
-    const [x, y] = [box.x + box.width / 2, box.y + box.height / 2]
-    await page.mouse.move(x, y)
-    await page.mouse.down()
-    await page.mouse.move(x + dx, y + dy, { steps: 5 })
-    await page.mouse.up()
-  }
-  // The tool not pinned whose Mode options are tallest: picked, it makes an automatic Mode card taller.
-  const pickTallestUnpinned = (page) => page.evaluate(() => {
-    const pinned = window.pinBoard.snapshot().map((t) => `${t.mode}/${t.submode}`)
-    const tool = engine.listTools().filter((t) => !pinned.includes(`${t.mode}/${t.submode}`)).sort((a, b) => b.styles.length - a.styles.length)[0]
-    engine.setTool({ mode: tool.mode, submode: tool.submode })
-  })
+  const drag = async (page, card, handle, dx, dy) => dragFrom(page, await handlePoint(page, card, handle), dx, dy)
   const resetLayout = (page) => page.getByRole('button', { name: 'Reset layout' }).click()
 
   it('names itself on every resize handle', async () => {
@@ -242,14 +251,24 @@ describe('a double-click on a dragged edge', () => {
     await drag(page, 'Mode', 'bottom', 0, 40)
     const dragged = (await cards(page)).Mode
     assert.equal(Math.abs(dragged.h - (auto.h + 40)) <= SLACK_PX, true, `dragged from ${auto.h} to ${dragged.h}`)
-    await pickTallestUnpinned(page)
+    // Number > Normal, not pinned, needs a taller card than the dragged one.
+    await page.evaluate(pinByNameInPage, { names: ICEBREAKER_PINS, current: 'Number > Normal' })
     assert.equal((await cards(page)).Mode.h, dragged.h, 'a hand-set height ignores the current tool')
     await handleOf(page, 'Mode', 'bottom').dblclick()
     const fitted = (await cards(page)).Mode
+    assert.equal(fitted.h > dragged.h, true, `automatic, Mode follows Number to ${fitted.h}px, past the dragged ${dragged.h}px`)
     await resetLayout(page)
-    const reset = (await cards(page)).Mode
-    assert.deepEqual(fitted, reset, 'the double-click gives the height Reset layout gives')
-    assert.notEqual(fitted.h, dragged.h)
+    assert.deepEqual(fitted, (await cards(page)).Mode, 'the double-click gives the height Reset layout gives')
+  })
+
+  it('returns a card dragged by its header to its fitted place once no size of it is the solver\'s', async () => {
+    const page = await open()
+    await dragFrom(page, await headPoint(page, 'Mode'), -20, 30)
+    await drag(page, 'Mode', 'bottom', 0, 40)
+    await handleOf(page, 'Mode', 'bottom').dblclick()
+    const fitted = await cards(page)
+    await resetLayout(page)
+    assert.deepEqual(fitted, await cards(page))
   })
 
   it('returns only the axis of the edge: a width set at the corner stays', async () => {
@@ -269,5 +288,36 @@ describe('a double-click on a dragged edge', () => {
     await handleOf(page, 'Mouse', 'top').dblclick()
     const read = await cards(page)
     assert.deepEqual({ Mouse: read.Mouse, Rules: read.Rules }, { Mouse: auto.Mouse, Rules: auto.Rules })
+  })
+})
+
+describe('a layout the solver changed', () => {
+  let opened
+  afterEach(async () => { await opened?.context.close() })
+
+  it('keeps the side columns down to the desk\'s bottom when the window grows taller', async () => {
+    opened = await openSolvePage(browser(), await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER), { contextOptions: { viewport: FULL_HD } })
+    const { page } = opened
+    await steady(page, readCardsInPage, CARDS)
+    // Only the Board card's width is the solver's.
+    await dragFrom(page, await handlePoint(page, 'Board', 'right'), -40, 0)
+    await page.setViewportSize({ width: FULL_HD.width, height: 1300 })
+    const read = await steady(page, readCardsInPage, CARDS)
+    const bottom = read.Board.bottom
+    assert.deepEqual({ Mouse: read.Mouse.bottom, Recent: read.Recent.bottom }, { Mouse: bottom, Recent: bottom })
+    assert.equal(read.Mouse.y - read.Rules.bottom <= CARD_GAP_PX + SLACK_PX, true, `Rules ends at ${read.Rules.bottom}, Mouse starts at ${read.Mouse.y}`)
+    assert.equal(bottom > 1200, true, `the Board card follows the window down to ${bottom}`)
+  })
+
+  it('sizes a Mode card placed on another puzzle for this puzzle\'s pins', async () => {
+    opened = await openSolvePage(browser(), await linkFromNewBoard(browser(), solveLinkInPage, ICEBREAKER), { contextOptions: { viewport: LAPTOP } })
+    await dragFrom(opened.page, await headPoint(opened.page, 'Mode'), -20, 20)
+    // Another puzzle in the same browser, which keeps the Mode card's place.
+    const page = await opened.context.newPage()
+    await page.goto(opened.page.url().replace(/#.*/, '') + await linkFromNewBoard(browser(), solveLinkInPage, { ...ICEBREAKER, size: 8 }))
+    await waitForDesk(page)
+    await page.evaluate(pinByNameInPage, { names: TALL_PINS, current: 'Number > Normal' })
+    const read = await steady(page, readCardsInPage, CARDS)
+    assert.deepEqual({ taller: read.Mode.h > MODE_MIN_HEIGHT_PX, overflow: read.Mode.overflow }, { taller: true, overflow: 0 }, JSON.stringify(read.Mode))
   })
 })

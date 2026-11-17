@@ -252,7 +252,7 @@
     // once it was dragged, or by the fitted layout: where it sat, in a desk of `vw` x `vh`). A card with a place keeps its
     // gap to the nearer edges when the desk changes size, so zooming the browser out and back in returns the same layout.
     // `fitted` marks an entry the fitted layout wrote. Otherwise `hw` and `hh` are 1 for the axes the solver resized and
-    // `placed` 1 once the solver dragged the card, and `aw` is the width the fitted layout last gave the card.
+    // `placed` 1 once the solver dragged the card by its header.
     // `puzzle` beside the cards names the puzzle the sizes were set on (`engine.getPuzzleId()`).
     function readLayout() {
         let saved;
@@ -314,10 +314,6 @@
             hh: Number(resized.includes('h') || isByHand(before, 'hh')),
             placed: Number(placed || isByHand(before, 'placed'))
         };
-        const automaticWidth = before?.fitted ? before.w : before?.aw;
-        if (automaticWidth !== undefined) {
-            entry.aw = automaticWidth;
-        }
         if (keepsHeight(id, node)) {
             entry.h = node.offsetHeight;
         }
@@ -470,7 +466,7 @@
         isFitted = false;
         shownIds(cards, Object.keys(places)).forEach((id) => {
             const { fitted, ...size } = saved[id];
-            saved[id] = { ...size, ...places[id] };
+            saved[id] = { ...size, ...places[id], hw: 0, hh: 0, placed: 1 };
             keepInside(id, cards[id].node, desk.clientWidth, desk.clientHeight);
         });
         repairOverlaps(desk, cards, new Map());
@@ -598,41 +594,59 @@
         }
     }
 
+    // A layout the solver changed, once the tools or the window changed: each column the solver left alone is laid out
+    // again, and every other card whose height is automatic takes it where it sits (#252).
+    function fitAutomatic(desk, cards) {
+        const refitted = [...(refitLeftColumn(desk, cards) ? LEFT_COLUMN : []), ...(refitRightColumn(desk, cards) ? RIGHT_COLUMN : [])];
+        shownIds(cards).filter((id) => !refitted.includes(id) && saved[id] && !isByHand(saved[id], 'hh')).forEach((id) => {
+            setAutomaticHeight(desk, cards, id);
+            if (saved[id].fitted) {
+                keepFitted(desk, cards, [id]);
+            } else {
+                saveCard(desk, id, cards[id].node);
+            }
+        });
+    }
+
+    // Gives a card the axes and place the solver set by hand in `kept`, its saved entry, over the fitted layout's; the
+    // rest stay as fitted.
+    function putByHand(desk, cards, id, kept) {
+        const { node } = cards[id];
+        if (isByHand(kept, 'hw')) {
+            node.style.width = `${kept.w}px`;
+        }
+        if (isByHand(kept, 'hh') && kept.h !== undefined) {
+            setHeight(node, kept.h);
+        }
+        if (isByHand(kept, 'placed')) {
+            saved[id] = kept;
+        } else {
+            saved[id] = { ...kept, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight };
+        }
+        keepInside(id, node, desk.clientWidth, desk.clientHeight);
+        saveCard(desk, id, node);
+    }
+
     // A double-click on a resize handle makes the axes it resizes automatic again (#252), the way Figma's "Hug contents"
-    // returns (research/resize-back-to-auto-2026-11.md). Once no card keeps a size or place the solver set, the desk is
-    // fitted again, as on a fresh load; until then the card takes its automatic size where it sits.
+    // returns (research/resize-back-to-auto-2026-11.md); once the card has no size the solver set, its place goes back
+    // too. The desk is fitted afresh and only what the solver still holds by hand is put back over it, so a freed axis
+    // takes what a fresh load would give it; with nothing held, the kept layout goes, as on Reset layout.
     function fitAxes(desk, cards, id, axes) {
         const entry = saved[id];
         if (!entry || entry.fitted) {
             return;
         }
-        saved[id] = {
-            ...entry,
-            hw: Number(isByHand(entry, 'hw') && !axes.includes('w')),
-            hh: Number(isByHand(entry, 'hh') && !axes.includes('h')),
-            placed: Number(isByHand(entry, 'placed'))
-        };
-        if (Object.values(saved).every((other) => isAutomatic(other))) {
-            startFit();
+        const hw = isByHand(entry, 'hw') && !axes.includes('w');
+        const hh = isByHand(entry, 'hh') && !axes.includes('h');
+        saved[id] = { ...entry, hw: Number(hw), hh: Number(hh), placed: Number(isByHand(entry, 'placed') && (hw || hh)) };
+        const byHand = Object.entries(saved).filter(([cardId, other]) => isShown(cards, cardId) && !isAutomatic(other));
+        startFit();
+        layout({ desk, cards });
+        if (!byHand.length) {
             localStorage.removeItem(LAYOUT_KEY);
-            layout({ desk, cards });
             return;
         }
-        const { node } = cards[id];
-        if (axes.includes('w') && entry.aw !== undefined) {
-            node.style.width = `${entry.aw}px`;
-        }
-        if (axes.includes('h')) {
-            setAutomaticHeight(desk, cards, id);
-        }
-        keepInside(id, node, desk.clientWidth, desk.clientHeight);
-        saveCard(desk, id, node);
-        if (isAutomatic(saved[id])) {
-            keepFitted(desk, cards, [id]);
-            refitLeftColumn(desk, cards);
-            refitRightColumn(desk, cards);
-            writeLayout();
-        }
+        byHand.forEach(([cardId, kept]) => putByHand(desk, cards, cardId, kept));
     }
 
     // The layout that suits the puzzle on screen (#156). The cap on the Board card leaves the left column its minimum and the
@@ -717,11 +731,8 @@
         if (isDragging) {
             return;
         }
-        if (RIGHT_COLUMN.every((id) => saved[id]?.fitted)) {
-            const pins = cards.pins.node;
-            placeRightColumn(cards, pins.offsetLeft, pins.offsetWidth, desk.clientHeight - 2 * TOP_MARGIN_PX);
-            // keepInside reads each card's kept place, so the new one is kept first and again once it has been clamped.
-            keepFitted(desk, cards, RIGHT_COLUMN);
+        if (refitRightColumn(desk, cards)) {
+            // keepInside reads each card's kept place, which the refit kept, so the clamped place is kept again.
             RIGHT_COLUMN.forEach((id) => keepInside(id, cards[id].node, desk.clientWidth, desk.clientHeight));
             keepFitted(desk, cards, RIGHT_COLUMN);
         } else if (RIGHT_COLUMN.every((id) => !isMoved(id))) {
@@ -1084,6 +1095,9 @@
             const before = overlappingPairs(desk.cards);
             relayout();
             repairOverlaps(desk.desk, desk.cards, before);
+            if (!isFitted) {
+                fitAutomatic(desk.desk, desk.cards);
+            }
         });
         makeMovable(desk.bar, desk.desk, desk.cards);
         watchHeading(desk.bar);
@@ -1106,20 +1120,7 @@
                 refit();
                 return;
             }
-            const refitted = { left: refitLeftColumn(desk.desk, desk.cards), right: refitRightColumn(desk.desk, desk.cards) };
-            // Mode or Mouse with an automatic height, in a column the solver changed, takes its new height where it sits.
-            [['mode', refitted.right], ['mouse', refitted.left]].forEach(([id, isRefitted]) => {
-                const entry = saved[id];
-                if (isRefitted || !isShown(desk.cards, id) || !entry || isByHand(entry, 'hh')) {
-                    return;
-                }
-                setAutomaticHeight(desk.desk, desk.cards, id);
-                if (entry.fitted) {
-                    keepFitted(desk.desk, desk.cards, [id]);
-                } else {
-                    saveCard(desk.desk, id, desk.cards[id].node);
-                }
-            });
+            fitAutomatic(desk.desk, desk.cards);
         };
         const isMouseClosed = () => desk.cards.mouse.node.hidden;
         // Closing or opening Mouse refits a layout nobody has changed, so Rules takes the column or gives Mouse its split back.

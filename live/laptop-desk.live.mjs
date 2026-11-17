@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
-import { ICEBREAKER, solveLinkInPage, steady } from './desk-puzzles.mjs'
+import { CARD_GAP_PX, ICEBREAKER, MOUSE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, solveLinkInPage, steady } from './desk-puzzles.mjs'
 import { afterChange, linkFromNewBoard, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -14,24 +14,17 @@ const LAPTOPS = [{ width: 1280, height: 720 }, { width: 1366, height: 768 }, { w
 const WIDE = { width: 1920, height: 1080 }
 const HUGE = { width: 2560, height: 1440 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-// desk.js's margins: the top one above each column, the gap between two cards; and desk.css's --ui-bar-padding.
+// desk.js's top margin above each column, and desk.css's --ui-bar-padding.
 const TOP_MARGIN_PX = 12
-const CARD_GAP_PX = 10
 const BAR_PADDING_PX = 14
-// The Mouse card's smallest height (desk.js's MIN_SIZE), which Rules leaves below itself.
-const MOUSE_MIN_HEIGHT_PX = 140
 // The Board card's smallest width (desk.js's MIN_SIZE).
 const MIN_BOARD_WIDTH_PX = 240
 // The tallest a card's header may be, controls and all.
 const HEAD_MAX_PX = 30
-// Box edges may differ by rounding.
-const SLACK_PX = 1
 // desk.js's EDGE_MARGIN_PX: the least room a dragged card keeps to the desk's edges.
 const EDGE_MARGIN_PX = 8
 // The share of the left column Rules stops at when Mouse needs the rest (Chris, 2026-11-17).
 const RULES_SHARE = 0.55
-// desk.js's Mouse body slack for its borders, and rounding.
-const MOUSE_SLACK_PX = 3
 
 // A title too long for the bar's left end beside full-size buttons at 1280 wide, short enough for it beside smaller ones.
 const LONG_TITLE = { ...ICEBREAKER, title: 'Icebreaker (Nurikabe + Icelom), longer title' }
@@ -588,12 +581,12 @@ describe('the desk holds together', () => {
     assert.equal((await deskSettled(page)).overflowY.Rules, 0)
   })
 
-  // The Mouse card's room below the lowest last row of any tool of the puzzle's Tab set and pins, and its body's padding.
+  // The Mouse card's room below the lowest last row of any pinned tool, and its body's padding.
   const mouseSpare = (page) => page.evaluate(async () => {
     const body = document.querySelector('section[aria-label="Mouse"] .ui-body')
     const frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
     let lowest = 0
-    for (const tool of [...engine.tabSet(), ...window.pinBoard.snapshot()]) {
+    for (const tool of window.pinBoard.snapshot()) {
       engine.setTool({ mode: tool.mode, submode: tool.submode })
       await frames()
       lowest = Math.max(lowest, body.querySelector('.ui-mrows').lastElementChild.getBoundingClientRect().bottom)
@@ -621,7 +614,7 @@ describe('the desk holds together', () => {
     assert.equal(spare <= padding + MOUSE_SLACK_PX, true, `Mouse has ${spare}px below the tallest tool's last row`)
   })
 
-  it('sizes Mouse for the pins as well as the Tab set on a fresh load, the same as after a refit', async () => {
+  it('sizes Mouse for a pin added before a reload, the same as after a refit', async () => {
     const page = await open(LAPTOPS[1], LONG_LINE_RULES)
     // The page opens on Surface, outside the pins; on the Line pin, Mouse is sized for Line alone.
     await page.keyboard.press('Tab')
