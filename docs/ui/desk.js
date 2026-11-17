@@ -428,10 +428,10 @@
             leftWidth = neededHeight(low) <= columnHeight ? low : high;
         }
         // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
-        // A link with no rules leaves Rules one line tall, under the usual minimum; with Mouse closed, Rules takes the whole column.
-        const rulesFloor = isRulesEmpty(cards.rules.node) ? 0 : MIN_SIZE.rules[1];
-        const rulesHeight = hasMouse ?
-            clamp(rulesCardHeight(cards.rules, leftWidth), rulesFloor, columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
+        // A link with no rules leaves Rules one line tall. Otherwise, with Mouse closed, Rules takes the whole column.
+        const rulesNeed = rulesCardHeight(cards.rules, leftWidth);
+        const rulesHeight = isRulesEmpty(cards.rules.node) ? rulesNeed : hasMouse ?
+            clamp(rulesNeed, MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
 
         // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
         const spare = width - boardWidth - leftWidth - rightWidth;
