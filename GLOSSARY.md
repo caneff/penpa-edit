@@ -21,6 +21,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
 - **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
+- **Board coordinates**: the Settings switch that labels the board's columns and rows in a gutter outside the canvas, so a solver can name a place
+  in chat. A square-cell grid gets its own row and column numbers; every other shape gets reference bands.
+- **Reference band**: one of the equal strips, about 1.5 cells wide, that the board coordinates cut a non-square grid's bounding box into: letters
+  A, B, C... across the top, numbers 1, 2, 3... down the left. Independent of the puzzle's geometry, so "the cell at C4" is a place, not a cell id.
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
 - **Tool**: a mode with one of its sub-modes and, where it has them, one of its styles; what the solver picks and pins.
 - **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board

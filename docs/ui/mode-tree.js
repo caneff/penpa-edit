@@ -33,11 +33,13 @@
                     ancestors.push(at.label);
                 }
                 made.oldNames = [...tool.labels, tool.mode, /^\d*$/.test(tool.submode ?? '') ? null : tool.submode].filter(Boolean);
-                const fields = [...ancestors, label, place.name, place.description, tool.modeName, ...made.oldNames];
+                const fields = [...ancestors, label, place.plainName, place.description, tool.modeName, ...made.oldNames];
                 made.text = fields.join(' ').toLowerCase();
                 made.looseText = looseText(fields);
-                made.labelText = [...ancestors, label].join(' ').toLowerCase();
-                made.looseLabelText = looseText([...ancestors, label]);
+                // The plain name ranks as a name too, so "shade" still makes Surface the Enter pick.
+                const names = [...ancestors, label, place.plainName];
+                made.labelText = names.join(' ').toLowerCase();
+                made.looseLabelText = looseText(names);
             }
             parent?.children.push(made);
             return made;

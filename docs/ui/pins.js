@@ -5,8 +5,8 @@
 (function () {
     'use strict';
 
-    const { chipLabel, toolKey } = window.toolGuide;
-    const { el, luminance, onDeskReady } = window.uiKit;
+    const { chipLabel, tooltipAttrs, toolKey } = window.toolGuide;
+    const { el, iconButton, luminance, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const STORAGE_PREFIX = 'chinstrap.pins:';
@@ -25,6 +25,9 @@
     const LIGHTNESS_STEPS = 20;
     const NEUTRAL_COLOUR = 'var(--ui-neutral-colour)';
     const BUTTON = 'button, wa-button';
+    // A pin seen from the side: the head and the needle.
+    const PIN_SHAPE = '<path d="M5.5 1.5h5l-.8 4.2 2.3 2.8H4l2.3-2.8z"/><path d="M8 8.5v6"/>';
+    const UNPIN_ALL_ICON = `${PIN_SHAPE}<path d="M2 2l12 12"/>`;
     // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
         'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
@@ -180,6 +183,11 @@
             return cards.pins.node.offsetHeight + Math.max(0, 2 - rows) * rowHeight;
         };
 
+        // No confirm: "Puzzle defaults" or a saved preset brings pins back.
+        const unpinAll = iconButton(UNPIN_ALL_ICON, 'Unpin all', () => window.pinBoard.replace([]));
+        unpinAll.node.classList.add('ui-unpin-all');
+        cards.pins.head.append(unpinAll.node);
+
         // The chip being dragged, for the drop to move.
         let dragged = null;
 
@@ -200,7 +208,7 @@
             const label = chipLabel(toolOf(pin));
             const shortcut = SHORTCUT_LABELS[slot];
             // The space is not drawn (flex items drop it); it keeps the chip's text and name readable as "Z Line > Normal".
-            const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current) },
+            const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current), ...tooltipAttrs(toolOf(pin)) },
                 [...(shortcut ? [el('span', { class: 'ui-chip-num' }, [shortcut]), ' '] : []), label]);
             const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}`, title: `Unpin ${label}` });
             unpin.innerHTML = REMOVE_ICON;
@@ -252,7 +260,7 @@
         }
 
         const pinIcon = (filled) => '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" stroke="currentColor" stroke-width="1.5" ' +
-            `stroke-linejoin="round" stroke-linecap="round" fill="${filled ? 'currentColor' : 'none'}"><path d="M5.5 1.5h5l-.8 4.2 2.3 2.8H4l2.3-2.8z"/><path d="M8 8.5v6" fill="none"/></svg>`;
+            `stroke-linejoin="round" stroke-linecap="round" fill="${filled ? 'currentColor' : 'none'}">${PIN_SHAPE}</svg>`;
 
         // A pin icon button for whatever tool `toolNow()` returns: pressed while that tool is pinned, hidden for a tool the link
         // does not list. `sync()` redraws it, and only touches the DOM when what it shows changed: a write to the DOM makes the
@@ -347,6 +355,7 @@
                 return;
             }
             drawn = signature;
+            unpinAll.node.disabled = !pins.length;
             pinListeners.forEach((listener) => listener());
             strip.replaceChildren(...(pins.length ? pins.map((pin, i) => chip(pin, i, i === index)) : [el('p', { class: 'ui-pins-empty' }, [EMPTY_NOTE_TEXT])]));
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
