@@ -178,7 +178,8 @@
     // across two fields. A word of only symbols ("×") squashes to nothing and stays as typed.
     const squash = (text) => text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     const looseText = (fields) => fields.map(squash).join(' ');
-    const searchWords = (text) => text.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    // "center" is the American spelling of the "centre" the labels use.
+    const searchWords = (text) => text.trim().toLowerCase().replace(/center/g, 'centre').split(/\s+/).filter(Boolean);
     const looseWords = (text) => searchWords(text).map((word) => squash(word) || word);
     const matchesSearch = (haystack, words) => words.every((word) => haystack.includes(word));
 
