@@ -136,6 +136,14 @@
             save.node.blur();
         });
         save.node.setAttribute('title', SAVE_LABEL);
+        // As the Mode search's Escape: the text goes and the board takes the keyboard back. The blur first: the field's `change`
+        // on blur writes the typed text back into `value`.
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                nameInput.blur();
+                nameInput.value = '';
+            }
+        });
         // The line offering to undo the last delete, until the next delete or save.
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
 
