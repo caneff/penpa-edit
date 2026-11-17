@@ -142,9 +142,6 @@
             resetLayout();
         });
 
-        const resetPins = el('wa-button', { size: 's' }, ['Reset pins to the puzzle\'s default pins']);
-        resetPins.addEventListener('click', () => window.pinBoard.reseed());
-
         const presets = el('wa-select', { label: 'Your presets', size: 's', placeholder: 'None saved' });
         const deletePreset = el('wa-button', { size: 's' }, ['Delete preset']);
         function showPresets() {
@@ -163,7 +160,6 @@
             el('div', { class: 'ui-setting' }, [showMouse]),
             el('div', { class: 'ui-setting' }, [resetLayoutButton])]);
         const pinsGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['Pins']),
-            el('div', { class: 'ui-setting' }, [resetPins]),
             el('div', { class: 'ui-setting' }, [presets, deletePreset])]);
 
         const aboutGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['About']),

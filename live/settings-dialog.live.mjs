@@ -9,6 +9,7 @@ import {
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
+import { choosePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -797,15 +798,14 @@ describe('the desk\'s own settings in the dialog', () => {
     }
   })
 
-  it('resets the pins to the link\'s Tab set', async () => {
+  it('the Puzzle defaults preset resets the pins to the link\'s Tab set', async () => {
     const { context, page } = await openSolve()
     try {
       assert.equal(await settle(async () => (await pinNames(page)).length > 1, true), true, 'the Tab set seeds two pins or more')
       const seeded = await pinNames(page)
       await page.getByRole('button', { name: seeded[0] }).click()
       assert.deepEqual(await settle(() => pinNames(page), seeded.slice(1)), seeded.slice(1), 'a pin is gone')
-      const dialog = await openDialog(page)
-      await pinsGroup(dialog).getByRole('button', { name: 'Reset pins to the puzzle\'s default pins' }).click()
+      await choosePreset(page, 'Puzzle defaults')
       assert.deepEqual(await settle(() => pinNames(page), seeded), seeded)
     } finally {
       await context.close()
