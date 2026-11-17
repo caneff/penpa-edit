@@ -10,8 +10,8 @@
     const PENPA_CELL_SIZE_MAX = 90;
     const CELL_SIZE_RANGE = Object.freeze({ min: 12, max: 240 });
 
-    // The translucent grey a selected cell is filled with on this page: it darkens a white board a little and lightens a dark one a
-    // little, and has no hue, so it never reads like the conflict pink (#242).
+    // The translucent grey a selected cell is filled with on this page: it darkens the white board a little and has no hue, so it
+    // never reads like the conflict pink (#242). Penpa+ paints the board white in both themes.
     // MVP gap: draw_selection fills with `Puzzle.prototype.selection_fill` when it is set (a caneff: line in class_p.js).
     Puzzle.prototype.selection_fill = 'rgba(110, 110, 110, 0.12)';
 

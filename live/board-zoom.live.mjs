@@ -145,34 +145,38 @@ describe('a selected cell', () => {
   // A faint grey: the fill moves a channel of the cell's pixel by at least MIN and no channel by more than MAX.
   const FILL_MIN_SHIFT = 6
   const FILL_MAX_SHIFT = 40
+  // The most the three channels of the filled pixel may differ from each other: grey has no hue.
+  const FILL_MAX_HUE = 2
+  // Where the sampled pixel lies on the line from the cell's first corner (0) to its centre (1): inside the outline and its glow.
+  const SAMPLE_TOWARD_CENTRE = 0.6
 
   for (const theme of ['light', 'dark']) {
     it(`has an extremely light grey fill in the ${theme} theme`, async () => {
       const { context, page } = await openSudoku()
       try {
-        // The cell's top-left corner pixel, just inside its edge, before and after it is selected.
+        // A pixel of the first cell inside its outline, read before and after the cell is selected.
         await page.addScriptTag({ content: `window.__boardCanvas = ${boardCanvasInPage}` })
-        const corner = () => page.evaluate(() => {
+        const corner = () => page.evaluate((toward) => {
           const canvas = window.__boardCanvas()
           const index = pu.centerlist[0]
           const point = pu.point[pu.point[index].surround[0]]
           const scale = canvas.width / canvas.getBoundingClientRect().width
           const cell = pu.point[index]
-          const x = Math.round((point.x * 0.4 + cell.x * 0.6) * scale)
-          const y = Math.round((point.y * 0.4 + cell.y * 0.6) * scale)
+          const x = Math.round((point.x * (1 - toward) + cell.x * toward) * scale)
+          const y = Math.round((point.y * (1 - toward) + cell.y * toward) * scale)
           return [...canvas.getContext('2d').getImageData(x, y, 1, 1).data]
-        })
+        }, SAMPLE_TOWARD_CENTRE)
         await page.evaluate((name) => { engine.setTheme(name); engine.setTool({ mode: 'sudoku', submode: '1' }); pu.selection = []; pu.redraw() }, theme)
-        await settle(() => page.evaluate(() => document.documentElement.classList.contains('wa-dark')), theme === 'dark')
+        assert.equal(await settle(() => page.evaluate(() => document.documentElement.classList.contains('wa-dark')), theme === 'dark'), theme === 'dark', `the page is in the ${theme} theme`)
         await page.evaluate(() => { pu.redraw() })
         const before = await corner()
         await page.evaluate(() => { pu.selection = [pu.centerlist[0]]; pu.cursol = pu.centerlist[0]; pu.redraw() })
         const after = await corner()
-        // The board's paper is white in both themes, so the fill only darkens it, a little and with no hue.
+        // Penpa+ paints the board's paper white in both themes, so the fill only darkens it, a little and with no hue.
         const shift = after.slice(0, 3).map((c, i) => c - before[i])
         assert.ok(Math.min(...shift) <= -FILL_MIN_SHIFT, `the fill shows (shift ${shift})`)
         assert.ok(Math.max(...shift.map(Math.abs)) <= FILL_MAX_SHIFT, `the fill stays faint (shift ${shift})`)
-        assert.ok(Math.max(...after.slice(0, 3)) - Math.min(...after.slice(0, 3)) <= 2, `the fill is grey, not blue or pink (${after})`)
+        assert.ok(Math.max(...after.slice(0, 3)) - Math.min(...after.slice(0, 3)) <= FILL_MAX_HUE, `the fill is grey, not blue or pink (${after})`)
       } finally {
         await context.close()
       }
