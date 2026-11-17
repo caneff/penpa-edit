@@ -1,5 +1,5 @@
 // What each tool is for, in words: the group the Mode card files it under, its picker name and description, and what the
-// mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, and `live/mouse-card.live.mjs` performs every gesture they name on the board. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
+// mouse does with it. The Mouse rows are `research/mouse-card-wording-2026-11.md`, each checked against the board by performing its gesture. Plain data and text, so it needs no `engine`. A tool the table does not know falls back to the engine's name.
 (function () {
     'use strict';
 
@@ -177,19 +177,21 @@
     const matchesSearch = (haystack, words) => words.every((word) => haystack.includes(word));
 
     // Left click, Right click, Drag and extra rows as [gesture, effect], for each tool. The words are
-    // `research/mouse-card-wording-2026-11.md`, every row checked on the board by `live/mouse-card.live.mjs`; a click that cycles reads `A → B → clear`.
+    // `research/mouse-card-wording-2026-11.md`, every row checked on the board; a click that cycles reads `A → B → clear`.
     const CYCLE_END = 'clear';
     const ERASE = 'starting on it: erase';
     // Rows the number, digit and colour-selection tools share: they select cells, and a digit types into the selection.
     const SQUARE_ONLY = 'square grids only';
+    const REMOVE_DRAG = ['Ctrl / Shift + drag from a selected cell', 'remove cells'];
     const selectRows = (what, digit, double) => [
         ['Ctrl / Shift + click', 'add or remove the cell'],
         ['Alt + drag', `select a rectangle (${SQUARE_ONLY})`],
         ['Double click', `select every cell with the same ${what}${double ? `; ${double}` : ''}`],
         ['Digit', digit]
     ];
-    // `double` adds what a double click does on a cell holding this tool's own marks, when they are not what it matches.
-    const selecting = (what, digit, extra = [], after = [], double) => ({
+    // `extra` rows go before the shared ones and `after` rows after them; `double` adds what a double click does on a cell
+    // holding this tool's own marks, when they are not what it matches.
+    const selecting = (what, digit, { extra = [], after = [], double } = {}) => ({
         left: 'select the cell (drops the rest)', right: NOTHING, drag: 'select many cells', more: [...extra, ...selectRows(what, digit, double), ...after]
     });
     const line = (drag, more = []) => ({ left: NOTHING, right: NOTHING, drag: `${drag}; ${ERASE}`, more });
@@ -212,8 +214,7 @@
             more: [['Right drag', '2nd colour on many cells (starting on it: clear many)'],
                 ['Alt + drag', `paint a rectangle (starting on the colour: clear it; ${SQUARE_ONLY})`],
                 ['Alt + right drag', `rectangle in the 2nd colour (${SQUARE_ONLY})`], ['Digit', 'pick colour n']] },
-        'multicolor/': selecting('colour', 'add or remove colour n in the selected cells',
-            [['Ctrl / Shift + drag from a selected cell', 'remove cells']]),
+        'multicolor/': selecting('colour', 'add or remove colour n in the selected cells', { extra: [REMOVE_DRAG] }),
         'combi/blpo': { left: `shade → dot · → ${CYCLE_END}`, right: `dot · → shade → ${CYCLE_END}`,
             drag: 'repeat the first cell\'s change on each cell (shade, dot or clear)', more: [] },
         'combi/shaka': { left: `dot · → ${CYCLE_END}`, right: NOTHING,
@@ -260,17 +261,16 @@
         'number/10': selecting('number', 'large number in the selected cells'),
         'number/6': selecting('number', 'medium number in the selected cells'),
         'number/5': selecting('number', 'small number in the selected cells'),
-        'number/7': selecting('number', 'add or remove that candidate in the selected cells', [], [], 'on candidates: just that cell'),
+        'number/7': selecting('number', 'add or remove that candidate in the selected cells', { double: 'on candidates: just that cell' }),
         'number/8': selecting('number', 'add it to the long number in the selected cells'),
         'number/3': { left: 'cursor to the nearest cell corner spot; selects the cell', right: 'cursor to the nearest cell corner spot',
             drag: AS_A_CLICK, more: [['Digit', 'number at the cursor']] },
         'number/9': { left: 'cursor to the nearest cell side spot; selects the cell', right: 'cursor to the nearest cell side spot',
             drag: AS_A_CLICK, more: [['Digit', 'number at the cursor']] },
-        'sudoku/1': selecting('digit', 'digit in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']], [
-            ['Shift held', `corner marks (${SQUARE_ONLY})`], ['Ctrl + digit', `${NOTHING} (the browser keeps it)`]]),
-        'sudoku/2': selecting('digit', 'corner mark in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']], [],
-            'on corner marks only: clear the selection'),
-        'sudoku/3': selecting('digit', 'centre mark in the selected cells', [['Ctrl / Shift + drag from a selected cell', 'remove cells']]),
+        'sudoku/1': selecting('digit', 'digit in the selected cells', { extra: [REMOVE_DRAG], after: [
+            ['Shift held', `corner marks (${SQUARE_ONLY})`], ['Ctrl + digit', `${NOTHING} (the browser keeps it)`]] }),
+        'sudoku/2': selecting('digit', 'corner mark in the selected cells', { extra: [REMOVE_DRAG], double: 'on corner marks only: clear the selection' }),
+        'sudoku/3': selecting('digit', 'centre mark in the selected cells', { extra: [REMOVE_DRAG] }),
         'combi/numfl': flick('5', ['a digit', 'laid out like a phone keypad around 5 (↖1 ↑2 ↗3 ←4 →6 ↙7 ↓8 ↘9)']),
         'combi/alfl': flick('E', ['a letter', 'around E (↖A ↑B ↗C ←D →F ↙G ↓H ↘ -)']),
 
@@ -311,7 +311,7 @@
     const SHAPE_ROWS = {
         variants: { left: `the shape's first variant → ${CYCLE_END}; on another variant: the first variant`, right: 'cursor to the cell',
             drag: AS_A_CLICK, more: [['Digit', `shape variant n at the cursor → ${CYCLE_END} (same digit)`]] },
-        onOff: { left: 'cursor to the cell', right: 'cursor to the cell', drag: NOTHING,
+        onOff: { left: 'cursor to the cell', right: 'cursor to the cell', drag: AS_A_CLICK,
             more: [['Digit', 'add or remove part n of the shape at the cursor']] }
     };
 

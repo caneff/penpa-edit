@@ -69,8 +69,9 @@ describe('engine.listTools', () => {
       return words.filter((w) => /loop/i.test(w ?? '')).map((w) => `${t.mode}/${t.submode}: ${w}`)
     }))
     assert.deepEqual(loops, [])
-    const names = await opened.page.evaluate(() => engine.listTools().filter((t) => ['linex', 'lineox', 'yajilin'].includes(t.submode)).map((t) => t.submodeName))
-    assert.deepEqual(names, ['Line + edge ×', 'Line + cell ○ ×', 'Shade + line'])
+    const names = await opened.page.evaluate(() => Object.fromEntries(engine.listTools()
+      .filter((t) => ['linex', 'lineox', 'yajilin', 'angleloop'].includes(t.submode)).map((t) => [t.submode, toolGuide.describeTool(t).name])))
+    assert.deepEqual(names, { linex: 'Line + edge ×', lineox: 'Line + cell ○ ×', yajilin: 'Shade + line', angleloop: 'Angle loop' })
   })
 })
 
@@ -538,7 +539,25 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'symbol', submode: 'circle_L' }, 'Shape · Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
       ['Right click', 'cursor to the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Shape · Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
-      ['Drag', '—'], ['Digit', 'add or remove part n of the shape at the cursor']]]
+      ['Drag', 'as a click where it starts'], ['Digit', 'add or remove part n of the shape at the cursor']]],
+    // The rows past Left click, Right click and Drag that #186 corrected, which the agreed table's check does not read.
+    [{ mode: 'combi', submode: 'linex' }, 'Composite · Line + edge × · green', [['Left click', '—'], ['Right click', '× on the edge → clear'],
+      ['Drag', 'line through cell centres; starting on it: erase'], ['Right drag from an edge', '× on each edge it passes (starting on a ×: clear them)']]],
+    [{ mode: 'combi', submode: 'linedir' }, 'Composite · Line + direction marks · green', [['Left click', '—'],
+      ['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on it: erase'],
+      ['Right drag from a cell toward an edge', 'arrowhead on that edge pointing that way → clear (same way)'],
+      ['Right drag from an edge', '× on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes)']]],
+    [{ mode: 'number', submode: '7' }, 'Number · candidates · green', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+      ['Drag', 'select many cells'], ['Ctrl / Shift + click', 'add or remove the cell'], ['Alt + drag', 'select a rectangle (square grids only)'],
+      ['Double click', 'select every cell with the same number; on candidates: just that cell'], ['Digit', 'add or remove that candidate in the selected cells']]],
+    [{ mode: 'sudoku', submode: '1' }, 'Sudoku · normal · dark blue', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+      ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
+      ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit'],
+      ['Digit', 'digit in the selected cells'], ['Shift held', 'corner marks (square grids only)'], ['Ctrl + digit', '— (the browser keeps it)']]],
+    [{ mode: 'sudoku', submode: '2' }, 'Sudoku · corner · dark blue', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+      ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
+      ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit; on corner marks only: clear the selection'],
+      ['Digit', 'corner mark in the selected cells']]]
   ]
 
   for (const [tool, name, expected] of WORDING) {

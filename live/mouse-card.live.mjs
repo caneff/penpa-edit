@@ -1,13 +1,15 @@
 // The Mouse card says true things (#186): for every tool `solve.html` offers, each gesture a row of the card names is
 // performed for real (Playwright's mouse and keyboard) on a cleared board, and the board's change is checked against what
-// the row says. A row that names no change (`—`) checks that nothing changed. The change is read as Penpa+ would save it
-// (`readEngineState`, defined by recorder.js), written one entry per line as `layer@kind=value`: `kind` names the board
+// the row says. A row that names no change (`—`) checks that none of what is read changed. What is read: the solver's
+// entries as Penpa+ would save them (`readEngineState`, defined by recorder.js), the grid lines erased, the selection,
+// the cursors and the tool's style, written one entry per line as `layer@kind=value`: `kind` names the board
 // points the entry's key holds (a cell, a corner, an edge's middle), so a check says where a mark went without hard-coding
 // Penpa+'s point numbers. A case's expected lines say what its row's words say; the values Penpa+ stores for each mark (a
 // style number, a symbol) are named once below, read from Penpa+'s code and confirmed on the board.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
+import { cellPixel } from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -17,6 +19,8 @@ const B = 15
 const C = 16
 const D = 20
 const E = 21
+// A knight's move from A, for a line at an angle.
+const F = 22
 
 // Where a gesture aims: a cell's centre, or a point `dx, dy` cell widths off it.
 const at = (cell) => ({ cell, dx: 0, dy: 0 })
@@ -33,10 +37,14 @@ const rightClick = (where, mods = []) => ({ act: 'click', where, button: 'right'
 const doubleClick = (where) => ({ act: 'dblclick', where })
 const drag = (cells, mods = []) => ({ act: 'drag', path: cells.map((c) => (typeof c === 'number' ? at(c) : c)), button: 'left', mods })
 const rightDrag = (cells, mods = []) => ({ ...drag(cells, mods), button: 'right' })
-// A right drag as a touchpad can send it: pointer and mouse events dispatched on the board's canvas, button 2 held
-// throughout, rather than Playwright's own mouse (Chris's report of #186 came from a laptop).
+// A right drag as a touchpad can send it: pointer events and the mouse events that follow them, dispatched on the board's
+// canvas with button 2 held throughout, rather than Playwright's own mouse (Chris's report of #186 came from a laptop).
+// Penpa+ listens for the mouse events only (main.js), so the pointer events are there to match the sequence, not to act.
 const touchpadRightDrag = (cells) => ({ ...rightDrag(cells), act: 'touchpad' })
 const key = (name, mods = []) => ({ act: 'key', name, mods })
+// A left drag split in two: the press and the moves, then the release.
+const press = (cells) => ({ ...drag(cells), act: 'press' })
+const release = () => ({ act: 'release', button: 'left' })
 // Setup only: switches to another tool for the steps after it, or puts a given into the question's layer.
 const useTool = (tool) => ({ act: 'tool', tool })
 const given = (layer, cell, value) => ({ act: 'given', layer, cell, value })
@@ -70,6 +78,17 @@ const STAR_CROSS = sym([0, 'star', 2])
 const GREEN_DOT = [12, 'circle_SS', 2]
 const MINE = sym([4, 'sun_moon', 2])
 const TWO_MINES = sym([5, 'sun_moon', 2])
+const STAR = sym([2, 'star', 2])
+const GREEN_O = sym([1, 'ox_E', 2])
+const GREEN_X = sym([4, 'ox_E', 2])
+const GREY_X = sym([4, 'ox_G', 2])
+// Line + direction marks' arrowheads on a vertical edge, pointing left and right.
+const ARROW_LEFT = sym([5, 'inequality', 2], 'edge')
+const ARROW_RIGHT = sym([7, 'inequality', 2], 'edge')
+// Penpa+'s surface style 7: Line + cell marks' shade and Edges + inside / outside's yellow.
+const SURFACE_7 = 'surface@cell=7'
+// A 5 typed into a cell with Number's normal sub-mode.
+const NUMBER_5 = 'number@cell=["5",2,"1"]'
 
 // ---- Case builders, for rows many tools share --------------------------------------------------------------------
 
@@ -83,6 +102,11 @@ const drawAndErase = (path, lines) => [
   ['starting on it erases', [drag(path)], [stage(drag(path), cleared(lines))]]
 ]
 const lineTool = (path, lines) => ({ 'Left click': nothing(click(at(A))), 'Right click': nothing(rightClick(at(A))), Drag: drawAndErase(path, lines) })
+// The free line tools draw on release: a held drag shows nothing yet.
+const freeLineTool = (path, lines) => {
+  const tool = lineTool(path, lines)
+  return { ...tool, Drag: [...tool.Drag, ['draws only on release', [], [stage(press(path), []), stage(release(), lines)]]] }
+}
 // A gesture over A B C marks each cell; a gesture over A B starting on a mark clears those two.
 const manyAndClear = (over3, over2, line) => [
   ['marks many cells', [], [stage(over3, times(3, line))]],
@@ -128,7 +152,7 @@ const flickTool = (lineOf, centre, layout) => ({
   Drag: Object.entries(layout).map(([dir, value]) => [`toward ${dir}: ${value}`, [], [stage(drag([at(A), toward(A, dir)]), [lineOf(value)])]])
 })
 // Right click of Stars and the mine tools: × in a cell, a green dot on a corner or an edge.
-const cellCrossAndCornerDot = () => [
+const CELL_CROSS_AND_CORNER_DOT = [
   ['on a cell: ×, then clears', [], cycle(rightClick(at(A)), [STAR_CROSS], [])],
   ['on a corner: green dot, then clears', [], cycle(rightClick(cornerOf(A)), [sym(GREEN_DOT, 'corner')], [])],
   ['on an edge: green dot, then clears', [], cycle(rightClick(rightEdge(A)), [sym(GREEN_DOT, 'edge')], [])]
@@ -136,9 +160,10 @@ const cellCrossAndCornerDot = () => [
 const mineTool = (...marks) => ({
   'Left click': [
     ['cycles, then clears', [], cycle(click(at(A)), ...marks, [])],
-    ['also clears a dot on its corner', [rightClick(cornerOf(A))], [stage(click(at(A)), [...marks[0], 'symbol@corner=-'])]]
+    ['also clears a dot on its corner', [rightClick(cornerOf(A))], [stage(click(at(A)), [...marks[0], 'symbol@corner=-'])]],
+    ['also clears a dot on its edge', [rightClick(rightEdge(A))], [stage(click(at(A)), [...marks[0], 'symbol@edge=-'])]]
   ],
-  'Right click': cellCrossAndCornerDot(),
+  'Right click': CELL_CROSS_AND_CORNER_DOT,
   Drag: [['starting on a marked cell clears many', [click(at(A)), click(at(B))], [stage(drag([A, B, C]), times(2, 'symbol@cell=-'))]]],
   'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), STAR_CROSS)
 })
@@ -154,10 +179,10 @@ const specialTool = (layer) => ({
     ['dragging back undoes a step', [], [stage(drag([A, B, C, B]), [`${layer}+2`])]]
   ]
 })
-const moveTool = () => ({ 'Left click': nothing(click(at(A))), 'Right click': nothing(rightClick(at(A))) })
-const moveNumber = () => ['moves a number to an empty cell',
-  [useTool({ mode: 'number', submode: '1' }), click(at(A)), key('5')], [stage(drag([A, C]), ['number@cell=-', 'number@cell=["5",2,"1"]'])]]
-const moveShape = () => ['moves a shape to an empty cell',
+const MOVE_CLICKS = { 'Left click': nothing(click(at(A))), 'Right click': nothing(rightClick(at(A))) }
+const MOVE_NUMBER = ['moves a number to an empty cell',
+  [useTool({ mode: 'number', submode: '1' }), click(at(A)), key('5')], [stage(drag([A, C]), ['number@cell=-', NUMBER_5])]]
+const MOVE_SHAPE = ['moves a shape to an empty cell',
   [useTool({ mode: 'symbol', submode: 'circle_L' }), click(at(A))], [stage(drag([A, C]), ['symbol@cell=-', sym([1, 'circle_L', 1])])]]
 
 // Cage lines join points a quarter cell in from the corners (point type 4). `CAGE_STYLE` is the cage tools' first
@@ -210,7 +235,7 @@ const CASES = {
 
   'line/1': lineTool([A, B, C], times(2, `line@cell-cell=${LINE}`)),
   'line/2': lineTool([A, E], [`line@cell-cell=${LINE}`]),
-  'line/3': lineTool([at(A), at(22)], [`line@cell-cell=${LINE}`]),
+  'line/3': freeLineTool([at(A), at(F)], [`line@cell-cell=${LINE}`]),
   'line/5': lineTool([at(A), rightEdge(A)], [`line@cell-edge=${LINE}`]),
   'line/4': {
     'Left click': [['× on the edge, then clears it', [], cycle(click(rightEdge(A)), [EDGE_CROSS], [])]],
@@ -228,20 +253,20 @@ const CASES = {
     ]
   },
   'combi/lineox': {
-    'Left click': [['○, ×, then clears', [], cycle(click(at(A)), [sym([1, 'ox_E', 2])], [sym([4, 'ox_E', 2])], [])]],
-    'Right click': [['×, ○, then clears', [], cycle(rightClick(at(A)), [sym([4, 'ox_E', 2])], [sym([1, 'ox_E', 2])], [])]],
+    'Left click': [['○, ×, then clears', [], cycle(click(at(A)), [GREEN_O], [GREEN_X], [])]],
+    'Right click': [['×, ○, then clears', [], cycle(rightClick(at(A)), [GREEN_X], [GREEN_O], [])]],
     Drag: drawAndErase([A, B, C], times(2, `line@cell-cell=${LINE}`))
   },
   'combi/linedir': {
     'Left click': nothing(click(at(A))),
     'Right click': [['on an edge: ×, arrowhead, the other way, then clears', [],
-      cycle(rightClick(rightEdge(A)), [EDGE_CROSS], [sym([5, 'inequality', 2], 'edge')], [sym([7, 'inequality', 2], 'edge')], [])]],
+      cycle(rightClick(rightEdge(A)), [EDGE_CROSS], [ARROW_LEFT], [ARROW_RIGHT], [])]],
     Drag: drawAndErase([A, B, C], times(2, `line@cell-cell=${LINE}`)),
     'Right drag from a cell toward an edge': [['an arrowhead, again the same way: clear', [],
-      cycle(rightDrag([at(A), toward(A, 'e')]), [sym([7, 'inequality', 2], 'edge')], [])]],
+      cycle(rightDrag([at(A), toward(A, 'e')]), [ARROW_RIGHT], [])]],
     'Right drag from an edge': [
       ['× on each edge it passes', [], [stage(rightDrag(EDGES_ABC), times(3, EDGE_CROSS))]],
-      ['starting on a × steps only that one on', [rightDrag(EDGES_ABC)], [stage(rightDrag(EDGES_ABC), ['line@edge=-', sym([5, 'inequality', 2], 'edge')])]],
+      ['starting on a × steps only that one on', [rightDrag(EDGES_ABC)], [stage(rightDrag(EDGES_ABC), ['line@edge=-', ARROW_LEFT])]],
       ['starting on the last arrowhead clears them', [rightDrag(EDGES_ABC), rightClick(rightEdge(A)), rightClick(rightEdge(A))],
         [stage(rightDrag(EDGES_ABC), ['symbol@edge=-', ...times(2, 'line@edge=-')])]]
     ]
@@ -256,20 +281,20 @@ const CASES = {
     'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), DOT)
   },
   'combi/hashi': {
-    'Left click': [['× in the cell, then clears', [], cycle(click(at(A)), [sym([4, 'ox_G', 2])], [])]],
-    'Right click': [['× in the cell, then clears', [], cycle(rightClick(at(A)), [sym([4, 'ox_G', 2])], [])]],
+    'Left click': [['× in the cell, then clears', [], cycle(click(at(A)), [GREY_X], [])]],
+    'Right click': [['× in the cell, then clears', [], cycle(rightClick(at(A)), [GREY_X], [])]],
     Drag: [['bridge, double, then clears', [], cycle(drag([A, C]), times(2, `line@cell-cell=${LINE}`), times(2, 'line@cell-cell=30'), [])]]
   },
   'combi/rassisillai': {
     'Left click': [['○, then clears', [], cycle(click(at(A)), [sym([1, 'ox_G', 1])], [])]],
-    'Right click': [['shades, then clears', [], cycle(rightClick(at(A)), ['surface@cell=7'], [])]],
+    'Right click': [['shades, then clears', [], cycle(rightClick(at(A)), [SURFACE_7], [])]],
     Drag: drawAndErase([A, B, C], times(2, `line@cell-cell=${LINE}`)),
-    'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), 'surface@cell=7')
+    'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), SURFACE_7)
   },
 
   'lineE/1': lineTool([cornerOf(A), cornerOf(B), cornerOf(C)], times(2, `lineE@corner-corner=${LINE}`)),
   'lineE/2': lineTool([cornerOf(A), cornerOf(E)], [`lineE@corner-corner=${LINE}`]),
-  'lineE/3': lineTool([cornerOf(A), cornerOf(22)], [`lineE@corner-corner=${LINE}`]),
+  'lineE/3': freeLineTool([cornerOf(A), cornerOf(F)], [`lineE@corner-corner=${LINE}`]),
   'lineE/6': lineTool([cornerOf(A), rightEdge(A)], [`lineE@corner-edge=${LINE}`]),
   'lineE/4': {
     'Left click': [['× on the grid line, then clears it', [], cycle(click(rightEdge(A)), [`lineE@edge=${CROSS}`], [])]],
@@ -303,10 +328,10 @@ const CASES = {
     'Right drag from an edge': crossEdgeCases('lineE@edge')
   },
   'combi/edgexoi': {
-    'Left click': [['on a cell: yellow, 2nd colour, then clears', [], cycle(click(at(A)), ['surface@cell=7'], [`surface@cell=${SECOND}`], [])]],
+    'Left click': [['on a cell: yellow, 2nd colour, then clears', [], cycle(click(at(A)), [SURFACE_7], [`surface@cell=${SECOND}`], [])]],
     'Right click': [
       ['on an edge: ×, then clears', [], cycle(rightClick(rightEdge(A)), [`lineE@edge=${CROSS}`], [])],
-      ['on a cell: 2nd colour, yellow, then clears', [], cycle(rightClick(at(A)), [`surface@cell=${SECOND}`], ['surface@cell=7'], [])]
+      ['on a cell: 2nd colour, yellow, then clears', [], cycle(rightClick(at(A)), [`surface@cell=${SECOND}`], [SURFACE_7], [])]
     ],
     Drag: drawAndErase([cornerOf(A), cornerOf(B), cornerOf(C)], times(2, `lineE@corner-corner=${LINE}`))
   },
@@ -319,7 +344,7 @@ const CASES = {
     ]
   },
 
-  'number/1': selectingTool({ digit: ['writes it in the selected cells', [click(at(A))], [stage(key('5'), ['number@cell=["5",2,"1"]'])]] }),
+  'number/1': selectingTool({ digit: ['writes it in the selected cells', [click(at(A))], [stage(key('5'), [NUMBER_5])]] }),
   'number/10': selectingTool({ digit: ['writes a large number', [click(at(A))], [stage(key('5'), ['number@cell=["5",2,"10"]'])]] }),
   'number/6': selectingTool({ digit: ['writes a medium number', [click(at(A))], [stage(key('5'), ['number@cell=["5",2,"6"]'])]] }),
   'number/5': selectingTool({ digit: ['writes a small number', [click(at(A))], [stage(key('5'), ['number@cell=["5",2,"5"]'])]] }),
@@ -353,11 +378,12 @@ const CASES = {
   },
   'combi/star': {
     'Left click': [
-      ['star, then clears', [], cycle(click(at(A)), [sym([2, 'star', 2])], [])],
-      ['also clears a dot on its corner', [rightClick(cornerOf(A))], [stage(click(at(A)), [sym([2, 'star', 2]), 'symbol@corner=-'])]],
+      ['star, then clears', [], cycle(click(at(A)), [STAR], [])],
+      ['also clears a dot on its corner', [rightClick(cornerOf(A))], [stage(click(at(A)), [STAR, 'symbol@corner=-'])]],
+      ['also clears a dot on its edge', [rightClick(rightEdge(A))], [stage(click(at(A)), [STAR, 'symbol@edge=-'])]],
       ['on a × clears it', [rightClick(at(A))], [stage(click(at(A)), ['symbol@cell=-'])]]
     ],
-    'Right click': cellCrossAndCornerDot(),
+    'Right click': CELL_CROSS_AND_CORNER_DOT,
     Drag: [['starting on a marked cell clears many', [click(at(A)), click(at(B))], [stage(drag([A, B, C]), times(2, 'symbol@cell=-'))]]],
     'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), STAR_CROSS)
   },
@@ -382,7 +408,8 @@ const CASES = {
     'Right click': [['water, then clears', [], cycle(rightClick(at(A)), [ship(7)], [])]],
     Drag: [
       ['from an empty cell: a ship end', [], [stage(drag([A, B]), [ship(3)])]],
-      ['starting on · puts · on each cell', [click(at(A)), click(at(A)), click(at(A))], [stage(drag([A, B, C]), times(2, ship(8)))]]
+      ['starting on · puts · on each cell', [click(at(A)), click(at(A)), click(at(A))], [stage(drag([A, B, C]), times(2, ship(8)))]],
+      ['starting on water puts water on each cell', [click(at(A)), click(at(A)), click(at(A)), click(at(A))], [stage(drag([A, B, C]), times(2, ship(7)))]]
     ],
     'Right drag': manyAndClear(rightDrag([A, B, C]), rightDrag([A, B]), ship(7)),
     'Given ship pieces': [['are left alone', [given('symbol', A, [2, 'battleship_B', 1])], [stage(click(at(A)), [])]]]
@@ -450,11 +477,11 @@ const CASES = {
   },
   'cage/2': lineTool([{ cell: A, dx: -0.25, dy: -0.25 }, { cell: A, dx: 0.25, dy: -0.25 }, { cell: B, dx: -0.25, dy: -0.25 }], times(2, cageLine(CAGE_STYLE))),
   'move/1': {
-    ...moveTool(),
-    Drag: [moveNumber(), moveShape()]
+    ...MOVE_CLICKS,
+    Drag: [MOVE_NUMBER, MOVE_SHAPE]
   },
-  'move/2': { ...moveTool(), Drag: [moveNumber()] },
-  'move/3': { ...moveTool(), Drag: [moveShape()] }
+  'move/2': { ...MOVE_CLICKS, Drag: [MOVE_NUMBER] },
+  'move/3': { ...MOVE_CLICKS, Drag: [MOVE_SHAPE] }
 }
 
 // The Shape tools' cases, by the two ways Penpa+ handles a shape: one whose variants a digit picks, and one whose parts
@@ -474,7 +501,7 @@ const SHAPE_CASES = {
   onOff: {
     'Left click': [['moves the cursor', [rightClick(at(C))], () => [stage(click(at(A)), ['cursor@cell'])]]],
     'Right click': [['moves the cursor', [rightClick(at(C))], () => [stage(rightClick(at(A)), ['cursor@cell'])]]],
-    Drag: [['changes nothing', [], () => [stage(drag([A, B, C]), [])]]],
+    Drag: [['acts as a click where it starts', [rightClick(at(C))], () => [stage(drag([A, B, C]), ['cursor@cell'])]]],
     // Penpa+ keeps a shape whose parts are all off, as a list of zeros.
     Digit: [['switches part n on, then off', [rightClick(at(A))],
       (shape, parts) => cycle(key('1'), [shapeMark(shape, [1, ...Array(parts - 1).fill(0)])], [shapeMark(shape, Array(parts).fill(0))])]]
@@ -483,12 +510,6 @@ const SHAPE_CASES = {
 
 // ---- Running a case --------------------------------------------------------------------------------------------------
 
-// Runs in the page: the viewport pixel of `where`.
-function pixelInPage ({ cell, dx, dy }) {
-  const box = document.getElementById('canvas').getBoundingClientRect()
-  const p = pu.point[pu.centerlist[cell]]
-  return { x: box.left + p.x + dx * pu.size, y: box.top + p.y + dy * pu.size }
-}
 
 // Steps a dispatched drag takes between two of its points, as Playwright's `mouse.move` takes `steps`.
 const DRAG_STEPS = 4
@@ -520,10 +541,9 @@ function snapshotInPage () {
   const s = readEngineState()
   // The undo and replay logs change with every entry and are not what the card describes.
   const { command_undo: undo, command_redo: redo, command_replay: replay, ...entered } = s.pu_a
-  // Erasing grid lines writes to the question's layer.
-  const question = { deletelineE: pu.pu_q.deletelineE }
   return {
-    entered, question, selection: s.selection,
+    // Erasing grid lines writes to the question's layer.
+    entered, erased: pu.pu_q.deletelineE, selection: s.selection,
     cursor: pu.cursol, cursorS: pu.cursolS, style: engine.getTool().style
   }
 }
@@ -551,7 +571,7 @@ function changeInPage ({ before, after }) {
   for (const layer of new Set([...Object.keys(before.entered), ...Object.keys(after.entered)])) {
     diffLayer(layer, before.entered[layer], after.entered[layer])
   }
-  for (const layer of Object.keys(after.question)) diffLayer(`q.${layer}`, before.question[layer], after.question[layer])
+  diffLayer('q.deletelineE', before.erased, after.erased)
   if (JSON.stringify(before.selection) !== JSON.stringify(after.selection)) lines.push(`selection=${cellsOf(after.selection)}`)
   if (before.cursor !== after.cursor) lines.push(`cursor@${kindOf(after.cursor)}`)
   // The quarter and side Number tools, and corner marks, keep their own cursor.
@@ -561,7 +581,9 @@ function changeInPage ({ before, after }) {
 }
 
 async function pixel (page, where) {
-  return page.evaluate(pixelInPage, where)
+  const centre = await cellPixel(page, where.cell)
+  const size = await page.evaluate(() => pu.size)
+  return { x: centre.x + where.dx * size, y: centre.y + where.dy * size }
 }
 
 async function withKeys (page, mods, run) {
@@ -590,6 +612,13 @@ async function perform (page, step) {
       for (const p of points.slice(1)) await page.mouse.move(p.x, p.y, { steps: DRAG_STEPS })
       await page.mouse.up({ button: step.button })
     })
+  } else if (step.act === 'press') {
+    const [first, ...rest] = await Promise.all(step.path.map((where) => pixel(page, where)))
+    await page.mouse.move(first.x, first.y)
+    await page.mouse.down({ button: step.button })
+    for (const p of rest) await page.mouse.move(p.x, p.y, { steps: DRAG_STEPS })
+  } else if (step.act === 'release') {
+    await page.mouse.up({ button: step.button })
   } else if (step.act === 'touchpad') {
     const corners = []
     for (const where of step.path) corners.push(await pixel(page, where))

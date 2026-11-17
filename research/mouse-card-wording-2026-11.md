@@ -1,6 +1,6 @@
 # Mouse card wording, draft (#103)
 
-Status: accepted by Chris for now, to be revisited (2026-11-16, Q19). Rows corrected by #186 on 2026-11-17, each against the board; see § Rows #186 changed. Cycles as `A → B → clear` (Q20); no entries that only restate another gesture. The six rows first marked unsure were settled live the same day.
+Status: accepted by Chris for now, to be revisited (2026-11-16, Q19). Rows corrected by #186 on 2026-11-16, each against the board; see § Rows #186 changed. Cycles as `A → B → clear` (Q20); no entries that only restate another gesture. The six rows first marked unsure were settled live the same day.
 
 Drafted 2026-11-16 against `origin/spec-90` (`8e94949`). Every row was read from `docs/js/class_p.js` in solve mode
 (`pu.mode.qa === "pu_a"`), on a square grid, desktop mouse (`ondown_key === "mousedown"`, so the `*_reduced` and
@@ -82,7 +82,7 @@ Things that hold for many rows, so they are not repeated in every cell:
 | key | name | Left click | Right click | Drag | More | Changed? | Sure? | Handler |
 |---|---|---|---|---|---|---|---|---|
 | symbol/* (every shape except the on/off ones below; 86 tools) | the shape's name | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | as a click where it starts | Digit: shape variant n at the cursor → clear (same digit) | fixed | yes (checked live: picking a Shape turns on Penpa's input-panel setting, which solve.html keeps hidden and has no control to turn off, so each click types the panel's variant 1) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `mode_set` (`panelflag`), `key_number` |
-| symbol/* on/off shapes: cross, arrow_cross, arrow_fourtip, degital_B/G/E/f, arrow_eight, arrow_fouredge_B/G/E, dice, polyomino, polyhex (14 tools) | the shape's name | cursor to the cell | cursor to the cell | — | Digit: add or remove part n of the shape at the cursor | fixed | yes (left click checked live on arrow_cross: places nothing) | `mouse_symbol`, `onoff_symbolmode_list`, `onofftext` |
+| symbol/* on/off shapes: cross, arrow_cross, arrow_fourtip, degital_B/G/E/f, arrow_eight, arrow_fouredge_B/G/E, dice, polyomino, polyhex (14 tools) | the shape's name | cursor to the cell | cursor to the cell | as a click where it starts | Digit: add or remove part n of the shape at the cursor | fixed | yes (left click checked live on arrow_cross: places nothing) | `mouse_symbol`, `onoff_symbolmode_list`, `onofftext` |
 | combi/blwh | Black + white circles | white ○ → black ● → clear | black ● → white ○ → clear | repeat the first cell's change on each cell | given circles are left alone | fixed | yes (drag checked live) | `re_combi_blwh`, `re_combi_blwh_downright`, `re_combi_blwh_move` |
 | combi/star | Stars + × | star ★ → clear, also clears dots on the cell's corners and edges; on a ×: clear | cell: × → clear; corner or edge: green dot → clear | starting on a marked cell: clear many | Right drag: × on many cells (starting on a mark: clear many) | fixed | yes (left drag checked live) | `re_combi_star_reduced`, `re_combi_star_downright`, `re_combi_star_move` |
 | combi/akari | Bulbs + dots | bulb 💡 → clear; on a dot: bulb | cell: dot · → clear; on a bulb: dot; edge: × → clear | dashed helper line through cell centres; starting on it: erase | Right drag: dot · on many cells (starting on a dot: clear many) | reworded | yes | `re_combi_akari_move`, `re_combi_akari_up_reduced`, `re_combi_akari_downright` |
@@ -244,7 +244,7 @@ variant. The Mode-card description is also wrong for the on/off shapes, because 
 | key | name | Left click | Right click | Drag | More | Sure? | Handler |
 |---|---|---|---|---|---|---|---|
 | symbol/* except the on/off shapes (86 tools on square) | the shape's name (see the shape-name list) | the shape's first variant → clear; on another variant: the first variant | cursor to the cell | as a click where it starts | Digit: variant n at the cursor → clear (same digit) | yes: live on square and hex (circle_L, arrow_B_B) | `mouse_symbol` (`UserSettings.panel_shown`, `panel_pu.edit_num`), `key_number` (`edit_mode === "symbol"`) |
-| symbol/ cross, arrow_cross, arrow_fourtip, arrow_eight, arrow_fouredge_B/G/E, degital_B/G/E, degital_f, dice, polyomino, polyhex (14 tools on square) | the shape's name | cursor to the cell | cursor to the cell | — | Digit: part n of the shape at the cursor on / off | yes for cross, live on square and hex; the rest read from code | `mouse_symbol` (`!this.onoff_symbolmode_list[...]`), `onofftext` |
+| symbol/ cross, arrow_cross, arrow_fourtip, arrow_eight, arrow_fouredge_B/G/E, degital_B/G/E, degital_f, dice, polyomino, polyhex (14 tools on square) | the shape's name | cursor to the cell | cursor to the cell | as a click where it starts | Digit: part n of the shape at the cursor on / off | yes for cross, live on square and hex; the rest read from code | `mouse_symbol` (`!this.onoff_symbolmode_list[...]`), `onofftext` |
 
 On/off part counts, read from each grid class's `onoff_symbolmode_list`:
 
@@ -337,7 +337,7 @@ Polyhex, Firefly, Pencils, Arc, Darts, Spans, Neighbors and Pills.
 
 # Rows #186 changed
 
-2026-11-17. `live/mouse-card.live.mjs` performs every gesture each Mouse card row names, with Playwright's mouse and
+2026-11-16. `live/mouse-card.live.mjs` performs every gesture each Mouse card row names, with Playwright's mouse and
 keyboard on `solve.html` (6x6 new board, 1400x900), and compares the board as Penpa+ saves it with the row. The rows
 below failed and were changed in `docs/ui/tool-guide.js` (and in the tables above); the engine was not touched. Each
 names the case that showed it.
@@ -350,6 +350,7 @@ names the case that showed it.
 | `combi/magnets` | Drag | — | as a click where it starts | a drag put + on its first cell | the press cycles the cell |
 | `special/polygon` | Drag | — (the next corner follows the pointer until you finish) | as a click where it starts (…) | a drag started a polygon | the press adds a corner |
 | `symbol/*` (variant shapes, 86) | Drag | — | as a click where it starts | a drag placed the first variant | the press places it (`mouse_symbol`) |
+| `symbol/*` (on/off shapes, 14) | Drag | — | as a click where it starts | a drag from A, with the cursor on C, moved it to A (found in review) | the press moves the cursor (`mouse_symbol`) |
 | `wall/` | Drag | straight wall through cell centres, from edge middle to edge middle; … | from the middle of an edge, across cells: a straight wall through their centres (from a cell centre: nothing); … | a drag through three cell centres drew nothing | each centre is equally near four edge middles, so the next point is not opposite the last |
 | `number/3`, `number/9` | Left click | cursor to the nearest cell corner / side spot | …; selects the cell | the click also selected the cell | `mouse_numberS` sets `selection` |
 | `number/3`, `number/9` | Drag | — | as a click where it starts | a drag moved the cursor and selected the cell | the press does |
@@ -362,7 +363,9 @@ The Digits description lost "Ctrl: centre" for the same reason. Chris's ruling o
 three Composite names and their text (`Line + edge ×`, `Line + cell ○ ×`, `Shade + line`); "Angle loop" stays.
 
 **The Line + edge × right drag Chris reported missing** works from an edge and does nothing from a cell centre, whether
-sent by Playwright's mouse or as a touchpad sends it (pointer and mouse events dispatched on the canvas, button 2 held).
+sent by Playwright's mouse or as a touchpad sends it (pointer events and the mouse events after them, dispatched on the
+canvas with button 2 held). Penpa+ listens for mouse events only, so the dispatched case shows that a button-2-held mouse
+sequence, whatever device made it, behaves as the mouse does; it does not exercise a real touchpad's driver.
 A right drag started on a cell, the natural way to sweep a row, marks nothing.
 
 Gestures Penpa+ supports that the card leaves out (not added; read from the code, not run unless marked):
@@ -372,6 +375,9 @@ Gestures Penpa+ supports that the card leaves out (not added; read from the code
 - Double click on a cell with nothing to match (an empty cell, or only corner marks) clears the selection, in Number,
   Sudoku and Multicolor alike (`dblmouseevent` clears first; run for corner marks only).
 - Ctrl + Delete and Ctrl + Backspace in Sudoku call `key_space` with Ctrl, a clear of the selected cells (main.js `onKeyDown`).
+- Delete and Space call `key_space` in every mode, and Backspace in Sudoku; Backspace elsewhere calls `key_backspace`
+  (main.js `onKeyDown`): they clear what the selection or cursor holds.
+- The arrow keys move the cursor (`key_arrow`), with Ctrl or Shift extending a selection.
 - Holding Ctrl in Sudoku lends Centre marks while held (`docs/js/engine_bridge.js` holds); a digit typed meanwhile
   writes nothing (run), so the card has no row for the hold.
 
