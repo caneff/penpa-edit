@@ -96,29 +96,31 @@ describe('the review page', () => {
     assert.equal(await previousButton(last.page).isDisabled(), false)
   })
 
-  // One test per puzzle, so each gets its own 60 s `--test-timeout` and a failure names its puzzle (#284).
+  const entryOf = (id) => listed().find((entry) => entry.id === id)
+
+  it(`loads the first puzzle's own board`, async () => {
+    const { page } = await open()
+    await assertOpensEntry(page, entryOf(IDS[0]))
+  })
+
+  // One test per puzzle, so each gets its own `--test-timeout` and a failure names its puzzle (#284).
   for (const [i, id] of IDS.entries()) {
-    if (i === 0) {
-      it(`loads the first puzzle's own board (${id})`, async () => {
-        const { page } = await open()
-        await assertOpensEntry(page, listed()[0])
-      })
-      continue
-    }
-    it(`steps to ${id} with Next from ${IDS[i - 1]}, loading its board`, async () => {
-      const { page } = await open(`?puzzle=${IDS[i - 1]}`)
-      assert.equal(await selectedId(page), IDS[i - 1])
-      await boardFrame(page, IDS[i - 1])
+    if (i === 0) continue
+    const before = IDS[i - 1]
+    it(`steps to ${id} with Next from ${before}, loading its board`, async () => {
+      const { page } = await open(`?puzzle=${before}`)
+      assert.equal(await selectedId(page), before)
+      await boardFrame(page, before)
       await nextButton(page).click()
-      await assertOpensEntry(page, listed()[i])
+      await assertOpensEntry(page, entryOf(id))
     })
-    it(`steps back to ${IDS[i - 1]} with Previous from ${id}`, async () => {
+    it(`steps back to ${before} with Previous from ${id}`, async () => {
       const { page } = await open(`?puzzle=${id}`)
       assert.equal(await selectedId(page), id)
       await boardFrame(page, id)
       await previousButton(page).click()
-      assert.equal(await selectedId(page), IDS[i - 1])
-      await boardFrame(page, IDS[i - 1])
+      assert.equal(await selectedId(page), before)
+      await boardFrame(page, before)
     })
   }
 

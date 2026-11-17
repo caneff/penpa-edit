@@ -3,7 +3,7 @@
 // Read through the cards' bounding boxes, the board canvas's drawn size and the bodies' scroll sizes.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, shareOf, useBrowser } from './page.mjs'
+import { linkFromNewBoard, listedTools, openSolvePage, resetLayoutInSettings, shareOf, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -162,13 +162,13 @@ describe('Reset layout fits the desk to the puzzle', () => {
     assert.equal(await settle(clear, true), true)
   })
 
-  // Each share of the tools is its own test, so the loop over every tool and style never nears the 60 s `--test-timeout` (#284).
+  // Each share of the tools is its own test, so the loop over every tool and style stays inside the seam's per-test timeout (#284).
   for (let share = 0; share < MOUSE_SHARES; share++) {
     it(`shows every tool's Mouse rows without a scrollbar after Reset layout (share ${share + 1} of ${MOUSE_SHARES})`, async () => {
       // Rules that fit: long ones take 55% of the column, and Mouse then scrolls for its tallest tools.
       const page = await open({ cols: 9, rows: 9, rules: SHORT_RULES })
       await reset(page)
-      const tools = shareOf(await page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode }))), share, MOUSE_SHARES)
+      const tools = shareOf(await listedTools(page), share, MOUSE_SHARES)
       assert.ok(tools.length > 0, 'the share holds tools')
       const scrolling = await page.evaluate(async (mine) => {
         const body = document.querySelector('section[aria-label="Mouse"] .ui-body')

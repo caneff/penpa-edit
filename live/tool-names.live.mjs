@@ -2,7 +2,7 @@
 // (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, chipName, newBoardSolveLink, openSolvePage, setTool, shareOf, useBrowser, waitForTool } from './page.mjs'
+import { afterChange, chipName, listedTools, newBoardSolveLink, openSolvePage, setTool, shareOf, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -14,8 +14,6 @@ const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'T
 const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
 const chipTexts = async (card) => (await card.locator('.ui-chip-main').allInnerTexts()).map(chipName)
 
-// Every tool the link lists, as `{ mode, submode }`.
-const listed = (page) => page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode })))
 const pin = (page, entries) => page.evaluate((e) => window.pinBoard.replace(e), entries)
 
 // How many tests each loop over every tool splits into.
@@ -27,16 +25,20 @@ describe('one name per tool', () => {
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })
   after(async () => { await opened?.context.close() })
 
-  it('lists every tool the link offers', async () => {
-    const tools = await listed(opened.page)
+  it('offers over a hundred tools, and the shares each loop is split into hold every one of them once', async () => {
+    const tools = await listedTools(opened.page)
     assert.ok(tools.length > 100, `${tools.length} tools listed`)
+    for (const count of [BOARD_SHARES, RECENT_SHARES]) {
+      const shares = Array.from({ length: count }, (_, share) => shareOf(tools, share, count))
+      assert.deepEqual(shares.flat().sort((a, b) => tools.indexOf(a) - tools.indexOf(b)), tools, `${count} shares hold every tool once`)
+    }
   })
 
-  // Each share of the tools is its own test, so the loop over ~160 tools never nears the 60 s `--test-timeout` (#284).
+  // Each share of the tools is its own test, so the loop over every tool stays inside the seam's per-test timeout (#284).
   for (let share = 0; share < BOARD_SHARES; share++) {
     it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
       const { page } = opened
-      const tools = shareOf(await listed(page), share, BOARD_SHARES)
+      const tools = shareOf(await listedTools(page), share, BOARD_SHARES)
       assert.ok(tools.length > 0, 'the share holds tools')
       await pin(page, tools.map(({ mode, submode }) => ({ mode, submode, style: null })))
       const chips = await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, tools.length)
@@ -58,7 +60,7 @@ describe('one name per tool', () => {
       const { page } = opened
       await pin(page, [])
       const unequal = []
-      for (const tool of shareOf(await listed(page), share, RECENT_SHARES)) {
+      for (const tool of shareOf(await listedTools(page), share, RECENT_SHARES)) {
         await setTool(page, tool)
         const label = await page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
         const first = await settle(async () => (await chipTexts(region(page, 'Recent')))[0], label)
@@ -70,7 +72,7 @@ describe('one name per tool', () => {
 
   it('gives a chip the tool\'s plain name as its tooltip, and none when the plain names do not know the tool', async () => {
     const { page } = opened
-    const [surface] = (await listed(page)).filter((t) => t.mode === 'surface')
+    const [surface] = (await listedTools(page)).filter((t) => t.mode === 'surface')
     await pin(page, [{ ...surface, style: null }])
     await setTool(page, { mode: 'line', submode: '1' })
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, 1)

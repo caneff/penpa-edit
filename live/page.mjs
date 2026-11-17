@@ -333,8 +333,11 @@ export async function resetLayoutInSettings (page) {
 export const chipName = (text) => text.replace(/^[ZXCV]\s+/, '').trim()
 
 export const currentTool = (page) => page.evaluate(() => engine.getTool())
+// Every tool the page's engine lists, as `{ mode, submode }`.
+export const listedTools = (page) => page.evaluate(() => engine.listTools().map(({ mode, submode }) => ({ mode, submode })))
+
 // The `index`-th of `count` interleaved shares of `items`: a loop over many cases splits into one `it` per share, so each
-// gets its own `--test-timeout` and a failure names the share and its cases. The shares together hold every item once.
+// gets its own `--test-timeout` and a failed check names its tool. The shares together hold every item once.
 export const shareOf = (items, index, count) => items.filter((_, i) => i % count === index)
 
 export const setTool = (page, tool) => page.evaluate((t) => engine.setTool(t), tool)
