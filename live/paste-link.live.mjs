@@ -2,15 +2,13 @@
 // The box is read by role and accessible name; the board it opens is read through `engine`.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { AKARI_SOLVE, openPenpa, openSolvePage, useBrowser } from './page.mjs'
+import { AKARI_SOLVE, openPenpa, openSolvePage, THEME_KEY, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
 const UPSTREAM = 'https://swaroopg92.github.io/penpa-edit/'
 const FORK = 'https://caneff.github.io/penpa-edit/'
-// The localStorage key `engine_bridge.js` keeps the theme under; `engine.setTheme` needs a puzzle, which the bare page has none of.
-const THEME_KEY = 'chinstrap-solve-theme-v1'
 
 // Opens bare solve.html: the paste box shows, no desk is built.
 async function openBare () {
