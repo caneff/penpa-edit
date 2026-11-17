@@ -31,6 +31,9 @@
     // The Rules card's own text size, kept beside the layout and cleared with it. Pixels; the - and + buttons step it.
     const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1';
     const RULES_TEXT_RANGE_PX = { min: 10, max: 28, step: 2 };
+    // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
+    const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
+    const MOUSE_CLOSED = '1';
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
     const RESIZE_HANDLES = {
         top: ['top'], right: ['right'], bottom: ['bottom'], left: ['left'],
@@ -133,12 +136,15 @@
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
         const rulesText = { smaller: headButton('\u2212', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text') };
+        const closeMouse = headButton('\u00d7', 'Close Mouse card');
+        closeMouse.classList.add('ui-close');
+        cards.mouse.head.append(closeMouse);
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { bar, desk, cards, zoom, rulesText };
+        return { bar, desk, cards, zoom, rulesText, closeMouse };
     }
 
     // ---- The kept layout --------------------------------------------------------------------------------------------
@@ -203,7 +209,7 @@
 
     // The Mouse card's whole height that fits every tool's rows at a card width, set by whoever knows its content. Until it
     // is set the desk keeps variant L's fixed layout.
-    const fit = { mouseCardHeight: null };
+    const fit = { mouseCardHeight: null, sizeMouseBody: null };
     // True until the fit pass has run for the desk as it was opened or last reset.
     let fitPending = Object.keys(saved).length === 0;
     // True while the layout is the fitted one and no card has been moved or resized since.
@@ -219,10 +225,12 @@
         style.width = `${saved[id]?.w ?? Math.max(MIN_SIZE[id][0], w)}px`;
     };
 
-    // The cards from the top of the column down, each CARD_GAP_PX below the one above it.
+    const isShown = (cards, id) => !cards[id].node.hidden;
+
+    // The cards from the top of the column down, each CARD_GAP_PX below the one above it. A closed card takes no room.
     function stack(cards, ids, x, width) {
         let y = TOP_MARGIN_PX;
-        ids.forEach((id) => {
+        ids.filter((id) => isShown(cards, id)).forEach((id) => {
             position(cards, id, x, y, width);
             y += cards[id].node.offsetHeight + CARD_GAP_PX;
         });
@@ -235,7 +243,7 @@
         const width = desk.clientWidth;
         const height = desk.clientHeight;
         // Heights first, so a card the solver made taller pushes the ones below it in its column.
-        Object.entries(cards).forEach(([id, { node }]) => {
+        Object.entries(cards).filter(([id]) => isShown(cards, id)).forEach(([id, { node }]) => {
             node.style.height = '';
             node.classList.remove('is-sized');
             if (saved[id]?.h) {
@@ -257,7 +265,11 @@
         if (!saved.board?.h) {
             setHeight(cards.board.node, Math.max(MIN_SIZE.board[1], height - 2 * TOP_MARGIN_PX));
         }
-        Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
+        keepShownInside(cards, width, height);
+    }
+
+    function keepShownInside(cards, width, height) {
+        Object.entries(cards).filter(([id]) => isShown(cards, id)).forEach(([id, { node }]) => keepInside(id, node, width, height));
     }
 
     const columnMinWidth = (ids) => Math.max(MIN_COLUMN_WIDTH_PX, ...ids.map((id) => MIN_SIZE[id][0]));
@@ -292,7 +304,8 @@
         const boardWidth = clamp(Math.ceil(drawnWidth) + board.node.offsetWidth - bodyRoom(board.body).w, MIN_SIZE.board[0], boardMax);
 
         const leftMax = Math.max(leftMin, width - 4 * DESK_MARGIN_PX - boardWidth - rightWidth);
-        const neededHeight = (w) => fit.mouseCardHeight(w) + CARD_GAP_PX + rulesCardHeight(cards.rules, w);
+        const hasMouse = isShown(cards, 'mouse');
+        const neededHeight = (w) => (hasMouse ? fit.mouseCardHeight(w) + CARD_GAP_PX : 0) + rulesCardHeight(cards.rules, w);
         // Both cards only get shorter as they widen, so the narrowest width that fits is found by halving; when none does,
         // the cards take all the width there is.
         let leftWidth = leftMax;
@@ -309,7 +322,9 @@
             leftWidth = neededHeight(low) <= columnHeight ? low : high;
         }
         // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
-        const rulesHeight = clamp(rulesCardHeight(cards.rules, leftWidth), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]);
+        // With Mouse closed, Rules takes the whole column.
+        const rulesHeight = hasMouse ?
+            clamp(rulesCardHeight(cards.rules, leftWidth), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]) : columnHeight;
 
         // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
         const spare = width - boardWidth - leftWidth - rightWidth;
@@ -325,9 +340,11 @@
         };
         place('board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
         place('rules', leftX, TOP_MARGIN_PX, leftWidth, rulesHeight);
-        place('mouse', leftX, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
-        Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
-        keepFitted(desk, cards, Object.keys(cards));
+        if (hasMouse) {
+            place('mouse', leftX, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
+        }
+        keepShownInside(cards, width, height);
+        keepFitted(desk, cards, Object.keys(cards).filter((id) => isShown(cards, id)));
     }
 
     // Records the cards `ids` where the fitted layout has them, as places of their own marked `fitted`, which the solver's
@@ -582,10 +599,11 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, relayout, resetLayout, fit }` once the desk is built, for the files that fill the bar and the
+    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed }` once the desk is built, for the files that fill the bar and the
     // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
+        desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
         engine.mount(desk.cards.board.body);
         layout(desk);
         const relayout = () => layout(desk);
@@ -611,6 +629,26 @@
             showRulesText(desk);
             relayout();
         };
+        const isMouseClosed = () => desk.cards.mouse.node.hidden;
+        // Closing or opening Mouse refits a layout nobody has changed, so Rules takes the column or gives Mouse its split back.
+        const setMouseClosed = (closed) => {
+            if (closed) {
+                localStorage.setItem(MOUSE_CLOSED_KEY, MOUSE_CLOSED);
+            } else {
+                localStorage.removeItem(MOUSE_CLOSED_KEY);
+            }
+            desk.cards.mouse.node.hidden = closed;
+            if (!closed) {
+                fit.sizeMouseBody?.();
+            }
+            if (isFitted) {
+                isFitted = false;
+                saved = {};
+                fitPending = true;
+            }
+            relayout();
+        };
+        desk.closeMouse.addEventListener('click', () => setMouseClosed(true));
         const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', resetLayout).node;
         resetButton.classList.add('ui-reset');
         desk.bar.append(resetButton);
@@ -623,7 +661,7 @@
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit drops any zoom.
         // The card is watched, not its body, since a scrollbar appearing narrows the body and would undo the zoom at once.
         new ResizeObserver(() => fitBoard(desk.cards.board.body)).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.
