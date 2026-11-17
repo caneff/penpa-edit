@@ -123,6 +123,11 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
    board outgrows the card it starts at the top left and the body scrolls. */
 .ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .ui-card-board canvas { background: #fff; }
+/* The row and column numbers sit in a gutter above and left of the canvas, outside any outside-clue band the canvas holds. */
+.ui-card-board .ui-body > .ui-numbers-on { --ui-numbers-gutter: calc(24px * var(--ui-text-scale, 1)); padding: var(--ui-numbers-gutter) 0 0 var(--ui-numbers-gutter); box-sizing: content-box; width: auto; }
+.ui-grid-numbers { position: absolute; inset: 0; pointer-events: none; }
+.ui-grid-number { position: absolute; transform: translate(-50%, -50%); font-size: calc(12px * var(--ui-text-scale, 1)); line-height: 1; color: #6b7280; font-variant-numeric: tabular-nums; user-select: none; }
+.ui-dark .ui-grid-number { color: #9aa0ac; }
 .ui-card-rules .ui-body { --ui-rules-text: 14px; max-height: 520px; font-size: calc(var(--ui-rules-text) * var(--ui-text-scale, 1)); color: #3b3e45; white-space: pre-wrap; tab-size: 2; overflow-wrap: anywhere; }
 /* Each rules line is a block; a list item's marker is its own flex item, so a wrapped line hangs under the text. */
 .ui-rules-line { min-height: 1.4em; }

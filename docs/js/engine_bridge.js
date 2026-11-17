@@ -1158,6 +1158,22 @@
             };
         },
 
+        // Where the cells of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, the y of each
+        // row's, top to bottom, and the canvas's top left as `origin`. The outside-clue margins are not rows or columns. Null for any
+        // other grid type.
+        // MVP gap: `pu.centerlist` holds the cells of the grid proper, row by row, `pu.nx0` ids to a row.
+        getGridAxes() {
+            const origin = boardCanvas().getBoundingClientRect();
+            if (!pu.grid_is_square()) {
+                return null;
+            }
+            const cells = pu.centerlist.map((id) => pu.point[id]);
+            const first = pu.centerlist[0];
+            const columns = pu.centerlist.filter((id) => Math.floor(id / pu.nx0) === Math.floor(first / pu.nx0)).map((id) => origin.left + pu.point[id].x);
+            const rows = pu.centerlist.filter((id) => id % pu.nx0 === first % pu.nx0).map((id) => origin.top + pu.point[id].y);
+            return cells.length === columns.length * rows.length ? { columns, rows, origin: { left: origin.left, top: origin.top } } : null;
+        },
+
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.
         fitBoard(w, h) {
             requirePositiveNumber('fitBoard', 'w', w);
