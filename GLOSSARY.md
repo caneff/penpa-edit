@@ -21,6 +21,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
 - **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
+- **Board coordinates**: the Settings switch that labels the board's columns and rows in a gutter outside the canvas, so a solver can name a place
+  in chat. A square-cell grid gets its own row and column numbers; every other shape gets reference bands.
+- **Reference band**: one of the equal strips, about 1.5 cells wide, that the board coordinates cut a non-square grid's bounding box into: letters
+  A, B, C... across the top, numbers 1, 2, 3... down the left. Independent of the puzzle's geometry, so "the cell at C4" is a place, not a cell id.
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
 - **Tool**: a mode with one of its sub-modes and, where it has them, one of its styles; what the solver picks and pins.
 - **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board
@@ -62,11 +66,13 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
-- **Safety net**: the recordings, the tests and the CI checks the migration runs under.
+- **Safety net**: the recordings, the tests and the CI checks the migration runs under. Its live files (`SAFETY_NET_FILES` in
+  `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
+  cannot reach them skips them (#268).
 - **Plant**: a one-line bug served in place of a file while a test runs, to measure whether the safety net catches it
-  (`live/plants.mjs`). A plant in `docs/js/` is caught when a recording's replay with it differs from its expected file,
-  fails its duplicate-link round trip, throws at a step, or raises a page error or `console.error`. A plant in
-  `docs/ui/` (`UI_PLANTS`) is caught when the UI fuzz finds it, shrinks it and replays it.
+  (`live/plants.mjs`). A plant in `docs/js/` is served while recordings replay, and is caught when a replay with it differs
+  from its expected file, fails its duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
+  A plant in `docs/ui/` (`UI_PLANTS`) is caught when the UI fuzz finds it, shrinks it and replays it.
 - **UI fuzz**: random lists of actions on `solve.html`, checked by rules (`live/ui-fuzz/`, `npm run fuzz:ui`). Not the
   recordings' fuzz (`live/fuzz.mjs`), which drives the engine.
 - **Action**: one thing a solver does in the UI fuzz (a kind and its numbers, `live/ui-fuzz/actions.mjs`). Not a **Step**,

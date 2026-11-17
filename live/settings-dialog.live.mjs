@@ -9,7 +9,7 @@ import {
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
-import { choosePreset } from './pin-card.mjs'
+import { choosePreset, pinChips } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -760,7 +760,7 @@ describe('each Board look and Checking setting, on a board where it applies', ()
 
 describe('the desk\'s own settings in the dialog', () => {
   // The pins, by their unpin buttons' names.
-  const pinNames = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^Unpin / })
+  const pinNames = (page) => pinChips(page).getByRole('button', { name: /^Unpin / })
     .evaluateAll((buttons) => buttons.map((b) => b.getAttribute('aria-label')))
 
   it('switches the theme, and keeps it for the next visit', async () => {

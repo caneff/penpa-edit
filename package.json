@@ -2,7 +2,8 @@
   "name": "penpa-tests",
   "scripts": {
     "test": "node --test --test-concurrency=4 --test-timeout=60000 \"test/**/*.test.mjs\"",
-    "test:live": "node --test --test-concurrency=4 --test-timeout=60000 \"live/**/*.live.mjs\"",
+    "test:live": "node live/run-live.mjs",
+    "test:live:changed": "node live/run-live.mjs --base origin/master",
     "fuzz:ui": "node live/ui-fuzz/run.mjs",
     "fuzz:ui:nightly": "node live/ui-fuzz/nightly.mjs",
     "measure": "node live/measure.mjs",
