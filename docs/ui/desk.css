@@ -250,12 +250,11 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip-unpin:hover { opacity: 1; }
 .ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
 
-/* The flash: the tool's name over the Board card's header for a moment on each change, never over the board; it never takes a click. */
-.ui-card-board .ui-head { position: relative; }
-.ui-flash { position: absolute; left: 72px; top: 50%; transform: translateY(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 8px;
-    padding: 1px 14px; border-radius: 999px; background: rgba(18, 20, 26, .68); text-transform: none; letter-spacing: 0; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
+/* The flash: the tool's name over the top of the board for a moment on each change, in the tool's colour; it never takes a click.
+   `pins.js` sets its left and top from the board's visible part. */
+.ui-flash { position: absolute; transform: translateX(-50%); z-index: 5; pointer-events: none;
+    padding: 1px 14px; border-radius: 999px; background: color-mix(in srgb, var(--ui-flash-colour) 80%, transparent); text-transform: none; letter-spacing: 0; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
 .ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
-.ui-flash-dot { width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); flex: none; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
 
 /* The top bar's controls. */
