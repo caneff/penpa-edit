@@ -771,6 +771,11 @@
                 const clear = above && above.offsetTop + above.offsetHeight + CARD_GAP_PX;
                 if (saved[id]?.fitted && clear && node.offsetTop < clear) {
                     node.style.top = `${clear}px`;
+                    // Setting `top` alone leaves the card's height running past the desk's bottom.
+                    const room = desk.clientHeight - EDGE_MARGIN_PX - clear;
+                    if (node.offsetHeight > room) {
+                        setHeight(node, Math.max(minHeightOf(id, cards[id]), room));
+                    }
                     keepFitted(desk, cards, [id]);
                 }
                 above = node;
