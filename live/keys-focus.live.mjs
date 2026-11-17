@@ -1,31 +1,34 @@
 // Where the keyboard goes on `solve.html` (#197): Tab steps pins only from the board, a dialog keeps Tab and every key to itself,
 // a mouse click on a bar or card-head button hands focus back to the board, and Escape in the pin-name field clears it.
-// Real key presses and clicks; focus is read with `document.activeElement` through shadow roots, the board by what Penpa+ would save.
+// Real key presses and clicks; focus is read as the page's `document.activeElement` (a Web Awesome control is its host element),
+// the board by what Penpa+ would save.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { board, currentTool, newBoardSolveLink, openSolvePage, useBrowser } from './page.mjs'
+import { board, currentTool, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
 const CELL = 12
+const PINS = ['Line Normal', 'Sudoku Corner']
+// More Tab presses than the Settings dialog has controls, so every press past the last one tries to leave it.
+const TABS_PAST_THE_DIALOG = 60
+const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
-// Runs in the page. A description of the deepest focused element, through shadow roots.
-function focusInPage () {
-  let focused = document.activeElement
-  while (focused?.shadowRoot?.activeElement) focused = focused.shadowRoot.activeElement
-  const host = document.activeElement
-  return { tag: focused?.tagName, host: host?.tagName, label: host?.getAttribute?.('aria-label') ?? host?.textContent?.trim() ?? '' }
-}
+const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
+
+// Runs in the page. The control with focus: its tag and its accessible text.
+const focusInPage = () => ({ host: document.activeElement?.tagName, label: document.activeElement?.textContent?.trim() ?? '' })
 const focus = (page) => page.evaluate(focusInPage)
-const boardHasFocus = async (page) => (await focus(page)).host === 'BODY'
+const pageBodyHasFocus = async (page) => (await focus(page)).host === 'BODY'
 const focusIsInDialog = (page) => page.evaluate(() => document.querySelector('wa-dialog[open]')?.contains(document.activeElement) === true)
-const toolMode = async (page) => (await currentTool(page)).mode
+const blurFocus = (page) => page.evaluate(() => { let f = document.activeElement; while (f?.shadowRoot?.activeElement) f = f.shadowRoot.activeElement; f.blur() })
+const boardAndTool = async (page) => JSON.stringify([await board(page), await currentTool(page)])
 
 describe('the keyboard on the solve page', () => {
   let opened
-  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Corner'])) })
+  before(async () => { opened = await openSolve() })
   after(async () => { await opened?.context.close() })
 
   it('Tab from a top-bar button moves focus on and leaves the pins alone; Tab from the board steps pins', async () => {
@@ -38,26 +41,41 @@ describe('the keyboard on the solve page', () => {
     assert.deepEqual([next.host, next.label === 'Undo'], ['WA-BUTTON', false])
     assert.deepEqual(await currentTool(page), before)
     await clickCell(page, CELL)
-    assert.equal(await boardHasFocus(page), true)
+    assert.equal(await pageBodyHasFocus(page), true)
     await page.keyboard.press('Tab')
     assert.notDeepEqual(await currentTool(page), before)
   })
 
-  it('Pause by mouse hands focus to the board, so Enter does not click it again', async () => {
+  it('a mouse click on Pause hands focus to the board, so Enter does not resume it', async () => {
     const { page } = opened
     await page.getByRole('button', { name: 'Pause' }).click()
-    await page.getByRole('button', { name: 'Resume' }).click()
-    assert.equal(await settle(() => boardHasFocus(page), true), true)
+    assert.equal(await page.evaluate(() => engine.getTimer().covered), true, 'paused')
+    assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
     await page.keyboard.press('Enter')
-    assert.equal(await page.evaluate(() => engine.getTimer().covered), false)
+    assert.equal(await page.evaluate(() => engine.getTimer().covered), true, 'still paused')
+    await page.getByRole('button', { name: 'Resume' }).click()
+    assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
+    await page.keyboard.press('Enter')
+    assert.equal(await page.evaluate(() => engine.getTimer().covered), false, 'still running')
   })
 
   it('the theme button and Board zoom buttons hand focus back after a click', async () => {
     const { page } = opened
     for (const name of [/theme/i, 'Zoom out', 'Zoom in', 'Fit']) {
       await page.getByRole('button', { name }).click()
-      assert.equal(await settle(() => boardHasFocus(page), true), true, `${name} hands focus back`)
+      assert.equal(await settle(() => pageBodyHasFocus(page), true), true, `${name} hands focus back`)
     }
+  })
+
+  it('a key press that clicks a bar button leaves focus on it', async () => {
+    const { page } = opened
+    const theme = page.getByRole('button', { name: /theme/i })
+    const was = await page.evaluate(() => engine.getSettings().theme)
+    await theme.focus()
+    await page.keyboard.press('Enter')
+    // The toggled theme shows the click has happened; a hand-back would run as a timeout after it.
+    await settle(() => page.evaluate(() => engine.getSettings().theme), was === 'dark' ? 'light' : 'dark')
+    assert.equal(await settle(() => page.evaluate(() => /theme/i.test(document.activeElement.textContent)), true), true)
   })
 
   it('Escape in the pin-name field empties it and the board has focus', async () => {
@@ -67,45 +85,50 @@ describe('the keyboard on the solve page', () => {
     await page.keyboard.type('abc')
     await page.keyboard.press('Escape')
     assert.equal(await field.inputValue(), '')
-    assert.equal(await settle(() => boardHasFocus(page), true), true)
+    assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
   })
 })
 
 describe('with Settings open', () => {
   let opened
-  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Corner'])) })
+  before(async () => {
+    opened = await openSolve()
+    await clickCell(opened.page, CELL)
+    await opened.page.getByRole('button', { name: 'Settings' }).click()
+    await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  })
   after(async () => { await opened?.context.close() })
 
-  it('Tab past the last control stays in the dialog, and a typed digit changes nothing on the board', async () => {
+  it('Tab past the last control stays in the dialog, and a typed digit and pin key change nothing on the board', async () => {
     const { page } = opened
-    await clickCell(page, CELL)
-    const before = JSON.stringify(await board(page))
-    const toolBefore = await toolMode(page)
-    await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('dialog', { name: 'Settings' }).waitFor()
-    for (let i = 0; i < 60; i++) await page.keyboard.press('Tab')
+    const before = await boardAndTool(page)
+    for (let i = 0; i < TABS_PAST_THE_DIALOG; i++) await page.keyboard.press('Tab')
     assert.equal(await settle(() => focusIsInDialog(page), true), true, 'focus is still in the dialog')
     await page.keyboard.press('5')
     await page.keyboard.press('x')
-    assert.equal(JSON.stringify(await board(page)), before)
-    assert.equal(await toolMode(page), toolBefore)
+    assert.equal(await boardAndTool(page), before)
   })
 
-  it('a key typed with focus on the page body still does not reach the board', async () => {
+  it('a key typed with focus on the page body does not reach the board', async () => {
     const { page } = opened
-    await page.evaluate(() => { let f = document.activeElement; while (f?.shadowRoot?.activeElement) f = f.shadowRoot.activeElement; f.blur() })
-    assert.equal(await boardHasFocus(page), true, 'the body has focus')
-    // Z picks the first pin and X the second: pressing the one the current tool is not changes the tool if the key leaks.
-    const wrongKey = (await toolMode(page)) === 'line' ? 'x' : 'z'
-    const before = JSON.stringify([await board(page), await currentTool(page)])
+    await setTool(page, FIRST_PIN_TOOL)
+    await blurFocus(page)
+    assert.equal(await pageBodyHasFocus(page), true, 'the body has focus')
+    const before = await boardAndTool(page)
+    // X picks the second pin: the tool changes if the key leaks.
     await page.keyboard.press('5')
-    await page.keyboard.press(wrongKey)
-    assert.equal(JSON.stringify([await board(page), await currentTool(page)]), before)
+    await page.keyboard.press('x')
+    assert.equal(await boardAndTool(page), before)
   })
 
-  it('Shift+Tab from the first control stays in the dialog too', async () => {
+  it('Shift+Tab past the first control wraps to the dialog\'s end, not back to its start', async () => {
     const { page } = opened
-    for (let i = 0; i < 60; i++) await page.keyboard.press('Shift+Tab')
+    const first = page.locator('wa-dialog[open] wa-select').first()
+    await first.focus()
+    // The first press reaches the dialog's own close button, the second leaves the dialog.
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Shift+Tab')
     assert.equal(await settle(() => focusIsInDialog(page), true), true)
+    assert.equal(await first.evaluate((node) => node === document.activeElement), false)
   })
 })

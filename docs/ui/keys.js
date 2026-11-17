@@ -1,5 +1,5 @@
-// Where each key goes: the board (Penpa+), the browser or the UI. Answers `engine.onKey`, and returns focus to the board after
-// a board click, a menu choice and a dialog closing. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
+// Where each key goes: the board (Penpa+), the browser or the UI. Answers `engine.onKey`, returns focus to the board after
+// a board click, a menu choice, a dialog closing and a mouse click on a bar or card-head button, and keeps Tab inside an open dialog. Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
 
@@ -18,7 +18,6 @@
     // A control the board still takes keys from while it has focus.
     const PLAIN_CONTROL = 'button, wa-button, .ui-card';
     const BOARD = '.ui-card-board canvas';
-    // The buttons whose mouse click returns focus to the board: the top bar's and the ones in a card's head.
     const HAND_BACK_BUTTON = '.ui-bar wa-button, .ui-head wa-button';
     const DIALOG_CONTROL = 'wa-button, wa-input, wa-select, wa-switch, wa-checkbox, button, input, select, textarea, [tabindex]:not([tabindex="-1"])';
 
@@ -78,7 +77,7 @@
         setTimeout(focusBoard);
     }
 
-    // Focus inside `dialog`, or on its first (`fromEnd` false) or last tabbable control when it has left it.
+    // Where focus lands after Tab (`fromEnd` false) or Shift+Tab left the dialog.
     function keepFocusIn(dialog, fromEnd) {
         if (dialog.contains(document.activeElement)) {
             return;
