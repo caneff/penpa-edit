@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { useBrowser } from './page.mjs'
+import { CARD_GAP_PX } from './desk-layout.mjs'
 import { CARDS, HANDLES, MOVES, scriptedList } from './ui-fuzz/actions.mjs'
 import { runScript } from './ui-fuzz/engine.mjs'
 import { uiFuzzPuzzles } from './ui-fuzz/puzzles.mjs'
@@ -71,10 +72,10 @@ describe('a card that grows on a layout the solver changed', () => {
     await replays('akari', [...MODE_UNDER_PINNED, LOAD_DEFAULTS])
   })
 
-  it('a card placed by hand moves down only by the overlap, its size kept', async () => {
+  it('a card placed by hand moves down to the desk\'s gap under the growing card, its size kept', async () => {
     const { before, after } = await boxesAround('akari', [...MODE_UNDER_PINNED, LOAD_DEFAULTS])
     assert.ok(after.Pinned.height > before.Pinned.height, 'Pinned grew')
-    near(after.Mode.y, bottom(after.Pinned), 'Mode\'s top')
+    near(after.Mode.y, bottom(after.Pinned) + CARD_GAP_PX, 'Mode\'s top')
     assert.equal(after.Mode.height, before.Mode.height)
   })
 
@@ -104,7 +105,7 @@ describe('a card that grows on a layout the solver changed', () => {
       LOAD_DEFAULTS
     ])
     assert.deepEqual(after.Mode, before.Mode)
-    assert.ok(bottom(after.Pinned) <= after.Mode.y + SLACK_PX, `Pinned ends at ${bottom(after.Pinned)}, over Mode at ${after.Mode.y}`)
+    assert.ok(bottom(after.Pinned) + CARD_GAP_PX <= after.Mode.y + SLACK_PX, `Pinned ends at ${bottom(after.Pinned)}, over Mode at ${after.Mode.y}`)
   })
 
   it('Rules, dragged by hand, stays clear of Mouse on a preset load', async () => {

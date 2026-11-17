@@ -809,10 +809,10 @@
     }
 
     // Card `id` grew from the box `was`: each card below it that `was` left clear and that it covers now moves down out from
-    // under it, and in turn moves what it then covers (#288). A card the solver never touched moves to CARD_GAP_PX under it,
-    // as restackRight's do (#199); one the solver moved or sized moves only by the overlap, its size kept, since the growth,
-    // not the solver, closed the gap (an exception to #199, ruled 2026-11-17). Either shrinks only to the room above the
-    // desk's bottom; where even its least height has no room, the grown card stops above it instead.
+    // under it to CARD_GAP_PX below it, and in turn moves what it then covers (#288). That holds for a card the solver
+    // moved or sized too, its size kept, since the growth, not the solver, closed the gap (an exception to #199's rule,
+    // ruled 2026-11-17). A card shrinks only to the room above the desk's bottom; where even its least height has no room,
+    // the grown card stops CARD_GAP_PX above it instead.
     function clearBelow(desk, cards, id, was) {
         const grown = cards[id].node;
         shownIds(cards).filter((other) => other !== id).forEach((other) => {
@@ -822,11 +822,10 @@
             if (box.top < was.top || boxesMeet(box, was) || !boxesMeet(box, now)) {
                 return;
             }
-            const gap = saved[other] && !saved[other].fitted ? 0 : CARD_GAP_PX;
-            const top = now.bottom + gap;
+            const top = now.bottom + CARD_GAP_PX;
             const room = desk.clientHeight - EDGE_MARGIN_PX - top;
             if (room < minHeightOf(other, cards[other])) {
-                setHeight(grown, Math.max(minHeightOf(id, cards[id]), box.top - gap - now.top));
+                setHeight(grown, Math.max(minHeightOf(id, cards[id]), box.top - CARD_GAP_PX - now.top));
                 heightsSeen.set(id, grown.offsetHeight);
                 keepDeskChange(desk, cards, id);
                 return;
