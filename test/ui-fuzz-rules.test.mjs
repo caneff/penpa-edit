@@ -119,16 +119,16 @@ describe('the UI fuzz rules', () => {
         ['pin 1 (Surface) shows key X, not Z', 'pin 2 (Sudoku > Normal) shows key Z, not X'])
     })
     it('holds when pressing a pin\'s key makes that pin current', () => {
-      assert.deepEqual(check('pin-keys-select-their-pin', { pins: [pin('Z', 'Surface', true), pin('X', 'Sudoku > Normal')] }, { action: action('pin key', 'Z') }), [])
+      assert.deepEqual(check('pin-keys-select-their-pin', { pins: [pin('Z', 'Surface', true), pin('X', 'Sudoku > Normal')] }, { action: action('pin key', 'z') }), [])
     })
     it('fails when pressing a pin\'s key leaves another pin current', () => {
-      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'Z') }),
+      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'z') }),
         ['pressing Z left Sudoku > Normal current, not the pin it labels, Surface'])
     })
     it('asks nothing of a key no pin shows, a key pressed in Number mode, or one pressed with the shortcuts off', () => {
-      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'C') }), [])
-      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'Z'), before: { tool: { mode: 'number', submode: '1', style: 1 } } }), [])
-      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'Z'), before: { shortcutsEnabled: false } }), [])
+      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'c') }), [])
+      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'z'), before: { tool: { mode: 'number', submode: '1', style: 1 } } }), [])
+      assert.deepEqual(check('pin-keys-select-their-pin', {}, { action: action('pin key', 'z'), before: { shortcutsEnabled: false } }), [])
     })
   })
 

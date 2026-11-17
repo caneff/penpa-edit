@@ -92,10 +92,12 @@ export const RULES = [
         ? []
         : [`pin ${i + 1} (${p.label}) shows ${p.shortcut ? `key ${p.shortcut}` : 'no key'}, not ${PIN_KEYS[i] ?? 'none'}`])
       if (action?.kind !== 'pin key' || before.tool.mode === NUMBER_MODE || !before.shortcutsEnabled) return labels
-      const target = before.pins.find((p) => p.shortcut === action.arg)
+      // The action presses the key as typed (`z`); a chip shows it in capitals (`Z`).
+      const key = action.arg.toUpperCase()
+      const target = before.pins.find((p) => p.shortcut === key)
       if (!target || now.pins.some((p) => p.label === target.label && p.current)) return labels
       const current = now.pins.find((p) => p.current)
-      return [...labels, `pressing ${action.arg} left ${current ? `${current.label} current` : 'no pin current'}, not the pin it labels, ${target.label}`]
+      return [...labels, `pressing ${key} left ${current ? `${current.label} current` : 'no pin current'}, not the pin it labels, ${target.label}`]
     }
   },
   {
