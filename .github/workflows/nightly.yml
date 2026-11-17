@@ -14,6 +14,8 @@ permissions:
 jobs:
   seam:
     uses: ./.github/workflows/ci.yml
+    with:
+      full-round-trips: true
     # A called workflow's jobs may ask for no more than this grants; CI's `expected-files` job, skipped off a PR, asks
     # for these.
     permissions:

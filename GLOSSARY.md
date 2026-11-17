@@ -8,7 +8,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Sub-mode**: the choice within a mode (Number's Normal, Long, Candidates, ...).
 - **Style**: the color or look choice within a sub-mode (the digit keys pick one in Surface).
 - **Tab set**: the modes checked in Penpa+'s Tab settings (`#mode_choices`), which a link carries; Penpa+'s Tab and
-  Enter keys step through it. In the new solve UI it seeds the pins and, with them, sets the tools the Mouse card is sized for.
+  Enter keys step through it. In the new solve UI it seeds the pins.
 - **Pin**: a mode and one of its sub-modes the solver keeps for Tab in the new solve UI; its style is the last one used
   on it. The same mode can be pinned with different sub-modes.
 - **Tab cycle**: Tab and Shift+Tab stepping through the pins in the new solve UI. Not the Tab set, which only seeds them.
@@ -21,6 +21,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **First release**: the fork's ChinStrap-branded solve UI, live on Pages, solving everything Penpa+ solves; edit links go to upstream.
 - **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
+- **Board coordinates**: the Settings switch that labels the board's columns and rows in a gutter outside the canvas, so a solver can name a place
+  in chat. A square-cell grid gets its own row and column numbers; every other shape gets reference bands.
+- **Reference band**: one of the equal strips, about 1.5 cells wide, that the board coordinates cut a non-square grid's bounding box into: letters
+  A, B, C... across the top, numbers 1, 2, 3... down the left. Independent of the puzzle's geometry, so "the cell at C4" is a place, not a cell id.
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
 - **Tool**: a mode with one of its sub-modes and, where it has them, one of its styles; what the solver picks and pins.
 - **Tool group**: one of the seven headings the Mode card files tools under, by what the tool puts on the board
@@ -33,6 +37,11 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Desk**: the solve page's work area under its top bar, holding the cards; its layout is fitted to the window and puzzle when
   the desk opens fresh, when Reset layout is pressed, and when the window changes size while no card has been moved or
   resized. The places the solver gives cards hold for every puzzle; the cards' sizes hold only for the puzzle they were set on.
+- **Automatic size**: a card's width or height while the solver has not dragged that edge: the size a fresh load would
+  give it. Mode and Mouse are as tall as the tallest of the pinned tools and the current tool; in a column the solver
+  has not changed, Rules and Recent take the rest of it, down to the desk's bottom. A double-click on a dragged edge's
+  handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
+  does it for every card.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
