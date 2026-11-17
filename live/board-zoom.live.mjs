@@ -3,7 +3,7 @@
 // buttons' disabled states, the canvas size and the canvas's pixels.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
+import { afterChange, linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
@@ -58,6 +58,42 @@ describe('the Board card follows the cursor while zoomed', () => {
   })
 })
 
+describe('+ and -', () => {
+  it('centre the view on a cursor the solver moved', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      await page.evaluate(() => { engine.setTool({ mode: 'sudoku', submode: '1' }); pu.selection = [pu.centerlist[0]]; pu.cursol = pu.centerlist[0] })
+      for (let i = 0; i < 4; i++) { await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowDown') }
+      for (let i = 0; i < 6; i++) await button(page, 'Zoom in').click()
+      const offCentre = async () => {
+        const { left, right, top, bottom } = await cursorAgainstBody(page)
+        return Math.max(Math.abs(left - right), Math.abs(top - bottom))
+      }
+      assert.equal(await settle(async () => (await offCentre()) <= 3, true), true, `${await offCentre()} px off centre`)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('keep the scroll of a board the solver has not touched the cursor of', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      for (let i = 0; i < 4; i++) await button(page, 'Zoom in').click()
+      const scrolled = await page.evaluate((selector) => {
+        const body = document.querySelector(`${selector} .ui-body`)
+        body.scrollTo(body.scrollWidth, body.scrollHeight)
+        return [body.scrollLeft, body.scrollTop]
+      }, BOARD)
+      assert.ok(scrolled[0] > 0 && scrolled[1] > 0, `the board overflows the card (${scrolled})`)
+      await button(page, 'Zoom in').click()
+      const after = await page.evaluate((selector) => { const body = document.querySelector(`${selector} .ui-body`); return [body.scrollLeft, body.scrollTop] }, BOARD)
+      assert.ok(after[0] > 0 && after[1] > 0, `the scroll stays near the corner it was at (${scrolled} -> ${after})`)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
 describe('the zoom buttons', () => {
   it('disable at the cell-size limits and wake again off them', async () => {
     const { context, page } = await openSudoku()
@@ -90,10 +126,15 @@ describe('a zoom the solver set', () => {
       assert.notEqual(zoomed, fitted)
       const { width, height } = page.viewportSize()
       await page.setViewportSize({ width: width - 6, height })
-      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+      // A "nothing happened" check: the card's resize observer runs within a frame, so after two the zoom would be gone.
+      await afterChange(page)
       assert.equal(await cellSize(page), zoomed, 'a smaller window keeps the zoom')
       await button(page, 'Fit').click()
       assert.equal(await settle(async () => (await cellSize(page)) !== zoomed, true), true, 'Fit refits')
+      // Fit also hands the size back to the card: a much smaller window now shrinks it.
+      const refitted = await cellSize(page)
+      await page.setViewportSize({ width: width - 300, height: height - 250 })
+      assert.equal(await settle(async () => (await cellSize(page)) < refitted, true), true, 'after Fit the board follows the card again')
     } finally {
       await context.close()
     }

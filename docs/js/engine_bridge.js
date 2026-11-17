@@ -1113,8 +1113,8 @@
         },
 
         // The cursor's cell: its number as `cell`, and where it lies on the page as `{ left, top, right, bottom }` in viewport px.
-        // Null when the cursor is not on a cell (an edge or a corner).
-        // MVP gap: the cursor is `pu.cursol`, a point id, and the canvas is drawn 1 CSS px per canvas px (see above).
+        // Null when the cursor is not on a cell: it is on an edge or a corner, or names no point (a board with no cells).
+        // MVP gap: the cursor is `pu.cursol`, a point id, and the canvas is drawn 1 CSS px per canvas px (see fixPointerOffset).
         getFocusRect() {
             const canvas = boardCanvas();
             const cell = pu.point[pu.cursol];
@@ -1122,13 +1122,15 @@
                 return null;
             }
             const corners = cell.surround.map((id) => pu.point[id]);
+            const xs = corners.map((p) => p.x);
+            const ys = corners.map((p) => p.y);
             const origin = canvas.getBoundingClientRect();
             return {
                 cell: pu.cursol,
-                left: origin.left + Math.min(...corners.map((p) => p.x)),
-                top: origin.top + Math.min(...corners.map((p) => p.y)),
-                right: origin.left + Math.max(...corners.map((p) => p.x)),
-                bottom: origin.top + Math.max(...corners.map((p) => p.y))
+                left: origin.left + Math.min(...xs),
+                top: origin.top + Math.min(...ys),
+                right: origin.left + Math.max(...xs),
+                bottom: origin.top + Math.max(...ys)
             };
         },
 

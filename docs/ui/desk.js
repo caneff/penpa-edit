@@ -522,8 +522,8 @@
     let isZoomed = false;
     // The Board card's - and + buttons, which are disabled at the cell-size limits.
     let zoomButtons = null;
-    // The cursor's cell as the last change saw it, and whether it has moved since the page opened (until it has, it
-    // is Penpa+'s starting cell, not a place the solver chose).
+    // The cursor's cell as the last change saw it (read when the desk opens, so the starting cell is not a move), and
+    // whether it has moved since (until it has, the cursor is Penpa+'s starting cell, not a place the solver chose).
     let cursorCell = null;
     let hasCursorMoved = false;
 
@@ -569,11 +569,9 @@
             return;
         }
         const box = boardBody.getBoundingClientRect();
-        const visible = {
-            left: box.left + boardBody.clientLeft, top: box.top + boardBody.clientTop,
-        };
-        visible.right = visible.left + boardBody.clientWidth;
-        visible.bottom = visible.top + boardBody.clientHeight;
+        const left = box.left + boardBody.clientLeft;
+        const top = box.top + boardBody.clientTop;
+        const visible = { left, top, right: left + boardBody.clientWidth, bottom: top + boardBody.clientHeight };
         const isInside = focus.left >= visible.left && focus.right <= visible.right && focus.top >= visible.top && focus.bottom <= visible.bottom;
         if (isInside && !centre) {
             return;
@@ -675,6 +673,7 @@
         desk.zoom.out.addEventListener('click', () => zoomBoard(boardBody, -1));
         desk.zoom.in.addEventListener('click', () => zoomBoard(boardBody, 1));
         desk.zoom.fit.addEventListener('click', () => fitBoard(boardBody));
+        cursorCell = engine.getFocusRect()?.cell ?? null;
         engine.on('change', () => followCursor(boardBody));
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit, unless the solver
         // zoomed, which only Fit or a layout reset drops. The card is watched, not its body, since a scrollbar appearing
