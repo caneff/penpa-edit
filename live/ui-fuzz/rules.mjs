@@ -14,6 +14,7 @@
 //   toolName          the name the solve page gives the engine's current tool
 //   boardScroll       the Board card body's { width, clientWidth, height, clientHeight }: scroll sizes and visible sizes
 //   pins, recent      the Pinned and Recent chips in order, each { shortcut, label, current }, `shortcut` null with no key
+//   presetUndo        whether the Pinned card shows the line that offers to undo a preset load, save or delete
 //   tool              the engine's { mode, submode, style }
 //   shortcutsEnabled  whether the pin keys are on (the engine's `shortcuts_enabled` setting)
 //   theme             'light' or 'dark'
@@ -35,6 +36,8 @@ const RESET_LAYOUT = 'reset layout'
 const RECENT_CARD = 'Recent'
 // The card whose height follows the current tool's option rows (docs/ui/tool-cards.js) until #252 fixes it.
 const MODE_CARD = 'Mode'
+// The card that shows a preset's undo line for the visit only (docs/ui/pin-presets.js): a reload drops it.
+const PINNED_CARD = 'Pinned'
 // The mode in which a pin key types a letter instead (pins.js).
 const NUMBER_MODE = 'number'
 // Layout sizes are fractional pixels; this much of an overlap or an overhang is rounding, not a broken layout.
@@ -165,24 +168,28 @@ export const RULES = [
     name: 'reload-keeps-layout-and-pins',
     check: ({ now, before, action }) => {
       if (action?.kind !== 'reload') return []
-      // A reload can bring back another tool than the one in use (#263: it is kept only when Penpa+'s unawaited save on
-      // unload wins), and the Mode card's height follows the tool (#252). The tool is #263's to check, not this rule's: when
-      // it changed, Mode may change height, and each card stacked under Mode in its column must move by exactly as much.
+      // A card whose content lasts the visit only may change height on a reload, and each card stacked under it in its
+      // column must move by exactly as much: Recent's chips go, and so does Pinned's undo line (`presetUndo`). A reload can
+      // also bring back another tool than the one in use (#263: it is kept only when Penpa+'s unawaited save on unload wins),
+      // and the Mode card's height follows the tool (#252). The tool is #263's to check, not this rule's: when it changed,
+      // Mode may change height too.
       const toolChanged = before.tool.mode !== now.tool.mode || before.tool.submode !== now.tool.submode
-      const wasMode = before.cards.find((c) => c.name === MODE_CARD)
-      const isMode = now.cards.find((c) => c.name === MODE_CARD)
-      const grew = toolChanged && wasMode && isMode ? isMode.rect.height - wasMode.rect.height : 0
-      const underMode = (rect) => Math.abs(rect.x - wasMode.rect.x) <= SLACK_PX && rect.y >= wasMode.rect.y + wasMode.rect.height
+      const mayChange = { [RECENT_CARD]: true, [PINNED_CARD]: before.presetUndo, [MODE_CARD]: toolChanged }
+      const grew = (name) => {
+        const [was, is] = [before, now].map((page) => page.cards.find((c) => c.name === name))
+        return mayChange[name] && was?.shown && is?.shown ? is.rect.height - was.rect.height : 0
+      }
+      const above = (rect) => before.cards.filter((c) => c.shown && mayChange[c.name] && Math.abs(rect.x - c.rect.x) <= SLACK_PX &&
+        rect.y >= c.rect.y + c.rect.height)
       const moved = before.cards.flatMap((was) => {
         const is = now.cards.find((c) => c.name === was.name)
         if (!is || is.shown !== was.shown) return [`the reload ${was.shown ? 'closed' : 'opened'} ${was.name}`]
         const expected = {
           ...was.rect,
-          y: was.rect.y + (grew && was.name !== MODE_CARD && underMode(was.rect) ? grew : 0),
-          height: was.rect.height + (was.name === MODE_CARD ? grew : 0)
+          y: was.rect.y + above(was.rect).reduce((sum, c) => sum + grew(c.name), 0),
+          height: was.rect.height + grew(was.name)
         }
-        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - expected[side]) > SLACK_PX &&
-          !(side === 'height' && was.name === RECENT_CARD))
+        const moved = ['x', 'y', 'width', 'height'].some((side) => Math.abs(is.rect[side] - expected[side]) > SLACK_PX)
         return was.shown && moved ? [`the reload moved ${was.name} from ${box(was.rect)} to ${box(is.rect)}`] : []
       })
       const pins = (page) => page.pins.map((p) => p.label).join(', ')

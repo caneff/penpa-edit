@@ -1,7 +1,7 @@
 // One snapshot of the solve page (#195), what the UI fuzz's crash signals and rules (`rules.mjs`) read after every action:
 // the window, each card's rectangle, heading and background, the Board label and the name of the engine's tool, the Board
-// card's scroll, the pins, Recent, the theme, the dialogs, the undo state and the board, and the page's errors so far.
-// `rules.mjs` says what each field holds. Not a check itself.
+// card's scroll, the pins, Recent, Pinned's undo line, the theme, the dialogs, the undo state and the board, and the page's
+// errors so far. `rules.mjs` says what each field holds. Not a check itself.
 
 // Runs in the page: the snapshot's page half. A heading or label line is `{ text, lines }`, `lines` the count of rows its
 // text is drawn on; a chip is `{ shortcut, label, current }`, `shortcut` null on a chip with no key.
@@ -50,6 +50,7 @@ function pageStateInPage () {
     boardScroll: { width: boardBody.scrollWidth, clientWidth: boardBody.clientWidth, height: boardBody.scrollHeight, clientHeight: boardBody.clientHeight },
     pins: chips('.ui-pins'),
     recent: chips('.ui-recent'),
+    presetUndo: document.querySelector('section.ui-card-pins .ui-preset-undo')?.childElementCount > 0,
     tool,
     shortcutsEnabled: engine.getSettings().shortcuts_enabled,
     theme: engine.getSettings().theme,

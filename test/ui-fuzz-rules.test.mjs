@@ -19,6 +19,7 @@ function quietPage (overrides = {}) {
     boardScroll: { width: 698, clientWidth: 698, height: 786, clientHeight: 786 },
     pins: [pin('Z', 'Surface'), pin('X', 'Sudoku > Normal', true)],
     recent: [],
+    presetUndo: false,
     tool: { mode: 'sudoku', submode: '1', style: 9 },
     shortcutsEnabled: true,
     theme: 'light',
@@ -209,6 +210,20 @@ describe('the UI fuzz rules', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 326, 380, 98)] }, { action: action('reload'), before }), [])
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 300, 380, 98)] }, { action: action('reload'), before }),
         ['the reload moved Recent from 1005,326 380x136 to 1005,300 380x98'])
+    })
+    describe('when Pinned showed a preset\'s undo line, which a reload drops', () => {
+      const column = (pinnedHeight, modeY) => [card('Pinned', 1006, 72, 380, pinnedHeight), card('Mode', 1006, modeY, 380, 98)]
+      it('holds when Pinned gets shorter and the cards under it move up by as much', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 178) }, { action: action('reload'), before: { presetUndo: true, cards: column(124.375, 206) } }), [])
+      })
+      it('fails when a card under Pinned moves by another amount', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 190) }, { action: action('reload'), before: { presetUndo: true, cards: column(124.375, 206) } }),
+          ['the reload moved Mode from 1006,206 380x98 to 1006,190 380x98'])
+      })
+      it('fails when Pinned changes height with no undo line shown', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 178) }, { action: action('reload'), before: { cards: column(124.375, 206) } }),
+          ['the reload moved Pinned from 1006,72 380x124.375 to 1006,72 380x96.1875', 'the reload moved Mode from 1006,206 380x98 to 1006,178 380x98'])
+      })
     })
     describe('when the reload changes the tool (#263), which sets the Mode card\'s height (#252)', () => {
       const LINE = { mode: 'lineE', submode: '3', style: 3 }

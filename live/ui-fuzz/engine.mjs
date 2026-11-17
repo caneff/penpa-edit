@@ -82,7 +82,7 @@ function listsOn (puzzles, named, options) {
 // one list with no hunt and no shrink; `maxCommands` and `focus` (the areas whose actions are drawn more often) shape the
 // lists, so a replay needs the ones it was found with. Returns `{ failed: false, seed, runs }` or the failure: `error`,
 // `step` (the count of steps run when it was read), `puzzle` (its name), `sequence` (the steps, in words), `huntSteps`
-// (the steps the list had run when the hunt found it, before the shrink), `seed`, `path`, `focus` and `runs`. Rejects when
+// (the steps the list had run when the hunt found it, before the shrink), `seed`, `path`, `maxCommands`, `focus` and `runs`. Rejects when
 // no list ran (the time limit fired before the first): a run that checked nothing is no pass.
 export async function runFuzz ({ openTarget, puzzles, puzzle, seed, runs, minutes = DEFAULT_MINUTES, shrinkMinutes = DEFAULT_SHRINK_MINUTES, path, maxCommands, focus = [] }) {
   const [fcPath, replayPath] = path == null ? [] : path.split('@')
@@ -121,6 +121,7 @@ export async function runFuzz ({ openTarget, puzzles, puzzle, seed, runs, minute
     huntSteps,
     seed: found.seed,
     path: `${found.counterexamplePath}@${REPLAY_PATH.exec(shown)[1]}`,
+    maxCommands,
     focus,
     runs: hunt.numRuns
   }
