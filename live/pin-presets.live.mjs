@@ -349,7 +349,7 @@ describe('the compact save flow', () => {
     await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).focus()
     await page.keyboard.press('Escape')
     assert.equal(await nameField(page).isVisible(), false)
-    assert.equal(await page.evaluate(() => document.activeElement?.closest('.ui-card-pins') !== null), false, 'the focus left the card')
+    assert.equal(await settle(() => focusInPinnedCard(page), false), false, 'the focus left the card')
   })
 })
 

@@ -142,9 +142,12 @@
             nameInput.focus();
         }
 
-        // Hiding the form takes the focus with it, whichever way it closes, so the next key goes to the board and not to the save icon.
+        // However it closes, the focus leaves the form (a hidden control can keep it), so the next key goes to the board and not to the save icon.
         function closeForm() {
             nameForm.hidden = true;
+            if (nameForm.contains(document.activeElement)) {
+                document.activeElement.blur();
+            }
         }
 
         function saveFromForm() {
