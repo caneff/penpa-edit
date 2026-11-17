@@ -170,7 +170,7 @@ describe('the Mode card tree', () => {
     await opened.page.keyboard.press('Escape')
   })
 
-  it('picks the first match with Enter in the field, and nothing from an empty one', async () => {
+  it('picks the best match with Enter in the field, and nothing from an empty one', async () => {
     await reopen()
     await search().fill('Helper (x)')
     await search().press('Enter')
@@ -220,19 +220,33 @@ describe('the Mode card tree', () => {
     await search().press('Enter')
     const tool = await currentTool(opened.page)
     assert.deepEqual([tool.mode, tool.submode ?? ''], expected, 'Enter picks the highlighted row')
+    const look = (row) => row.evaluate((r) => ({ fill: getComputedStyle(r).backgroundColor, weight: getComputedStyle(r).fontWeight }))
+    const current = tree().locator('[role=treeitem][aria-selected=true]')
+    await reopen({ mode: 'line', submode: '1' })
+    await search().fill('line')
+    assert.deepEqual(await look(current), { fill: 'rgba(0, 0, 0, 0)', weight: '700' }, 'the current tool is bold with no fill while searching')
+    await reopen({ mode: 'line', submode: '1' })
+    await search().fill('sudoku corner')
+    assert.equal(await best.getAttribute('data-submode'), '2', 'the highlight is the best match, not the first')
+    await search().press('Enter')
+    assert.equal((await currentTool(opened.page)).submode, '2', 'Enter follows the highlight')
     await reopen({ mode: 'line', submode: '1' })
     assert.equal(await tree().locator('.ui-tbest').count(), 0, 'no highlight without a search')
+    await search().fill('e')
     await opened.page.keyboard.press('Escape')
+    assert.equal(await search().getAttribute('aria-activedescendant'), null, 'a closed list is not pointed at')
   })
 
   it('sends a letter typed in the tree back to the search field', async () => {
     await reopen()
     await search().fill('e')
     await search().press('ArrowDown')
+    await opened.page.keyboard.press('Backspace')
+    assert.equal(await search().inputValue(), '', 'Backspace in the tree edits the field')
+    await search().fill('e')
+    await search().press('ArrowDown')
     await opened.page.keyboard.type('x')
     assert.equal(await search().inputValue(), 'ex')
-    await opened.page.keyboard.press('Backspace')
-    assert.equal(await search().inputValue(), 'e', 'Backspace in the tree edits the field')
     await opened.page.keyboard.press('Escape')
   })
 
@@ -297,7 +311,7 @@ describe('the Mode card tree', () => {
     assert.equal(await search().inputValue(), 'Free line', 'the field names the tool again')
   })
 
-  it('picks with the keyboard: Enter on a row, and Enter in the field picks the first match', async () => {
+  it('picks with the keyboard: Enter on a row, and Enter in the field picks the best match', async () => {
     const { page } = opened
     await reopen()
     await search().fill('Diagonal line')

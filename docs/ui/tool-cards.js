@@ -182,6 +182,7 @@
             open = false;
             list.hidden = true;
             input.setAttribute('aria-expanded', 'false');
+            input.removeAttribute('aria-activedescendant');
             showCurrent();
         }
 
@@ -229,9 +230,9 @@
                 filter();
             } else if (e.target === input && e.key === 'Enter') {
                 e.preventDefault();
-                const first = input.value.trim() ? toolTree.bestMatch() : null;
-                if (first) {
-                    pick(first);
+                const best = input.value.trim() ? toolTree.bestMatch() : null;
+                if (best) {
+                    pick(best);
                 }
             }
         });

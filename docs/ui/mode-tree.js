@@ -112,7 +112,7 @@
             let shown = 0;
             const matches = [];
             const count = (node) => {
-                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(loose ? leaf.looseText : leaf.text, words)) : node.children.flatMap(count);
+                const matching = node.tool ? [node].filter((leaf) => !searching || matchesSearch(searched(leaf, 'text'), words)) : node.children.flatMap(count);
                 if (node.tool) {
                     showOldName(node, matching.length > 0 && searching);
                     matches.push(...matching);
@@ -139,13 +139,15 @@
             return shown;
         }
 
-        // The leaf Enter picks: the first of the matches whose own labels hold the search, else the first, in tree order.
         function markBest(matches) {
-            const labelled = matches.find((leaf) => matchesSearch(loose ? leaf.looseLabelText : leaf.labelText, words));
+            const labelled = matches.find((leaf) => matchesSearch(searched(leaf, 'labelText'), words));
             best = labelled ?? matches[0] ?? null;
             all.filter((n) => n.tool).forEach((n) => n.row.classList.toggle('ui-tbest', n === best));
             onBest(best?.row.id ?? null);
         }
+
+        // A leaf's `text` or `labelText`, in the spelling the search is matched in.
+        const searched = (leaf, field) => (loose ? leaf[field === 'text' ? 'looseText' : 'looseLabelText'] : leaf[field]);
 
         const visibleRows = () => all.filter((node) => !node.row.closest('[hidden]'));
 
@@ -225,7 +227,6 @@
                 return button;
             }))
         ]);
-        const levelButtons = levels.querySelectorAll('button');
         levels.addEventListener('mousedown', (e) => e.preventDefault());
 
         refresh();
