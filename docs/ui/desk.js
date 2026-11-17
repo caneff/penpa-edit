@@ -191,13 +191,21 @@
         root.classList.toggle('ui-dark', dark);
     }
 
-    window.uiKit = { el, iconButton, onDeskReady, confirmDialog, setDark };
+    const PENPA_URL = 'https://github.com/swaroopg92/penpa-edit';
+
+    // A link that opens in a new tab.
+    const newTabLink = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, [text]);
+
+    window.uiKit = { el, iconButton, onDeskReady, confirmDialog, setDark, newTabLink, PENPA_URL };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
             el('div', { class: 'ui-heading' }, [
-                el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
-                el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
+                el('div', { class: 'ui-heading-line' }, [
+                    el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
+                    el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
+                ]),
+                el('span', { class: 'ui-credit' }, [newTabLink(PENPA_URL, 'Solving UI for Penpa+')])
             ]),
             el('span', { class: 'ui-spacer' })
         ]);

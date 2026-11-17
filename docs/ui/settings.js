@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { confirmDialog, el, iconButton, onDeskReady } = window.uiKit;
+    const { confirmDialog, el, iconButton, newTabLink, onDeskReady, PENPA_URL } = window.uiKit;
     const { puzzleHash } = window;
 
     const CONFLICT_ON = 1;
@@ -57,6 +57,8 @@
             ['shortcuts_enabled', 'Z, X, C and V shortcuts']
         ]]
     ];
+
+    const FORK_URL = 'https://github.com/caneff/penpa-edit';
 
     const THEMES = [['light', 'Light'], ['dark', 'Dark']];
 
@@ -158,8 +160,14 @@
             el('div', { class: 'ui-setting' }, [presets, deletePreset]),
             el('div', { class: 'ui-setting' }, [showMouse])]);
 
+        const aboutGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['About']),
+            el('div', { class: 'ui-settings-about' }, [
+                el('p', {}, ['This page is a solving-focused UI fork of ', newTabLink(PENPA_URL, 'Penpa+'), ' by swaroopg92. The puzzle engine is Penpa+\'s.']),
+                el('p', {}, ['Penpa+ is MIT licensed. Copyright (c) 2019 Opt-Pan. Copyright (c) 2020 Swaroop Guggilam.']),
+                el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
+
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },
-            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup]);
+            [el('legend', {}, [title]), ...rows.map((row) => (row === CLEAR_PROGRESS_ROW ? clearRow : control(row)))])), deskGroup, aboutGroup]);
         // The controls show what the engine and the UI hold each time the dialog opens, so they never go stale. Done before
         // the dialog opens, not on its `wa-show`, which can come after the visitor's first click.
         function openDialog() {
