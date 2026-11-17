@@ -1,7 +1,7 @@
 // The solve page: the top bar and the desk of cards, built once `engine` has the puzzle loaded. Every card moves by its
 // title bar and resizes by any edge or corner; one layout is kept in localStorage, with the Rules card's text size beside
 // it: the places of the cards the solver moved hold for every puzzle, the cards' sizes only for the puzzle they were set on.
-// Also `window.uiKit`, the element builders the UI files share. Reaches Penpa+ only through `engine`
+// Also `window.uiKit`, the element builders and the colour helper the UI files share. Reaches Penpa+ only through `engine`
 // (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -202,7 +202,18 @@
         root.classList.toggle('ui-dark', dark);
     }
 
-    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark };
+    // WCAG's relative luminance of an opaque CSS colour. A canvas reads any such colour back as #rrggbb.
+    const colourReader = document.createElement('canvas').getContext('2d');
+    function luminance(colour) {
+        colourReader.fillStyle = colour;
+        const [r, g, b] = [1, 3, 5].map((i) => {
+            const s = parseInt(colourReader.fillStyle.slice(i, i + 2), 16) / 255;
+            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark, luminance };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [

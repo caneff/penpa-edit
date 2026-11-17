@@ -6,6 +6,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     --ui-bar-height: 60px;
     --ui-bar-padding: 14px;
     --ui-bar-z: 950;
+    /* The colour of a tool off the pins: the Board label, frame and flash, and the current Recent chip. White on it is 6.6:1. */
+    --ui-neutral-colour: #585d68;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -138,12 +140,13 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-mouse { border: 2px solid #3b6fd4; box-shadow: 0 4px 16px rgba(30, 70, 160, .2); }
 .ui-card-mouse .ui-head { background: #3b6fd4; color: #fff; border-bottom-color: #2f5bb2; border-radius: 7px 7px 0 0; }
 
-/* The board's title bar: the current tool's name, after the card's title. */
-.ui-tool-name { margin-left: auto; font-size: 15px; line-height: 1.2; font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ui-style-colour, var(--ui-tool-colour, #3b3e45));
+/* The board's title bar: the current tool's name, after the card's title, drawn like the current chip: white on the tool's colour (pins.js). */
+.ui-tool-name { margin-left: auto; font-size: 15px; line-height: 1.2; font-weight: 700; letter-spacing: 0; text-transform: none; color: #fff;
     /* One line, cut short with its whole text as its tooltip, so a long name never makes the header taller (#181). */
     min-width: 0; flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    /* A pill behind it (white or black once a style colour is set, tool-cards.js), so any tool colour reads at 4.5:1. */
-    padding: 1px 10px; border-radius: 999px; background: var(--ui-style-pill, #f6f3ec); }
+    padding: 1px 10px; border-radius: 999px; background: var(--ui-tool-colour, var(--ui-neutral-colour)); }
+/* A white ring, so a style dot of the pin's own hue still shows on the pill. */
+.ui-tool-name .ui-dot { border-color: #fff; }
 
 /* The Mouse card. */
 .ui-headline { font-size: calc(22px * var(--ui-text-scale, 1)); font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -200,19 +203,21 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-stylebtn[aria-pressed="true"] { border-color: #3b6fd4; box-shadow: 0 0 0 2px #3b6fd4; background: #eef3fd; }
 .ui-stylebtn:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 2px; }
 
-/* The board's frame: the selected style's colour, else the current tool's (a pin's own, or the neutral one off the pins). */
-.ui-card-board { outline: 5px solid var(--ui-style-colour, var(--ui-tool-colour, transparent)); outline-offset: -1px; }
+/* The board's frame: the current tool's colour (a pin's own, or the neutral one off the pins). */
+.ui-card-board { outline: 5px solid var(--ui-tool-colour, var(--ui-neutral-colour)); outline-offset: -1px; }
 
-/* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
+/* The Pinned card: one-line chips, each tinted with its pin's colour and barred with it on the left edge; the current one is filled with it. */
 .ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .ui-card-pins .ui-body { padding: 6px 10px; }
 .ui-chip { display: flex; align-items: center; font-size: calc(12px * var(--ui-text-scale, 1)); border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
-.ui-recent .ui-chip.is-current { --ui-pin-colour: #585d68; }
+.ui-recent .ui-chip.is-current { --ui-pin-colour: var(--ui-neutral-colour); }
 /* A Recent chip has no pin, so no colour bar. */
 .ui-recent .ui-chip { border-left-width: 1px; }
 .ui-chip:not(.is-current):hover { background: #f3f0e6; }
+.ui-pins .ui-chip:not(.is-current) { background: color-mix(in srgb, var(--ui-pin-colour) 14%, #fff); }
+.ui-pins .ui-chip:not(.is-current):hover { background: color-mix(in srgb, var(--ui-pin-colour) 28%, #fff); }
 .ui-chip.is-current:hover { filter: brightness(1.12); }
 .ui-chip[draggable="true"] { cursor: grab; }
 .ui-pins-empty { margin: 0; font-size: 12px; color: #6b6656; }
@@ -280,7 +285,6 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-dark .ui-card-rules .ui-body.ui-rules-empty { color: #9a9ea8; }
 .ui-dark .ui-paused { background: #2b2f38; color: #e3e6eb; }
 .ui-dark .ui-paused-hint { color: #a9b0bd; }
-.ui-dark .ui-tool-name { color: var(--ui-style-colour, var(--ui-tool-colour, #23262c)); background: var(--ui-style-pill, #dfe3ea); }
 .ui-dark .ui-headline { color: #e3eaff; }
 .ui-dark .ui-mrow { background: #26324a; }
 .ui-dark .ui-mg { color: #9fbdff; }
@@ -307,6 +311,8 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-dark .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); }
 .ui-dark .ui-recent .ui-chip:not(.is-current) { border-left-color: #4a5060; }
 .ui-dark .ui-chip:not(.is-current):hover { background: #343946; }
+.ui-dark .ui-pins .ui-chip:not(.is-current) { background: color-mix(in srgb, var(--ui-pin-colour) 22%, #2a2e37); }
+.ui-dark .ui-pins .ui-chip:not(.is-current):hover { background: color-mix(in srgb, var(--ui-pin-colour) 36%, #2a2e37); }
 .ui-dark .ui-pins-empty { color: #a9b0bd; }
 
 /* The dark board: Penpa+'s own dark canvas ground (dark_theme.css `#canvas`), which the UI root's revert of Penpa+'s stylesheets drops. */
