@@ -517,11 +517,14 @@ describe('the desk holds together', () => {
     assert.deepEqual(await look(), still, 'and back once dropped')
   })
 
-  it('refits an untouched layout after the window is resized and back: the same as a fresh load', async () => {
+  it('refits an untouched layout after the window is resized and back: the same as a fresh load at each size', async () => {
+    const small = await openSolvePage(browser(), await linkFor(ICEBREAKER), { contextOptions: { viewport: LAPTOPS[0] } })
+    const freshSmall = (await deskSettled(small.page)).cards
+    await small.context.close()
     const page = await open(LAPTOPS[1])
     const fresh = (await deskSettled(page)).cards
     await page.setViewportSize(LAPTOPS[0])
-    await settle(async () => (await cardsOf(page)).Board.w < fresh.Board.w, true)
+    assert.deepEqual(await settle(() => cardsOf(page), freshSmall), freshSmall)
     await page.setViewportSize(LAPTOPS[1])
     assert.deepEqual(await settle(() => cardsOf(page), fresh), fresh)
   })
