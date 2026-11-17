@@ -62,7 +62,9 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Canonical state**: the engine's state written out the same way every time, so two replays can be compared line by
   line; timestamps and timers are left out.
 - **Header**: the first lines of a link's saved text, holding the grid settings, Title, Author, Source and Rules as comma separated fields; `docs/js/header_text.js` escapes the text in them.
-- **Safety net**: the recordings, the tests and the CI checks the migration runs under.
+- **Safety net**: the recordings, the tests and the CI checks the migration runs under. Its live files (`SAFETY_NET_FILES` in
+  `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
+  cannot reach them skips them (#268).
 - **Plant**: a one-line bug served in place of a file of `docs/js/` while recordings replay, to measure whether the
   safety net catches it (`live/plants.mjs`). Caught when a replay with it differs from its expected file, fails its
   duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
