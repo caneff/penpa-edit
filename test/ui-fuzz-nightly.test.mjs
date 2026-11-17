@@ -8,8 +8,8 @@ import { TITLE_MAX, didNotRunIssue, failureTitle, fileIssue, filerFor, nightly, 
 const rule = (when, ...lines) => `${lines.length === 1 ? 'rule broken' : 'rules broken'} ${when}: ${lines.join('; ')}`
 
 test('a broken rule is titled by its name, whatever the step, numbers or seed', () => {
-  const a = failureTitle(rule('after step 3 (click the Pins card)', 'cards-do-not-overlap: Pins and Recent overlap by 12x40 px'))
-  const b = failureTitle(rule('after the last step', 'cards-do-not-overlap: Pins and Board overlap by 90x7 px'))
+  const a = failureTitle(rule('after step 3 (click the Pinned card)', 'cards-do-not-overlap: Pinned and Recent overlap by 12x40 px'))
+  const b = failureTitle(rule('after the last step', 'cards-do-not-overlap: Pinned and Board overlap by 90x7 px'))
   assert.equal(a, 'UI fuzz: rule broken: cards-do-not-overlap')
   assert.equal(b, a)
 })
@@ -42,7 +42,7 @@ const FAILED = [
   'fuzz:ui FAILED on the Classic puzzle (seed 77) after 41 s',
   'error: rule broken after step 2 (pin key): pin-keys-select-their-pin: pressing Z left no pin current',
   '2 steps:',
-  '  1. open the Pins card',
+  '  1. open the Pinned card',
   '  2. pin key Z',
   'replay: npm run fuzz:ui -- --seed 77 --path 3:4@abc'
 ].join('\n')
@@ -53,7 +53,7 @@ test('a failure is read as its puzzle, seed, error, steps and replay command', (
     puzzle: 'Classic',
     seed: 77,
     error: 'rule broken after step 2 (pin key): pin-keys-select-their-pin: pressing Z left no pin current',
-    steps: ['open the Pins card', 'pin key Z'],
+    steps: ['open the Pinned card', 'pin key Z'],
     replay: 'npm run fuzz:ui -- --seed 77 --path 3:4@abc'
   })
 })
@@ -92,7 +92,7 @@ test('the same failure on two runs of one night is filed once', async () => {
   assert.equal(filed[0].title, 'UI fuzz: rule broken: pin-keys-select-their-pin')
   assert.match(filed[0].body, /seed 77/)
   assert.match(filed[0].body, /npm run fuzz:ui -- --seed 77 --path 3:4@abc/)
-  assert.match(filed[0].body, /1\. open the Pins card/)
+  assert.match(filed[0].body, /1\. open the Pinned card/)
 })
 
 test('a clean night files nothing', async () => {

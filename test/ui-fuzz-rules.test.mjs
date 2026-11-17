@@ -25,7 +25,6 @@ function quietPage (overrides = {}) {
     dialogs: [],
     canUndo: false,
     board: '[{"number":{}}]',
-    storage: {},
     errors: [],
     ...overrides
   }
@@ -60,12 +59,33 @@ describe('the UI fuzz rules', () => {
     it('leaves a closed card out', () => {
       assert.deepEqual(check('cards-do-not-overlap', { cards: [card('Board', 0, 0, 100, 100), card('Mouse', 50, 50, 100, 100, { shown: false })] }), [])
     })
-    it('asks nothing of a layout the solver made by dragging or resizing a card, until Reset layout', () => {
-      const cards = [card('Board', 0, 0, 100, 100), card('Mode', 80, 50, 50, 100)]
-      for (const placing of ['card drag', 'card resize', 'interrupted drag']) {
-        assert.deepEqual(check('cards-do-not-overlap', { cards }, { history: ['click', placing, 'reload'] }), [], placing)
-      }
-      assert.deepEqual(check('cards-do-not-overlap', { cards }, { history: ['card drag', 'reset layout', 'click'] }), ['Board and Mode overlap by 20x50 px'])
+    describe('on a layout the solver made by dragging or resizing a card, until Reset layout', () => {
+      const apart = [card('Board', 0, 0, 100, 100), card('Mode', 100, 50, 50, 100)]
+      const over = [card('Board', 0, 0, 100, 100), card('Mode', 80, 50, 50, 100)]
+      it('holds when the solver places a card over another', () => {
+        for (const placing of ['card drag', 'card resize', 'interrupted drag']) {
+          assert.deepEqual(check('cards-do-not-overlap', { cards: over }, { before: { cards: apart }, action: action(placing), history: ['click', placing] }), [], placing)
+        }
+      })
+      it('holds while an overlap the solver made stays', () => {
+        for (const placing of ['card drag', 'card resize', 'interrupted drag']) {
+          assert.deepEqual(check('cards-do-not-overlap', { cards: over }, { before: { cards: over }, action: action('resize', 0), history: ['click', placing, 'resize'] }), [], placing)
+        }
+      })
+      it('fails for a pair a later step makes overlap, such as a smaller window', () => {
+        const cards = [...apart, card('Pinned', 200, 0, 100, 100)]
+        const squeezed = [over[0], over[1], card('Pinned', 200, 0, 100, 100)]
+        assert.deepEqual(check('cards-do-not-overlap', { cards: squeezed }, { before: { cards }, action: action('resize', 0), history: ['card drag', 'resize'] }),
+          ['Board and Mode overlap by 20x50 px, after a step that placed no card'])
+      })
+      it('fails for a pair that newly overlaps when checked after the last step', () => {
+        assert.deepEqual(check('cards-do-not-overlap', { cards: over }, { before: { cards: apart }, action: null, history: ['card resize', 'click'] }),
+          ['Board and Mode overlap by 20x50 px, after a step that placed no card'])
+      })
+      it('asks for the page\'s own layout again after Reset layout', () => {
+        assert.deepEqual(check('cards-do-not-overlap', { cards: over }, { before: { cards: over }, action: action('click', 0), history: ['card drag', 'reset layout', 'click'] }),
+          ['Board and Mode overlap by 20x50 px'])
+      })
     })
   })
 
@@ -73,9 +93,14 @@ describe('the UI fuzz rules', () => {
     it('holds for a card flush with the window\'s edges', () => {
       assert.deepEqual(check('cards-inside-window', { cards: [card('Board', 0, 0, 1400, 900)] }), [])
     })
-    it('fails for a card past the window\'s right edge', () => {
-      assert.deepEqual(check('cards-inside-window', { cards: [card('Pinned', 1005, 72, 420, 96)] }),
-        ['Pinned (1005,72 420x96) is not inside the 1400x900 window'])
+    it('fails for a card past any of the window\'s edges', () => {
+      for (const [x, y, width, height] of [[1005, 72, 420, 96], [-5, 72, 260, 96], [15, -5, 260, 96], [15, 820, 260, 96]]) {
+        assert.deepEqual(check('cards-inside-window', { cards: [card('Pinned', x, y, width, height)] }),
+          [`Pinned (${x},${y} ${width}x${height}) is not inside the 1400x900 window`])
+      }
+    })
+    it('holds for a card over an edge by no more than rounding', () => {
+      assert.deepEqual(check('cards-inside-window', { cards: [card('Pinned', -0.5, -0.5, 1400.5, 900.5)] }), [])
     })
     it('leaves a closed card out', () => {
       assert.deepEqual(check('cards-inside-window', { cards: [card('Mouse', -50, 0, 100, 100, { shown: false })] }), [])
@@ -212,7 +237,7 @@ describe('the UI fuzz rules', () => {
   })
 
   describe('theme-reaches-everything', () => {
-    it('holds when every card and open dialog is drawn in the theme', () => {
+    it('holds when every card and dialog is drawn in the theme', () => {
       assert.deepEqual(check('theme-reaches-everything', { dialogs: [{ label: 'Settings', background: 'rgb(255, 255, 255)' }] }), [])
       const dark = quietPage().cards.map((c) => ({ ...c, background: DARK }))
       assert.deepEqual(check('theme-reaches-everything', { theme: 'dark', cards: dark, dialogs: [{ label: 'Settings', background: 'rgb(27, 29, 38)' }] }), [])
@@ -221,9 +246,27 @@ describe('the UI fuzz rules', () => {
       const cards = quietPage().cards.map((c) => c.name === 'Pinned' ? c : { ...c, background: DARK })
       assert.deepEqual(check('theme-reaches-everything', { theme: 'dark', cards }), [`the Pinned card is ${LIGHT} in the dark theme`])
     })
-    it('fails for an open dialog left dark in the light theme', () => {
+    it('fails for a dialog left dark in the light theme', () => {
       assert.deepEqual(check('theme-reaches-everything', { dialogs: [{ label: 'Settings', background: 'rgb(27, 29, 38)' }] }),
         ['the Settings dialog is rgb(27, 29, 38) in the light theme'])
+    })
+    it('reads oklch(), oklab() and color(srgb) backgrounds by their lightness', () => {
+      const dialogs = (background) => ({ dialogs: [{ label: 'Settings', background }] })
+      for (const light of ['oklch(0.97 0.01 90)', 'oklab(0.97 0 0)', 'color(srgb 0.98 0.98 0.97)', 'rgba(251, 250, 247, 0.9)']) {
+        assert.deepEqual(check('theme-reaches-everything', dialogs(light)), [], light)
+        assert.deepEqual(check('theme-reaches-everything', { theme: 'dark', cards: [], ...dialogs(light) }), [`the Settings dialog is ${light} in the dark theme`], light)
+      }
+      for (const dark of ['oklch(0.25 0.02 260)', 'oklab(25% 0 0)', 'color(srgb 0.13 0.15 0.17)']) {
+        assert.deepEqual(check('theme-reaches-everything', dialogs(dark)), [`the Settings dialog is ${dark} in the light theme`], dark)
+      }
+    })
+    it('fails for a transparent background, or one it cannot read, in either theme', () => {
+      for (const theme of ['light', 'dark']) {
+        for (const colour of ['rgba(0, 0, 0, 0)', 'oklch(0.97 0.01 90 / 0)', 'lab(97 0 0)']) {
+          assert.deepEqual(check('theme-reaches-everything', { theme, cards: [], dialogs: [{ label: 'Settings', background: colour }] }),
+            [`the Settings dialog is ${colour}, which reads as neither light nor dark, in the ${theme} theme`], colour)
+        }
+      }
     })
   })
 })

@@ -1,8 +1,9 @@
 // The solve page's UI fuzz (`live/ui-fuzz/`): a scripted action list holding every action kind runs clean, rules included,
-// on every puzzle of its set, `--focus` raises its area's share of the actions, and a seeded run on a page that throws on
-// one action, or breaks a rule on one, finds it and prints a replay command, focus and all, that fails again on the same step.
-// A planted solve-UI bug (`UI_PLANTS`, `live/plants.mjs`) is found and shrunk to a handful of steps that replay, and the same
-// seed passes with no plant in (#233).
+// on every puzzle of its set, `--focus` raises its area's share of the actions, a run whose time limit passes before its
+// first list gives no verdict, and `npm run fuzz:ui` on a page that throws on one action, or breaks a rule on one, finds
+// it, shrinks it and prints a replay command, puzzle and focus and all, that fails again on the same step, even on a
+// reordered puzzle list. A planted solve-UI bug (`UI_PLANTS`, `live/plants.mjs`) is found the same way, and the same seed
+// runs as many lists clean with no plant in (#233).
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fc from 'fast-check'
@@ -12,6 +13,7 @@ import { actionList, AREAS, KINDS, scriptedList, WINDOW_SIZES } from './ui-fuzz/
 import { parseFuzzArgs, replayCommand } from './ui-fuzz/command.mjs'
 import { runFuzz, runScript } from './ui-fuzz/engine.mjs'
 import { uiFuzzPuzzles } from './ui-fuzz/puzzles.mjs'
+import { fuzzUi } from './ui-fuzz/run.mjs'
 import { openTarget } from './ui-fuzz/target.mjs'
 
 const browser = useBrowser()
@@ -67,8 +69,9 @@ const SCRIPT = [
   ['resize', 0]
 ]
 
-// The seed, list count and list length the planted run hunts with: a short list, so its shrink fits the test's time.
-const PLANT_RUN = { seed: 1, runs: 20, maxCommands: 6, focus: ['mode'] }
+// The seed and puzzle the planted runs hunt with, as `npm run fuzz:ui` arguments, and the focus most of them hunt with.
+const PLANT_HUNT = ['--seed', '1', '--puzzle', 'akari']
+const PLANT_FOCUS = ['mode']
 
 // Runs in the page, before its scripts: throws, uncaught, on every click on a tool in the Mode card's tree.
 function throwOnToolPickInPage () {
@@ -95,35 +98,45 @@ function swallowPinKeysInPage () {
   }, true)
 }
 
-const akari = puzzles.filter((p) => p.name === 'akari')
 // The most steps a planted bug's shrunk list may hold: a handful, which a person reads at a glance.
 const HANDFUL = 5
 // `openTarget`'s options that run `inPage` in the page before its scripts.
 const initScript = (inPage) => ({ setup: (context) => context.addInitScript(inPage) })
 
-// Hunts on Akari on a page opened with `target` (`openTarget`'s options) and `focus`, checks the run fails with an error
-// matching `error` after a shrunk list whose last step matches `last` (`only`: the list is that one step; else at most
-// HANDFUL), and that its printed replay command fails again on the same step.
-async function findsAndReplays (target, error, { focus = PLANT_RUN.focus, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
-  const planted = openTarget(browser(), target)
-  const found = await runFuzz({ openTarget: planted, puzzles: akari, ...PLANT_RUN, focus })
-  assert.equal(found.failed, true, 'the run finds the plant')
+// Runs `npm run fuzz:ui -- <args>` (`run.mjs`) in this process on pages opened with `target` (`openTarget`'s options, the
+// planted bug, which no command names), and returns what it printed and its result.
+async function fuzzCommand (args, target) {
+  const lines = []
+  const result = await fuzzUi(args, { browser: browser(), target, print: (line) => lines.push(line) })
+  return { output: lines.join('\n'), result }
+}
+
+// Hunts with PLANT_HUNT and `focus` on pages opened with `target`, checks the run fails with an error matching `error`
+// after a list the shrink cut down to one whose last step matches `last` (`only`: the list is that one step; else at most
+// HANDFUL), that the replay command it prints fails again on the same step, and that the replay opens the puzzle it names
+// whatever order the puzzle list is in. Returns the failure.
+async function findsAndReplays (target, error, { focus = PLANT_FOCUS, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
+  const { output, result: found } = await fuzzCommand([...PLANT_HUNT, ...focus.flatMap((area) => ['--focus', area])], target)
+  assert.equal(found.failed, true, `the run finds the plant, got ${output}`)
   assert.match(found.error, error)
   assert.match(found.sequence.at(-1), last, 'the shrunk list ends on the planted step')
   if (only) assert.equal(found.sequence.length, 1, `shrunk to the one step, got ${found.sequence.join('; ')}`)
   assert.ok(found.sequence.length <= HANDFUL, `shrunk to at most ${HANDFUL} steps, got ${found.sequence.join('; ')}`)
+  assert.ok(found.huntSteps > found.sequence.length, `the shrink cut the ${found.huntSteps} steps the hunt found to fewer, got ${found.sequence.length}`)
   assert.equal(found.step, found.sequence.length, 'the failure is read after the last step of the shrunk list')
 
-  const command = replayCommand(found)
+  const command = /^replay: (.*)$/m.exec(output)?.[1]
+  assert.ok(command, `the run prints a replay command, got ${output}`)
+  assert.match(command, new RegExp(` --puzzle akari .*${focus.map((area) => ` --focus ${area}`).join('')}$`), 'the replay command names the puzzle and carries the focus')
   const [, args] = command.split(' -- ')
-  assert.match(command, new RegExp(`${focus.map((area) => ` --focus ${area}`).join('')}$`), 'the replay command carries the focus')
-  const replay = parseFuzzArgs(args.split(' '))
-  const replayed = await runFuzz({ openTarget: planted, puzzles: akari, ...replay, maxCommands: PLANT_RUN.maxCommands })
-  assert.deepEqual(
-    { failed: replayed.failed, step: replayed.step, sequence: replayed.sequence, error: replayed.error },
-    { failed: true, step: found.step, sequence: found.sequence, error: found.error },
-    `${command} fails again on the same step`
-  )
+  const replayed = await fuzzCommand(args.split(' '), target)
+  const failedOn = (r) => ({ failed: r.failed, puzzle: r.puzzle, step: r.step, sequence: r.sequence, error: r.error })
+  assert.deepEqual(failedOn(replayed.result), failedOn(found), `${command} fails again on the same step`)
+  assert.equal(replayed.output.split('\n').slice(1).join('\n'), output.split('\n').slice(1).join('\n'), `${command} prints the same failure`)
+
+  const reordered = await runFuzz({ openTarget: openTarget(browser(), target), puzzles: [...puzzles].reverse(), ...parseFuzzArgs(args.split(' ')) })
+  assert.deepEqual(failedOn(reordered), failedOn(found), `${command} on a reordered puzzle list fails again on the same puzzle and step`)
+  return found
 }
 
 // The share of `area`'s actions among 50 lists drawn with `seed` and `focus`.
@@ -149,8 +162,8 @@ describe('the solve page\'s UI fuzz', () => {
     assert.deepEqual(parseFuzzArgs(['--focus', 'layout', '--focus', 'theme']).focus, ['layout', 'theme'])
     assert.deepEqual(parseFuzzArgs([]).focus, [])
     assert.throws(() => parseFuzzArgs(['--focus', 'nowhere']), /--focus needs one of/)
-    assert.equal(replayCommand({ seed: 3, path: '0:1@a', focus: ['layout', 'theme'] }), 'npm run fuzz:ui -- --seed 3 --path 0:1@a --focus layout --focus theme')
-    assert.equal(replayCommand({ seed: 3, path: '0:1@a', focus: [] }), 'npm run fuzz:ui -- --seed 3 --path 0:1@a')
+    assert.equal(replayCommand({ seed: 3, puzzle: 'killer', path: '0:1@a', focus: ['layout', 'theme'] }), 'npm run fuzz:ui -- --seed 3 --puzzle killer --path 0:1@a --focus layout --focus theme')
+    assert.equal(replayCommand({ seed: 3, puzzle: 'killer', path: '0:1@a', focus: [] }), 'npm run fuzz:ui -- --seed 3 --puzzle killer --path 0:1@a')
   })
 
   for (const puzzle of puzzles) {
@@ -172,11 +185,18 @@ describe('the solve page\'s UI fuzz', () => {
     await findsAndReplays(initScript(swallowPinKeysInPage), /pin-keys-select-their-pin: pressing [ZXCV] left /, { focus: ['pinned'], last: /^press pin key [ZXCV]/, only: false })
   })
 
+  it('gives no verdict when the time limit passes before the first list has run', async () => {
+    // A page that never opens: the time limit fires while the first list waits for it.
+    await assert.rejects(runFuzz({ openTarget: () => new Promise(() => {}), puzzles, seed: 1, minutes: 0.001 }), /no action list ran/)
+  })
+
   for (const plant of UI_PLANTS) {
     it(`finds the planted ${plant.id}, shrinks it, replays it on the same step, and passes on the same seed without it`, async () => {
-      await findsAndReplays({ served: true, setup: await uiPlantSetup(plant) }, plant.caughtBy, { focus: plant.focus, last: plant.last, only: false })
-      const clean = await runFuzz({ openTarget: openTarget(browser(), { served: true }), puzzles: akari, ...PLANT_RUN, focus: plant.focus })
+      const found = await findsAndReplays({ served: true, setup: await uiPlantSetup(plant) }, plant.caughtBy, { focus: plant.focus, last: plant.last, only: false })
+      // The lists the hunt ran, the planted one last, run again with no plant in.
+      const clean = await runFuzz({ openTarget: openTarget(browser(), { served: true }), puzzles, ...parseFuzzArgs(PLANT_HUNT), focus: plant.focus, runs: found.runs })
       assert.equal(clean.failed, false, `with no plant the same seed passes, got ${clean.error}`)
+      assert.equal(clean.runs, found.runs, 'with no plant the same seed runs every list up to the planted one')
     })
   }
 })

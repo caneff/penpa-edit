@@ -22,7 +22,7 @@
 //                     opens with
 //   canUndo           whether the solver has something to undo
 //   board             the solver's entries as text, the undo, redo and replay stacks left out
-//   errors            the page errors and `console.error` lines so far, which the crash signals read (`signals.mjs`)
+//   errors            the page errors and `console.error` lines so far, which the engine reads as crash signals (`engine.mjs`)
 
 // The keys the first pins show, in order (`SHORTCUT_SLOT_BY_CODE` in docs/ui/pins.js).
 export const PIN_KEYS = ['Z', 'X', 'C', 'V']
