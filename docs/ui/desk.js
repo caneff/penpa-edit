@@ -825,7 +825,9 @@
             const top = now.bottom + CARD_GAP_PX;
             const room = desk.clientHeight - EDGE_MARGIN_PX - top;
             if (room < minHeightOf(other, cards[other])) {
-                setHeight(grown, Math.max(minHeightOf(id, cards[id]), box.top - CARD_GAP_PX - now.top));
+                // Never under its least height, unless it already sat under it (Pinned's natural height can).
+                const least = Math.min(minHeightOf(id, cards[id]), was.bottom - was.top);
+                setHeight(grown, Math.max(least, box.top - CARD_GAP_PX - now.top));
                 heightsSeen.set(id, grown.offsetHeight);
                 keepDeskChange(desk, cards, id);
                 return;
