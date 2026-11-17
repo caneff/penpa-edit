@@ -4,6 +4,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 
 .ui-root {
     --ui-bar-height: 60px;
+    --ui-bar-z: 950;
     position: fixed;
     inset: 0;
     z-index: 10;
@@ -23,7 +24,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
     background: #2b2f38;
     color: #eef0f4;
     box-shadow: 0 1px 4px rgba(0, 0, 0, .25);
-    z-index: 950;
+    z-index: var(--ui-bar-z);
 }
 /* Title and author sit at the bar's centre, whatever the controls on either side. */
 .ui-heading { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; align-items: baseline; gap: 12px; max-width: 46%; min-width: 0; pointer-events: none; }
@@ -128,8 +129,10 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-picker { position: relative; }
 .ui-search { box-sizing: border-box; width: 100%; font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: inherit; }
 .ui-search:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
-.ui-list { margin-top: 4px; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
+.ui-list { position: fixed; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
 .ui-list[hidden] { display: none; }
+/* A card's stacking context holds its floating list, so the card with an open list stacks above every card, even a raised one (desk.js stops raising one below this). */
+.ui-card:has(.ui-list:not([hidden])) { z-index: calc(var(--ui-bar-z) - 1) !important; }
 .ui-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; margin: 8px 4px 3px; }
 .ui-entry { padding: 4px 8px; border-radius: 5px; cursor: pointer; }
 .ui-entry:hover { background: #f0ede4; }
@@ -164,17 +167,22 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-board { outline: 5px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
-.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.ui-chip { display: flex; align-items: center; border: 1px solid #cfcabd; border-left: 6px solid var(--ui-pin-colour, #cfcabd); border-radius: 7px; background: #fff; white-space: nowrap; }
+.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.ui-card-pins .ui-body { padding: 6px 10px; }
+.ui-chip { display: flex; align-items: center; font-size: 12px; border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
-.ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
+.ui-chip-main { display: flex; gap: 5px; padding: 1px 2px 1px 6px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset field, the save row under it and the undo line for a deleted preset. */
-.ui-preset-row { display: flex; gap: 8px; align-items: end; margin-top: 8px; }
+.ui-preset-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
 .ui-preset-row > .ui-picker, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
-.ui-preset-row > .ui-picker { align-self: start; }
+.ui-preset-row[hidden] { display: none; }
+.ui-preset-row > wa-button { flex: none; }
+.ui-preset-row > wa-button::part(base) { height: 28px; min-height: 0; padding: 0 8px; }
+/* The name field's label is for assistive tech: the placeholder says what to type. */
+.ui-preset-name::part(form-control-label) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .ui-entry-row { display: flex; align-items: center; gap: 2px; }
 .ui-entry-row > .ui-entry { flex: 1; min-width: 0; }
 .ui-entry-btn { display: flex; padding: 4px; border: 0; border-radius: 5px; background: transparent; color: #6f6a5a; cursor: pointer; }

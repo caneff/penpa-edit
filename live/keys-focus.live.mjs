@@ -85,14 +85,17 @@ describe('the keyboard on the solve page', () => {
     assert.equal(await page.evaluate(() => document.activeElement.matches('.ui-bar wa-button') && /theme/i.test(document.activeElement.textContent)), true)
   })
 
-  it('Escape in the pin-name field empties it and the board has focus', async () => {
+  it('Escape in the pin-name field closes the form, empties the field and gives the board the focus', async () => {
     const { page } = opened
-    const field = page.getByRole('textbox', { name: 'Save current pins as…' })
-    await field.click()
+    const open = () => page.getByRole('button', { name: 'Save these pins as a preset' }).click()
+    const field = page.getByRole('textbox', { name: 'Preset name' })
+    await open()
     await page.keyboard.type('abc')
     await page.keyboard.press('Escape')
-    assert.equal(await field.inputValue(), '')
+    assert.equal(await field.isVisible(), false)
     assert.equal(await settle(() => pageBodyHasFocus(page), true), true)
+    await open()
+    assert.equal(await field.inputValue(), '')
   })
 })
 
