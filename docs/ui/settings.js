@@ -136,7 +136,7 @@
             resetLayout();
         });
 
-        const resetPins = el('wa-button', { size: 's' }, ['Reset pins to the link\'s Tab set']);
+        const resetPins = el('wa-button', { size: 's' }, ['Reset pins to the puzzle\'s default pins']);
         resetPins.addEventListener('click', () => window.pinBoard.reseed());
 
         const presets = el('wa-select', { label: 'Your presets', size: 's', placeholder: 'None saved' });

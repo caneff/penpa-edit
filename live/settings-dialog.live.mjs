@@ -804,7 +804,7 @@ describe('the desk\'s own settings in the dialog', () => {
       await page.getByRole('button', { name: seeded[0] }).click()
       assert.deepEqual(await settle(() => pinNames(page), seeded.slice(1)), seeded.slice(1), 'a pin is gone')
       const dialog = await openDialog(page)
-      await desk(dialog).getByRole('button', { name: 'Reset pins to the link\'s Tab set' }).click()
+      await desk(dialog).getByRole('button', { name: 'Reset pins to the puzzle\'s default pins' }).click()
       assert.deepEqual(await settle(() => pinNames(page), seeded), seeded)
     } finally {
       await context.close()
@@ -815,7 +815,7 @@ describe('the desk\'s own settings in the dialog', () => {
     const { context, page } = await openSolve()
     try {
       const pinned = page.getByRole('region', { name: 'Pinned' })
-      await pinned.getByRole('button', { name: 'Save pins as a preset' }).click()
+      await pinned.getByRole('button', { name: 'Save pins…' }).click()
       await pinned.getByRole('textbox', { name: 'Preset name' }).fill('Mine')
       await pinned.getByRole('button', { name: 'Save', exact: true }).click()
       const offered = async () => {
