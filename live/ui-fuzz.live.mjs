@@ -69,8 +69,14 @@ const SCRIPT = [
   ['resize', 0]
 ]
 
-// The seed and puzzle the planted runs hunt with, as `npm run fuzz:ui` arguments, and the focus most of them hunt with.
+// The seed and puzzle the in-page plants are hunted with, as `npm run fuzz:ui` arguments, and the focus most of them are
+// hunted with.
 const PLANT_HUNT = ['--seed', '1', '--puzzle', 'akari']
+// The same for a UI_PLANTS plant: a seed whose lists reach the plant before any other failure, on short lists, so the
+// hunt, its shrink and the clean rerun of its lists take about a minute.
+const UI_PLANT_HUNT = ['--seed', '3', '--puzzle', 'akari', '--max-steps', '6']
+// A UI_PLANTS test's own time limit: over test:live's 60 s per test, which its three runs need on a loaded box.
+const UI_PLANT_TIMEOUT_MS = 240000
 const PLANT_FOCUS = ['mode']
 
 // Runs in the page, before its scripts: throws, uncaught, on every click on a tool in the Mode card's tree.
@@ -111,12 +117,12 @@ async function fuzzCommand (args, target) {
   return { output: lines.join('\n'), result }
 }
 
-// Hunts with PLANT_HUNT and `focus` on pages opened with `target`, checks the run fails with an error matching `error`
-// after a list the shrink cut down to one whose last step matches `last` (`only`: the list is that one step; else at most
-// HANDFUL), that the replay command it prints fails again on the same step, and that the replay opens the puzzle it names
-// whatever order the puzzle list is in. Returns the failure.
-async function findsAndReplays (target, error, { focus = PLANT_FOCUS, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
-  const { output, result: found } = await fuzzCommand([...PLANT_HUNT, ...focus.flatMap((area) => ['--focus', area])], target)
+// Hunts with `hunt` (`npm run fuzz:ui` arguments) and `focus` on pages opened with `target`, checks the run fails with an
+// error matching `error` after a list the shrink cut down to one whose last step matches `last` (`only`: the list is that
+// one step; else at most HANDFUL), that the replay command it prints fails again on the same step, and that the replay
+// opens the puzzle it names whatever order the puzzle list is in. Returns the failure.
+async function findsAndReplays (target, error, { hunt = PLANT_HUNT, focus = PLANT_FOCUS, last = /^pick tool \d+ in the Mode card/, only = true } = {}) {
+  const { output, result: found } = await fuzzCommand([...hunt, ...focus.flatMap((area) => ['--focus', area])], target)
   assert.equal(found.failed, true, `the run finds the plant, got ${output}`)
   assert.match(found.error, error)
   assert.match(found.sequence.at(-1), last, 'the shrunk list ends on the planted step')
@@ -191,10 +197,10 @@ describe('the solve page\'s UI fuzz', () => {
   })
 
   for (const plant of UI_PLANTS) {
-    it(`finds the planted ${plant.id}, shrinks it, replays it on the same step, and passes on the same seed without it`, async () => {
-      const found = await findsAndReplays({ served: true, setup: await uiPlantSetup(plant) }, plant.caughtBy, { focus: plant.focus, last: plant.last, only: false })
+    it(`finds the planted ${plant.id}, shrinks it, replays it on the same step, and passes on the same seed without it`, { timeout: UI_PLANT_TIMEOUT_MS }, async () => {
+      const found = await findsAndReplays({ served: true, setup: await uiPlantSetup(plant) }, plant.caughtBy, { hunt: UI_PLANT_HUNT, focus: plant.focus, last: plant.last, only: false })
       // The lists the hunt ran, the planted one last, run again with no plant in.
-      const clean = await runFuzz({ openTarget: openTarget(browser(), { served: true }), puzzles, ...parseFuzzArgs(PLANT_HUNT), focus: plant.focus, runs: found.runs })
+      const clean = await runFuzz({ openTarget: openTarget(browser(), { served: true }), puzzles, ...parseFuzzArgs(UI_PLANT_HUNT), focus: plant.focus, runs: found.runs })
       assert.equal(clean.failed, false, `with no plant the same seed passes, got ${clean.error}`)
       assert.equal(clean.runs, found.runs, 'with no plant the same seed runs every list up to the planted one')
     })
