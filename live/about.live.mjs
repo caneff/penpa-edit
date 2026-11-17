@@ -117,3 +117,6 @@ describe('the About group in Settings', () => {
     }
   })
 })
+
+// Probe for #268: a planted failure for the nightly's dry run.
+import('node:test').then(({ it }) => it('planted failure for #268', () => { throw new Error('planted') }))

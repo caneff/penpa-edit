@@ -7,6 +7,7 @@ on:
   schedule:
     - cron: '37 4 * * *'
   workflow_dispatch:
+  pull_request:
 
 permissions:
   contents: read
@@ -35,6 +36,12 @@ jobs:
           pattern: test-log-*
           path: ${{ runner.temp }}/logs
           merge-multiple: true
+      # Probe only: a stub gh that prints what it was asked, so the dry run files nothing.
+      - run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          printf '#!/usr/bin/env bash\necho "stub gh: $*"\n' >"$RUNNER_TEMP/bin/gh"
+          chmod +x "$RUNNER_TEMP/bin/gh"
+          echo "$RUNNER_TEMP/bin" >>"$GITHUB_PATH"
       - env:
           GH_TOKEN: ${{ github.token }}
         run: bash .github/scripts/nightly-seam-issue.sh "$RUNNER_TEMP/logs" "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
