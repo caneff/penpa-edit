@@ -612,7 +612,8 @@
             return MIN_SIZE[id][1];
         }
         const style = getComputedStyle(body);
-        const line = Math.max(parseFloat(style.lineHeight), body.firstElementChild?.offsetHeight ?? 0);
+        // A rules line's own least height (desk.css's .ui-rules-line) can exceed the line height.
+        const line = Math.max(parseFloat(style.lineHeight), body.firstElementChild ? parseFloat(getComputedStyle(body.firstElementChild).minHeight) || 0 : 0);
         const oneLine = line + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
         return Math.max(MIN_SIZE.rules[1], Math.ceil(node.offsetHeight - body.clientHeight + oneLine));
     }
