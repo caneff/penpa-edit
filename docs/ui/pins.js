@@ -118,6 +118,13 @@
 
         // ---- Moving between pins ----------------------------------------------------------------------------------------
 
+        window.uiKeys.describe('Tools', () => [
+            { keys: 'Tab, Enter', text: 'Next pinned tool' },
+            { keys: 'Shift+Tab, Shift+Enter', text: 'Previous pinned tool' },
+            { keys: SHORTCUT_LABELS.join(' '), text: `Jump to pinned tool 1 to ${SHORTCUT_LABELS.length}, except in Number mode`,
+                state: engine.getSettings().shortcuts_enabled ? 'On' : 'Off: turn it on in Settings > Keys' }
+        ]);
+
         // The last pin the solver was on, for stepping from a tool that is not one.
         let cursor = -1;
 

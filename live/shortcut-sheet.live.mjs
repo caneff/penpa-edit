@@ -15,11 +15,12 @@ const CELL = 12
 const PINS = ['Line Normal', 'Sudoku Corner']
 
 const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
-const sheetOf = (page) => page.getByRole('dialog', { name: SHEET })
+// The host, not the role: Web Awesome's inner <dialog> does not hold the slotted rows, and `[open]` is on the host while it shows.
+const sheetOf = (page) => page.locator(`wa-dialog[label="${SHEET}"][open]`)
 const rowsOfGroup = (page, group) => sheetOf(page).getByRole('group', { name: group }).getByRole('listitem')
 const openWithQuestionMark = async (page) => {
   await page.keyboard.press('?')
-  await sheetOf(page).waitFor()
+  await sheetOf(page).waitFor({ state: 'attached' })
 }
 
 describe('the keyboard shortcut sheet', () => {
@@ -42,7 +43,7 @@ describe('the keyboard shortcut sheet', () => {
         document.querySelector('.ui-root').insertAdjacentHTML('beforeend', '<wa-input label="Search here"></wa-input>')
       })
       const field = page.getByRole('textbox', { name: 'Search here' })
-      await field.click()
+      await field.focus()
       await page.keyboard.press('?')
       assert.equal(await field.inputValue(), '?')
       assert.equal(await sheetOf(page).count(), 0, 'no sheet')
@@ -63,8 +64,8 @@ describe('the keyboard shortcut sheet', () => {
     const { context, page } = await openSolve()
     try {
       await page.getByRole('button', { name: 'Settings', exact: true }).click()
-      await page.getByRole('dialog', { name: 'Settings' }).getByRole('button', { name: SHEET }).click()
-      await sheetOf(page).waitFor()
+      await page.locator('wa-dialog[label="Settings"][open]').getByRole('button', { name: SHEET }).click()
+      await sheetOf(page).waitFor({ state: 'attached' })
     } finally { await context.close() }
   })
 
@@ -75,7 +76,7 @@ describe('the keyboard shortcut sheet', () => {
       await clickCell(page, CELL)
       await openWithQuestionMark(page)
       await page.keyboard.press('Escape')
-      await sheetOf(page).waitFor({ state: 'hidden' })
+      await sheetOf(page).waitFor({ state: 'detached' })
       await page.keyboard.press('7')
       assert.deepEqual(await settle(() => typedDigits(page), ['7']), ['7'])
     } finally { await context.close() }
@@ -103,7 +104,7 @@ describe('the keyboard shortcut sheet', () => {
         await openWithQuestionMark(page)
         assert.match(await rowsOfGroup(page, 'Board').filter({ hasText: 'Digits' }).innerText(), /digit/i)
         await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'hidden' })
+        await sheetOf(page).waitFor({ state: 'detached' })
         await page.keyboard.press('5')
         assert.deepEqual(await settle(() => typedDigits(page), ['5']), ['5'])
       } finally { await context.close() }
@@ -116,7 +117,7 @@ describe('the keyboard shortcut sheet', () => {
         await openWithQuestionMark(page)
         assert.equal(await rowsOfGroup(page, 'Tools').filter({ hasText: 'Tab' }).count() > 0, true)
         await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'hidden' })
+        await sheetOf(page).waitFor({ state: 'detached' })
         const before = await currentTool(page)
         await page.keyboard.press('Tab')
         assert.equal(await settle(async () => JSON.stringify(await currentTool(page)) !== JSON.stringify(before), true), true, 'the tool changed')
@@ -134,7 +135,7 @@ describe('the keyboard shortcut sheet', () => {
         await openWithQuestionMark(page)
         assert.equal(await rowsOfGroup(page, 'Page').filter({ hasText: 'Ctrl+Z' }).count(), 1)
         await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'hidden' })
+        await sheetOf(page).waitFor({ state: 'detached' })
         await page.keyboard.press('Control+z')
         assert.deepEqual(await settle(() => board(page), blank), blank)
       } finally { await context.close() }
@@ -146,7 +147,7 @@ describe('the keyboard shortcut sheet', () => {
         await openWithQuestionMark(page)
         assert.equal(await rowsOfGroup(page, 'Page').filter({ hasText: 'F4' }).count(), 1)
         await page.keyboard.press('Escape')
-        await sheetOf(page).waitFor({ state: 'hidden' })
+        await sheetOf(page).waitFor({ state: 'detached' })
         await page.keyboard.press('F4')
         assert.equal(await settle(() => page.evaluate(() => engine.getTimer().covered), true), true)
       } finally { await context.close() }

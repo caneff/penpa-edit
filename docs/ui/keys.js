@@ -97,7 +97,27 @@
     // otherwise get, and the first answer wins. It runs only for a key the board may have (pause, popups, focus and browser
     // keys first).
     const keyHandlers = [];
-    window.uiKeys = { add: (handler) => keyHandlers.push(handler) };
+    // The files that own keys also say what they do: each adds rows `{ keys, text, state? }` for a group of the shortcut sheet, as
+    // a list or as a function read each time the sheet opens, so a key a file stops answering drops off the sheet with its rows.
+    const keyRows = [];
+    window.uiKeys = {
+        add: (handler) => keyHandlers.push(handler),
+        describe: (group, rows) => keyRows.push({ group, rows }),
+        rowsOf: (group) => keyRows.filter((entry) => entry.group === group).flatMap(({ rows }) => (typeof rows === 'function' ? rows() : rows))
+    };
+
+    // Penpa+ answers these on the board; the UI only lets them through.
+    window.uiKeys.describe('Board', [
+        { keys: 'Digits, letters', text: 'Enter a digit or letter in the selected cells with the current tool' },
+        { keys: 'Arrow keys', text: 'Move the selection' },
+        { keys: 'Delete', text: 'Clear the selected cells' },
+        { keys: 'Backspace', text: 'Clear the selected cells in Sudoku, elsewhere delete the last character' },
+        { keys: 'Escape', text: 'Close the open menu or dialog, else clear the selection' }
+    ]);
+    window.uiKeys.describe('Tools', [
+        { keys: 'Shift (hold)', text: 'In Sudoku, the Corner tool while held' },
+        { keys: 'Ctrl (hold)', text: 'In Sudoku, the Centre tool while held' }
+    ]);
 
     function answerOfHandlers(e) {
         for (const handler of keyHandlers) {
@@ -131,7 +151,7 @@
             if (e.key === 'Tab' && !isBodyOrBoard(elementsOf(e.composedPath()))) {
                 return 'browser';
             }
-            return answerOfHandlers(e) ?? (e.key === '?' ? 'ui' : undefined);
+            return answerOfHandlers(e);
         });
 
         // The browser's Tab may leave an open dialog (headless Chromium lets it reach the body): bring it back to the dialog's
