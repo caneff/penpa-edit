@@ -213,7 +213,15 @@
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
     }
 
-    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark, luminance };
+    // The part of a scrolling box that shows: its padding box, in viewport coordinates.
+    function visibleBox(node) {
+        const box = node.getBoundingClientRect();
+        const left = box.left + node.clientLeft;
+        const top = box.top + node.clientTop;
+        return { left, top, right: left + node.clientWidth, bottom: top + node.clientHeight };
+    }
+
+    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark, luminance, visibleBox };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
@@ -1072,10 +1080,7 @@
         if (!focus) {
             return;
         }
-        const box = boardBody.getBoundingClientRect();
-        const left = box.left + boardBody.clientLeft;
-        const top = box.top + boardBody.clientTop;
-        const visible = { left, top, right: left + boardBody.clientWidth, bottom: top + boardBody.clientHeight };
+        const visible = window.uiKit.visibleBox(boardBody);
         const isInside = focus.left >= visible.left && focus.right <= visible.right && focus.top >= visible.top && focus.bottom <= visible.bottom;
         if (isInside && !centre) {
             return;
@@ -1149,8 +1154,8 @@
     }
 
     // Resolves to `{ bar, cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted,
-    // setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill
-    // the bar and the cards.
+    // setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard }` once the desk is built, for the
+    // files that fill the bar and the cards. `fitBoard()` fits the board to its card, as Fit does.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
@@ -1261,7 +1266,7 @@
                 drawCoordinates();
             }
         }).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.
