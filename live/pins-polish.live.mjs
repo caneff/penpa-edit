@@ -134,13 +134,13 @@ describe('pin colours', () => {
     assert.equal(new Set(colours).size, 9, `still nine different colours: ${colours}`)
   }))
 
-  it('survive a preset load and Reset pins', withPage(async (page) => {
+  it('survive a preset load and the Puzzle defaults entry', withPage(async (page) => {
     const names = await chipTexts(page)
     const before = await chipColours(page)
     await loadPreset(page, 'Slitherlink')
     await undoLine(page).getByRole('button', { name: /^Undo/ }).click()
     assert.deepEqual(await settle(() => chipColours(page), before), before)
-    await page.evaluate(() => window.pinBoard.reseed())
+    await loadPreset(page, 'Puzzle defaults')
     assert.deepEqual(await settle(() => chipTexts(page), names), names)
     assert.deepEqual(await chipColours(page), before)
   }))
@@ -199,9 +199,10 @@ describe('the chips', () => {
 })
 
 describe('Settings', () => {
-  it('names the pin reset in plain words', withPage(async (page) => {
+  it('no longer holds a pin reset: the preset picker offers it', withPage(async (page) => {
     await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('button', { name: 'Reset pins to the puzzle\'s default pins' }).waitFor()
+    await page.getByRole('button', { name: 'Reset layout' }).first().waitFor()
+    assert.equal(await page.getByRole('button', { name: /Reset pins/ }).count(), 0)
   }))
 })
 

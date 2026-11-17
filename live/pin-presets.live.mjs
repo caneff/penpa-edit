@@ -104,14 +104,14 @@ describe('the built-in presets', () => {
     for (const genre of EXPECTED_GENRES) {
       assert.equal(names.includes(genre), true, `${genre} is offered`)
     }
-    assert.deepEqual(titles, ['Number placement', 'Loops and paths', 'Shading', 'Regions', 'Objects and placement'])
+    assert.deepEqual(titles, ['This puzzle', 'Number placement', 'Loops and paths', 'Shading', 'Regions', 'Objects and placement'])
     assert.equal(names.length, new Set(names).size, 'no name is offered twice')
   })
 
   it('pin no Sudoku clue-drawing tool, and every Sudoku preset pins the three entry modes first', async () => {
     const { page } = opened
     await openList(page)
-    const presets = await presetList(page).getByRole('option').evaluateAll((options) =>
+    const presets = await presetList(page).locator('[role=option][data-tools]').evaluateAll((options) =>
       options.map((o) => ({ name: o.textContent, tools: o.dataset.tools.split(',') })))
     await page.keyboard.press('Escape')
     for (const { name, tools } of presets) {
@@ -125,7 +125,7 @@ describe('the built-in presets', () => {
   it('each load every tool it names, in order, on a square grid with every tab', async () => {
     const { page } = opened
     await openList(page)
-    const presets = await presetList(page).getByRole('option').evaluateAll((options) =>
+    const presets = await presetList(page).locator('[role=option][data-tools]').evaluateAll((options) =>
       options.map((o) => ({ name: o.textContent, tools: o.dataset.tools.split(',') })))
     await page.keyboard.press('Escape')
     const listed = await page.evaluate(() => engine.listTools().map((t) => `${t.mode}/${t.submode ?? ''}`))
@@ -195,6 +195,35 @@ describe('typing in the preset field', () => {
     assert.equal(await chipCount(page), before)
   })
 
+  it('offers Puzzle defaults first, found by "default" and "reset", with no star or delete', async () => {
+    const { page } = opened
+    await openList(page)
+    assert.equal((await offered(page))[0].startsWith('Puzzle defaults'), true, 'first entry')
+    assert.deepEqual((await groupTitles(page))[0], 'This puzzle')
+    assert.equal(await star(page, 'Puzzle defaults').count(), 0, 'no star')
+    assert.equal(await presetList(page).getByRole('button', { name: /Delete preset Puzzle defaults/ }).count(), 0, 'no delete')
+    for (const word of ['default', 'reset']) {
+      await presetField(page).fill(word)
+      assert.equal((await offered(page)).some((t) => t.startsWith('Puzzle defaults')), true, `${word} finds it`)
+    }
+    await presetField(page).fill('default')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Shift+Enter')
+    assert.equal(await presetList(page).getByRole('group', { name: 'Favourites' }).count(), 0, 'Shift+Enter stars nothing')
+    await page.keyboard.press('Escape')
+    await closed(page)
+  })
+
+  it('Puzzle defaults replaces the pins and shows the Undo line', async () => {
+    const { page } = opened
+    const seeded = await page.evaluate(() => engine.tabSet().length)
+    assert.equal(seeded > 0, true, 'the link seeds pins')
+    await choosePreset(page, 'Classic sudoku')
+    await choosePreset(page, 'Puzzle defaults')
+    assert.equal(await settle(() => chipCount(page), seeded), seeded)
+    await pinnedCard(page).locator('.ui-preset-undo').getByText('Loaded “Puzzle defaults”.').waitFor()
+  })
+
   it('Shift+Enter with nothing highlighted loads nothing', async () => {
     const { page } = opened
     const before = await chipCount(page)
@@ -227,7 +256,7 @@ describe('favourites', () => {
     assert.equal(await star(page, 'Masyu').getAttribute('aria-pressed'), 'false')
     await star(page, 'Masyu').click()
     assert.equal(await star(page, 'Masyu').getAttribute('aria-pressed'), 'true')
-    assert.equal((await groupTitles(page))[0], 'Favourites')
+    assert.equal((await groupTitles(page))[1], 'Favourites', 'right after the puzzle\'s own entry')
     assert.deepEqual(await optionsOfGroup(page, 'Favourites'), ['Masyu'])
     assert.equal((await optionsOfGroup(page, 'Loops and paths')).includes('Masyu'), false, 'moved out of its family')
     await page.keyboard.press('Escape')
