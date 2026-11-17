@@ -143,10 +143,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
 .ui-mrows { display: grid; gap: 4px; }
 .ui-mrow { display: grid; grid-template-columns: 86px 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: 14px; }
-.ui-mrow.is-none { background: #f4f4f2; color: #6f6f68; }
 .ui-mrow.is-more { background: transparent; font-size: 12.5px; padding: 2px 8px; color: #555; }
 .ui-mg { font-weight: 700; color: #2f5bb2; }
-.ui-mrow.is-none .ui-mg { color: #6f6f68; }
 .ui-mrow.is-more .ui-mg { font-weight: 600; color: #5d6985; }
 
 /* The Mode card: the combobox, its list, then the style buttons. */
@@ -222,11 +220,12 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-chip-unpin:hover { opacity: 1; }
 .ui-chip button:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
 
-/* The flash: the tool's name near the top of the board for a moment on each change; it never takes a click. */
-.ui-flash { position: absolute; left: 50%; top: 68px; transform: translateX(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 11px;
-    padding: 8px 20px; border-radius: 999px; background: rgba(18, 20, 26, .68); color: #fff; font-size: 22px; font-weight: 700; white-space: nowrap; opacity: 0; }
+/* The flash: the tool's name over the Board card's header for a moment on each change, never over the board; it never takes a click. */
+.ui-card-board .ui-head { position: relative; }
+.ui-flash { position: absolute; left: 72px; top: 50%; transform: translateY(-50%); z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 8px;
+    padding: 1px 14px; border-radius: 999px; background: rgba(18, 20, 26, .68); text-transform: none; letter-spacing: 0; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
 .ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
-.ui-flash-dot { width: 15px; height: 15px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); flex: none; }
+.ui-flash-dot { width: 11px; height: 11px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); flex: none; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
 
 /* The top bar's controls. */
@@ -261,8 +260,6 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-headline { color: #e3eaff; }
 .ui-dark .ui-mrow { background: #26324a; }
 .ui-dark .ui-mg { color: #9fbdff; }
-.ui-dark .ui-mrow.is-none { background: #272a31; color: #8d94a1; }
-.ui-dark .ui-mrow.is-none .ui-mg { color: #8d94a1; }
 .ui-dark .ui-mrow.is-more { background: transparent; color: #c3c8d2; }
 .ui-dark .ui-mrow.is-more .ui-mg { color: #a5b2cc; }
 .ui-dark .ui-search { background: #1b1e24; color: #e3e6eb; border-color: #4a5060; }
