@@ -7,7 +7,6 @@ import { afterEach, describe, it } from 'node:test'
 import { CARD_GAP_PX, MODE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, steady } from './desk-layout.mjs'
 import { ICEBREAKER, linkFromNewBoard, openSolvePage, puzzleSolveLinkInPage, resetLayoutInSettings, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
 import { choosePreset } from './pin-card.mjs'
-import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
 const browser = useBrowser()
@@ -238,13 +237,9 @@ describe('a double-click on a dragged edge', () => {
 
   it('names itself on every resize handle', async () => {
     const page = await open()
-    await handleOf(page, 'Mode', 'bottom').hover()
-    // A Web Awesome tooltip is marked `open` while it shows.
-    const shown = async () => (await page.locator('wa-tooltip[open]').allTextContents()).map((t) => t.trim())
-    assert.deepEqual(await settle(shown, [FIT_TOOLTIP]), [FIT_TOOLTIP])
-    const texts = await page.evaluate(() => [...document.querySelectorAll('.ui-resize')].map((handle) =>
-      document.querySelector(`wa-tooltip[for="${handle.id}"]`)?.textContent))
-    assert.deepEqual(new Set(texts), new Set([FIT_TOOLTIP]))
+    const titles = await page.evaluate(() => [...document.querySelectorAll('.ui-resize')].map((handle) => handle.title))
+    assert.equal(titles.length, 48, 'eight handles on each of six cards')
+    assert.deepEqual(new Set(titles), new Set([FIT_TOOLTIP]))
   })
 
   it('returns a Mode card dragged taller to its automatic height, after it stopped following the current tool', async () => {

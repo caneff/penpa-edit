@@ -228,11 +228,10 @@
         Object.entries(CARD_TITLES).forEach(([id, title]) => {
             const body = el('div', { class: 'ui-body' });
             const head = el('div', { class: 'ui-head' }, [el('h2', {}, [title])]);
-            const handles = Object.keys(RESIZE_HANDLES).map((name) => {
-                const handle = el('div', { class: `ui-resize ui-resize-${name}`, 'data-testid': `resize-${name}` });
-                addTooltip(handle, FIT_TOOLTIP);
-                return handle;
-            });
+            // A native tooltip: a Web Awesome one on each of the 48 handles slowed every tool change, since each is laid out
+            // again with the page.
+            const handles = Object.keys(RESIZE_HANDLES).map((name) =>
+                el('div', { class: `ui-resize ui-resize-${name}`, 'data-testid': `resize-${name}`, title: FIT_TOOLTIP }));
             cards[id] = {
                 body,
                 head,
