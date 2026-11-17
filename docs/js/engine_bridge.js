@@ -594,10 +594,11 @@
         return mode === 'multicolor' ? 'surface' : mode;
     }
 
-    // MVP gap: calls Penpa+'s own paint setter on a scratch canvas to read the colour it draws colour style `style` of style box
-    // `box` with: `set_line_style`'s stroke for a pen, `set_surface_style`'s fill for a Surface colour, `set_font_style`'s fill
-    // for a text colour. A legacy label's background is no source (#247): its colour is a variable of the theme stylesheet,
-    // undefined while a theme switch reloads it, and a checked label has a grey ground of its own.
+    const SAMPLE_FONT_PX = 10;
+
+    // MVP gap: reads the colour Penpa+'s own paint setter gives colour style `style` of style box `box`, on a scratch canvas.
+    // A legacy label's background is no source: its colour is a variable of the theme stylesheet, undefined while a theme
+    // switch reloads it, and a checked label has a grey ground of its own.
     function colourOf(box, style) {
         const scratch = document.createElement('canvas').getContext('2d');
         if (PEN_BOXES.has(box)) {
@@ -615,7 +616,6 @@
     // The disc Penpa+ draws behind a digit of each text style that has one: the `set_circle_style` number class_square.js draws it
     // with, or null for a style that is only listed here to get a sample.
     const TEXT_STYLE_DISC = { 0: null, 6: 1, 7: 2, 11: 11 };
-    const SAMPLE_FONT_PX = 10;
 
     // MVP gap: calls Penpa+'s `set_font_style` and `set_circle_style` on a scratch canvas to read how it paints a digit of text
     // style `style` and the disc behind it, so the Mode card's sample is the board's own drawing. `text()` strokes at

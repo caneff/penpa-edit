@@ -3,7 +3,7 @@
 // A page that opens in a saved dark theme draws swatches even when the theme's stylesheet arrives after the tools are read (#247).
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, contrastHelpersInPage, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { afterChange, contrastHelpersInPage, newBoardSolveLink, openSolvePage, setTool, THEME_KEY, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -13,10 +13,11 @@ const LAPTOP = { width: 1366, height: 768 }
 const HUGE = { width: 2560, height: 1440 }
 // The least a swatch must grow from 1366x768 to 2560x1440: well past rounding, short of the desk's full text scale.
 const MIN_GROWTH = 1.3
-// Where the solve page keeps its theme (engine_bridge.js).
-const THEME_KEY = 'chinstrap-solve-theme-v1'
-// The names of Surface's and Number's colour styles, as `engine.listTools()` gives them.
-const COLOUR_NAMES = ['dark grey', 'grey', 'light grey', 'black', 'green', 'blue', 'red', 'yellow', 'pink', 'orange', 'purple', 'brown', 'dark blue']
+// The colour styles of Surface and of Number, by name, as `engine.listTools()` gives them.
+const COLOURS = {
+  surface: ['dark grey', 'grey', 'light grey', 'black', 'green', 'blue', 'red', 'yellow', 'pink', 'orange', 'purple', 'brown'],
+  number: ['black', 'green', 'blue', 'grey', 'dark blue', 'red']
+}
 
 // Runs in the page: each swatch's digit contrast against its fill, and whether the digit has an outline.
 function swatchContrastsInPage () {
@@ -82,18 +83,19 @@ describe('a saved dark theme whose stylesheet is slow to arrive (#247)', () => {
         })
       }
     })
-    const { page } = opened
-    const colourStyles = (mode) => page.evaluate(([mode, names]) => engine.listTools().find((t) => t.mode === mode).styles
-      .filter((s) => names.includes(s.name)).map((s) => [s.name, typeof s.swatch]), [mode, COLOUR_NAMES])
-    for (const mode of ['surface', 'number']) {
-      const styles = await colourStyles(mode)
-      assert.ok(styles.length >= 6, `${mode} lists its colours`)
-      assert.deepEqual(styles.filter(([, swatch]) => swatch !== 'string'), [], `${mode}: every colour style has a swatch`)
+    try {
+      const { page } = opened
+      // Each colour style of `mode` as [name, the type of its swatch], in the order the tool lists them.
+      const colourStyles = (mode) => page.evaluate(([mode, names]) => engine.listTools().find((t) => t.mode === mode).styles
+        .filter((s) => names.includes(s.name)).map((s) => [s.name, typeof s.swatch]), [mode, COLOURS[mode]])
+      for (const [mode, names] of Object.entries(COLOURS)) {
+        assert.deepEqual(await colourStyles(mode), names.map((name) => [name, 'string']), `${mode}: every colour style has a swatch`)
+      }
+      await setTool(page, { mode: 'surface' })
+      const buttons = await settle(() => page.evaluate(() => [...document.querySelectorAll('.ui-stylebtn')].map((b) => b.querySelector('.ui-swatch') ? 'swatch' : b.textContent.trim())), null)
+      assert.deepEqual(buttons, COLOURS.surface.map(() => 'swatch'), 'every Surface button is a swatch')
+    } finally {
+      await opened.context.close()
     }
-    await setTool(page, { mode: 'surface' })
-    const buttons = await settle(() => page.evaluate(() => [...document.querySelectorAll('.ui-stylebtn')].map((b) => b.querySelector('.ui-swatch') ? 'swatch' : b.textContent.trim())), null)
-    assert.equal(buttons.length, 12, 'Surface has twelve colours')
-    assert.deepEqual(buttons.filter((b) => b !== 'swatch'), [], 'every Surface button is a swatch')
-    await opened.context.close()
   })
 })
