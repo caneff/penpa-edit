@@ -22,7 +22,7 @@ const removeExpected = (id) => rm(new URL(id + '.expected.json', RECORDINGS), { 
 async function write (browser, id, recording) {
   await mkdir(new URL(TIER_C_FAMILY + '/', RECORDINGS), { recursive: true })
   await writeFile(new URL(id + '.steps.json', RECORDINGS), recordingText(recording))
-  const { checkpoints, report } = await replay(browser, recording, { id })
+  const { checkpoints, report } = await replay(browser, recording, { id, roundTripEvery: 1 })
   if (report) {
     await removeExpected(id)
     return report
