@@ -83,6 +83,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* A card the solver sized (or that shrank to fit the desk) has a height of its own, which its body then fills and scrolls in. */
 .ui-card.is-sized .ui-body { flex: 1 1 auto; min-height: 0; }
 .ui-card-rules.is-sized .ui-body { max-height: none; }
+.ui-card[hidden] { display: none; }
+.ui-close { order: 2; margin-left: auto; }
 .ui-head { cursor: grab; }
 .ui-root .ui-head h2 { margin: 0; flex: none; }
 .ui-head wa-button { cursor: pointer; font-size: 12px; --wa-form-control-height: 22px; --wa-form-control-padding-inline: .65em; }
