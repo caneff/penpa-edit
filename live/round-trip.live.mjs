@@ -4,7 +4,9 @@ import assert from 'node:assert/strict'
 import { afterEach, before, beforeEach, describe, it } from 'node:test'
 import { canonicalState, readEngineState } from './canonical-state.mjs'
 import { AKARI_SOLVE, openPenpa, openReloader, useBrowser } from './page.mjs'
-import { duplicateLinkInPage, linkHash, roundTrips } from './replay.mjs'
+import {
+  FULL_ROUND_TRIPS_ENV, ROUND_TRIP_EVERY, duplicateLinkInPage, linkHash, readRecording, replay, roundTripAt, roundTripEvery, roundTrips
+} from './replay.mjs'
 
 const browser = useBrowser()
 
@@ -109,5 +111,42 @@ describe('roundTrips', () => {
     const loaded = await load(links.shaded, want)
     assert.notEqual(loaded, null)
     assert.equal(loaded.got, otherWant)
+  })
+})
+
+describe('which checkpoints round-trip their duplicate link', () => {
+  it('always includes the last checkpoint, and every k-th one before it counted from the first', () => {
+    const at = (last, every) => Array.from({ length: last + 1 }, (_, index) => index).filter((index) => roundTripAt({ index, last, every }))
+    assert.deepEqual(at(10, 4), [0, 4, 8, 10])
+    assert.deepEqual(at(8, 4), [0, 4, 8])
+    assert.deepEqual(at(0, 4), [0])
+    assert.deepEqual(at(3, 1), [0, 1, 2, 3], 'every 1 is every checkpoint')
+  })
+
+  it('is every ROUND_TRIP_EVERY-th by default, and every checkpoint when the full-mode variable is set', () => {
+    assert.ok(Number.isInteger(ROUND_TRIP_EVERY) && ROUND_TRIP_EVERY > 1)
+    assert.equal(roundTripEvery({}), ROUND_TRIP_EVERY)
+    assert.equal(roundTripEvery({ [FULL_ROUND_TRIPS_ENV]: '' }), ROUND_TRIP_EVERY)
+    assert.equal(roundTripEvery({ [FULL_ROUND_TRIPS_ENV]: '1' }), 1)
+  })
+
+  describe('in a replay', () => {
+    const ID = 'paint/surface-shade-undo-redo'
+    const checked = async (options) => {
+      const recording = await readRecording(ID)
+      const { roundTripped, checkpoints } = await replay(browser(), recording, { id: ID, ...options })
+      return { roundTripped, steps: checkpoints.map((c) => c.step) }
+    }
+
+    it('checks the first, every k-th and the last checkpoint by default', async () => {
+      const { roundTripped, steps } = await checked({})
+      assert.ok(steps.length > ROUND_TRIP_EVERY + 1, 'the recording has checkpoints between')
+      assert.deepEqual(roundTripped, steps.filter((step, index) => index % ROUND_TRIP_EVERY === 0 || index === steps.length - 1))
+    })
+
+    it('checks every checkpoint with roundTripEvery 1', async () => {
+      const { roundTripped, steps } = await checked({ roundTripEvery: 1 })
+      assert.deepEqual(roundTripped, steps)
+    })
   })
 })

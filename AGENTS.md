@@ -51,7 +51,7 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `test/public/puzz_link_parser.js`); a missing or changed snapshot, or a snapshot file with no puzzle in the list, fails
   it, and nothing writes one. `npm run test:live` runs
   `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/pin-card.mjs`, `live/settle.mjs`, `live/upstream-docs.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/ui-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs`, `live/tier-c.mjs` and `live/tier-c-puzzles.mjs`), replays every
-  recording under `live/recordings/` on the engine driver against its expected file (one with none fails), replays the
+  recording under `live/recordings/` on the engine driver against its expected file (one with none fails; at its first checkpoint, every 4th and its last it also loads the board's duplicate link in a fresh page and checks the same board comes back, and with `REPLAY_FULL_ROUND_TRIPS=1` set, as the nightly full run sets it (#268), at every checkpoint, #267), replays the
   hand-made recordings and a sample of the generated ones on the UI driver against the engine driver, on Penpa+'s page
   and on `solve.html` (`live/replay.mjs`, `live/ui-replay-part.mjs`), and fuzzes a few puzzles with fixed seeds against the solving
   invariants, saving a failing run as a recording under `live/recordings/fuzz/`. Tier C (`live/tier-c.live.mjs`) runs the

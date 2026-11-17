@@ -48,6 +48,22 @@ export async function pauseClock (context) {
 const CONTEXT_OPTIONS = { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }
 // Pages one `roundTrips` loads links in at once.
 const ROUND_TRIP_LANES = 4
+// A replay under the engine driver round-trips the duplicate link of its board at the first checkpoint, at every
+// ROUND_TRIP_EVERY-th one after it and at the last (#267: a load boots a page and cost about three quarters of a
+// replay's time, `research/engine-replay-profile-2026-11.md`). With this environment variable set to a non-empty value
+// (the nightly full run sets it, #268) it round-trips every checkpoint.
+export const ROUND_TRIP_EVERY = 4
+export const FULL_ROUND_TRIPS_ENV = 'REPLAY_FULL_ROUND_TRIPS'
+
+// How many checkpoints apart the round trips are under `env`: 1 (every checkpoint) in full mode.
+export function roundTripEvery (env = process.env) {
+  return env[FULL_ROUND_TRIPS_ENV] ? 1 : ROUND_TRIP_EVERY
+}
+
+// Whether the checkpoint at `index` (0 for step 0) of a replay whose last checkpoint is `last` round-trips its link.
+export function roundTripAt ({ index, last, every }) {
+  return index === last || index % every === 0
+}
 
 // Indices in `pu.centerlist` of the cells the answer of `makeSurfaceSolveLink`'s puzzle shades.
 export const ANSWER_CELLS = [5, 9]
@@ -248,6 +264,11 @@ function startEngineDriver (page) {
     orientation: (direction) => page.evaluate((direction) => pu.set_orientation(direction), direction)
   }
   return (step) => step.kind === 'mode' ? switchMode(page, step, choose) : page.evaluate(applyStepInPage, step)
+}
+
+// The index of the last checkpoint of a replay of `steps` under `driver`, step 0 being index 0.
+function lastCheckpointIndex (driver, steps) {
+  return steps.filter((step, index) => isCheckpoint(driver, steps, index + 1)).length
 }
 
 // Whether a checkpoint follows step `n` (counted from 1) of `steps` under `driver`: the last step always has one.
@@ -810,12 +831,13 @@ function handlerCallsOf (entries) {
 // `against`) it stops at the first checkpoint that differs and returns the report of it. Under the engine driver, at
 // every checkpoint the duplicate link of the board, loaded in another page booted afresh for it (`roundTrips`), must
 // give the same board, less what the link drops by design. A replay that does not end on the recording's final board
-// is reported too; otherwise `report` is null. `served`, `solve` and `setup` go to `openPenpa`, and `served` and
+// is reported too; otherwise `report` is null. Only the checkpoints `roundTripAt` names make the round trip, `roundTripEvery`
+// (default `roundTripEvery()`) apart; `roundTripped` lists their steps. `served`, `solve` and `setup` go to `openPenpa`, and `served` and
 // `setup` to `roundTrips` for the duplicate's page. With `coverage`, it also returns `handlerCalls`: each `mouse_*` and `key_*` handler of `class_p.js`
 // with the times the steps called it. `errors` holds every page error and `console.error` of the replay's page.
 export async function replay (browser, recording, {
   id = 'recording', expected, served = false, setup, driver = engineDriver, against = AGAINST_EXPECTED, coverage = false,
-  solve = false
+  solve = false, roundTripEvery: every = roundTripEvery()
 } = {}) {
   // The solved message opens from a 20 ms `setTimeout` in `check_solution`, so under the paused clock it never opens.
   const openOptions = {
@@ -853,7 +875,9 @@ export async function replay (browser, recording, {
     }))
   }
   const { steps } = recording
+  const lastCheckpoint = lastCheckpointIndex(driver, steps)
   const checkpoints = []
+  const roundTripped = []
   // The report of the first way checkpoint `n` differs from what it is compared with, else null.
   const checkpoint = async (n, since) => {
     const want = expected?.[checkpoints.length]
@@ -866,7 +890,10 @@ export async function replay (browser, recording, {
     checkpoints.push({ step: n, state })
     if (want && state !== want.state) return failureReport({ id, step: n, steps, since, want: want.state, got: state, errors, against })
     // The duplicate link is the engine's, whichever input made the board, so the engine driver alone checks it.
-    if (driver === engineDriver) await startRoundTrip(n, state)
+    if (driver === engineDriver && roundTripAt({ index: checkpoints.length - 1, last: lastCheckpoint, every })) {
+      roundTripped.push(n)
+      await startRoundTrip(n, state)
+    }
     return null
   }
   // The report of the first way the replay differs from the expected file or the recording, else null.
@@ -898,7 +925,7 @@ export async function replay (browser, recording, {
     const report = await run()
     const handlerCalls = coverage ? handlerCallsOf(await page.coverage.stopJSCoverage()) : undefined
     // A round trip names an earlier checkpoint than any report the replay itself can make.
-    return { checkpoints, report: (await Promise.all(reports)).find(Boolean) ?? report, handlerCalls, errors: [...errors] }
+    return { checkpoints, report: (await Promise.all(reports)).find(Boolean) ?? report, handlerCalls, errors: [...errors], roundTripped }
   } finally {
     // A step that could not be replayed leaves round trips under way; none outlives the replay.
     await trips.close()
