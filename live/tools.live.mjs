@@ -551,7 +551,7 @@ describe('the Mouse card and the title bar', () => {
       ['Drag', 'many cells selected'], ['Digit', 'digit in the selected cells'], ['Ctrl/Shift + click', 'cell added to the selection, again: removed'],
       ['Ctrl/Shift + drag', 'from a selected cell: those cells leave the selection'],
       ['Alt + drag', 'rectangle of cells selected (square grids only)'], ['Double click', 'every cell with the same digit selected'],
-      ['Shift + digit', 'corner mark in the selected cells (square grids only)'], ['Ctrl + digit', '— (the browser keeps it)']]],
+      ['Shift + digit', 'corner mark in the selected cells (square grids only)'], ['Ctrl + digit', 'centre mark in the selected cells']]],
     [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'only that cell selected'],
       ['Drag', 'many cells selected'], ['Digit', 'corner mark in the selected cells'], ['Ctrl/Shift + click', 'cell added to the selection, again: removed'],
       ['Ctrl/Shift + drag', 'from a selected cell: those cells leave the selection'],

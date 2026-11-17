@@ -358,7 +358,7 @@ const CASES = {
   'sudoku/1': {
     ...selectingTool({ digit: ['writes a digit in the selected cells', [click(at(A))], [stage(key('5'), ['number@cell=["5",9,"1"]'])]], removeDrag: true }),
     'Shift + digit': [['writes corner marks', [click(at(A))], [stage(key('5', ['Shift']), ['numberS@type4=["5",9]'])]]],
-    'Ctrl + digit': [['writes nothing', [click(at(A))], [stage(key('5', ['Control']), [])]]]
+    'Ctrl + digit': [['writes a centre mark', [click(at(A))], [stage(key('5', ['Control']), ['number@cell=["5",9,"6"]'])]]]
   },
   'sudoku/2': selectingTool({ double: [
     ['on a digit: selects every cell with it', [useTool({ mode: 'sudoku', submode: '1' }), ...sameValueSetup], [stage(doubleClick(at(A)), [`selection=${A},${C}`])]],

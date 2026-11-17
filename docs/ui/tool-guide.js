@@ -278,7 +278,7 @@
         'number/9': { left: 'cursor on the nearest cell side spot; cell selected', right: 'cursor on the nearest cell side spot',
             drag: AS_A_CLICK, digit: 'number at the cursor', more: [] },
         'sudoku/1': selecting('digit', 'digit in the selected cells', { extra: [REMOVE_DRAG], after: [
-            ['Shift + digit', `corner mark in the selected cells (${SQUARE_ONLY})`], ['Ctrl + digit', `${NOTHING} (the browser keeps it)`]] }),
+            ['Shift + digit', `corner mark in the selected cells (${SQUARE_ONLY})`], ['Ctrl + digit', 'centre mark in the selected cells']] }),
         'sudoku/2': selecting('digit', 'corner mark in the selected cells', { extra: [REMOVE_DRAG], double: 'on corner marks only: selection cleared' }),
         'sudoku/3': selecting('digit', 'centre mark in the selected cells', { extra: [REMOVE_DRAG] }),
         'combi/numfl': flick('5', 'a digit', ['1', '2', '3', '4', '5', '6', '7', '8', '9']),
