@@ -1,4 +1,4 @@
-// The Recent card of `solve.html` (#97): the last five tools the solver used that are not pinned, newest first, as pin chips without number or ×,
+// The Recent card of `solve.html` (#97): the last five tools the solver used that are not pinned, newest first, as pin chips without a shortcut key or ×,
 // outside the Tab cycle; a click on one makes it current and gives the keys back to the board. The UI is found by role and
 // accessible name, the tool by `engine.getTool()`; the keys and clicks are real.
 import assert from 'node:assert/strict'

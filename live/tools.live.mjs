@@ -326,7 +326,7 @@ describe('a link with a Tab set', () => {
   after(async () => { await withTabSet?.context.close(); await withoutTabSet?.context.close() })
 
   it('still seeds the pins from the Tab set', async () => {
-    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins as a preset)/ }).allInnerTexts())
+    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins)/ }).allInnerTexts())
       .map(chipName)
     assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
     assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])
@@ -522,39 +522,35 @@ describe('the Mouse card and the title bar', () => {
       ['Right drag', '2nd colour on many cells (starting on it: clear many)'],
       ['Alt + drag', 'paint a rectangle (starting on the colour: clear it; square grids only)'],
       ['Alt + right drag', 'rectangle in the 2nd colour (square grids only)'], ['Digit', 'pick colour n']]],
-    [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Left click', '—'], ['Right click', '—'],
-      ['Drag', 'line through cell centres; starting on it: erase']]],
-    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Right click', '—'], ['Drag', 'as a click where it starts']]],
-    [{ mode: 'wall' }, 'Wall', [['Left click', '—'], ['Right click', '—'], ['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on it: erase']]],
+    [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Drag', 'line through cell centres; starting on it: erase']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear'], ['Drag', 'as a click where it starts']]],
+    [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on it: erase']]],
     [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor to the nearest cell corner spot; selects the cell'],
       ['Right click', 'cursor to the nearest cell corner spot'], ['Drag', 'as a click where it starts'], ['Digit', 'number at the cursor']]],
     [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],
       ['Right click', 'black ● → white ○ → clear'], ['Drag', 'repeat the first cell\'s change on each cell'], ['Given circles', 'left alone']]],
-    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'], ['Right click', '—'],
+    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on a thermometer\'s bulb: erase it'],
       ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
-    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Left click', '—'], ['Right click', '—'],
-      ['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
-    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Left click', '—'], ['Right click', '—'],
-      ['Drag', 'move a number you entered to an empty cell']]],
+    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on it: erase']]],
+    [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'move a number you entered to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
       ['Right click', 'cursor to the cell'], ['Drag', 'as a click where it starts'], ['Digit', 'shape variant n at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor to the cell'], ['Right click', 'cursor to the cell'],
       ['Drag', 'as a click where it starts'], ['Digit', 'add or remove part n of the shape at the cursor']]],
     // The rows past Left click, Right click and Drag that #186 corrected, which the agreed table's check does not read.
-    [{ mode: 'combi', submode: 'linex' }, 'Line + edge ×', [['Left click', '—'], ['Right click', '× on the edge → clear'],
+    [{ mode: 'combi', submode: 'linex' }, 'Line + edge ×', [['Right click', '× on the edge → clear'],
       ['Drag', 'line through cell centres; starting on it: erase'], ['Right drag from an edge', '× on each edge it passes (starting on a ×: clear them)']]],
-    [{ mode: 'combi', submode: 'linedir' }, 'Line + direction marks', [['Left click', '—'],
-      ['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on it: erase'],
+    [{ mode: 'combi', submode: 'linedir' }, 'Line + direction marks', [['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on it: erase'],
       ['Right drag from a cell toward an edge', 'arrowhead on that edge pointing that way → clear (same way)'],
       ['Right drag from an edge', '× on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes)']]],
-    [{ mode: 'number', submode: '7' }, 'Number > Candidates', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+    [{ mode: 'number', submode: '7' }, 'Number > Candidates', [['Left click', 'select the cell (drops the rest)'],
       ['Drag', 'select many cells'], ['Ctrl / Shift + click', 'add or remove the cell'], ['Alt + drag', 'select a rectangle (square grids only)'],
       ['Double click', 'select every cell with the same number; on candidates: just that cell'], ['Digit', 'add or remove that candidate in the selected cells']]],
-    [{ mode: 'sudoku', submode: '1' }, 'Sudoku > Normal', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+    [{ mode: 'sudoku', submode: '1' }, 'Sudoku > Normal', [['Left click', 'select the cell (drops the rest)'],
       ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
       ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit'],
       ['Digit', 'digit in the selected cells'], ['Shift held', 'corner marks (square grids only)'], ['Ctrl + digit', 'centre marks']]],
-    [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'select the cell (drops the rest)'], ['Right click', '—'],
+    [{ mode: 'sudoku', submode: '2' }, 'Sudoku > Corner', [['Left click', 'select the cell (drops the rest)'],
       ['Drag', 'select many cells'], ['Ctrl / Shift + drag from a selected cell', 'remove cells'], ['Ctrl / Shift + click', 'add or remove the cell'],
       ['Alt + drag', 'select a rectangle (square grids only)'], ['Double click', 'select every cell with the same digit; on corner marks only: clear the selection'],
       ['Digit', 'corner mark in the selected cells']]]
@@ -575,6 +571,21 @@ describe('the Mouse card and the title bar', () => {
     assert.doesNotMatch(await opened.page.getByRole('region', { name: 'Mouse' }).locator('.ui-mrows').textContent(), /green/)
   })
 
+  it('shows no row whose action is nothing, for any tool (#191)', async () => {
+    const shown = await opened.page.evaluate(async () => {
+      const bad = []
+      for (const t of engine.listTools()) {
+        engine.setTool({ mode: t.mode, submode: t.submode, style: t.styles[0]?.style ?? null })
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
+        for (const row of document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')) {
+          if (row.children[1].textContent === '—') bad.push(`${t.mode}/${t.submode}: ${row.children[0].textContent}`)
+        }
+      }
+      return bad
+    })
+    assert.deepEqual(shown, [])
+  })
+
   it('words Left click, Right click and Drag as the agreed table says, for every tool in it', async () => {
     // `research/mouse-card-wording-2026-11.md`: rows `| mode/submode | name | Left click | Right click | Drag | ...`.
     const agreed = readFileSync(new URL('../research/mouse-card-wording-2026-11.md', import.meta.url), 'utf8').split('\n')
@@ -593,7 +604,9 @@ describe('the Mouse card and the title bar', () => {
       const shown = await opened.page.evaluate(async (t) => {
         engine.setTool(t)
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
-        return [...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].slice(0, 3).map((r) => r.children[1].textContent)
+        // A row that does nothing is not drawn: the agreed table's `—` is a missing row.
+        const shown = Object.fromEntries([...document.querySelectorAll('section[aria-label="Mouse"] .ui-mrow')].map((r) => [r.children[0].textContent, r.children[1].textContent]))
+        return ['Left click', 'Right click', 'Drag'].map((gesture) => shown[gesture] ?? '—')
       }, tool)
       checked++
       if (shown.join(' | ') !== words.join(' | ')) differ.push(`${key}: card ${shown.join(' | ')} vs agreed ${words.join(' | ')}`)
