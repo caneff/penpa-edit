@@ -299,11 +299,32 @@
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
         const flash = el('div', { class: 'ui-flash', 'aria-hidden': 'true' });
-        cards.board.head.append(flash);
+        cards.board.node.append(flash);
+
+        // The banner sits at the top of the board's visible part, centred: the board's box cut to what the body shows, so a
+        // zoomed or scrolled board keeps it in view.
+        const FLASH_INSET_PX = 6;
+        function placeFlash() {
+            const card = cards.board.node.getBoundingClientRect();
+            const body = cards.board.body;
+            const bodyBox = body.getBoundingClientRect();
+            const view = { left: bodyBox.left + body.clientLeft, top: bodyBox.top + body.clientTop };
+            view.right = view.left + body.clientWidth;
+            view.bottom = view.top + body.clientHeight;
+            const board = body.firstElementChild?.getBoundingClientRect();
+            const left = board ? Math.max(view.left, board.left) : view.left;
+            const right = board ? Math.min(view.right, board.right) : view.right;
+            const top = board ? Math.max(view.top, board.top) : view.top;
+            const box = left < right && top < view.bottom ? { left, right, top } : { ...view };
+            flash.style.left = `${(box.left + box.right) / 2 - card.left}px`;
+            flash.style.top = `${box.top - card.top + FLASH_INSET_PX}px`;
+        }
 
         // Restarts the CSS animation, which fades the name out on its own.
         function flashTool(tool, colour) {
-            flash.replaceChildren(el('i', { class: 'ui-flash-dot', style: `background:${colour}` }), chipLabel(tool));
+            flash.replaceChildren(chipLabel(tool));
+            flash.style.setProperty('--ui-flash-colour', colour);
+            placeFlash();
             flash.classList.remove('is-flashing');
             void flash.offsetWidth;
             flash.classList.add('is-flashing');
