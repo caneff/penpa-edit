@@ -1,7 +1,8 @@
 // The UI fuzz's rules (`live/ui-fuzz/rules.mjs`, #195) on hand-made snapshots: each rule fires on a bad page and holds on a
-// good one, without a browser.
+// good one, without a browser. Also its unpin action (`live/ui-fuzz/actions.mjs`, #295) on a fake page.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { KINDS, UNPIN_SELECTOR } from '../live/ui-fuzz/actions.mjs'
 import { RULES, ruleViolations } from '../live/ui-fuzz/rules.mjs'
 
 const LIGHT = 'rgb(251, 250, 247)'
@@ -216,6 +217,9 @@ describe('the UI fuzz rules', () => {
       it('holds when Pinned gets shorter and the cards under it move up by as much', () => {
         assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 178) }, { action: action('reload'), before: { presetUndo: true, cards: column(124.375, 206) } }), [])
       })
+      it('holds when a card under Pinned has the same rectangle after the reload as before', () => {
+        assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 206) }, { action: action('reload'), before: { presetUndo: true, cards: column(124.375, 206) } }), [])
+      })
       it('fails when a card under Pinned moves by another amount', () => {
         assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: column(96.1875, 190) }, { action: action('reload'), before: { presetUndo: true, cards: column(124.375, 206) } }),
           ['the reload moved Mode from 1006,206 380x98 to 1006,190 380x98'])
@@ -283,5 +287,30 @@ describe('the UI fuzz rules', () => {
         }
       }
     })
+  })
+})
+
+describe('the unpin action (#295)', () => {
+  // A page whose Pinned card holds `chips` unpin buttons and the "Unpin all" button; it records what the action looks up and clicks.
+  function fakePage (chips) {
+    const log = { looked: [], clicked: 0 }
+    const chipButtons = { count: async () => chips, nth: () => { log.clicked++; throw new Error('clicked a chip') } }
+    const region = {
+      locator: (selector) => { log.looked.push(selector); return selector === UNPIN_SELECTOR ? chipButtons : { count: async () => 0 } },
+      getByRole: (role, { name }) => { log.looked.push(`${role} ${name}`); return { count: async () => 1, nth: () => { log.clicked++; throw new Error('clicked Unpin all') } } }
+    }
+    return { page: { getByRole: () => region }, log }
+  }
+  const unpin = KINDS.find((k) => k.kind === 'unpin')
+
+  it('does nothing on a page with no pin, though "Unpin all" is there', async () => {
+    const { page, log } = fakePage(0)
+    assert.equal(await unpin.run(page, 0), 'no pin')
+    assert.equal(log.clicked, 0)
+  })
+  it('looks only at the pins\' own buttons, never at "Unpin all"', async () => {
+    const { page, log } = fakePage(2)
+    await assert.rejects(unpin.run(page, 1), /clicked a chip/)
+    assert.deepEqual(log.looked, [UNPIN_SELECTOR])
   })
 })

@@ -2,6 +2,7 @@
 // cycle, the empty set is kept across a reload, and "Puzzle defaults" brings the defaults back. Found by role and accessible name.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { UNPIN_SELECTOR } from './ui-fuzz/actions.mjs'
 import { currentTool, useBrowser, waitForDesk } from './page.mjs'
 import { choosePreset, PIN_TAB_SET, pinChips, pinChipTexts, pinnedCard, toolKeyOf, withPinnedPage } from './pin-card.mjs'
 import { settle } from './settle.mjs'
@@ -12,6 +13,12 @@ const unpinAll = (page) => pinnedCard(page).getByRole('button', { name: 'Unpin a
 const withPage = (body) => withPinnedPage(browser, body)
 
 describe('Unpin all', () => {
+  it('leaves the fuzz\'s unpin action one button per pin, and not this one (#295)', withPage(async (page) => {
+    const pins = (await pinChipTexts(page)).length
+    assert.ok(pins > 0, 'the page opens with pins')
+    assert.equal(await pinnedCard(page).locator(UNPIN_SELECTOR).count(), pins)
+  }))
+
   it('removes every pin, leaves the current tool alone, and leaves Tab nothing to cycle', withPage(async (page) => {
     await pinChips(page).first().locator('.ui-chip-main').click()
     const before = toolKeyOf(await currentTool(page))
