@@ -74,6 +74,7 @@ function readDeskInPage (names) {
     cards: Object.fromEntries(names.map((name) => [name, rect(section(name))])),
     heads: Object.fromEntries(names.map((name) => [name, rect(section(name).querySelector('.ui-head'))])),
     rulesButtons: [...section('Rules').querySelectorAll('.ui-head wa-button')].map(rect),
+    titleMargins: [...document.querySelectorAll('.ui-head h2')].map((h2) => getComputedStyle(h2).margin),
     headButtonsFit: [...document.querySelectorAll('.ui-head')].every((head) => [...head.querySelectorAll('wa-button, .ui-tool-name')].every((node) => {
       const outer = head.getBoundingClientRect()
       const inner = node.getBoundingClientRect()
@@ -238,6 +239,7 @@ describe('the desk on a laptop screen', () => {
         assert.deepEqual(new Set(heights).size, 1, `header heights ${heights}`)
         assert.equal(heights[0] <= HEAD_MAX_PX, true, `headers ${heights[0]}px tall`)
         assert.equal(read.headButtonsFit, true, 'every header control fits inside its header')
+        assert.deepEqual(new Set(read.titleMargins), new Set(['0px']), 'no card title has a margin')
         for (const buttons of [read.zoomButtons, read.rulesButtons]) {
           buttons.slice(1).forEach((button, i) => assert.equal(button.x - (buttons[i].x + buttons[i].w) <= SLACK_PX, true, `joined: ${JSON.stringify(buttons)}`))
         }
@@ -257,19 +259,30 @@ describe('the desk on a laptop screen', () => {
     }
   })
 
-  it('keeps the Board card\'s tool label on one line, so a Composite tool never makes the board scroll', async () => {
-    const page = await open(LAPTOPS[1])
-    const label = page.getByTestId('board-tool-name')
-    await page.evaluate(() => engine.setTool(engine.listTools().find((tool) => tool.mode === 'surface')))
-    const shortHeight = (await label.boundingBox()).height
-    await page.evaluate(() => engine.setTool(engine.listTools().find((tool) => tool.mode === 'combi' && tool.submode === 'linex')))
-    await settle(() => label.textContent(), null)
-    const text = await label.textContent()
-    assert.match(text, /^Composite · Loop \+ edge ×/)
-    const read = await deskSettled(page)
-    assert.equal(read.overflowY.Board, 0, 'the board body does not scroll')
-    assert.equal(read.heads.Board.h, read.heads.Pinned.h, 'the Board header keeps the slim height')
-    assert.equal((await label.boundingBox()).height, shortHeight, 'the label stays one line')
-    assert.equal(await label.getAttribute('title'), text, 'the full text is its tooltip')
-  })
+  // Chris's case (Loop + edge × at 1366) and the longest Composite name, at each laptop size.
+  for (const viewport of LAPTOPS) {
+    it(`keeps the Board card's tool label on one line at ${viewport.width}x${viewport.height}, so a Composite tool never makes the board scroll`, async () => {
+      const page = await open(viewport)
+      const label = page.getByTestId('board-tool-name')
+      await page.evaluate(() => engine.setTool(engine.listTools().find((tool) => tool.mode === 'surface')))
+      const oneLine = (await label.boundingBox()).height
+      const composites = await page.evaluate(() => {
+        const all = engine.listTools().filter((tool) => tool.mode === 'combi')
+        const longest = all.reduce((a, b) => (b.submodeName.length > a.submodeName.length ? b : a))
+        return [...new Set(['linex', longest.submode])]
+      })
+      for (const submode of composites) {
+        await page.evaluate((sub) => engine.setTool(engine.listTools().find((tool) => tool.mode === 'combi' && tool.submode === sub)), submode)
+        const read = await deskSettled(page)
+        const text = await label.textContent()
+        assert.match(text, /^Composite · /)
+        assert.equal(read.overflowY.Board, 0, `${text}: the board body does not scroll`)
+        assert.equal((await label.boundingBox()).height, oneLine, `${text}: the label stays one line`)
+        const zoom = await page.getByRole('region', { name: 'Board' }).locator('.ui-zoom').boundingBox()
+        const box = await label.boundingBox()
+        assert.equal(box.x + box.width <= zoom.x + SLACK_PX, true, `${text}: the label ends before the zoom buttons`)
+        assert.equal(await label.getAttribute('title'), text, `${text}: the full text is its tooltip`)
+      }
+    })
+  }
 })
