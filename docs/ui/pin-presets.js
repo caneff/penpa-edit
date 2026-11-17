@@ -163,7 +163,10 @@
             // An undo for an earlier delete would put the older preset of that name over this one.
             clearUndo();
             if (index >= 0) {
-                showUndo(`Replaced “${name}”.`, `Undo replace of ${name}`, () => restoreSaved(all[index], index));
+                showUndo(`Replaced “${name}”.`, `Undo replace of ${name}`, () => {
+                    restoreSaved(all[index], index);
+                    picker.redraw();
+                });
             }
             closeForm();
         }
@@ -200,6 +203,8 @@
         function showUndo(message, label, action, { untilListCloses = false } = {}) {
             clearUndo();
             const undo = el('button', { type: 'button', class: 'ui-preset-undo-btn', 'aria-label': label }, ['Undo']);
+            // The press keeps the focus where it is: taking it from the preset field would close the list and clear this line before the click.
+            undo.addEventListener('mousedown', (e) => e.preventDefault());
             undo.addEventListener('click', () => {
                 action();
                 clearUndo();
@@ -231,7 +236,6 @@
             const others = savedPresets().filter((p) => p.name !== preset.name);
             others.splice(index, 0, preset);
             writePresets(others);
-            picker.redraw();
         }
 
         function deleteSaved(preset) {
@@ -241,6 +245,7 @@
                 if (wasStarred) {
                     writeStars([...starredKeys(), savedKey(preset.name)]);
                 }
+                picker.redraw();
             }, { untilListCloses: true });
             picker.redraw();
         }
