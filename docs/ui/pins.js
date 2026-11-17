@@ -211,7 +211,7 @@
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
         const flash = el('div', { class: 'ui-flash', 'aria-hidden': 'true' });
-        cards.board.node.append(flash);
+        cards.board.head.append(flash);
 
         // Restarts the CSS animation, which fades the name out on its own.
         function flashTool(tool, colour) {

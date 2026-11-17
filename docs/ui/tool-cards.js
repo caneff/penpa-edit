@@ -53,8 +53,10 @@
             el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
         ]);
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
+            // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
             ...[['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag]]
-                .map(([gesture, effect]) => row(gesture, effect, effect === NOTHING ? 'is-none' : '')),
+                .filter(([, effect]) => effect !== NOTHING)
+                .map(([gesture, effect]) => row(gesture, effect, '')),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));
     }
