@@ -1154,8 +1154,8 @@
     }
 
     // Resolves to `{ bar, cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted,
-    // setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill
-    // the bar and the cards.
+    // setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard }` once the desk is built, for the
+    // files that fill the bar and the cards. `fitBoard()` fits the board to its card, as Fit does.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
@@ -1266,7 +1266,7 @@
                 drawCoordinates();
             }
         }).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown) };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.
