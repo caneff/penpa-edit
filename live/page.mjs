@@ -155,6 +155,9 @@ export function shadeInPage (cell) {
 
 // Indices in `pu.centerlist` of the given of `makeNumberSolveLink`'s puzzle, of the cell its answer fills and of an
 // empty cell in the given's row.
+// The localStorage key `engine_bridge.js` keeps the solve page's theme under.
+export const THEME_KEY = 'chinstrap-solve-theme-v1'
+
 export const GIVEN_CELL = 0
 export const ANSWER_CELL = 1
 export const SAME_ROW_CELL = 2

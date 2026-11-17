@@ -56,7 +56,7 @@ describe('engine.listTools', () => {
     }
     const surface = list.find((t) => t.mode === 'surface')
     assert.deepEqual(surface.styles.find((s) => s.style === 2).name, 'green')
-    assert.match(surface.styles.find((s) => s.style === 2).swatch, /^rgb\(/)
+    assert.equal(surface.styles.find((s) => s.style === 2).swatch, '#b3ffb3', 'green is the colour Penpa+ fills it with')
     const blpo = list.find((t) => t.submode === 'blpo')
     assert.ok(blpo.labels.includes('Black / dot'), 'a Composite tool carries Penpa+\'s label')
     assert.deepEqual(list.find((t) => t.submode === 'akari').styles, [], 'Akari has no style')
