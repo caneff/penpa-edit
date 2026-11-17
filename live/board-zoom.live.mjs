@@ -3,7 +3,7 @@
 // buttons' disabled states, the canvas size and the canvas's pixels.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { afterChange, linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
+import { afterChange, boardCanvasInPage, linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
@@ -142,28 +142,40 @@ describe('a zoom the solver set', () => {
 })
 
 describe('a selected cell', () => {
-  it('has a blue translucent fill, not the conflict pink', async () => {
-    const { context, page } = await openSudoku()
-    try {
-      // The cell's top-left corner pixel, just inside its edge, before and after it is selected.
-      const corner = () => page.evaluate(() => {
-        const canvas = [...document.querySelectorAll('canvas')].find((c) => c.getBoundingClientRect().width > 0)
-        const index = pu.centerlist[0]
-        const point = pu.point[pu.point[index].surround[0]]
-        const scale = canvas.width / canvas.getBoundingClientRect().width
-        const cell = pu.point[index]
-        const x = Math.round((point.x * 0.5 + cell.x * 0.5) * scale)
-        const y = Math.round((point.y * 0.5 + cell.y * 0.5) * scale)
-        return [...canvas.getContext('2d').getImageData(x, y, 1, 1).data]
-      })
-      await page.evaluate(() => { engine.setTool({ mode: 'sudoku', submode: '1' }); pu.selection = []; pu.redraw() })
-      const [r0, g0, b0] = await corner()
-      await page.evaluate(() => { pu.selection = [pu.centerlist[0]]; pu.cursol = pu.centerlist[0]; pu.redraw() })
-      const [r, g, b] = await corner()
-      assert.notDeepEqual([r, g, b], [r0, g0, b0], 'the selected cell is drawn differently')
-      assert.ok(b > r + 10, `the fill is bluer than red (${r}, ${g}, ${b})`)
-    } finally {
-      await context.close()
-    }
-  })
+  // A faint grey: the fill moves a channel of the cell's pixel by at least MIN and no channel by more than MAX.
+  const FILL_MIN_SHIFT = 6
+  const FILL_MAX_SHIFT = 40
+
+  for (const theme of ['light', 'dark']) {
+    it(`has an extremely light grey fill in the ${theme} theme`, async () => {
+      const { context, page } = await openSudoku()
+      try {
+        // The cell's top-left corner pixel, just inside its edge, before and after it is selected.
+        await page.addScriptTag({ content: `window.__boardCanvas = ${boardCanvasInPage}` })
+        const corner = () => page.evaluate(() => {
+          const canvas = window.__boardCanvas()
+          const index = pu.centerlist[0]
+          const point = pu.point[pu.point[index].surround[0]]
+          const scale = canvas.width / canvas.getBoundingClientRect().width
+          const cell = pu.point[index]
+          const x = Math.round((point.x * 0.4 + cell.x * 0.6) * scale)
+          const y = Math.round((point.y * 0.4 + cell.y * 0.6) * scale)
+          return [...canvas.getContext('2d').getImageData(x, y, 1, 1).data]
+        })
+        await page.evaluate((name) => { engine.setTheme(name); engine.setTool({ mode: 'sudoku', submode: '1' }); pu.selection = []; pu.redraw() }, theme)
+        await settle(() => page.evaluate(() => document.documentElement.classList.contains('wa-dark')), theme === 'dark')
+        await page.evaluate(() => { pu.redraw() })
+        const before = await corner()
+        await page.evaluate(() => { pu.selection = [pu.centerlist[0]]; pu.cursol = pu.centerlist[0]; pu.redraw() })
+        const after = await corner()
+        // The board's paper is white in both themes, so the fill only darkens it, a little and with no hue.
+        const shift = after.slice(0, 3).map((c, i) => c - before[i])
+        assert.ok(Math.min(...shift) <= -FILL_MIN_SHIFT, `the fill shows (shift ${shift})`)
+        assert.ok(Math.max(...shift.map(Math.abs)) <= FILL_MAX_SHIFT, `the fill stays faint (shift ${shift})`)
+        assert.ok(Math.max(...after.slice(0, 3)) - Math.min(...after.slice(0, 3)) <= 2, `the fill is grey, not blue or pink (${after})`)
+      } finally {
+        await context.close()
+      }
+    })
+  }
 })
