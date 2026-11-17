@@ -72,11 +72,13 @@
 
     // The settings that only some puzzles use, by the genre tags that make them apply. Sudoku's tags are Penpa+'s own "Sudoku"
     // group of genre tags, and a Sudoku grid applies whatever its tags.
-    const isSudoku = () => pu.gridtype === 'sudoku' || pu.user_tags.some((tag) => penpa_tags.options.Sudoku.includes(tag));
+    // A puzzle with no genre tag shows them all: its genre is not known, and a tag a setter left off must not hide a setting it uses.
+    const untagged = () => pu.user_tags.length === 0;
+    const isSudoku = () => untagged() || pu.gridtype === 'sudoku' || pu.user_tags.some((tag) => penpa_tags.options.Sudoku.includes(tag));
     const SETTING_GENRES = {
         sudoku_centre_size: isSudoku,
         sudoku_normal_size: isSudoku,
-        starbattle_dots: () => pu.user_tags.includes('starbattle')
+        starbattle_dots: () => untagged() || pu.user_tags.includes('starbattle')
     };
 
     // MVP gap: most setters save their own cookie, but custom_colors_on's does not, and shortcuts_enabled is in no cookie
@@ -869,7 +871,7 @@
         },
 
         // Every setting of the fixed list by name: a boolean, or the number Penpa+'s own control holds. `theme` is read here too,
-        // but set with `setTheme`.
+        // but set with `setTheme`. `local_storage` is whether this puzzle is saved, which Penpa+'s setting is not once its progress is cleared.
         getSettings() {
             boardCanvas();
             const listed = Object.fromEntries(Object.entries(SETTINGS).map(([name, allowed]) =>
@@ -879,7 +881,7 @@
             return { ...listed, theme: UserSettings.color_theme === THEME_DARK ? 'dark' : 'light' };
         },
 
-        // The settings of the fixed list the open puzzle uses: every one, less the genre ones its genre tags do not call for.
+        // The settings of the fixed list the open puzzle uses: every one, less the genre ones its genre tags rule out.
         getPuzzleSettings() {
             boardCanvas();
             return Object.keys(SETTINGS).filter((name) => SETTING_GENRES[name]?.() ?? true);
@@ -918,7 +920,7 @@
             return saveProgressNow();
         },
 
-        // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads, as Penpa+'s "Clear this
+        // Removes this puzzle's saved progress, and stops Penpa+ saving it again until the page reloads or `setSetting('local_storage')` is called, as Penpa+'s "Clear this
         // puzzle" does. A puzzle with no link data was never saved, so there is nothing to clear.
         // MVP gap: PenpaProgress.clearPuzzle does not wait for localforage's removal, so this waits for it itself.
         async clearSavedProgress() {

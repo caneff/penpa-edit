@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import {
-  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, openPenpa, openSolvePage, setTool, typedDigits, useBrowser, waitForDesk
+  AKARI_SOLVE, board, boardCanvasInPage, linkFromNewBoard, makeNumberSolveLink, openSolvePage, solveLinkOfImport, setTool, typedDigits, useBrowser, waitForDesk
 } from './page.mjs'
 import { cellPixel, clickCell } from './replay.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -68,20 +68,10 @@ async function openLink (page, query) {
 let otherPuzzle
 const otherLink = async () => (otherPuzzle ??= await makeNumberSolveLink(browser()))
 
-// A solve link `#` part for the puzz.link puzzle `IMPORTS[name]`, which carries its genre tag.
+// The solve link of the puzzle `name` of `IMPORTS`, or of Nurikabe, whose genre tag is neither Sudoku nor Star Battle.
 const importedLinks = new Map()
-function importLink (name) {
-  if (!importedLinks.has(name)) {
-    importedLinks.set(name, (async () => {
-      const { context, page } = await openPenpa(browser())
-      try {
-        await page.evaluate((url) => import_url(url), IMPORTS[name])
-        return await page.evaluate(() => { const url = pu.maketext_solve(); return url.slice(url.indexOf('#')) })
-      } finally {
-        await context.close()
-      }
-    })())
-  }
+const importLink = (name) => {
+  if (!importedLinks.has(name)) importedLinks.set(name, solveLinkOfImport(browser(), name === 'nurikabe' ? NURIKABE : IMPORTS[name]))
   return importedLinks.get(name)
 }
 
@@ -242,6 +232,10 @@ describe('the Settings dialog shows what the open puzzle uses', () => {
 
   it('shows no Sudoku or Star Battle setting on a Nurikabe', async () => {
     assert.deepEqual(await shown(await importLink('nurikabe')), [])
+  })
+
+  it('shows every genre setting on a puzzle with no genre tag', async () => {
+    assert.deepEqual(await shown(AKARI_SOLVE), GENRE_CONTROLS)
   })
 
   it('shows the Sudoku settings on a Sudoku and no Star Battle one', async () => {
@@ -405,6 +399,7 @@ describe('Clear saved progress', () => {
       assert.notEqual(await storedProgress(page), null, 'the progress is stored')
       const dialog = await openDialog(page)
       await dialog.getByRole('button', { name: CLEAR_BUTTON, exact: true }).click()
+      assert.match(await page.locator('wa-dialog[label="Clear this puzzle\'s saved progress?"]').textContent(), /this puzzle only/)
       const cancel = page.getByRole('button', { name: 'Cancel' })
       await cancel.click()
       await cancel.waitFor({ state: 'hidden' })

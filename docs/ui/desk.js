@@ -74,7 +74,17 @@
         return window.deskReady.then(build, () => {});
     }
 
-    window.uiKit = { el, iconButton, onDeskReady };
+    // A wa-dialog asking `label` with `text` under it, a plain `cancel` button and a danger `confirm` one that runs `onConfirm`.
+    // Both buttons close it. The caller adds the node to the page and opens it with `.open = true`.
+    function confirmDialog({ label, text, cancel, confirm, onConfirm }) {
+        const dialog = el('wa-dialog', { label }, [text,
+            el('wa-button', { slot: 'footer', appearance: 'plain', 'data-dialog': 'close' }, [cancel]),
+            el('wa-button', { slot: 'footer', variant: 'danger', 'data-dialog': 'close' }, [confirm])]);
+        dialog.lastElementChild.addEventListener('click', onConfirm);
+        return dialog;
+    }
+
+    window.uiKit = { el, iconButton, onDeskReady, confirmDialog };
 
     function build(info) {
         const resetButton = el('wa-button', { class: 'ui-reset', appearance: 'filled', variant: 'neutral', size: 's' }, ['Reset layout']);

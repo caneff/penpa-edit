@@ -4,7 +4,7 @@
 // the board by what Penpa+ would save.
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
-import { board, currentTool, newBoardSolveLink, openPenpa, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { board, currentTool, newBoardSolveLink, openSolvePage, solveLinkOfImport, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -104,11 +104,7 @@ describe('with Settings open', () => {
   let opened
   before(async () => {
     // A Sudoku, whose first Settings control is the Sudoku one the wrap test starts from.
-    const penpa = await openPenpa(browser())
-    await penpa.page.evaluate((url) => import_url(url), IMPORTS['sudoku-9x9'])
-    const link = await penpa.page.evaluate(() => { const url = pu.maketext_solve(); return url.slice(url.indexOf('#')) })
-    await penpa.context.close()
-    opened = await openSolve(link)
+    opened = await openSolve(await solveLinkOfImport(browser(), IMPORTS['sudoku-9x9']))
     await clickCell(opened.page, CELL)
     await opened.page.getByRole('button', { name: 'Settings' }).click()
     await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
@@ -139,7 +135,7 @@ describe('with Settings open', () => {
 
   it('Shift+Tab past the first control wraps to the dialog\'s end, not back to its start', async () => {
     const { page } = opened
-    const first = page.locator('wa-dialog[open] wa-select:visible').first()
+    const first = page.locator('wa-dialog[open] wa-select').first()
     const firstLabel = await first.getAttribute('label')
     await first.focus()
     await page.evaluate(() => {
@@ -158,5 +154,25 @@ describe('with Settings open', () => {
     }
     assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
     assert.equal(await focusIsInDialog(page), true)
+  })
+})
+
+describe('with Settings open on a puzzle that hides its first Sudoku control', () => {
+  let opened
+  before(async () => {
+    opened = await openSolve()
+    await opened.page.getByRole('button', { name: 'Settings' }).click()
+    await opened.page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  })
+  after(async () => { await opened?.context.close() })
+
+  it('Tab past the last control wraps to a control of the dialog, not to the page body', async () => {
+    const { page } = opened
+    await page.evaluate(() => { document.querySelector('wa-dialog[open] wa-button:last-of-type')?.focus() })
+    for (let i = 0; i < TABS_PAST_THE_DIALOG; i++) {
+      await page.keyboard.press('Tab')
+      await afterTimeouts(page)
+      assert.equal(await focusIsInDialog(page), true, `Tab ${i + 1} left focus in the dialog`)
+    }
   })
 })

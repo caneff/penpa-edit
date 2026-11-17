@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { el, iconButton, onDeskReady } = window.uiKit;
+    const { confirmDialog, el, iconButton, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const CONFLICT_ON = 1;
@@ -107,17 +107,18 @@
         }
 
         const clear = el('wa-button', { size: 's', variant: 'danger', appearance: 'outlined' }, ['Clear this puzzle\'s saved progress']);
-        const clearDialog = document.createElement('wa-dialog');
-        clearDialog.setAttribute('label', 'Clear this puzzle\'s saved progress?');
-        clearDialog.innerHTML = 'This removes what this browser saved for this puzzle only, and stops saving it. Other puzzles keep theirs.' +
-            '<wa-button slot="footer" appearance="plain" data-dialog="close">Cancel</wa-button>' +
-            '<wa-button slot="footer" variant="danger" data-dialog="close" data-clear>Clear progress</wa-button>';
-        clear.addEventListener('click', () => { clearDialog.open = true; });
-        clearDialog.querySelector('[data-clear]').addEventListener('click', async () => {
-            await engine.clearSavedProgress();
-            controls.get('local_storage')(engine.getSettings().local_storage);
-            cleared.textContent = 'Cleared. This puzzle is not saved again until you turn saving back on or reload.';
+        const clearDialog = confirmDialog({
+            label: 'Clear this puzzle\'s saved progress?',
+            text: 'This removes what this browser saved for this puzzle only, and stops saving it. Other puzzles keep theirs.',
+            cancel: 'Cancel',
+            confirm: 'Clear progress',
+            onConfirm: async () => {
+                await engine.clearSavedProgress();
+                controls.get('local_storage')(engine.getSettings().local_storage);
+                cleared.textContent = 'Cleared. This puzzle is not saved again until you turn saving back on or reload.';
+            }
         });
+        clear.addEventListener('click', () => { clearDialog.open = true; });
 
         const clearRow = el('div', { class: 'ui-setting' }, [clear, cleared]);
 

@@ -3,7 +3,7 @@
 (function () {
     'use strict';
 
-    const { iconButton, onDeskReady } = window.uiKit;
+    const { confirmDialog, iconButton, onDeskReady } = window.uiKit;
 
     const SECONDS_PER_MINUTE = 60;
     const SECONDS_PER_HOUR = 3600;
@@ -49,12 +49,13 @@
             }
         });
 
-        const notSavedDialog = document.createElement('wa-dialog');
-        notSavedDialog.setAttribute('label', 'Progress is not being saved');
-        notSavedDialog.innerHTML = 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.' +
-            '<wa-button slot="footer" appearance="plain" data-dialog="close">Stay here</wa-button>' +
-            '<wa-button slot="footer" variant="danger" data-dialog="close" data-open-anyway>Open anyway</wa-button>';
-        notSavedDialog.querySelector('[data-open-anyway]').addEventListener('click', goToPenpa);
+        const notSavedDialog = confirmDialog({
+            label: 'Progress is not being saved',
+            text: 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.',
+            cancel: 'Stay here',
+            confirm: 'Open anyway',
+            onConfirm: goToPenpa
+        });
 
         const clock = document.createElement('span');
         clock.className = 'ui-timer';
@@ -62,12 +63,13 @@
         clock.setAttribute('aria-label', 'Time');
 
         // The Restart question is the UI's own dialog; Penpa+'s popup library stays out of the solve page.
-        const restartDialog = document.createElement('wa-dialog');
-        restartDialog.setAttribute('label', 'Restart the puzzle?');
-        restartDialog.innerHTML = 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.' +
-            '<wa-button slot="footer" appearance="plain" data-dialog="close">Cancel</wa-button>' +
-            '<wa-button slot="footer" variant="danger" data-dialog="close" data-restart>Restart puzzle</wa-button>';
-        restartDialog.querySelector('[data-restart]').addEventListener('click', () => engine.restart());
+        const restartDialog = confirmDialog({
+            label: 'Restart the puzzle?',
+            text: 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.',
+            cancel: 'Cancel',
+            confirm: 'Restart puzzle',
+            onConfirm: () => engine.restart()
+        });
 
         // Over the whole Board card while paused, so no click reaches the board; it is opaque so a pause hides the puzzle.
         const cover = document.createElement('section');

@@ -174,6 +174,13 @@ export async function linkFromNewBoard (browser, inPage, arg) {
   }
 }
 
+// The solve link `#` part of the puzz.link puzzle at `url`, which carries its genre tag.
+export const solveLinkOfImport = (browser, url) => linkFromNewBoard(browser, async (u) => {
+  await import_url(u)
+  const solve = pu.maketext_solve()
+  return solve.slice(solve.indexOf('#'))
+}, url)
+
 // Runs in the page. Builds a 4x4 grid whose given 1 is in the cell at `given` of the center list and whose author's
 // answer is a 2 in the cell at `answer`.
 export function buildNumberBoardInPage ({ given, answer }) {
