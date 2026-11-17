@@ -46,6 +46,9 @@
     // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
     const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
     const MOUSE_CLOSED = '1';
+    // Set to NUMBERS_SHOWN when the solver turned on the row and column numbers (#249).
+    const NUMBERS_KEY = 'chinstrap-solve-grid-numbers-v1';
+    const NUMBERS_SHOWN = '1';
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
     const RESIZE_HANDLES = {
         top: ['top'], right: ['right'], bottom: ['bottom'], left: ['left'],
@@ -807,6 +810,46 @@
     let cursorCell = null;
     let hasCursorMoved = false;
 
+    // The Board card's box that holds the canvas, and the layer in it that carries the row and column numbers (desk.css gives the
+    // box the gutter they sit in, while `ui-numbers-on` is set).
+    let boardBox = null;
+    let numbersLayer = null;
+
+    const canShowNumbers = () => engine.getGridAxes() !== null;
+    const areNumbersWanted = () => localStorage.getItem(NUMBERS_KEY) === NUMBERS_SHOWN;
+
+    // The room the numbers take beside and above the canvas, which the fit leaves out.
+    const numbersGutter = () => (boardBox.classList.contains('ui-numbers-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
+
+    // Puts one label per row and column on the centre lines of the cells, in the gutter outside the canvas.
+    function drawNumbers() {
+        // Wanted is kept for every puzzle, so a grid that is not square meets it too and shows none.
+        const axes = areNumbersWanted() ? engine.getGridAxes() : null;
+        boardBox.classList.toggle('ui-numbers-on', axes !== null);
+        numbersLayer.replaceChildren();
+        if (axes === null) {
+            return;
+        }
+        const box = boardBox.getBoundingClientRect();
+        const gutter = numbersGutter();
+        const label = (axis, text, left, top) => el('span', { class: 'ui-grid-number', 'data-axis': axis, style: `left:${left}px;top:${top}px` }, [String(text)]);
+        numbersLayer.append(
+            ...axes.columns.map((x, i) => label('column', i + 1, x - box.left, gutter / 2)),
+            ...axes.rows.map((y, j) => label('row', j + 1, gutter / 2, y - box.top)));
+    }
+
+    function setNumbersWanted(boardBody, shown) {
+        if (shown) {
+            localStorage.setItem(NUMBERS_KEY, NUMBERS_SHOWN);
+        } else {
+            localStorage.removeItem(NUMBERS_KEY);
+        }
+        drawNumbers();
+        if (!isZoomed) {
+            fitBoard(boardBody);
+        }
+    }
+
     // The box inside the body's padding (desk.css), which is the room the board has.
     function bodyRoom(body) {
         const style = getComputedStyle(body);
@@ -826,10 +869,11 @@
     // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
         isZoomed = false;
+        drawNumbers();
         for (let pass = 0; pass < FIT_PASSES; pass++) {
             const room = bodyRoom(boardBody);
-            const w = room.w - BOARD_FRAME_PX;
-            const h = room.h - BOARD_FRAME_PX;
+            const w = room.w - BOARD_FRAME_PX - numbersGutter();
+            const h = room.h - BOARD_FRAME_PX - numbersGutter();
             if (w < MIN_FIT_BOX_PX || h < MIN_FIT_BOX_PX) {
                 return;
             }
@@ -840,6 +884,7 @@
             }
         }
         showZoomLimits();
+        drawNumbers();
     }
 
     // Scrolls the Board card's body so the cursor's cell is in view: only when it is not, or always (centred) with `centre`.
@@ -878,6 +923,7 @@
         isZoomed = true;
         engine.setCellSize(cellPx);
         showZoomLimits();
+        drawNumbers();
     }
 
     function zoomBoard(boardBody, steps) {
@@ -923,12 +969,15 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed }` once the desk is built, for the files that fill the bar and the
+    // Resolves to `{ bar, cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) }` once the desk is built, for the files that fill the bar and the
     // cards.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
         desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
         engine.mount(desk.cards.board.body);
+        boardBox = desk.cards.board.body.firstElementChild;
+        numbersLayer = el('div', { class: 'ui-grid-numbers', 'aria-hidden': 'true' });
+        boardBox.append(numbersLayer);
         openLayout();
         fitPending = Object.keys(saved).length === 0;
         layout(desk);
@@ -1012,16 +1061,21 @@
         desk.zoom.in.addEventListener('click', () => zoomBoard(boardBody, 1));
         desk.zoom.fit.addEventListener('click', () => fitBoard(boardBody));
         cursorCell = engine.getFocusRect()?.cell ?? null;
-        engine.on('change', () => followCursor(boardBody));
+        engine.on('change', () => {
+            followCursor(boardBody);
+            drawNumbers();
+        });
         // Fires once on observe, which is the first fit, and again whenever the card changes size: a refit, unless the solver
         // zoomed, which only Fit or a layout reset drops. The card is watched, not its body, since a scrollbar appearing
         // narrows the body and would undo the zoom at once.
         new ResizeObserver(() => {
             if (!isZoomed) {
                 fitBoard(boardBody);
+            } else {
+                drawNumbers();
             }
         }).observe(desk.cards.board.node);
-        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed };
+        return { bar: desk.bar, cards: desk.cards, relayout, resetLayout, fit, isMouseClosed, setMouseClosed, canShowNumbers, areNumbersWanted, setNumbersWanted: (shown) => setNumbersWanted(desk.cards.board.body, shown) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.
