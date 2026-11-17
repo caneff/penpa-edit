@@ -258,7 +258,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-paused-hint { font-size: 13px; font-weight: 400; color: #6b6656; }
 
 /* Dark: the desk, the cards and their text; the bar is dark already. */
-body.engine-mounted:has(.ui-dark) { background: #16181d; }
+body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { background: #16181d; }
 .ui-dark { color: #e3e6eb; }
 .ui-dark .ui-desk { background: radial-gradient(circle at 1px 1px, rgba(255, 255, 255, .07) 1px, transparent 0) 0 0 / 22px 22px, #16181d; }
 .ui-dark .ui-card { background: #22252c; border-color: #3a3f4b; box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
@@ -340,8 +340,11 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 /* The paste-a-link page a bare solve.html shows. */
 .ui-paste-page { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; font: 13px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; color: #23262c; }
 .ui-paste { display: flex; flex-direction: column; gap: 8px; width: min(640px, 90vw); padding: 24px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .2); }
-.ui-paste h1 { font-size: 22px; margin: 0 0 8px; }
-.ui-paste input { padding: 8px; font: inherit; }
-.ui-paste button { align-self: flex-start; padding: 6px 16px; font: inherit; }
-.ui-paste-error { margin: 0; color: #b3261e; }
+.ui-paste h1 { font-size: 22px; margin: 0; }
+.ui-paste .ui-help { margin: 0 0 8px; }
+.ui-paste code { overflow-wrap: anywhere; }
+.ui-paste .ui-paste-open { align-self: flex-start; }
+.ui-paste-error { margin: 0; padding: 10px 12px; border-radius: 6px; border-left: 4px solid var(--wa-color-danger-border-loud); background: var(--wa-color-danger-fill-quiet); color: var(--wa-color-danger-on-quiet); }
+.ui-dark.ui-paste-page { color: #e3e6eb; }
+.ui-dark .ui-paste { background: #22252c; box-shadow: 0 2px 10px rgba(0, 0, 0, .5); }
 .ui-paste-error[hidden] { display: none; }

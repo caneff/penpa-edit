@@ -173,7 +173,13 @@
         return dialog;
     }
 
-    window.uiKit = { el, iconButton, onDeskReady, confirmDialog };
+    // The dark theme is a `wa-dark` class on the page, for Web Awesome, and a `ui-dark` class on the root of what the UI draws.
+    function setDark(root, dark) {
+        document.documentElement.classList.toggle('wa-dark', dark);
+        root.classList.toggle('ui-dark', dark);
+    }
+
+    window.uiKit = { el, iconButton, onDeskReady, confirmDialog, setDark };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
