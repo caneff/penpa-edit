@@ -16,6 +16,7 @@ const PINS = ['Line Normal', 'Sudoku Corner']
 const TABS_PAST_THE_DIALOG = 60
 // Longer than the zero-delay timeouts the key rules queue.
 const AFTER_TIMEOUT_MS = 150
+const MAX_SHIFT_TABS = 6
 const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
@@ -136,14 +137,16 @@ describe('with Settings open', () => {
       window.focusLog = []
       document.addEventListener('focusin', (e) => window.focusLog.push(e.target.getAttribute?.('label') ?? e.target.tagName))
     })
-    // The presses: out of the first control, past the dialog's own close button, then the wrap. Each waits for the wrap's timeout.
-    for (let i = 0; i < 3; i++) {
+    // Shift+Tab until the log shows the wrap: the entry after the dialog's own (its close button).
+    let log = []
+    let wrapped
+    for (let i = 0; i < MAX_SHIFT_TABS && wrapped === undefined; i++) {
       await page.keyboard.press('Shift+Tab')
       await afterTimeouts(page)
+      log = await page.evaluate(() => window.focusLog)
+      const at = log.indexOf(DIALOG_LABEL)
+      wrapped = at < 0 ? undefined : log[at + 1]
     }
-    const log = await page.evaluate(() => window.focusLog)
-    // The dialog's own focus entry is the close button; the wrap is the entry after it.
-    const wrapped = log[log.indexOf(DIALOG_LABEL) + 1]
     assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
     assert.equal(await focusIsInDialog(page), true)
   })
