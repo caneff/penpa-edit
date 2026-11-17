@@ -1,4 +1,4 @@
-// The top bar of `solve.html` (#94): undo, redo, Restart, Pause, the timer and the light/dark toggle. The UI is found by role
+// The top bar of `solve.html` (#94): undo, redo, Restart, Pause, the timer, and the theme it applies. The UI is found by role
 // and accessible name and the state by `engine.getState()`; what the solver has entered is read as Penpa+ would save it
 // (`readEngineState`, defined by recorder.js); the keys and clicks are real.
 import assert from 'node:assert/strict'
@@ -237,21 +237,20 @@ describe('a solve', () => {
 })
 
 describe('light and dark', () => {
-  it('toggles the page and the board', async () => {
+  // The theme is chosen in the Settings dialog (settings-dialog.live.mjs); the bar has no button for it (#181).
+  it('applies the theme to the page, with no theme button in the bar', async () => {
     const { context, page } = await openSolve()
     try {
       const desk = page.locator('.ui-desk')
       const ground = () => desk.evaluate((node) => getComputedStyle(node).backgroundColor)
       const light = await ground()
-      assert.equal(await page.evaluate(() => engine.getSettings().theme), 'light')
+      assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0)
 
-      await button(page, 'Dark theme').click()
-      assert.equal(await settle(() => page.evaluate(() => engine.getSettings().theme), 'dark'), 'dark', 'the board is in the dark theme')
-      assert.notEqual(await ground(), light, 'the page changed')
+      await page.evaluate(() => engine.setTheme('dark'))
+      assert.notEqual(await settle(ground, null), light, 'the page changed')
 
-      await button(page, 'Light theme').click()
-      assert.equal(await settle(() => page.evaluate(() => engine.getSettings().theme), 'light'), 'light')
-      assert.equal(await ground(), light, 'and back')
+      await page.evaluate(() => engine.setTheme('light'))
+      assert.equal(await settle(ground, light), light, 'and back')
     } finally {
       await context.close()
     }

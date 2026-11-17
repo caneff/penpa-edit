@@ -22,6 +22,8 @@
     // A card never reaches closer than this to the desk's edge once it has to shrink to stay inside.
     const EDGE_MARGIN_PX = 8;
     const LAYOUT_KEY = 'chinstrap-solve-layout-v1';
+    // The least room between the top bar's heading and its first control.
+    const HEADING_GAP_PX = 12;
     // The step of the board card's - and + buttons, in pixels per cell.
     const ZOOM_STEP_PX = 4;
     // The smallest a card is dragged to, [width, height].
@@ -35,10 +37,13 @@
         'top-left': ['top', 'left'], 'top-right': ['top', 'right'], 'bottom-right': ['bottom', 'right'], 'bottom-left': ['bottom', 'left']
     };
 
-    // Variant L's arrangement, which the fitted layout sizes: Mouse and Rules on the left, the Board between, Pinned, Mode and Recent on the right.
-    const LEFT_COLUMN = ['mouse', 'rules'];
+    // Variant L's arrangement, which the fitted layout sizes: Rules over Mouse on the left (#181), the Board between,
+    // Pinned, Mode and Recent on the right.
+    const LEFT_COLUMN = ['rules', 'mouse'];
     const RIGHT_COLUMN = ['pins', 'mode', 'recent'];
     const CARD_TITLES = { board: 'Board', mouse: 'Mouse', rules: 'Rules', pins: 'Pinned', mode: 'Mode', recent: 'Recent' };
+    // Reset layout's icon: a desk of three panes, unlike Restart's circular arrow beside it.
+    const RESET_LAYOUT_ICON = '<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6.5 2.5v11M6.5 8h8"/>';
 
     function el(tag, attrs = {}, children = []) {
         const node = document.createElement(tag);
@@ -47,13 +52,26 @@
         return node;
     }
 
-    // A button showing a 16x16 line icon (`icon` is its SVG markup, drawn in currentColor) and naming itself `label` to
-    // screen readers only. `show(icon, label)` swaps both, and does nothing when that icon is already shown.
-    function iconButton(icon, label, onClick) {
+    let tooltipCount = 0;
+
+    // Shows `text` while the pointer is over `node`; returns the tooltip, whose text can be changed. Web Awesome finds the
+    // node by id, so the tooltip lives in the body and the node stays the one element its callers append.
+    function addTooltip(node, text) {
+        node.id ||= `ui-tooltip-target-${++tooltipCount}`;
+        const tooltip = el('wa-tooltip', { for: node.id }, [text]);
+        document.body.append(tooltip);
+        return tooltip;
+    }
+
+    // A button showing a 16x16 line icon (`icon` is its SVG markup, drawn in currentColor), naming itself `label` to
+    // screen readers and on hover, the hover label with its keyboard `shortcut` when it has one. `show(icon, label)`
+    // swaps the icon and both labels, and does nothing when that icon is already shown.
+    function iconButton(icon, label, onClick, shortcut = null) {
         const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' });
         const text = el('span', { class: 'ui-sr-only' });
         node.append(text);
         node.addEventListener('click', onClick);
+        const tooltip = addTooltip(node, '');
         let shown = null;
         function show(nextIcon, nextLabel) {
             if (nextIcon === shown) {
@@ -64,6 +82,7 @@
             node.insertAdjacentHTML('afterbegin', '<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" fill="none" ' +
                 `stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${nextIcon}</svg>`);
             text.textContent = nextLabel;
+            tooltip.textContent = shortcut ? `${nextLabel} (${shortcut})` : nextLabel;
         }
         show(icon, label);
         return { node, show };
@@ -77,7 +96,8 @@
     window.uiKit = { el, iconButton, onDeskReady };
 
     function build(info) {
-        const resetButton = el('wa-button', { class: 'ui-reset', appearance: 'filled', variant: 'neutral', size: 's' }, ['Reset layout']);
+        const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', () => {}).node;
+        resetButton.classList.add('ui-reset');
         const bar = el('header', { class: 'ui-bar' }, [
             el('div', { class: 'ui-heading' }, [
                 el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
@@ -101,17 +121,21 @@
             };
             desk.append(cards[id].node);
         });
-        const symbolButton = (symbol, label) => {
-            return el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' },
-                [el('span', { 'aria-hidden': 'true' }, [symbol]), el('span', { class: 'ui-sr-only' }, [label])]);
+        // A card header's button: `content` is what it shows, `label` its name to screen readers when it differs, and
+        // `hoverLabel` what it shows on hover.
+        const headButton = (content, label, hoverLabel) => {
+            const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' },
+                label ? [el('span', { 'aria-hidden': 'true' }, [content]), el('span', { class: 'ui-sr-only' }, [label])] : [content]);
+            addTooltip(node, hoverLabel);
+            return node;
         };
         const zoom = {
-            out: symbolButton('\u2212', 'Zoom out'),
-            in: symbolButton('+', 'Zoom in'),
-            fit: el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' }, ['Fit'])
+            out: headButton('\u2212', 'Zoom out', 'Zoom out'),
+            in: headButton('+', 'Zoom in', 'Zoom in'),
+            fit: headButton('Fit', null, 'Fit board')
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
-        const rulesText = { smaller: symbolButton('\u2212', 'Smaller rules text'), bigger: symbolButton('+', 'Bigger rules text') };
+        const rulesText = { smaller: headButton('\u2212', 'Smaller rules text', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text', 'Bigger rules text') };
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         // textContent, and pre-wrap in the CSS: the rules are text, never HTML.
         cards.rules.body.textContent = info.rules || 'No rules in this link.';
@@ -198,15 +222,12 @@
         style.width = `${saved[id]?.w ?? Math.max(MIN_SIZE[id][0], w)}px`;
     };
 
-    // Share i of n starts at an even fraction of the column's height; a card never starts closer than CARD_GAP_PX
-    // below the card above it, so one that outgrows its share pushes the next down.
-    function stack(cards, ids, x, width, deskHeight) {
-        const columnHeight = deskHeight - TOP_MARGIN_PX - CARD_GAP_PX;
-        let nextFree = TOP_MARGIN_PX;
-        ids.forEach((id, i) => {
-            const y = Math.max(TOP_MARGIN_PX + Math.round(i * (columnHeight + CARD_GAP_PX) / ids.length), nextFree);
+    // The cards from the top of the column down, each CARD_GAP_PX below the one above it.
+    function stack(cards, ids, x, width) {
+        let y = TOP_MARGIN_PX;
+        ids.forEach((id) => {
             position(cards, id, x, y, width);
-            nextFree = y + cards[id].node.offsetHeight + CARD_GAP_PX;
+            y += cards[id].node.offsetHeight + CARD_GAP_PX;
         });
     }
 
@@ -233,8 +254,8 @@
         const columnWidth = columnWidthFor(width);
         const rightX = width - DESK_MARGIN_PX - columnWidth;
         const boardX = DESK_MARGIN_PX + columnWidth + DESK_MARGIN_PX;
-        stack(cards, LEFT_COLUMN, DESK_MARGIN_PX, columnWidth, height);
-        stack(cards, RIGHT_COLUMN, rightX, columnWidth, height);
+        stack(cards, LEFT_COLUMN, DESK_MARGIN_PX, columnWidth);
+        stack(cards, RIGHT_COLUMN, rightX, columnWidth);
         position(cards, 'board', boardX, TOP_MARGIN_PX, rightX - DESK_MARGIN_PX - boardX);
         if (!saved.board?.h) {
             setHeight(cards.board.node, Math.max(MIN_SIZE.board[1], height - 2 * TOP_MARGIN_PX));
@@ -290,27 +311,49 @@
             }
             leftWidth = neededHeight(low) <= columnHeight ? low : high;
         }
-        const mouseHeight = clamp(fit.mouseCardHeight(leftWidth), MIN_SIZE.mouse[1], columnHeight - CARD_GAP_PX - MIN_SIZE.rules[1]);
+        // Rules is sized first, to its whole text, leaving Mouse at least its minimum; Mouse takes the rest and scrolls (#181).
+        const rulesHeight = clamp(rulesCardHeight(cards.rules, leftWidth), MIN_SIZE.rules[1], columnHeight - CARD_GAP_PX - MIN_SIZE.mouse[1]);
 
         const gap = Math.max(DESK_MARGIN_PX, Math.floor((width - boardWidth - leftWidth - rightWidth) / 4));
         const boardX = gap + leftWidth + gap;
         const rightX = boardX + boardWidth + gap;
-        stack(cards, RIGHT_COLUMN, rightX, rightWidth, height);
+        stack(cards, RIGHT_COLUMN, rightX, rightWidth);
         // Unlike `position`, which gives a card its kept width, the fit sets every size itself.
         const place = (id, x, y, w, h) => {
             Object.assign(cards[id].node.style, { left: `${x}px`, top: `${y}px`, width: `${w}px` });
             setHeight(cards[id].node, h);
         };
         place('board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
-        place('mouse', gap, TOP_MARGIN_PX, leftWidth, mouseHeight);
-        place('rules', gap, TOP_MARGIN_PX + mouseHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - mouseHeight);
+        place('rules', gap, TOP_MARGIN_PX, leftWidth, rulesHeight);
+        place('mouse', gap, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, leftWidth, columnHeight - CARD_GAP_PX - rulesHeight);
         Object.entries(cards).forEach(([id, { node }]) => keepInside(id, node, width, height));
-        Object.entries(cards).forEach(([id, { node }]) => {
-            saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: width, vh: height };
+        keepFitted(desk, cards, Object.keys(cards));
+    }
+
+    // Records the cards `ids` where the fitted layout has them, as places of their own.
+    function keepFitted(desk, cards, ids) {
+        ids.forEach((id) => {
+            const node = cards[id].node;
+            saved[id] = { w: node.offsetWidth, x: node.offsetLeft, y: node.offsetTop, vw: desk.clientWidth, vh: desk.clientHeight };
             if (node.classList.contains('is-sized')) {
                 saved[id].h = node.offsetHeight;
             }
         });
+    }
+
+    // A right-column card that changes height after the layout (its controls rendering, a tool with more options) moves
+    // the cards below it, while the solver has moved none of them: they stay stacked top-down, none over another (#181).
+    function restackRight(desk, cards) {
+        if (isFitted) {
+            const x = cards[RIGHT_COLUMN[0]].node.offsetLeft;
+            stack(cards, RIGHT_COLUMN, x, cards[RIGHT_COLUMN[0]].node.offsetWidth);
+            // keepInside reads each card's kept place, so the new one is kept first and again once it has been clamped.
+            keepFitted(desk, cards, RIGHT_COLUMN);
+            RIGHT_COLUMN.forEach((id) => keepInside(id, cards[id].node, desk.clientWidth, desk.clientHeight));
+            keepFitted(desk, cards, RIGHT_COLUMN);
+        } else if (RIGHT_COLUMN.every((id) => !isMoved(id))) {
+            layout({ desk, cards });
+        }
     }
 
     function keepInside(id, node, deskWidth, deskHeight) {
@@ -342,6 +385,33 @@
         }
         node.style.left = `${Math.max(0, Math.min(x, deskWidth - node.offsetWidth))}px`;
         node.style.top = `${Math.max(0, Math.min(y, deskHeight - node.offsetHeight))}px`;
+    }
+
+    // ---- The top bar's heading ----------------------------------------------------------------------------------------
+
+    // The title and author sit at the bar's centre; where that would reach the controls, at the bar's left end; and where
+    // they still reach them there, the controls are made smaller (#181). The title is never cut short.
+    function placeHeading(bar) {
+        const heading = bar.querySelector('.ui-heading');
+        const controls = [...bar.children].filter((node) => node !== heading && !node.matches('.ui-spacer') && node.offsetWidth > 0);
+        const isClear = () => heading.getBoundingClientRect().right + HEADING_GAP_PX <=
+            Math.min(...controls.map((node) => node.getBoundingClientRect().left));
+        bar.classList.remove('is-heading-left', 'is-compact');
+        if (isClear()) {
+            return;
+        }
+        bar.classList.add('is-heading-left');
+        if (!isClear()) {
+            bar.classList.add('is-compact');
+        }
+    }
+
+    // Places the heading again whenever the bar, the heading or a control changes size, controls added later included.
+    function watchHeading(bar) {
+        const resized = new ResizeObserver(() => placeHeading(bar));
+        const observeAll = () => [bar, ...bar.children].forEach((node) => resized.observe(node));
+        new MutationObserver(observeAll).observe(bar, { childList: true });
+        observeAll();
     }
 
     // ---- Moving, resizing and raising ---------------------------------------------------------------------------------
@@ -520,6 +590,9 @@
             relayout();
         });
         makeMovable(desk.bar, desk.desk, desk.cards);
+        watchHeading(desk.bar);
+        const restack = new ResizeObserver(() => restackRight(desk.desk, desk.cards));
+        RIGHT_COLUMN.forEach((id) => restack.observe(desk.cards[id].node));
         // Every card back to the layout fitted to the window and puzzle, and the Rules text to its default size.
         const resetLayout = () => {
             saved = {};

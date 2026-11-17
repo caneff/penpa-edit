@@ -310,6 +310,8 @@
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held);
             titleBarName.textContent = nameParts(tool, current.style).join(SEPARATOR);
+            // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
+            titleBarName.title = titleBarName.textContent;
             mode.render(tool, current.style, orientation);
         }
 
