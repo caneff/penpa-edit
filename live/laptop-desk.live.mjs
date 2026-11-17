@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
+import { ICEBREAKER, solveLinkInPage } from './gallery-puzzles.mjs'
 import { afterChange, linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -32,17 +33,6 @@ const RULES_SHARE = 0.55
 // desk.js's Mouse body slack for its borders, and rounding.
 const MOUSE_SLACK_PX = 3
 
-// The puzzle Chris reviewed the page with: its title, author and rules, on a 10x10 board with pins.
-const ICEBREAKER = {
-  title: 'Icebreaker (Nurikabe + Icelom)',
-  author: 'Agent',
-  rules: 'Shade some cells so that the shaded cells form one connected area. Each number is part of an unshaded region of ' +
-    'that size, and every unshaded region holds exactly one number. No 2x2 area is all shaded.\n\nIcelom: draw a path ' +
-    'from the entrance to the exit that follows every arrow it passes and visits every ice cell; on ice it goes straight ' +
-    'on. The path may cross itself only on ice.\n\nThe white circles must be visited by the path.',
-  tabs: ['Surface', 'Line Normal', 'Composite']
-}
-
 // The Icebreaker rules four times over: more than Rules can show at a laptop size.
 const LONG_RULES = { ...ICEBREAKER, rules: Array(4).fill(ICEBREAKER.rules).join('\n\n') }
 // The long rules with only Line's three Mouse rows to show.
@@ -51,19 +41,6 @@ const LONG_LINE_RULES = { ...LONG_RULES, tabs: ['Line Normal'] }
 const OTHER_PUZZLE = { ...LONG_RULES, size: 8 }
 // One short line of rules.
 const ONE_LINE_RULES = { ...ICEBREAKER, rules: 'Shade some cells.' }
-
-// Runs in the page: a new board, 10x10 unless `size` says otherwise, with `puzzle`'s title, author, rules and Tab set; returns its solve link's `#` part.
-function solveLinkInPage ({ title, author, rules, tabs, size = 10 }) {
-  document.getElementById('nb_size1').value = size
-  document.getElementById('nb_size2').value = size
-  create_newboard()
-  document.getElementById('saveinfotitle').value = title
-  document.getElementById('saveinfoauthor').value = author
-  document.getElementById('saveinforules').value = rules
-  UserSettings.tab_settings = tabs
-  const url = pu.maketext_solve()
-  return url.slice(url.indexOf('#'))
-}
 
 // Runs in the page. The bar's box, the heading's, every visible control's, and whether the title is cut short.
 function readBarInPage () {

@@ -58,10 +58,11 @@ export function jsRequest (file) {
 // `cookies` (as `context.cookies()` returns them) start in the context; Chromium keeps no cookie for `file://`, so a
 // cookie test passes `served: true` to be served `docs/` from `https://penpa.test/`, answered from this checkout.
 // `url` opens that address (plus `query`) instead of the checkout's page, `solve: true` opens `solve.html` in place of the
-// default page, and `setup(context)` runs before the page opens.
+// default page, `ready` is the page function that says the page is up (default: `pu` exists), and `setup(context)` runs
+// before the page opens.
 // `contextOptions` go to `browser.newContext`. `dialogs` holds the message of every native dialog the page opened, each
 // dismissed, and `errors` every page error and `console.error` so far.
-export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, setup, contextOptions } = {}) {
+export async function openPenpa (browser, query = '', { cookies = [], served = false, solve = false, url, ready = () => typeof pu !== 'undefined', setup, contextOptions } = {}) {
   const context = await penpaContext(browser, { served, setup, contextOptions })
   if (cookies.length) await context.addCookies(cookies)
   const page = await context.newPage()
@@ -71,7 +72,7 @@ export async function openPenpa (browser, query = '', { cookies = [], served = f
   const dialogs = []
   page.on('dialog', async (d) => { dialogs.push(d.message()); await d.dismiss() })
   await page.goto((url ?? penpaAddress(served, solve)) + query)
-  await page.waitForFunction(() => typeof pu !== 'undefined')
+  await page.waitForFunction(ready)
   return { context, page, dialogs, errors }
 }
 
