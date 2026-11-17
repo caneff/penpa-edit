@@ -73,6 +73,16 @@ const seedSavedPresets = async (page, presets) => {
   await waitForDesk(page)
 }
 
+const nameField = (page) => pinnedCard(page).getByRole('textbox', { name: 'Preset name' })
+const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save pins as a preset', exact: true })
+
+// Saves the pins as `name` through the save icon's inline form.
+const savePreset = async (page, name) => {
+  await saveButton(page).click()
+  await nameField(page).fill(name)
+  await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).click()
+}
+
 const chipCount = (page) => pinnedCard(page).getByRole('button', { name: /^Unpin / }).count()
 
 // A pick hands the keyboard back to the puzzle (#157): focus is off the Pinned card, the preset's pins are loaded, and Tab lands on
@@ -289,27 +299,79 @@ describe('favourites', () => {
   })
 })
 
+describe('the compact save flow', () => {
+  let opened
+  before(async () => { opened = await openSolve(await link(['Line Normal', 'Sudoku Corner', 'Wall'])) })
+  after(async () => { await opened?.context.close() })
+
+  const storedNames = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets') ?? '[]').map((p) => p.name))
+
+  it('rests with no name field, at most 140 px tall with three pins', async () => {
+    const { page } = opened
+    await page.setViewportSize({ width: 1366, height: 768 })
+    await page.evaluate(() => window.pinBoard.replace([{ mode: 'line', submode: '1' }, { mode: 'sudoku', submode: '2' }, { mode: 'sudoku', submode: '1' }]))
+    assert.equal(await settle(() => chipCount(page), 3), 3)
+    assert.equal(await nameField(page).count(), 0, 'no name field at rest')
+    const height = await pinnedCard(page).evaluate((card) => card.getBoundingClientRect().height)
+    assert.equal(height <= 140, true, `the Pinned card is ${height} px tall`)
+  })
+
+  it('opens a name field from the icon; Escape and Cancel close it storing nothing, Enter and Save store', async () => {
+    const { page } = opened
+    await saveButton(page).click()
+    await nameField(page).fill('Never')
+    await page.keyboard.press('Escape')
+    assert.equal(await nameField(page).isVisible(), false)
+    await saveButton(page).click()
+    assert.equal(await nameField(page).inputValue(), '', 'it reopens empty')
+    await nameField(page).fill('Never')
+    await pinnedCard(page).getByRole('button', { name: 'Cancel', exact: true }).click()
+    assert.equal(await nameField(page).isVisible(), false)
+    assert.deepEqual(await storedNames(page), [])
+    await saveButton(page).click()
+    await nameField(page).fill('By enter')
+    await page.keyboard.press('Enter')
+    assert.equal(await nameField(page).isVisible(), false, 'it closes on save')
+    assert.deepEqual(await storedNames(page), ['By enter'])
+    await page.evaluate(() => window.pinBoard.replace([{ mode: 'wall', submode: null }]))
+    assert.equal(await settle(() => chipCount(page), 1), 1)
+    await choosePreset(page, 'By enter')
+    assert.equal(await settle(() => chipCount(page), 3), 3, 'the saved preset loads back')
+    assert.deepEqual(await walkPins(page, 3), ['line/1', 'sudoku/2', 'sudoku/1'])
+  })
+
+  it('keeps a typed name when the icon is clicked again, and Escape closes it from the Save button too', async () => {
+    const { page } = opened
+    await saveButton(page).click()
+    await nameField(page).fill('Half')
+    await saveButton(page).click()
+    assert.equal(await nameField(page).inputValue(), 'Half')
+    await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).focus()
+    await page.keyboard.press('Escape')
+    assert.equal(await nameField(page).isVisible(), false)
+    assert.equal(await settle(() => focusInPinnedCard(page), false), false, 'the focus left the card')
+  })
+})
+
 describe('saving a preset', () => {
   let opened
   before(async () => { opened = await openSolve(await link(['Line Normal', 'Sudoku Corner'])) })
   after(async () => { await opened?.context.close() })
 
-  const nameField = (page) => pinnedCard(page).getByRole('textbox', { name: 'Save current pins as…' })
-  const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save these pins as a preset', exact: true })
-
-  it('is an icon button with a tooltip, beside a field that says what it is for', async () => {
+  it('is an icon button with a tooltip, which opens a field that says what it is for', async () => {
     const { page } = opened
-    assert.equal(await saveButton(page).getAttribute('title'), 'Save these pins as a preset')
+    assert.equal(await saveButton(page).getAttribute('title'), 'Save pins as a preset')
+    await saveButton(page).click()
     assert.equal(await nameField(page).getAttribute('placeholder'), 'Name this pin set')
-    const host = pinnedCard(page).locator('wa-button[title="Save these pins as a preset"]')
+    await page.keyboard.press('Escape')
+    const host = pinnedCard(page).locator('wa-button[title="Save pins as a preset"]')
     assert.equal(await host.locator('svg').count(), 1, 'it shows an icon')
     assert.equal(await host.evaluate((node) => [...node.childNodes].filter((n) => n.nodeType === 3 || (n.nodeType === 1 && !n.matches('svg, .ui-sr-only'))).length), 0, 'and no text')
   })
 
   it('survives a reload, is listed under Your presets and appears on another puzzle', async () => {
     const { page } = opened
-    await nameField(page).fill('My pair')
-    await saveButton(page).click()
+    await savePreset(page, 'My pair')
     await page.reload()
     await waitForDesk(page)
     await page.getByRole('button', { name: 'Unpin Line > Normal' }).click()
@@ -424,8 +486,7 @@ describe('undoing a delete', () => {
     await openList(page)
     await presetList(page).getByRole('button', { name: 'Delete preset A', exact: true }).click()
     await page.keyboard.press('Escape')
-    await pinnedCard(page).getByRole('textbox', { name: 'Save current pins as…' }).fill('A')
-    await pinnedCard(page).getByRole('button', { name: 'Save these pins as a preset', exact: true }).click()
+    await savePreset(page, 'A')
     assert.equal(await pinnedCard(page).getByRole('button', { name: 'Undo delete of A' }).count(), 0)
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('chinstrap.pinPresets')).map((p) => p.tools.length)), [2])
   })
