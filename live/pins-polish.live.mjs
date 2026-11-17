@@ -206,9 +206,15 @@ describe('swatches', () => {
     await setTool(page, { mode: 'multicolor', submode: null })
     await waitForTool(page, { mode: 'multicolor', submode: null })
     await swatchGroup(page).first().waitFor()
-    const swatches = await swatchGroup(page).evaluateAll((nodes) => nodes.map((n) => ({ text: n.textContent.trim(), top: Math.round(n.getBoundingClientRect().top) })))
-    assert.deepEqual(swatches.map((s) => s.text), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '11', '12'])
-    assert.deepEqual(swatches.reduce((rows, s) => ({ ...rows, [s.top]: (rows[s.top] ?? 0) + 1 }), {}), Object.fromEntries([[swatches[0].top, 6], [swatches[11].top, 6]]))
+    const texts = await swatchGroup(page).evaluateAll((nodes) => nodes.map((n) => n.textContent.trim()))
+    assert.deepEqual(texts, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '11', '12'])
+    // The card lays out after the swatches appear, so the rows are read until they settle at six and six.
+    const rowCounts = () => swatchGroup(page).evaluateAll((nodes) => {
+      const rows = {}
+      for (const n of nodes) { const top = Math.round(n.getBoundingClientRect().top); rows[top] = (rows[top] ?? 0) + 1 }
+      return Object.keys(rows).map(Number).sort((x, y) => x - y).map((top) => rows[top])
+    })
+    assert.deepEqual(await settle(rowCounts, [6, 6]), [6, 6], 'swatches sit in two rows of six')
   }))
 
   it('are picked by the key they show', withPage(async (page) => {
