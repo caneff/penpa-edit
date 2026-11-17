@@ -57,8 +57,6 @@
     const LEFT_COLUMN = ['rules', 'mouse'];
     const RIGHT_COLUMN = ['pins', 'mode', 'recent'];
     const CARD_TITLES = { board: 'Board', mouse: 'Mouse', rules: 'Rules', pins: 'Pinned', mode: 'Mode', recent: 'Recent' };
-    // Reset layout's icon: a desk of three panes, unlike Restart's circular arrow beside it.
-    const RESET_LAYOUT_ICON = '<rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6.5 2.5v11M6.5 8h8"/>';
 
     function el(tag, attrs = {}, children = []) {
         const node = document.createElement(tag);
@@ -170,6 +168,14 @@
         return { node, show };
     }
 
+    // A button showing `text`, with `tooltip` on hover.
+    function textButton(text, tooltip, onClick) {
+        const node = el('wa-button', { appearance: 'filled', variant: 'neutral', size: 's' }, [text]);
+        node.addEventListener('click', onClick);
+        addTooltip(node, tooltip);
+        return { node };
+    }
+
     // Runs `build(desk)` once the desk is built. A desk that never got built is reported once, where `deskReady` is made.
     function onDeskReady(build) {
         return window.deskReady.then(build, () => {});
@@ -191,21 +197,13 @@
         root.classList.toggle('ui-dark', dark);
     }
 
-    const PENPA_URL = 'https://github.com/swaroopg92/penpa-edit';
-
-    // A link that opens in a new tab.
-    const newTabLink = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, [text]);
-
-    window.uiKit = { el, iconButton, onDeskReady, confirmDialog, setDark, newTabLink, PENPA_URL };
+    window.uiKit = { el, iconButton, textButton, onDeskReady, confirmDialog, setDark };
 
     function build(info) {
         const bar = el('header', { class: 'ui-bar' }, [
             el('div', { class: 'ui-heading' }, [
-                el('div', { class: 'ui-heading-line' }, [
-                    el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
-                    el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
-                ]),
-                el('span', { class: 'ui-credit' }, [newTabLink(PENPA_URL, 'Solving UI for Penpa+')])
+                el('h1', { class: 'ui-title' }, [info.title || 'Untitled']),
+                el('span', { class: 'ui-author' }, [info.author ? `by ${info.author}` : ''])
             ]),
             el('span', { class: 'ui-spacer' })
         ]);
@@ -1005,9 +1003,6 @@
                 (desk.rulesText.smaller.disabled ? desk.rulesText.bigger : desk.rulesText.smaller).focus();
             }
         });
-        const resetButton = iconButton(RESET_LAYOUT_ICON, 'Reset layout', resetLayout).node;
-        resetButton.classList.add('ui-reset');
-        desk.bar.append(resetButton);
         showRulesText(desk);
         desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));
         desk.rulesText.bigger.addEventListener('click', () => stepRulesText(desk, 1));

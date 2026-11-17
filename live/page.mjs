@@ -289,6 +289,14 @@ export async function openSolvePage (browser, query, options = {}) {
   return opened
 }
 
+// Presses Settings' Reset layout, which closes the dialog, as a visitor does now that the top bar has no such button.
+export async function resetLayoutInSettings (page) {
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+  await page.locator('wa-dialog[open]').getByRole('group', { name: 'Desk' }).getByRole('button', { name: 'Reset layout' }).click()
+  await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+}
+
 // A chip's text is its shortcut key (Z, X, C or V) and then the tool's name; a later chip has no key.
 export const chipName = (text) => text.replace(/^[ZXCV]\s+/, '').trim()
 

@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { afterEach, describe, it } from 'node:test'
-import { afterChange, linkFromNewBoard, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { afterChange, linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -117,7 +117,8 @@ const near = (a, b) => Math.abs(a - b) <= SLACK_PX
 const shownTooltips = async (page) => (await page.locator('wa-tooltip[open]').allTextContents()).map((t) => t.trim())
 // The top bar's `wa-button` named `name` to screen readers. Not a role locator, which finds the native button inside its
 // shadow root, and which a disabled button (Undo with nothing to undo) does not let the pointer reach.
-const barButton = (page, name) => page.locator('.ui-bar wa-button').filter({ has: page.locator('.ui-sr-only').getByText(name, { exact: true }) })
+const barButton = (page, name) => page.locator('.ui-bar wa-button')
+  .filter({ hasText: new RegExp(`^\\s*${name.replace(/[+]/g, '\\$&')}\\s*$`) })
 
 // One link per puzzle for the file, since each costs a page of its own to build.
 const links = new Map()
@@ -212,16 +213,13 @@ describe('the top bar on a laptop screen', () => {
     assert.equal(small.titleCut, false, 'the title is whole')
   })
 
-  it('has no theme button, and Reset layout is an icon unlike Restart\'s', async () => {
+  it('has no theme button and no Reset layout button, and Penpa+ is a text button', async () => {
     const page = await open(ICEBREAKER, LAPTOPS[1])
-    assert.equal(await page.locator('.ui-bar').getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
-    const read = (name) => barButton(page, name).evaluate((host) =>
-      ({ icons: host.querySelectorAll('svg').length, icon: host.querySelector('svg')?.innerHTML, text: host.textContent.trim(), label: host.querySelector('.ui-sr-only').textContent }))
-    const reset = await read('Reset layout')
-    const restart = await read('Restart')
-    assert.equal(reset.icons, 1, 'Reset layout shows an icon')
-    assert.equal(reset.text, reset.label, 'and no visible text')
-    assert.notEqual(reset.icon, restart.icon)
+    const bar = page.locator('.ui-bar')
+    assert.equal(await bar.getByRole('button', { name: /theme/i }).count(), 0, 'the theme is chosen in Settings')
+    assert.equal(await bar.getByRole('button', { name: 'Reset layout' }).count(), 0, 'Reset layout is in Settings')
+    const penpa = await barButton(page, 'Penpa+').evaluate((host) => ({ icons: host.querySelectorAll('svg').length, text: host.textContent.trim() }))
+    assert.deepEqual(penpa, { icons: 0, text: 'Penpa+' })
   })
 
   it('shows each top-bar button\'s label on hover, with its shortcut, and the current one after it changes', async () => {
@@ -230,9 +228,9 @@ describe('the top bar on a laptop screen', () => {
       await barButton(page, name).hover()
       return settle(() => shownTooltips(page), [label])
     }
-    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Open in Penpa+': 'Open in Penpa+', Settings: 'Settings', 'Reset layout': 'Reset layout' }
+    const want = { Undo: 'Undo (Ctrl+Z)', Redo: 'Redo (Ctrl+Y)', Restart: 'Restart', Pause: 'Pause (F4)', 'Penpa+': 'Open this puzzle in Penpa+', Settings: 'Settings' }
     const buttons = page.locator('.ui-bar wa-button')
-    const names = await buttons.locator('.ui-sr-only').allTextContents()
+    const names = await buttons.evaluateAll((hosts) => hosts.map((host) => host.querySelector('.ui-sr-only')?.textContent ?? host.textContent.trim()))
     assert.equal(names.length, await buttons.count(), 'every top-bar button has a name')
     assert.deepEqual(names.sort(), Object.keys(want).sort(), 'every top-bar button is listed here')
     for (const [name, label] of Object.entries(want)) {
@@ -681,7 +679,7 @@ describe('the desk holds together', () => {
       const rows = (tool) => window.toolGuide.mouseRows(tool).more.length
       window.pinBoard.replace([...engine.listTools()].sort((a, b) => rows(b) - rows(a)).slice(0, 6))
     })
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     const read = await deskSettled(page)
     const column = read.desk.h - 2 * TOP_MARGIN_PX
     assert.equal(read.cards.Rules.h <= RULES_SHARE * column + SLACK_PX, true, `Rules is ${read.cards.Rules.h}px of a ${column}px column`)

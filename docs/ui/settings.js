@@ -4,7 +4,7 @@
 (function () {
     'use strict';
 
-    const { confirmDialog, el, iconButton, newTabLink, onDeskReady, PENPA_URL } = window.uiKit;
+    const { confirmDialog, el, iconButton, onDeskReady } = window.uiKit;
     const { puzzleHash } = window;
 
     const CONFLICT_ON = 1;
@@ -58,7 +58,11 @@
         ]]
     ];
 
+    const PENPA_URL = 'https://github.com/swaroopg92/penpa-edit';
+    const PENPA_LICENCE_URL = `${PENPA_URL}/blob/master/LICENSE`;
     const FORK_URL = 'https://github.com/caneff/penpa-edit';
+
+    const newTabLink = (href, text) => el('a', { href, target: '_blank', rel: 'noopener noreferrer' }, [text]);
 
     const THEMES = [['light', 'Light'], ['dark', 'Dark']];
 
@@ -163,7 +167,9 @@
         const aboutGroup = el('fieldset', { class: 'ui-settings-group' }, [el('legend', {}, ['About']),
             el('div', { class: 'ui-settings-about' }, [
                 el('p', {}, ['This page is a solving-focused UI fork of ', newTabLink(PENPA_URL, 'Penpa+'), ' by swaroopg92. The puzzle engine is Penpa+\'s.']),
-                el('p', {}, ['Penpa+ is MIT licensed. Copyright (c) 2019 Opt-Pan. Copyright (c) 2020 Swaroop Guggilam.']),
+                el('p', {}, ['Penpa+ is under the ', newTabLink(PENPA_LICENCE_URL, 'MIT licence'), ':']),
+                el('p', {}, ['Original Work/Project Initiator - Copyright (c) 2019 Opt-Pan']),
+                el('p', {}, ['New Features/Upgrades - Copyright (c) 2020 Swaroop Guggilam']),
                 el('p', {}, ['This fork\'s source: ', newTabLink(FORK_URL, 'caneff/penpa-edit')])])]);
 
         const dialog = el('wa-dialog', { label: 'Settings' }, [...GROUPS.map(([title, rows]) => el('fieldset', { class: 'ui-settings-group' },

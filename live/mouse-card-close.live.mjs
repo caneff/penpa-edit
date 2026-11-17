@@ -3,7 +3,7 @@
 // Read through the cards' bounding boxes; the clicks are real.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { newBoardSolveLink, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { newBoardSolveLink, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 // The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a control to focus.
@@ -90,7 +90,7 @@ describe('The Mouse card closes and reopens', () => {
     opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
-    await page.getByRole('button', { name: 'Reset layout' }).click()
+    await resetLayoutInSettings(page)
     assert.equal((await read(page)).cards.Mouse, null)
   })
 
