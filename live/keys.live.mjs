@@ -161,14 +161,15 @@ describe('Escape', () => {
   })
 })
 
-describe('Penpa+\'s Congratulations popup', () => {
-  it('is a Penpa+ dialog: engine.getState says so, and a digit does not change the board', async () => {
+describe('the solved dialog', () => {
+  it('is the desk\'s own, not a Penpa+ popup, and a digit typed while it is open does not change the board', async () => {
     const link = await makeNumberSolveLink(browser())
     const { context, page } = await openSolve(link)
     try {
       // The author's answer is a 2 in the cell at ANSWER_CELL of the center list.
       await page.evaluate(typeDigitInPage, { index: ANSWER_CELL, digit: '2' })
-      assert.equal(await settle(() => page.evaluate(() => engine.getState().penpaDialogOpen), true), true, 'the popup is open')
+      await page.getByRole('dialog', { name: 'Puzzle solved' }).waitFor()
+      assert.equal(await page.evaluate(() => engine.getState().penpaDialogOpen), false, 'no Penpa+ popup')
       const before = await board(page)
       await page.keyboard.press('5')
       await page.keyboard.press('Backspace')
