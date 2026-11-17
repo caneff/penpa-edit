@@ -7,7 +7,7 @@
     const MULTICOLOR_MODE = 'multicolor';
     const SWATCHES_IN_TWO_ROWS = 12;
     const TWO_ROWS = 2;
-    const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
+    const { NOTHING, SECOND_COLOUR_DOT, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
     // Space the Mouse card's body keeps below the tallest content, for the borders.
@@ -50,23 +50,32 @@
         return h3;
     }
 
-    function renderMouse(target, tool, style, held = false) {
+    // An effect's words, with a dot in `secondColour` where it names the 2nd colour (no dot when there is none).
+    function effectNodes(effect, secondColour) {
+        return effect.split(SECOND_COLOUR_DOT).flatMap((text, i) => (i === 0 || !secondColour ? [text] : [el('i', { class: 'ui-dot', style: `background:${secondColour}` }), text]));
+    }
+
+    // A flick tool's nine keys, drawn as a 3×3 keypad.
+    const keypad = (keys) => el('div', { class: 'ui-keypad' }, keys.map((key) => el('span', {}, [key])));
+
+    function renderMouse(target, tool, style, held = false, secondColour = null) {
         const rows = mouseRows(tool);
-        const row = (gesture, effect, cls) => el('div', { class: `ui-mrow ${cls}` }, [
-            el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [effect])
+        const row = (gesture, effect, cls, extra = []) => el('div', { class: `ui-mrow ${cls}` }, [
+            el('span', { class: 'ui-mg' }, [gesture]), el('span', { class: 'ui-md' }, [...effectNodes(effect, secondColour), ...extra])
         ]);
+        // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
+        const main = [['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag], ['Digit', rows.digit ?? NOTHING]];
         target.replaceChildren(headline(tool, style, held), el('div', { class: 'ui-mrows' }, [
-            // A gesture that does nothing gets no row (#191), so a tool with few actions takes little of a short screen.
-            ...[['Left click', rows.left], ['Right click', rows.right], ['Drag', rows.drag]]
-                .filter(([, effect]) => effect !== NOTHING)
-                .map(([gesture, effect]) => row(gesture, effect, '')),
+            ...main.filter(([, effect]) => effect !== NOTHING)
+                .map(([gesture, effect]) => row(gesture, effect, '', gesture === 'Drag' && rows.keypad ? [keypad(rows.keypad)] : [])),
             ...rows.more.map(([gesture, effect]) => row(gesture, effect, 'is-more'))
         ]));
     }
 
     // The contents that can set the Mouse card's height, as markup: one per distinct set of rows, since the headline is one
-    // line whatever the tool. Found once, so measuring at a new width costs one layout per set of rows, not one render per tool and style.
-    let mouseContents = null;
+    // line whatever the tool. Found once per set of tools, so measuring at a new width costs one layout per set of rows, not
+    // one render per tool and style.
+    const mouseContents = { key: null, contents: null };
     function allMouseContents(probe, tools) {
         const bySetOfRows = new Map();
         tools.forEach((tool) => {
@@ -79,15 +88,18 @@
         return [...bySetOfRows.values()];
     }
 
-    // The Mouse card keeps one height: the tallest content any tool and style needs, measured in a hidden copy of its
-    // body at `width` (the card's own by default). Shorter content sits at the top.
+    // The Mouse card keeps one height: the tallest content any of `tools` needs, measured in a hidden copy of its body at
+    // `width` (the card's own by default). Shorter content sits at the top.
     function measureMouseBody(body, tools, width = body.clientWidth) {
         const probe = el('div', { class: 'ui-body ui-mouse-probe' });
         probe.style.cssText = `position:absolute;visibility:hidden;left:0;top:0;width:${width}px;box-sizing:border-box;height:auto;`;
         body.parentElement.append(probe);
-        mouseContents ??= allMouseContents(probe, tools);
+        const key = tools.map(toolKey).join(' ');
+        if (mouseContents.key !== key) {
+            Object.assign(mouseContents, { key, contents: allMouseContents(probe, tools) });
+        }
         let tallest = 0;
-        mouseContents.forEach((html) => {
+        mouseContents.contents.forEach((html) => {
             probe.innerHTML = html;
             tallest = Math.max(tallest, probe.offsetHeight);
         });
@@ -311,13 +323,23 @@
         const mode = buildModeCard(cards.mode.body, tools, (tool) => engine.setTool(tool), (style) => engine.colourSelection(style),
             { list: () => engine.listOrientations(), apply: (direction) => engine.setOrientation(direction) });
 
+        const surfaceTool = tools.find((t) => t.mode === 'surface');
+
+        // The tools the Mouse card is sized for: the link's Tab set and the pins (#199), which the solver mostly moves between;
+        // another tool's rows may scroll. Every tool when the puzzle names none. Read from the fit on, after pins.js is up.
+        function puzzleTools() {
+            const keys = new Set([...engine.tabSet(), ...window.pinBoard.snapshot()].map(toolKey));
+            const named = tools.filter((tool) => keys.has(toolKey(tool)));
+            return named.length ? named : tools;
+        }
+
         function sizeMouseCard() {
             // A closed card has no width to measure at; the desk sizes it again when it opens.
             if (cards.mouse.node.hidden) {
                 return;
             }
             cards.mouse.body.style.height = '';
-            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, tools) + MOUSE_BODY_SLACK_PX}px`;
+            cards.mouse.body.style.height = `${measureMouseBody(cards.mouse.body, puzzleTools()) + MOUSE_BODY_SLACK_PX}px`;
         }
 
         // The engine's `change` also fires for this file's own DOM changes, so a render that would draw the same tool
@@ -327,13 +349,14 @@
             const current = engine.getTool();
             const held = engine.getState().held;
             const orientation = engine.getOrientation();
-            const now = `${toolKey(current)}/${current.style}/${orientation}/${held}`;
+            const secondColour = styleColour(surfaceTool, engine.getSettings().secondcolor);
+            const now = `${toolKey(current)}/${current.style}/${orientation}/${held}/${secondColour}`;
             if (now === drawn) {
                 return;
             }
             drawn = now;
             const tool = toolFor(current);
-            renderMouse(cards.mouse.body, tool, current.style, held);
+            renderMouse(cards.mouse.body, tool, current.style, held, secondColour);
             titleBarName.textContent = chipLabel(tool);
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
             titleBarName.title = titleBarName.textContent;
@@ -348,17 +371,20 @@
             mode.render(tool, current.style, orientation);
         }
 
-        // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
-        fit.mouseCardHeight = (cardWidth) => {
-            const { node, body } = cards.mouse;
-            const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
-            return node.offsetHeight - body.offsetHeight + measureMouseBody(body, tools, bodyWidth) + MOUSE_BODY_SLACK_PX;
-        };
-        fit.sizeMouseBody = sizeMouseCard;
-        sizeMouseCard();
-        relayout();
         render();
         engine.on('change', render);
+        // pins.js builds `window.pinBoard` in its own deskReady callback, which runs after this one: the fit waits for it.
+        onDeskReady(() => {
+            // The whole card's height for a card `cardWidth` wide, for the desk's fitted layout.
+            fit.mouseCardHeight = (cardWidth) => {
+                const { node, body } = cards.mouse;
+                const bodyWidth = cardWidth - (node.offsetWidth - body.offsetWidth);
+                return node.offsetHeight - body.offsetHeight + measureMouseBody(body, puzzleTools(), bodyWidth) + MOUSE_BODY_SLACK_PX;
+            };
+            fit.sizeMouseBody = sizeMouseCard;
+            sizeMouseCard();
+            relayout();
+        });
         // The desk relays itself out on every resize; only a change in the Mouse card's height needs another pass.
         window.addEventListener('resize', () => {
             const before = cards.mouse.node.offsetHeight;
