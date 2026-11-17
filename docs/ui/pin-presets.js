@@ -193,10 +193,13 @@
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
         let undoTimer = null;
         let clearOnListClose = false;
+        // What Ctrl+Z in the preset field does: undoes a delete, whose line goes when the list closes and so cannot be reached by Tab.
+        let undoDeleteByKey = null;
 
         function clearUndo() {
             clearTimeout(undoTimer);
             clearOnListClose = false;
+            undoDeleteByKey = null;
             undoRow.replaceChildren();
         }
 
@@ -211,6 +214,7 @@
             });
             undoRow.replaceChildren(el('span', {}, [message]), undo);
             clearOnListClose = untilListCloses;
+            undoDeleteByKey = untilListCloses ? () => undo.click() : null;
             undoTimer = setTimeout(clearUndo, UNDO_VISIBLE_MS);
         }
 
@@ -291,6 +295,10 @@
                 }
             },
             onKey: (e, entry) => {
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && undoDeleteByKey) {
+                    undoDeleteByKey();
+                    return true;
+                }
                 if (!e.shiftKey) {
                     return false;
                 }

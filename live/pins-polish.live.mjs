@@ -4,11 +4,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { choosePreset, openList, pinnedCard, presetField, presetList, savePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
 
-const pinned = (page) => page.getByRole('region', { name: 'Pinned' })
+const pinned = pinnedCard
 const modeCard = (page) => page.getByRole('region', { name: 'Mode' })
 const recentCard = (page) => page.getByRole('region', { name: 'Recent' })
 const chips = (page) => pinned(page).locator('.ui-chip')
@@ -18,23 +19,19 @@ const colourOfChip = async (page, name) => {
   const texts = await chipTexts(page)
   return (await chipColours(page))[texts.indexOf(name)]
 }
-const presetField = (page) => pinned(page).getByRole('combobox', { name: 'Pin presets' })
-const presetList = (page) => pinned(page).getByRole('listbox', { name: 'Presets' })
 const undoLine = (page) => pinned(page).locator('.ui-preset-undo')
-const openList = async (page) => {
-  await presetList(page).waitFor({ state: 'hidden' })
-  await presetField(page).click()
-  await presetList(page).waitFor()
-}
-const savePreset = async (page, name) => {
-  await pinned(page).getByRole('button', { name: 'Save pins as a preset', exact: true }).click()
-  await pinned(page).getByRole('textbox', { name: 'Preset name' }).fill(name)
-  await pinned(page).getByRole('button', { name: 'Save', exact: true }).click()
-}
-const loadPreset = async (page, name) => {
-  await openList(page)
-  await presetList(page).getByRole('option', { name, exact: true }).click()
-  await presetList(page).waitFor({ state: 'hidden' })
+const loadPreset = choosePreset
+// The `{ mode, submode }` of the tool a chip's name stands for.
+const toolNamed = (page, name) => page.evaluate((n) => {
+  const tool = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === n)
+  return { mode: tool.mode, submode: tool.submode }
+}, name)
+// Pins the tool at `index` of the tool list, through the Mode card's pin button.
+const pinToolAt = async (page, index) => {
+  const tool = await page.evaluate((i) => { const t = engine.listTools()[i]; return { mode: t.mode, submode: t.submode, name: window.toolGuide.chipLabel(t) } }, index)
+  await setTool(page, { mode: tool.mode, submode: tool.submode })
+  await modeCard(page).getByRole('button', { name: `Pin ${tool.name}`, exact: true }).click()
+  return tool.name
 }
 const pinsSaved = (page) => page.evaluate(() => {
   const key = Object.keys(localStorage).find((k) => k.startsWith('chinstrap.pins:'))
@@ -83,6 +80,18 @@ describe('preset undo', () => {
     assert.equal(await settle(() => undoLine(page).textContent(), ''), '')
   }))
 
+  it('Ctrl+Z in the preset field undoes a delete, for a keyboard that cannot reach the Undo button', withPage(async (page) => {
+    await savePreset(page, 'Mine')
+    await openList(page)
+    await presetField(page).fill('mine your')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('Shift+Delete')
+    await undoLine(page).getByText(/Deleted/).waitFor()
+    await page.keyboard.press('Control+z')
+    await undoLine(page).getByText(/Deleted/).waitFor({ state: 'detached' })
+    assert.equal(await presetList(page).getByRole('option', { name: 'Mine', exact: true }).count(), 1)
+  }))
+
   it('an Undo line goes away after a few seconds', async () => {
     const opened = await openSolvePage(browser(), await linkHash())
     try {
@@ -99,21 +108,28 @@ describe('preset undo', () => {
 })
 
 describe('pin colours', () => {
-  it('give nine pins nine different colours, and a tool keeps its colour when pinned again', withPage(async (page) => {
+  it('give nine pins nine different colours', withPage(async (page) => {
     await page.evaluate(() => window.pinBoard.replace(engine.listTools().slice(0, 9)))
-    const colours = await settle(async () => (await chipColours(page)).length, 9).then(() => chipColours(page))
+    await settle(async () => (await chipColours(page)).length, 9)
+    const colours = await chipColours(page)
     assert.equal(new Set(colours).size, 9, `nine different colours: ${colours}`)
+  }))
+
+  it('keep a tool\'s colour when it is pinned again, though another tool was pinned meanwhile', withPage(async (page) => {
+    await page.evaluate(() => window.pinBoard.replace(engine.listTools().slice(0, 8)))
+    await settle(async () => (await chipColours(page)).length, 8)
     const names = await chipTexts(page)
     const before = await colourOfChip(page, names[2])
     await pinned(page).getByRole('button', { name: `Unpin ${names[2]}` }).click()
+    await settle(async () => (await chipTexts(page)).length, 7)
+    await pinToolAt(page, 8)
     await settle(async () => (await chipTexts(page)).length, 8)
-    await setTool(page, await page.evaluate((n) => {
-      const tool = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === n)
-      return { mode: tool.mode, submode: tool.submode }
-    }, names[2]))
-    await modeCard(page).getByRole('button', { name: new RegExp(`^Pin `) }).click()
+    await setTool(page, await toolNamed(page, names[2]))
+    await modeCard(page).getByRole('button', { name: `Pin ${names[2]}`, exact: true }).click()
     await settle(async () => (await chipTexts(page)).length, 9)
     assert.equal(await colourOfChip(page, names[2]), before)
+    const colours = await chipColours(page)
+    assert.equal(new Set(colours).size, 9, `still nine different colours: ${colours}`)
   }))
 
   it('survive a preset load and Reset pins', withPage(async (page) => {
@@ -126,6 +142,22 @@ describe('pin colours', () => {
     assert.deepEqual(await settle(() => chipTexts(page), names), names)
     assert.deepEqual(await chipColours(page), before)
   }))
+
+  // A stored value this code did not write must not reach a chip's colour: each of these is read as no colour for the tool.
+  for (const colours of [null, 'red', { 'line/1': 99, 'sudoku/2': 'x', 'surface/': -1 }]) {
+    it(`are drawn from the palette whatever a stored value holds: ${JSON.stringify(colours)}`, withPage(async (page) => {
+      await page.evaluate((bad) => {
+        const key = Object.keys(localStorage).find((k) => k.startsWith('chinstrap.pins:'))
+        localStorage.setItem(key, JSON.stringify({ ...JSON.parse(localStorage.getItem(key)), colours: bad }))
+      }, colours)
+      await page.reload()
+      await waitForDesk(page)
+      await settle(async () => (await chipColours(page)).length, 3)
+      const drawn = await chipColours(page)
+      assert.equal(drawn.every((c) => /^#[0-9a-f]{6}$/.test(c)), true, `palette colours: ${drawn}`)
+      assert.equal(new Set(drawn).size, 3)
+    }))
+  }
 })
 
 describe('the chips', () => {
@@ -172,15 +204,28 @@ describe('Settings', () => {
 })
 
 describe('swatches', () => {
-  it('show their digit, and twelve split six and six', withPage(async (page) => {
+  const swatchGroup = (page) => modeCard(page).getByRole('group', { name: 'Style' }).getByRole('button')
+
+  it('show the key that picks each, and twelve split six and six', withPage(async (page) => {
     await setTool(page, { mode: 'multicolor', submode: null })
     await waitForTool(page, { mode: 'multicolor', submode: null })
-    const buttons = modeCard(page).getByRole('group', { name: 'Style' }).getByRole('button')
-    await buttons.first().waitFor()
-    const swatches = await buttons.evaluateAll((nodes) => nodes.map((n) => ({ text: n.textContent.trim(), top: Math.round(n.getBoundingClientRect().top) })))
-    assert.equal(swatches.length, 12)
-    assert.deepEqual(swatches.map((s) => Number(s.text)).sort((a, b) => a - b).map(String), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'])
+    await swatchGroup(page).first().waitFor()
+    const swatches = await swatchGroup(page).evaluateAll((nodes) => nodes.map((n) => ({ text: n.textContent.trim(), top: Math.round(n.getBoundingClientRect().top) })))
+    assert.deepEqual(swatches.map((s) => s.text), ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '11', '12'])
     assert.deepEqual(swatches.reduce((rows, s) => ({ ...rows, [s.top]: (rows[s.top] ?? 0) + 1 }), {}), Object.fromEntries([[swatches[0].top, 6], [swatches[11].top, 6]]))
+  }))
+
+  it('are picked by the key they show', withPage(async (page) => {
+    await setTool(page, { mode: 'surface', submode: null })
+    await waitForTool(page, { mode: 'surface', submode: null })
+    await swatchGroup(page).first().waitFor()
+    const labels = await swatchGroup(page).evaluateAll((nodes) => nodes.map((n) => n.textContent.trim()))
+    // Descending, and without 1: Penpa+ reads 1 then 2 pressed together as the twelfth colour.
+    for (const key of labels.filter((l) => l.length === 1 && l !== '1').reverse()) {
+      await page.keyboard.press(`Digit${key}`)
+      const pressed = swatchGroup(page).and(page.locator('[aria-pressed="true"]'))
+      assert.equal(await settle(async () => (await pressed.allInnerTexts()).map((t) => t.trim()), [key]).then((t) => t[0]), key, `key ${key} presses the swatch labelled ${key}`)
+    }
   }))
 })
 
@@ -194,11 +239,7 @@ describe('dragging a chip', () => {
     const after = [before[2], before[0], before[1]]
     assert.deepEqual(await settle(() => chipTexts(page), after), after)
     await page.keyboard.press('KeyZ')
-    const moved = await page.evaluate((name) => {
-      const tool = engine.listTools().find((t) => window.toolGuide.chipLabel(t) === name)
-      return { mode: tool.mode, submode: tool.submode }
-    }, before[2])
-    await waitForTool(page, moved)
+    await waitForTool(page, await toolNamed(page, before[2]))
     assert.equal((await pinsSaved(page)).length, 3)
     await page.reload()
     await waitForDesk(page)

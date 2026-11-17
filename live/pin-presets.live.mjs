@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { after, before, describe, it } from 'node:test'
 import { currentTool, newBoardSolveLink, openPenpa, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
+import { choosePreset, closed, nameField, openList, pinnedCard, presetField, presetList, saveButton, savePreset } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -27,20 +28,6 @@ const openSolve = (hash) => openSolvePage(browser(), hash)
 
 const toolKeyOf = ({ mode, submode }) => `${mode}/${submode ?? ''}`
 
-const pinnedCard = (page) => page.getByRole('region', { name: 'Pinned' })
-const presetField = (page) => pinnedCard(page).getByRole('combobox', { name: 'Pin presets' })
-const presetList = (page) => pinnedCard(page).getByRole('listbox', { name: 'Presets' })
-const closed = (page) => presetList(page).waitFor({ state: 'hidden' })
-const openList = async (page) => {
-  await closed(page)
-  await presetField(page).click()
-  await presetList(page).waitFor()
-}
-const choosePreset = async (page, name) => {
-  await openList(page)
-  await presetList(page).getByRole('option', { name, exact: true }).click()
-  await closed(page)
-}
 const offered = (page) => presetList(page).getByRole('option').allInnerTexts()
 const groupTitles = (page) => presetList(page).getByRole('group').evaluateAll((groups) => groups.map((g) => g.getAttribute('aria-label')))
 const optionsOfGroup = (page, title) => presetList(page).getByRole('group', { name: title }).getByRole('option').allInnerTexts()
@@ -73,15 +60,6 @@ const seedSavedPresets = async (page, presets) => {
   await waitForDesk(page)
 }
 
-const nameField = (page) => pinnedCard(page).getByRole('textbox', { name: 'Preset name' })
-const saveButton = (page) => pinnedCard(page).getByRole('button', { name: 'Save pins as a preset', exact: true })
-
-// Saves the pins as `name` through the save icon's inline form.
-const savePreset = async (page, name) => {
-  await saveButton(page).click()
-  await nameField(page).fill(name)
-  await pinnedCard(page).getByRole('button', { name: 'Save', exact: true }).click()
-}
 
 const chipCount = (page) => pinnedCard(page).getByRole('button', { name: /^Unpin / }).count()
 

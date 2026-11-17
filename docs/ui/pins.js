@@ -14,6 +14,7 @@
     const SHORTCUT_SLOT_BY_CODE = { KeyZ: 0, KeyX: 1, KeyC: 2, KeyV: 3 };
     const SHORTCUT_LABELS = Object.keys(SHORTCUT_SLOT_BY_CODE).map((code) => code.slice('Key'.length));
     const NUMBER_MODE = 'number';
+    const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
     // Ten colours far apart in hue, each dark enough for white text. A tool keeps its colour (`colours`, kept with the pins); only
     // past ten pins does a colour repeat.
     const PIN_PALETTE = ['#c0392b', '#1e7e34', '#1f5fbf', '#8e44ad', '#b9570e', '#0e7c86', '#b5266f', '#7a7a12', '#5b4bd1', '#8a5a2b'];
@@ -66,21 +67,29 @@
         }
 
         // A pin for a tool the link no longer offers is dropped.
-        let { nextId, pins, colours } = { colours: {}, ...(savedState() ?? seededState()) };
+        let { nextId, pins, colours } = savedState() ?? seededState();
         pins = pins.filter(toolOf);
         // What a saved palette index is worth: a whole number the palette has, else the tool gets a colour again.
         const validColours = Object.fromEntries(Object.entries(colours ?? {}).filter(([, i]) => Number.isInteger(i) && PIN_PALETTE[i]));
 
         const pinIndexOf = (tool) => pins.findIndex((p) => toolKey(p) === toolKey(tool));
 
-        // Gives each pin the colour its tool had, or else the palette colour fewest pins wear. Two pins share a colour only past
-        // the palette's size. The tools' colours outlive their pins, so a tool pinned again comes back in its own.
+        // The palette index for a tool with none: the colour fewest pins wear, then the one fewest other tools remember, so a tool
+        // unpinned for a while still finds its own colour free.
+        function freshColourFor(key, worn) {
+            const remembered = PIN_PALETTE.map(() => 0);
+            Object.entries(validColours).forEach(([other, index]) => { if (other !== key) { remembered[index]++; } });
+            return PIN_PALETTE.reduce((best, _, i) => (worn[i] < worn[best] || (worn[i] === worn[best] && remembered[i] < remembered[best]) ? i : best), 0);
+        }
+
+        // Gives each pin its tool's colour; the colours outlive the pins, so a tool pinned again comes back in its own. Two pins share a
+        // colour only past the palette's size.
         function assignColours() {
             const worn = PIN_PALETTE.map(() => 0);
             pins.forEach((pin) => {
                 const key = toolKey(pin);
                 if (validColours[key] === undefined || worn[validColours[key]] > 0) {
-                    validColours[key] = worn.indexOf(Math.min(...worn));
+                    validColours[key] = freshColourFor(key, worn);
                 }
                 worn[validColours[key]]++;
             });
@@ -151,7 +160,6 @@
         // ---- The Pinned card --------------------------------------------------------------------------------------------
 
         const strip = el('div', { class: 'ui-pins' });
-        const EMPTY_NOTE = el('p', { class: 'ui-pins-empty' }, ['Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.']);
         cards.pins.body.replaceChildren(strip);
 
         // The chip being dragged, for the drop to move.
@@ -172,9 +180,10 @@
 
         function chip(pin, slot, current) {
             const label = chipLabel(toolOf(pin));
-            const key = SHORTCUT_LABELS[slot];
+            const shortcut = SHORTCUT_LABELS[slot];
+            // The space is not drawn (flex items drop it); it keeps the chip's text and name readable as "Z Line > Normal".
             const main = el('button', { type: 'button', class: 'ui-chip-main', 'aria-pressed': String(current) },
-                [...(key ? [el('span', { class: 'ui-chip-num' }, [key])] : []), label]);
+                [...(shortcut ? [el('span', { class: 'ui-chip-num' }, [shortcut]), ' '] : []), label]);
             const unpin = el('button', { type: 'button', class: 'ui-chip-unpin', 'aria-label': `Unpin ${label}`, title: `Unpin ${label}` });
             unpin.innerHTML = REMOVE_ICON;
             main.addEventListener('click', () => {
@@ -245,8 +254,8 @@
                 button.hidden = !known;
                 button.setAttribute('aria-pressed', String(pinned));
                 const label = `${pinned ? 'Unpin' : 'Pin'} ${known ? chipLabel(known) : ''}`.trim();
-            button.setAttribute('aria-label', label);
-            button.setAttribute('title', label);
+                button.setAttribute('aria-label', label);
+                button.setAttribute('title', label);
                 button.innerHTML = pinIcon(pinned);
             }
             button.addEventListener('click', () => {
@@ -321,7 +330,7 @@
             }
             drawn = signature;
             pinListeners.forEach((listener) => listener());
-            strip.replaceChildren(...(pins.length ? pins.map((pin, i) => chip(pin, i, i === index)) : [EMPTY_NOTE.cloneNode(true)]));
+            strip.replaceChildren(...(pins.length ? pins.map((pin, i) => chip(pin, i, i === index)) : [el('p', { class: 'ui-pins-empty' }, [EMPTY_NOTE_TEXT])]));
             cards.board.node.style.setProperty('--ui-tool-colour', index >= 0 ? pinColour(pins[index]) : NEUTRAL_COLOUR);
         }
 

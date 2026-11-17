@@ -6,6 +6,7 @@
 
     const MULTICOLOR_MODE = 'multicolor';
     const SWATCHES_IN_TWO_ROWS = 12;
+    const TWO_ROWS = 2;
     const { NOTHING, mouseRows, toolKey, chipLabel } = window.toolGuide;
     const { el, onDeskReady } = window.uiKit;
 
@@ -98,7 +99,7 @@
     const svg = (inner) => `<svg width="${STYLE_ICON_PX}" height="${STYLE_ICON_PX}" viewBox="0 0 20 20" aria-hidden="true">${inner}</svg>`;
 
     // A 20 px sample of a style for its button: a swatch for a colour, Penpa+'s own paint for a text style that has a `sample`, a tiny drawing for the rest.
-    // `digit` is the number key that picks a swatch's colour, or null where no key does.
+    // `digit` is the key that picks a swatch's colour, or null where no key does.
     function styleSample(name, swatch, sample, digit) {
         const line = (attrs) => `<line x1="3" y1="10" x2="17" y2="10" stroke-linecap="round" ${attrs}/>`;
         const ink = 'stroke="currentColor"';
@@ -223,12 +224,16 @@
         });
 
         function styleGroup(tool, style) {
+            const group = el('div', { role: 'group', 'aria-label': 'Style', class: 'ui-styles' });
             // Twelve swatches make two even rows.
-            const group = el('div', { role: 'group', 'aria-label': 'Style', class: `ui-styles${tool.styles.length === SWATCHES_IN_TWO_ROWS ? ' is-two-rows' : ''}` });
+            if (tool.styles.length === SWATCHES_IN_TWO_ROWS) {
+                group.classList.add('is-grid');
+                group.style.setProperty('--ui-swatch-columns', String(SWATCHES_IN_TWO_ROWS / TWO_ROWS));
+            }
             const colourTool = tool.mode === 'surface' || tool.mode === MULTICOLOR_MODE;
             tool.styles.forEach((s) => {
                 const button = el('button', { type: 'button', class: 'ui-stylebtn', 'aria-pressed': String(s.style === style), 'aria-label': s.name, title: s.name });
-                button.innerHTML = styleSample(s.name, s.swatch, s.sample, colourTool ? s.style : null);
+                button.innerHTML = styleSample(s.name, s.swatch, s.sample, colourTool ? s.key : null);
                 button.addEventListener('click', () => {
                     // A Multicolor swatch colours the selected cells, as a digit key does; any other style is only picked.
                     if (tool.mode === MULTICOLOR_MODE) {
