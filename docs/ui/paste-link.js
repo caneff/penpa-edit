@@ -10,11 +10,10 @@
     // Both hosts serve Penpa+ under /penpa-edit/; the userscript sends the first to the second.
     const PENPA_ORIGINS = ['https://swaroopg92.github.io', 'https://caneff.github.io'];
     const PENPA_PATH = '/penpa-edit/';
-    // Parameters with a puzzle in them, as boot reads them: `p=` among them.
+    // Parameters with a puzzle in them: `p=` among them, the test boot applies to a query.
     const HAS_PUZZLE = /(^|&)p=/;
 
-    // The `#...` that opens `text`'s puzzle on this page, or null when `text` is no URL, no Penpa+ link,
-    // or has no `p=` in its `?` or its `#`. The `?` wins when it has `p=`, then the `#`, as boot reads them.
+    // The `#...` that opens `text`'s puzzle on this page, or null. The `?` wins when it has `p=`, then the `#`: boot's order.
     function puzzleDataOf(text) {
         let url;
         try {

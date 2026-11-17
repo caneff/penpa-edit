@@ -1,4 +1,4 @@
-// A bare `solve.html` (no puzzle data) asks for a Penpa+ link and opens `solve.html` on that link's `#` data.
+// A bare `solve.html` (no puzzle data) asks for a Penpa+ link and opens `solve.html` on that link's puzzle data, from its `?` or its `#`.
 // The box is read by role and accessible name; the board it opens is read through `engine`.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -33,31 +33,19 @@ describe('solve.html with no puzzle data', () => {
     } finally { await bare.context.close() }
   })
 
-  for (const [host, link] of [
-    ['upstream host', `${UPSTREAM}${AKARI_SOLVE}`],
-    ['upstream host, with a query', `${UPSTREAM}?foo=1${AKARI_SOLVE}`],
-    ['fork host, solve.html', `${FORK}solve.html${AKARI_SOLVE}`]
-  ]) {
-    it(`opens a pasted solve link from the ${host}, with the board loaded and no error`, async () => {
-      const bare = await openBare()
-      try {
-        await pasteAndOpen(bare, link)
-        await bare.page.getByRole('region', { name: 'Board' }).waitFor()
-        await bare.page.evaluate(() => engine.ready)
-        assert.equal(await bare.page.evaluate(() => location.hash), AKARI_SOLVE)
-        assert.equal(await settle(() => bare.page.evaluate(() => engine.getInfo().title !== undefined), true), true)
-        assert.equal(await bare.page.getByRole('textbox', { name: 'Penpa+ link' }).count(), 0, 'the box is gone')
-      } finally { await bare.context.close() }
-    })
-  }
-
+  const ANSWER = '&a=VcIxDQAACANBLz8zsSDmU/82OpOcskfGJwU='
   for (const [host, link, hash] of [
+    ['upstream host', `${UPSTREAM}${AKARI_SOLVE}`, AKARI_SOLVE],
+    ['upstream host, with a query', `${UPSTREAM}?foo=1${AKARI_SOLVE}`, AKARI_SOLVE],
+    ['fork host, solve.html', `${FORK}solve.html${AKARI_SOLVE}`, AKARI_SOLVE],
     ['upstream host, puzzle in the query', `${UPSTREAM}?${AKARI_SOLVE.slice(1)}`, AKARI_SOLVE],
     ['fork host, puzzle in the query', `${FORK}solve.html?${AKARI_SOLVE.slice(1)}`, AKARI_SOLVE],
+    ['upstream host, puzzle and answer in the query', `${UPSTREAM}?${AKARI_SOLVE.slice(1)}${ANSWER}`, AKARI_SOLVE + ANSWER],
     ['upstream host, a query without p= and the puzzle in the #', `${UPSTREAM}?fbclid=abc${AKARI_SOLVE}`, AKARI_SOLVE],
-    ['upstream host, puzzle in both: the query wins, as boot reads it', `${UPSTREAM}?${AKARI_SOLVE.slice(1)}#m=edit&p=other`, AKARI_SOLVE]
+    ['upstream host, a query whose parameter only ends in p=, and the puzzle in the #', `${UPSTREAM}?sp=1${AKARI_SOLVE}`, AKARI_SOLVE],
+    ['upstream host, puzzle in both: the query wins', `${UPSTREAM}?${AKARI_SOLVE.slice(1)}#m=edit&p=other`, AKARI_SOLVE]
   ]) {
-    it(`opens a pasted link from the ${host}`, async () => {
+    it(`opens a pasted link from the ${host}, with the board loaded and no error`, async () => {
       const bare = await openBare()
       try {
         await pasteAndOpen(bare, link)
@@ -65,6 +53,7 @@ describe('solve.html with no puzzle data', () => {
         await bare.page.evaluate(() => engine.ready)
         assert.equal(await bare.page.evaluate(() => location.hash), hash)
         assert.equal(await settle(() => bare.page.evaluate(() => engine.getInfo().title !== undefined), true), true)
+        assert.equal(await bare.page.getByRole('textbox', { name: 'Penpa+ link' }).count(), 0, 'the box is gone')
       } finally { await bare.context.close() }
     })
   }
