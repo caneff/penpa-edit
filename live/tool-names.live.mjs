@@ -1,8 +1,8 @@
 // One name per tool across the Mode card, the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
-// (#190), the tool-change banner and the Board card's colour cue. The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
+// (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { afterChange, chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -83,41 +83,70 @@ describe('one name per tool', () => {
 
 describe('the Board card\'s colour cue', () => {
   let opened
-  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })
+  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Sudoku Normal', 'Sudoku Corner', 'Sudoku Centre'])) })
   after(async () => { await opened?.context.close() })
 
-  const colours = (page) => page.evaluate(() => {
-    const card = document.querySelector('[data-testid="board-tool-name"]').closest('section, [role=region]')
-    return { text: getComputedStyle(document.querySelector('[data-testid="board-tool-name"]')).color, border: getComputedStyle(card).outlineColor }
+  // The label's text and pill and the card's frame, as computed colours.
+  const cue = (page) => page.evaluate(() => {
+    const label = document.querySelector('[data-testid="board-tool-name"]')
+    return {
+      text: getComputedStyle(label).color,
+      pill: getComputedStyle(label).backgroundColor,
+      frame: getComputedStyle(label.closest('section, [role=region]')).outlineColor
+    }
   })
-  const swatchRgb = (page, tool, name) => page.evaluate(([t, n]) => {
-    const swatch = engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode).styles.find((s) => s.name === n).swatch
+  // The dot before the label's name, as a computed colour, or null with none.
+  const labelDot = (page) => boardLabel(page).evaluate((label) => {
+    const dot = label.querySelector('.ui-dot')
+    return dot && getComputedStyle(dot).backgroundColor
+  })
+  // The computed fill of the current chip, once it is the one `name` labels and its colours have eased in.
+  const currentChipFill = async (page, name) => {
+    const chip = region(page, 'Pinned').locator('.ui-chip.is-current', { hasText: name })
+    await chip.waitFor()
+    await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+    return chip.evaluate((node) => getComputedStyle(node).backgroundColor)
+  }
+  const rgbOf = (page, css) => page.evaluate((c) => {
     const probe = document.createElement('i')
-    probe.style.color = swatch
+    probe.style.color = c
     document.body.append(probe)
     const rgb = getComputedStyle(probe).color
     probe.remove()
     return rgb
-  }, [tool, name])
+  }, css)
 
-  for (const [tool, name] of [[{ mode: 'number', submode: '1' }, 'green'], [{ mode: 'surface', submode: null }, 'blue']]) {
-    it(`takes the ${tool.mode} tool's ${name} style's colour for the label and the border`, async () => {
-      const { page } = opened
-      const styleNumber = await page.evaluate(([t, n]) => engine.listTools().find((x) => x.mode === t.mode).styles.find((s) => s.name === n).style, [tool, name])
-      await setTool(page, { ...tool, style: styleNumber })
-      const want = await swatchRgb(page, tool, name)
-      assert.deepEqual(await settle(() => colours(page), { text: want, border: want }), { text: want, border: want })
-    })
-  }
-
-  it('puts a pale style colour on a black pill so the label can be read', async () => {
+  it('takes the current pin\'s chip colour for the label\'s pill and the frame, with white text, for each of three Sudoku pins', async () => {
     const { page } = opened
-    const yellow = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'surface').styles.find((s) => s.name === 'yellow').style)
-    await setTool(page, { mode: 'surface', style: yellow })
-    const pill = () => boardLabel(page).evaluate((label) => getComputedStyle(label).backgroundColor)
-    assert.equal(await settle(pill, 'rgb(0, 0, 0)'), 'rgb(0, 0, 0)')
-    await setTool(page, { mode: 'number', submode: '1', style: 1 })
-    assert.notEqual(await settle(pill, 'rgb(255, 255, 255)'), 'rgb(0, 0, 0)')
+    const seen = []
+    for (const [submode, name] of [['1', 'Sudoku > Normal'], ['2', 'Sudoku > Corner'], ['3', 'Sudoku > Centre']]) {
+      await setTool(page, { mode: 'sudoku', submode })
+      const fill = await currentChipFill(page, name)
+      const want = { text: 'rgb(255, 255, 255)', pill: fill, frame: fill }
+      assert.deepEqual(await settle(() => cue(page), want), want, name)
+      seen.push(fill)
+    }
+    assert.equal(new Set(seen).size, 3, `three pins, three colours: ${seen}`)
+  })
+
+  it('puts a dot in the selected style\'s colour before the name', async () => {
+    const { page } = opened
+    const green = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'sudoku' && x.submode === '1').styles.find((s) => s.name === 'green'))
+    // Landing on a pin restores the pin's style, so the style is chosen once the tool is current.
+    await setTool(page, { mode: 'sudoku', submode: '1' })
+    await waitForTool(page, { mode: 'sudoku', submode: '1' })
+    await afterChange(page)
+    await setTool(page, { mode: 'sudoku', submode: '1', style: green.style })
+    const want = await rgbOf(page, green.swatch)
+    assert.equal(await settle(() => labelDot(page), want), want)
+  })
+
+  it('shows a neutral grey pill and frame for a tool that is not pinned', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'line', submode: '1' })
+    const grey = await rgbOf(page, '#585d68')
+    const want = { text: 'rgb(255, 255, 255)', pill: grey, frame: grey }
+    assert.deepEqual(await settle(() => cue(page), want), want)
   })
 })
 

@@ -12,8 +12,16 @@ const NIGHTLY = readFileSync(path('.github/workflows/upstream-merge.yml'), 'utf8
 const ruleset = JSON.parse(execFileSync('bash', [path('.github/scripts/require-checks.sh'), '--dry-run'], { encoding: 'utf8' }))
 const required = ruleset.rules.find((r) => r.type === 'required_status_checks').parameters.required_status_checks.map((c) => c.context).sort()
 
-// The job ids under `jobs:` in a workflow file, each a check context of its own.
-const jobIds = (file) => [...readFileSync(path(file), 'utf8').split(/^jobs:\n/m)[1].matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]).sort()
+// The job ids under `jobs:` in a workflow file, each a check context of its own, less each part another job `needs`:
+// the job that waits on its parts is the check (#268).
+function checkIds (file) {
+  const jobs = readFileSync(path(file), 'utf8').split(/^jobs:\n/m)[1]
+  const parts = [...jobs.matchAll(/^ {4}needs: \[([\w, -]+)\]$/gm)].flatMap((m) => m[1].split(/,\s*/))
+  return [...jobs.matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1]).filter((id) => !parts.includes(id)).sort()
+}
+
+// The text of ci.yml's job `<id>`, up to the next job.
+const ciJob = (id) => readFileSync(path('.github/workflows/ci.yml'), 'utf8').match(new RegExp(`^ {2}${id}:\n[\\s\\S]*?(?=^ {2}[\\w#-]|(?![\\s\\S]))`, 'm'))?.[0] ?? ''
 
 describe('the master ruleset', () => {
   it('targets master alone, with only the admin role able to bypass it', () => {
@@ -27,8 +35,18 @@ describe('the master ruleset', () => {
     assert.equal(parameters.strict_required_status_checks_policy, true)
   })
 
-  it('requires exactly the jobs of ci.yml', () => {
-    assert.deepEqual(required, jobIds('.github/workflows/ci.yml'))
+  it("requires exactly ci.yml's checks, and not the parts `test` waits on", () => {
+    assert.deepEqual(required, checkIds('.github/workflows/ci.yml'))
+  })
+
+  // A required check that is skipped counts as passed, so `test` must run when a part fails, and fail then.
+  it('has `test` run whatever its parts did, and pass only when each of them passed (#268)', () => {
+    const test = ciJob('test')
+    assert.match(test, /^ {4}needs: \[unit, live\]$/m)
+    assert.match(test, /^ {4}if: always\(\)$/m)
+    assert.match(test, /UNIT: \$\{\{ needs\.unit\.result \}\}/)
+    assert.match(test, /LIVE: \$\{\{ needs\.live\.result \}\}/)
+    assert.match(test, /^ {10}\[\[ \$UNIT == success && \$LIVE == success \]\]$/m)
   })
 
   it('is satisfied by the statuses the nightly upstream merge posts', () => {

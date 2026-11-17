@@ -4,22 +4,69 @@ on:
   push:
     branches: [master]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
 
-# Each job id is a check `.github/scripts/require-checks.sh` makes required on master.
+# `test` and `expected-files` are the checks `.github/scripts/require-checks.sh` makes required on master; `unit` and
+# `live` are the parts `test` waits on (#268).
 jobs:
-  test:
+  unit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-tests
+      - shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          npm test 2>&1 | tee "$RUNNER_TEMP/logs/unit.log"
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-log-unit
+          path: ${{ runner.temp }}/logs
+
+  # A PR runs the live files its change needs (`live/run-live.mjs`); a push and the nightly run them all.
+  live:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2, 3, 4]
+    steps:
+      # A PR's checkout is its merge commit, whose first parent is the base it merges into.
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
       # The live tests that open Penpa+ as upstream ships it read the upstream/master ref.
       - run: git fetch --no-tags --depth=1 https://github.com/swaroopg92/penpa-edit.git master:refs/remotes/upstream/master
       - uses: ./.github/actions/setup-tests
-      - run: npm test
-      - run: npm run test:live
-        if: ${{ !cancelled() }}
+      - shell: bash
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/logs"
+          node live/run-live.mjs $BASE --part ${{ matrix.part }}/${{ strategy.job-total }} 2>&1 | tee "$RUNNER_TEMP/logs/live-${{ matrix.part }}.log"
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-log-live-${{ matrix.part }}
+          path: ${{ runner.temp }}/logs
+
+  # The one required check for the tests. A required check that is skipped counts as passed, so it runs whatever its
+  # parts did and fails unless each of them passed.
+  test:
+    needs: [unit, live]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          UNIT: ${{ needs.unit.result }}
+          LIVE: ${{ needs.live.result }}
+        run: |
+          echo "unit: $UNIT, live: $LIVE"
+          [[ $UNIT == success && $LIVE == success ]]
 
   # The expected-file gate (#33): a PR changes an expected file only when a ticket it closes listed the recording
   # before the fix started. A push has no ticket to read, so the job is skipped there, which a required check accepts.
