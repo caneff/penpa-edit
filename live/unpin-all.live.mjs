@@ -38,16 +38,14 @@ describe('Unpin all', () => {
   }))
 
   it('stays empty after a reload, and Puzzle defaults brings the defaults back', withPage(async (page) => {
-    const defaults = (await pinChipTexts(page)).sort()
+    const defaults = await pinChipTexts(page)
     await unpinAll(page).click()
     await settle(() => pinChipTexts(page), [])
     await page.reload()
     await waitForDesk(page)
     assert.deepEqual(await pinChipTexts(page), [], 'still empty after the reload')
     await choosePreset(page, 'Puzzle defaults')
-    // The engine's Tab set lists the same tools in another order once the page has reloaded, so the set is compared, not the order (#281).
-    const sortedChips = async () => (await pinChipTexts(page)).sort()
-    assert.deepEqual(await settle(sortedChips, defaults), defaults)
+    assert.deepEqual(await settle(() => pinChipTexts(page), defaults), defaults, 'the pins come back in the link\'s order')
     assert.equal(await unpinAll(page).isDisabled(), false, 'enabled again once the defaults are back')
   }))
 })
