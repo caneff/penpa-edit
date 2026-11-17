@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { chipName, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForDesk, waitForTool } from './page.mjs'
-import { choosePreset, openList, pinnedCard, presetField, presetList, savePreset } from './pin-card.mjs'
+import { choosePreset, openList, PIN_TAB_SET, pinChips, pinChipTexts, pinnedCard, presetField, presetList, savePreset, withPinnedPage } from './pin-card.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -12,8 +12,8 @@ const browser = useBrowser()
 const pinned = pinnedCard
 const modeCard = (page) => page.getByRole('region', { name: 'Mode' })
 const recentCard = (page) => page.getByRole('region', { name: 'Recent' })
-const chips = (page) => pinned(page).locator('.ui-chip')
-const chipTexts = async (page) => (await chips(page).locator('.ui-chip-main').allInnerTexts()).map(chipName)
+const chips = pinChips
+const chipTexts = pinChipTexts
 const chipColours = (page) => chips(page).evaluateAll((nodes) => nodes.map((n) => n.style.getPropertyValue('--ui-pin-colour')))
 const colourOfChip = async (page, name) => {
   const texts = await chipTexts(page)
@@ -38,17 +38,8 @@ const pinsSaved = (page) => page.evaluate(() => {
   return JSON.parse(localStorage.getItem(key)).pins.map((p) => `${p.mode}/${p.submode ?? ''}`)
 })
 
-const TAB_SET = ['Line Normal', 'Sudoku Corner', 'Surface']
-const linkHash = () => newBoardSolveLink(browser(), TAB_SET)
-
-const withPage = (body) => async () => {
-  const opened = await openSolvePage(browser(), await linkHash())
-  try {
-    await body(opened.page)
-  } finally {
-    await opened.context.close()
-  }
-}
+const linkHash = () => newBoardSolveLink(browser(), PIN_TAB_SET)
+const withPage = (body) => withPinnedPage(browser, body)
 
 describe('preset undo', () => {
   it('Undo after a load brings the earlier pins back', withPage(async (page) => {
