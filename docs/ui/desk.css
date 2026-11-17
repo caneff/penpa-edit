@@ -142,15 +142,16 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-picker { position: relative; }
 .ui-search { box-sizing: border-box; width: 100%; font: inherit; padding: 4px 8px; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; color: inherit; }
 .ui-search:focus { outline: 2px solid #3b6fd4; outline-offset: -1px; }
-.ui-list { position: fixed; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
+.ui-list { position: fixed; z-index: 4; box-sizing: border-box; max-height: 360px; overflow: auto; border: 1px solid #cfcabd; border-radius: 6px; background: #fff; padding: 4px; }
 .ui-list[hidden] { display: none; }
 /* A card's stacking context holds its floating list, so the card with an open list stacks above every card, even a raised one (desk.js stops raising one below this). */
 .ui-card:has(.ui-list:not([hidden])) { z-index: calc(var(--ui-bar-z) - 1) !important; }
 .ui-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #6f6a5a; margin: 8px 4px 3px; }
 .ui-entry { padding: 4px 8px; border-radius: 5px; cursor: pointer; }
 .ui-entry:hover { background: #f0ede4; }
-.ui-entry[aria-selected="true"] { background: #e3ebfb; outline: 2px solid #8aa6e0; outline-offset: -2px; }
+.ui-entry[aria-selected="true"], .ui-searching .ui-trow.ui-tbest { background: #e3ebfb; outline: 2px solid #8aa6e0; outline-offset: -2px; }
 .ui-levels { display: flex; align-items: center; gap: 6px; padding: 2px 4px 6px; font-size: 11px; color: #6f6a5a; }
+.ui-levels[hidden] { display: none; }
 .ui-levels-buttons { display: flex; gap: 4px; }
 .ui-levelbtn { font: inherit; font-size: 11px; padding: 2px 8px; border: 1px solid #cfcabd; border-radius: 999px; background: #f4f2ea; color: inherit; cursor: pointer; }
 .ui-levelbtn:hover { background: #ebe8dc; }
@@ -160,6 +161,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-trow { display: flex; align-items: center; gap: 4px; padding: 3px 6px; border-radius: 5px; cursor: pointer; user-select: none; }
 .ui-trow:hover { background: #f0ede4; }
 .ui-trow[aria-selected="true"] { background: #e3ebfb; font-weight: 700; }
+.ui-searching .ui-trow[aria-selected="true"]:not(.ui-tbest) { background: none; }
 .ui-tl1 > .ui-trow { font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #3d3a30; margin-top: 2px; }
 .ui-tchev { width: 14px; flex: none; color: #6f6a5a; transition: transform .12s; }
 .ui-trow[aria-expanded="true"] > .ui-tchev { transform: rotate(90deg); }
@@ -255,6 +257,7 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-list { background: #262a32; border-color: #4a5060; }
 .ui-dark .ui-trow:hover, .ui-dark .ui-levelbtn:hover { background: #30343e; }
 .ui-dark .ui-trow[aria-selected="true"] { background: #2c3d5e; }
+.ui-dark .ui-searching .ui-trow[aria-selected="true"]:not(.ui-tbest) { background: none; }
 .ui-dark .ui-levelbtn { background: #1b1e24; border-color: #4a5060; }
 .ui-dark .ui-tl1 > .ui-trow { color: #e3e6eb; }
 .ui-dark .ui-sub, .ui-dark .ui-none, .ui-dark .ui-levels, .ui-dark .ui-tchev, .ui-dark .ui-tcount, .ui-dark .ui-tmatch { color: #a9b0bd; }
@@ -263,7 +266,7 @@ body.engine-mounted:has(.ui-dark) { background: #16181d; }
 .ui-dark .ui-entry-star[aria-pressed="true"] { color: #e0b84a; }
 .ui-dark .ui-preset-undo-btn { color: #8aa6e0; }
 .ui-dark .ui-preset-undo { background: #343946; }
-.ui-dark .ui-entry[aria-selected="true"] { background: #2c3d5e; }
+.ui-dark .ui-entry[aria-selected="true"], .ui-dark .ui-searching .ui-trow.ui-tbest { background: #2c3d5e; }
 .ui-dark .ui-group-title { color: #a9b0bd; }
 .ui-dark .ui-stylebtn { background: #2f333d; color: #eef0f4; border-color: #4a5060; }
 .ui-dark .ui-stylebtn[aria-pressed="true"] { background: #2c3d5e; }
