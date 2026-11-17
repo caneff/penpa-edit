@@ -52,7 +52,7 @@ const ROUND_TRIP_LANES = 4
 // ROUND_TRIP_EVERY-th one after it and at the last (#267: a load boots a page and cost about three quarters of a
 // replay's time, `research/engine-replay-profile-2026-11.md`). With this environment variable set to a non-empty value
 // (the nightly full run sets it, #268) it round-trips every checkpoint.
-export const ROUND_TRIP_EVERY = 4
+export const ROUND_TRIP_EVERY = 8
 export const FULL_ROUND_TRIPS_ENV = 'REPLAY_FULL_ROUND_TRIPS'
 
 // How many checkpoints apart the round trips are under `env`: 1 (every checkpoint) in full mode.

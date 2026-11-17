@@ -18,3 +18,18 @@ Findings:
   time (about 4 to 5 s) matches it.
 - So reusing the replay's own page saves at most the one boot per recording (about 0.35 s of 1.8 s). The cost is the
   round-trip loads: boots of the same kind the ticket's design would keep.
+
+## After: round trips at every k-th checkpoint
+
+Wall time on the shared box swings with other sessions' load (one part ran slower with fewer round trips), so the
+comparison is CPU time (`time` of `node --test live/engine-replay-1.live.mjs`, browser processes included), part 1 of 3, 178 tests:
+
+| round trips | user + sys CPU, s | against full |
+|---|---|---|
+| every checkpoint (full mode) | 261 | |
+| first, every 4th, last | 160 | -39% |
+| first, every 8th, last | 126 | -52% |
+| first and last only | 75 | -71% |
+
+k = 8 is the smallest that takes the part's cost down by half. Wall time of the three parts summed, k = 4 against full:
+517 s to 375 s (-27%), a noisy reading.
