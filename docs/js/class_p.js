@@ -12982,6 +12982,10 @@ class Puzzle {
                             cell.y * (1 - radius) + this.point[cell.surround[j + 1]].y * radius);
                     }
                     this.ctx.closePath();
+                    if (this.selection_fill) { // caneff: the solve page fills a selected cell (#200); engine_bridge.js sets the colour
+                        this.ctx.fillStyle = this.selection_fill;
+                        this.ctx.fill();
+                    }
                     this.ctx.stroke();
                 }
             }

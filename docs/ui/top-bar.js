@@ -5,7 +5,7 @@
 (function () {
     'use strict';
 
-    const { iconButton, onDeskReady } = window.uiKit;
+    const { confirmDialog, iconButton, onDeskReady } = window.uiKit;
 
     // Penpa+'s pause toggle (main.js), which a paused board still answers.
     const PAUSE_KEY = 'F4';
@@ -19,7 +19,7 @@
         restart: '<path d="M2.9 8.6a5.2 5.2 0 1 0 1.5-4.3"/><path d="M2.6 1.9v3.2h3.2"/>',
         pause: '<path d="M5.5 3.5v9M10.5 3.5v9" stroke-width="2.4"/>',
         resume: '<path d="M5 3l8 5-8 5z" fill="currentColor"/>',
-        openInPenpa: '<path d="M9 2.5h4.5V7"/><path d="M13.5 2.5L7.5 8.5"/><path d="M11.5 9.5v3a1 1 0 0 1-1 1h-7a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1h3"/>'
+        openInPenpa: '<path d="M2.5 5.5h10.5"/><path d="M10.5 3l2.5 2.5-2.5 2.5"/><path d="M13.5 10.5H3"/><path d="M5.5 8L3 10.5 5.5 13"/>'
     };
 
     const twoDigits = (n) => String(n).padStart(2, '0');
@@ -51,12 +51,13 @@
             }
         });
 
-        const notSavedDialog = document.createElement('wa-dialog');
-        notSavedDialog.setAttribute('label', 'Progress is not being saved');
-        notSavedDialog.innerHTML = 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.' +
-            '<wa-button slot="footer" appearance="plain" data-dialog="close">Stay here</wa-button>' +
-            '<wa-button slot="footer" variant="danger" data-dialog="close" data-open-anyway>Open anyway</wa-button>';
-        notSavedDialog.querySelector('[data-open-anyway]').addEventListener('click', goToPenpa);
+        const notSavedDialog = confirmDialog({
+            label: 'Progress is not being saved',
+            text: 'Saving in this browser is off or was cleared, so Penpa+ would open the puzzle without what you entered here.',
+            cancel: 'Stay here',
+            confirm: 'Open anyway',
+            onConfirm: goToPenpa
+        });
 
         const clock = document.createElement('span');
         clock.className = 'ui-timer';
@@ -64,12 +65,13 @@
         clock.setAttribute('aria-label', 'Time');
 
         // The Restart question is the UI's own dialog; Penpa+'s popup library stays out of the solve page.
-        const restartDialog = document.createElement('wa-dialog');
-        restartDialog.setAttribute('label', 'Restart the puzzle?');
-        restartDialog.innerHTML = 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.' +
-            '<wa-button slot="footer" appearance="plain" data-dialog="close">Cancel</wa-button>' +
-            '<wa-button slot="footer" variant="danger" data-dialog="close" data-restart>Restart puzzle</wa-button>';
-        restartDialog.querySelector('[data-restart]').addEventListener('click', () => engine.restart());
+        const restartDialog = confirmDialog({
+            label: 'Restart the puzzle?',
+            text: 'This clears everything you entered and the undo history, and restarts the timer. The givens stay.',
+            cancel: 'Cancel',
+            confirm: 'Restart puzzle',
+            onConfirm: () => engine.restart()
+        });
 
         // Over the whole Board card while paused, so no click reaches the board; it is opaque so a pause hides the puzzle.
         const cover = document.createElement('section');

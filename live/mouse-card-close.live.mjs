@@ -126,4 +126,19 @@ describe('The Mouse card closes and reopens', () => {
     await page.keyboard.press('Enter')
     assert.equal(await settle(() => page.evaluate(() => document.activeElement.closest('section[aria-label="Rules"]') !== null), true), true)
   })
+
+  it('keeps a zoom the solver set when Mouse closes and opens', async () => {
+    opened = await openSolvePage(browser(), AKARI_SOLVE, { served: true, contextOptions: FULL_HD })
+    const { page } = opened
+    const cellSize = () => page.evaluate(() => engine.getState().cellSize)
+    const fitted = await cellSize()
+    await page.getByRole('region', { name: 'Board' }).getByRole('button', { name: 'Zoom in' }).click()
+    const zoomed = await cellSize()
+    assert.notEqual(zoomed, fitted, 'Zoom in changes the cell size')
+    await page.getByRole('button', { name: 'Close Mouse card' }).click()
+    await settle(() => fillsColumn(page), true)
+    assert.equal(await cellSize(), zoomed, 'closing Mouse keeps the zoom')
+    await reopenFromSettings(page)
+    assert.equal(await cellSize(), zoomed, 'opening Mouse keeps the zoom')
+  })
 })
