@@ -8,7 +8,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Sub-mode**: the choice within a mode (Number's Normal, Long, Candidates, ...).
 - **Style**: the color or look choice within a sub-mode (the digit keys pick one in Surface).
 - **Tab set**: the modes checked in Penpa+'s Tab settings (`#mode_choices`), which a link carries; Penpa+'s Tab and
-  Enter keys step through it. In the new solve UI it seeds the pins and, with them, sets the tools the Mouse card is sized for.
+  Enter keys step through it. In the new solve UI it seeds the pins.
 - **Pin**: a mode and one of its sub-modes the solver keeps for Tab in the new solve UI; its style is the last one used
   on it. The same mode can be pinned with different sub-modes.
 - **Tab cycle**: Tab and Shift+Tab stepping through the pins in the new solve UI. Not the Tab set, which only seeds them.
@@ -37,6 +37,11 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Desk**: the solve page's work area under its top bar, holding the cards; its layout is fitted to the window and puzzle when
   the desk opens fresh, when Reset layout is pressed, and when the window changes size while no card has been moved or
   resized. The places the solver gives cards hold for every puzzle; the cards' sizes hold only for the puzzle they were set on.
+- **Automatic size**: a card's width or height while the solver has not dragged that edge: the size a fresh load would
+  give it. Mode and Mouse are as tall as the tallest of the pinned tools and the current tool; in a column the solver
+  has not changed, Rules and Recent take the rest of it, down to the desk's bottom. A double-click on a dragged edge's
+  handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
+  does it for every card.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Hold**: a held Shift or Ctrl lending Sudoku's Corner or Centre tool until the key comes up; the solve page always
   ends it (key-up, a lost window, a hidden tab, a dialog, Tab or a tool picked).
