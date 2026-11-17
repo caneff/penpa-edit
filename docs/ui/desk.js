@@ -808,8 +808,10 @@
         if (!isMoved(id) && y + node.offsetHeight > deskHeight - EDGE_MARGIN_PX) {
             setHeight(node, Math.max(minHeight, deskHeight - EDGE_MARGIN_PX - y));
         }
-        if (node.offsetHeight > deskHeight - 2 * EDGE_MARGIN_PX) {
-            setHeight(node, Math.max(minHeight, deskHeight - 2 * EDGE_MARGIN_PX));
+        // The desk's whole height, not less its edge margins: a resize drag may reach the desk's edges, and a card left at
+        // one must come back from a reload at the same height (#264).
+        if (node.offsetHeight > deskHeight) {
+            setHeight(node, Math.max(minHeight, deskHeight));
         }
         node.style.left = `${Math.max(0, Math.min(x, deskWidth - node.offsetWidth))}px`;
         node.style.top = `${Math.max(0, Math.min(y, deskHeight - node.offsetHeight))}px`;

@@ -112,6 +112,16 @@ describe('the desk', () => {
     assert.deepEqual(await settle(() => boxOf(page, 'Rules'), grown), grown)
   })
 
+  for (const dy of [-30, 20]) {
+    it(`keeps the Board card's box to the pixel after a top-edge drag of ${dy} px and a reload (#264)`, async () => {
+      await drag(page, await handleCentre(page, 'Board', 'top'), 0, dy)
+      const resized = await boxOf(page, 'Board')
+      await page.reload()
+      await card(page, 'Board').waitFor()
+      assert.deepEqual(await settle(() => boxOf(page, 'Board'), resized), resized)
+    })
+  }
+
   it('leaves the Board card\'s Fit button clickable at its right end, under the top-right handle', async () => {
     const fit = await card(page, 'Board').getByRole('button', { name: 'Fit' }).boundingBox()
     const handle = await card(page, 'Board').getByTestId('resize-top-right').boundingBox()
