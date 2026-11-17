@@ -1,5 +1,6 @@
-// The top bar's controls: undo, redo, Restart, the timer, Pause and Open in Penpa+, and the cover a paused board wears. The theme
-// is chosen in the Settings dialog (#181); this file still applies it to the page.
+// The top bar's controls: undo, redo, Restart, the timer, Pause and Open in Penpa+, the cover a paused board wears (and what it
+// switches off), and the dialog that says the puzzle is solved. The theme is chosen in the Settings dialog (#181); this file
+// still applies it to the page.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -78,20 +79,55 @@
         cover.setAttribute('aria-label', 'Paused');
         cover.hidden = true;
         cover.innerHTML = `<div>Paused</div><div class="ui-paused-hint">Press ${PAUSE_KEY} or Resume to continue</div>`;
+        // The top bar's Resume is an icon, so the cover that names "Resume" has a button of its own.
+        const coverResume = document.createElement('wa-button');
+        coverResume.setAttribute('variant', 'brand');
+        coverResume.textContent = 'Resume';
+        coverResume.addEventListener('click', () => engine.startTimer());
+        cover.append(coverResume);
         cards.board.node.append(cover);
 
+        // The solved message: the UI's own dialog, never Penpa+'s popup. Its words are the setter's, shown as text.
+        const solvedDialog = document.createElement('wa-dialog');
+        solvedDialog.setAttribute('label', 'Puzzle solved');
+        const solvedTitle = document.createElement('div');
+        solvedTitle.className = 'ui-solved-title';
+        const solvedMessage = document.createElement('div');
+        solvedMessage.className = 'ui-solved-message';
+        const solvedClose = document.createElement('wa-button');
+        solvedClose.setAttribute('slot', 'footer');
+        solvedClose.setAttribute('variant', 'brand');
+        solvedClose.setAttribute('data-dialog', 'close');
+        solvedClose.textContent = 'Close';
+        solvedDialog.append(solvedTitle, solvedMessage, solvedClose);
+        engine.on('solved', ({ title, message }) => {
+            solvedTitle.textContent = title;
+            solvedTitle.hidden = !title;
+            solvedMessage.textContent = message;
+            solvedDialog.open = true;
+        });
+
+        // While the board is paused, only Resume, Settings and Open in Penpa+ work: the pins, Mode and Recent are inert.
+        const pausedOff = [cards.pins.body, cards.mode.body, cards.recent.body];
+
         bar.append(undo.node, redo.node, restartButton.node, clock, pause.node, openInPenpa.node);
-        bar.after(restartDialog, notSavedDialog);
+        bar.after(restartDialog, notSavedDialog, solvedDialog);
 
         function renderTimer() {
             // Only the solver's own pause covers the board: a solve stops the clock and leaves the board usable (#119).
-            const { seconds, covered } = engine.getTimer();
-            clock.textContent = clockText(seconds);
+            const { seconds, covered, solved } = engine.getTimer();
+            // A solved clock is stopped for good: a check mark and its own colour keep it from looking stuck.
+            clock.textContent = solved ? `\u2713 ${clockText(seconds)}` : clockText(seconds);
+            clock.classList.toggle('is-solved', solved);
             if (cover.hidden === covered) {
                 cover.hidden = !covered;
+                restartButton.node.toggleAttribute('disabled', covered);
+                pausedOff.forEach((body) => body.toggleAttribute('inert', covered));
                 renderHistory();
             }
             pause.show(covered ? ICONS.resume : ICONS.pause, covered ? 'Resume' : 'Pause');
+            // A solved clock is stopped for good, so there is nothing to pause.
+            pause.node.toggleAttribute('disabled', solved && !covered);
         }
 
         // The board cannot change while paused, so neither can the history.
