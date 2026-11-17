@@ -162,17 +162,22 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-board { outline: 5px solid var(--ui-tool-colour, transparent); outline-offset: -1px; }
 
 /* The Pinned card: one-line chips, each with its pin's colour on the left edge; the current one is filled with it. */
-.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-.ui-chip { display: flex; align-items: center; border: 1px solid #cfcabd; border-left: 6px solid var(--ui-pin-colour, #cfcabd); border-radius: 7px; background: #fff; white-space: nowrap; }
+.ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.ui-card-pins .ui-body { padding: 6px 10px; }
+.ui-chip { display: flex; align-items: center; font-size: 12px; border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }
 .ui-recent .ui-chip.is-current { --ui-pin-colour: #7d828c; }
-.ui-chip-main { display: flex; gap: 6px; padding: 3px 4px 3px 7px; }
+.ui-chip-main { display: flex; gap: 5px; padding: 1px 2px 1px 6px; }
 .ui-chip-num { font: 700 11px ui-monospace, monospace; opacity: .7; align-self: center; }
 /* The preset field, the save row under it and the undo line for a deleted preset. */
-.ui-preset-row { display: flex; gap: 8px; align-items: end; margin-top: 8px; }
+.ui-preset-row { display: flex; gap: 6px; align-items: center; margin-top: 6px; }
 .ui-preset-row > .ui-picker, .ui-preset-row > wa-input { flex: 1; min-width: 0; }
-.ui-preset-row > .ui-picker { align-self: start; }
+.ui-preset-row[hidden] { display: none; }
+.ui-preset-row > wa-button { flex: none; }
+.ui-preset-row > wa-button::part(base) { height: 28px; min-height: 0; padding: 0 8px; }
+/* The name field's label is for assistive tech: the placeholder says what to type. */
+.ui-preset-name::part(form-control-label) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 .ui-entry-row { display: flex; align-items: center; gap: 2px; }
 .ui-entry-row > .ui-entry { flex: 1; min-width: 0; }
 .ui-entry-btn { display: flex; padding: 4px; border: 0; border-radius: 5px; background: transparent; color: #6f6a5a; cursor: pointer; }

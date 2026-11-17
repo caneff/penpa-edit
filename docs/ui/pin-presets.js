@@ -10,7 +10,7 @@
 
     const STORAGE_KEY = 'chinstrap.pinPresets';
     const STARS_KEY = 'chinstrap.pinPresetStars';
-    const SAVE_LABEL = 'Save these pins as a preset';
+    const SAVE_LABEL = 'Save pins as a preset';
     // Keys that act on the highlighted preset, with Shift held; the buttons' hints name the same chords.
     const STAR_KEY = 'Enter';
     const DELETE_KEY = 'Delete';
@@ -123,8 +123,29 @@
     }
 
     onDeskReady(({ cards }) => {
-        const nameInput = el('wa-input', { label: 'Save current pins as…', placeholder: 'Name this pin set', size: 'small' });
-        const save = iconButton(SAVE_ICON, SAVE_LABEL, () => {
+        // The name form: closed on the resting card; the save icon opens it, Save or Enter stores the preset, Cancel or Escape closes it.
+        const nameInput = el('wa-input', { class: 'ui-preset-name', label: 'Preset name', placeholder: 'Name this pin set', size: 'small' });
+        const saveName = el('wa-button', { appearance: 'filled', variant: 'brand', size: 's' }, ['Save']);
+        const cancelName = el('wa-button', { appearance: 'plain', variant: 'neutral', size: 's' }, ['Cancel']);
+        const nameForm = el('div', { class: 'ui-preset-row ui-preset-form', hidden: '' }, [nameInput, saveName, cancelName]);
+        const save = iconButton(SAVE_ICON, SAVE_LABEL, () => openForm());
+        // Web Awesome's small size, to sit level with the picker's field.
+        save.node.setAttribute('size', 'small');
+        save.node.setAttribute('title', SAVE_LABEL);
+
+        function openForm() {
+            nameForm.hidden = false;
+            nameInput.value = '';
+            nameInput.focus();
+        }
+
+        function closeForm() {
+            nameForm.hidden = true;
+            nameInput.value = '';
+            save.node.focus();
+        }
+
+        function saveFromForm() {
             const name = nameInput.value.trim();
             if (!name) {
                 return;
@@ -132,10 +153,22 @@
             writePresets([...savedPresets().filter((p) => p.name !== name), { name, tools: window.pinBoard.snapshot() }]);
             // An undo for a delete would put the older preset of that name over this one.
             undoRow.replaceChildren();
-            nameInput.value = '';
+            closeForm();
             save.node.blur();
+        }
+
+        saveName.addEventListener('click', saveFromForm);
+        cancelName.addEventListener('click', closeForm);
+        nameInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveFromForm();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                closeForm();
+            }
         });
-        save.node.setAttribute('title', SAVE_LABEL);
         // The line offering to undo the last delete, until the next delete or save.
         const undoRow = el('div', { class: 'ui-preset-undo', role: 'status' });
 
@@ -225,7 +258,7 @@
             }
         });
 
-        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node]), el('div', { class: 'ui-preset-row' }, [nameInput, save.node]), undoRow);
+        cards.pins.body.append(el('div', { class: 'ui-preset-row' }, [picker.node, save.node]), nameForm, undoRow);
 
         // The solver's saved presets, for the Settings dialog to list and delete.
         window.pinPresets = {
