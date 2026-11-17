@@ -65,12 +65,12 @@ describe('engine.listTools', () => {
   it('says "line", not "loop", for the Composite tools that draw one; only the Angle loop shape keeps the word (#186)', async () => {
     const loops = await opened.page.evaluate(() => engine.listTools().filter((t) => t.submode !== 'angleloop').flatMap((t) => {
       const { left, right, drag, digit, more } = toolGuide.mouseRows(t)
-      const words = [t.submodeName, toolGuide.placeTool(t).name, toolGuide.placeTool(t).description, left, right, drag, digit, ...more.flat()]
+      const words = [t.submodeName, toolGuide.placeTool(t).plainName, toolGuide.placeTool(t).description, left, right, drag, digit, ...more.flat()]
       return words.filter((w) => /loop/i.test(w ?? '')).map((w) => `${t.mode}/${t.submode}: ${w}`)
     }))
     assert.deepEqual(loops, [])
     const names = await opened.page.evaluate(() => Object.fromEntries(engine.listTools()
-      .filter((t) => ['linex', 'lineox', 'yajilin', 'angleloop'].includes(t.submode)).map((t) => [t.submode, toolGuide.placeTool(t).name])))
+      .filter((t) => ['linex', 'lineox', 'yajilin', 'angleloop'].includes(t.submode)).map((t) => [t.submode, toolGuide.placeTool(t).plainName])))
     assert.deepEqual(names, { linex: 'Line + edge ×', lineox: 'Line + cell ○ ×', yajilin: 'Shade + line', angleloop: 'Angle loop' })
   })
 })
