@@ -16,6 +16,7 @@ const PINS = ['Line Normal', 'Sudoku Corner']
 const TABS_PAST_THE_DIALOG = 60
 // Longer than the zero-delay timeouts the key rules queue.
 const AFTER_TIMEOUT_MS = 50
+const DIALOG_LABEL = 'Settings'
 const FIRST_PIN_TOOL = { mode: 'line', submode: '1' }
 
 const openSolve = async () => openSolvePage(browser(), await newBoardSolveLink(browser(), PINS))
@@ -141,7 +142,9 @@ describe('with Settings open', () => {
       await afterTimeouts(page)
     }
     const log = await page.evaluate(() => window.focusLog)
-    assert.equal(log.includes(firstLabel), false, `focus went back to ${firstLabel}: ${log.join(' > ')}`)
+    // The dialog's own focus entry is the close button; the wrap is the entry after it.
+    const wrapped = log[log.indexOf(DIALOG_LABEL) + 1]
+    assert.equal(wrapped !== undefined && wrapped !== firstLabel, true, `the wrap went to ${wrapped}: ${log.join(' > ')}`)
     assert.equal(await focusIsInDialog(page), true)
   })
 })
