@@ -4,7 +4,7 @@
 // the board's pixels in a screenshot, the cards against their boxes, and the kept layout against its text in localStorage.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { linkFromNewBoard, openSolvePage, useBrowser } from './page.mjs'
+import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
@@ -251,6 +251,15 @@ describe('the kept layout', () => {
       await page.setViewportSize({ width: 1400, height: 700 })
       await request(page)
       assert.equal(await keptText(), kept, 'the kept layout is byte-identical after the stream fit')
+
+      // The solver moving a card and pressing Reset layout during the stream fit reach neither the kept layout.
+      const pins = await page.locator('section[aria-label="Pinned"] .ui-head').boundingBox()
+      await page.mouse.move(pins.x + 20, pins.y + pins.height / 2)
+      await page.mouse.down()
+      await page.mouse.move(pins.x + 20, pins.y + 150, { steps: 5 })
+      await page.mouse.up()
+      await resetLayoutInSettings(page)
+      assert.equal(await keptText(), kept, 'a move and Reset layout during the stream fit leave the kept layout as it was')
 
       await page.setViewportSize({ width: 1400, height: 900 })
       await page.reload()
