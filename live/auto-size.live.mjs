@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
 import { CARD_GAP_PX, MODE_MIN_HEIGHT_PX, MOUSE_SLACK_PX, SLACK_PX, steady } from './desk-layout.mjs'
-import { ICEBREAKER, linkFromNewBoard, openSolvePage, puzzleSolveLinkInPage, resetLayoutInSettings, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
+import { ICEBREAKER, afterChange, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, waitForTool, puzzleSolveLinkInPage, resetLayoutInSettings, solveLinkOfImport, useBrowser, waitForDesk } from './page.mjs'
 import { choosePreset } from './pin-card.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
@@ -321,4 +321,41 @@ describe('a layout the solver changed', () => {
     const read = await steady(page, readCardsInPage, CARDS)
     assert.deepEqual({ taller: read.Mode.h > MODE_MIN_HEIGHT_PX, overflow: read.Mode.overflow }, { taller: true, overflow: 0 }, JSON.stringify(read.Mode))
   })
+})
+
+// Runs in the page: the Recent card's box, and what its content needs: the card's own chrome (header, borders), the body's
+// padding, and its chips' strip, or one line of text when it has no chips.
+function readRecentInPage () {
+  const card = document.querySelector('section[aria-label="Recent"]')
+  const body = card.querySelector('.ui-body')
+  const strip = card.querySelector('.ui-recent')
+  const style = getComputedStyle(body)
+  const content = strip.offsetHeight + parseFloat(getComputedStyle(strip).marginBottom) || parseFloat(style.lineHeight)
+  const needs = card.offsetHeight - body.clientHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + content
+  const box = card.getBoundingClientRect()
+  return { h: Math.round(box.height), bottom: Math.round(box.bottom), needs: Math.ceil(needs), chips: card.querySelectorAll('.ui-chip').length }
+}
+
+describe('the Recent card\'s automatic height (#306)', () => {
+  let opened
+  afterEach(async () => { await opened?.context.close() })
+
+  const FOUR_TOOLS = [{ mode: 'line', submode: '1' }, { mode: 'line', submode: '2' }, { mode: 'sudoku', submode: '1' }, { mode: 'number', submode: '1' }]
+
+  for (const viewport of [LAPTOP, HUGE]) {
+    it(`is as tall as its content before any tool change and grows with its chips, its bottom on the Board's, at ${viewport.width}x${viewport.height}`, async () => {
+      opened = await openSolvePage(browser(), await newBoardSolveLink(browser()), { contextOptions: { viewport } })
+      const { page } = opened
+      const read = async () => ({ ...(await steady(page, readRecentInPage)), board: (await steady(page, readCardsInPage, ['Board'])).Board.bottom })
+      const before = await read()
+      assert.deepEqual({ fits: Math.abs(before.h - before.needs) <= SLACK_PX, flush: Math.abs(before.bottom - before.board) <= SLACK_PX }, { fits: true, flush: true }, JSON.stringify(before))
+      for (const tool of FOUR_TOOLS) {
+        await setTool(page, tool)
+        await waitForTool(page, tool)
+        await afterChange(page)
+      }
+      const after = await read()
+      assert.deepEqual({ taller: after.h > before.h, flush: Math.abs(after.bottom - after.board) <= SLACK_PX }, { taller: true, flush: true }, JSON.stringify({ before, after }))
+    })
+  }
 })

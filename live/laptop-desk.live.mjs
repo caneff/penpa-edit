@@ -241,13 +241,13 @@ describe('the desk on a laptop screen', () => {
 
   for (const viewport of LAPTOPS) {
     describe(`at ${viewport.width}x${viewport.height}`, () => {
-      it('puts no card over another, and keeps the right column in order down to the desk\'s bottom', async () => {
+      it('puts no card over another, and keeps the right column in order (Recent as tall as its chips) down to the desk\'s bottom', async () => {
         const read = await deskSettled(await open(viewport))
         assert.deepEqual(cardOverlaps(read), [])
         const { Pinned, Mode, Recent } = read.cards
         assert.equal(near(Pinned.y, read.desk.y + TOP_MARGIN_PX), true, `Pinned at ${Pinned.y}`)
         assert.equal(Mode.y >= Pinned.y + Pinned.h + CARD_GAP_PX - SLACK_PX, true, `Mode at ${Mode.y}, Pinned ends at ${Pinned.y + Pinned.h}`)
-        assert.equal(near(Recent.y, Mode.y + Mode.h + CARD_GAP_PX), true, `Recent at ${Recent.y}, Mode ends at ${Mode.y + Mode.h}`)
+        assert.equal(Recent.y >= Mode.y + Mode.h + CARD_GAP_PX - SLACK_PX, true, `Recent at ${Recent.y}, Mode ends at ${Mode.y + Mode.h}`)
         assert.equal(near(Recent.y + Recent.h, read.desk.y + read.desk.h - TOP_MARGIN_PX), true, `Recent ends at ${Recent.y + Recent.h}`)
       })
 

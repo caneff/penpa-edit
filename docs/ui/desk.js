@@ -39,7 +39,7 @@
     // The step of the board card's - and + buttons, in pixels per cell.
     const ZOOM_STEP_PX = 4;
     // The smallest a card is dragged to, [width, height].
-    const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 170], recent: [240, 80], rules: [200, 80] };
+    const MIN_SIZE = { board: [240, 200], mouse: [260, 140], pins: [240, 110], mode: [280, 170], recent: [240, 56], rules: [200, 80] };
     // The Rules card's own text size, kept beside the layout and cleared with it. Pixels; the - and + buttons step it.
     const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1';
     const RULES_TEXT_RANGE_PX = { min: 10, max: 20, step: 2 };
@@ -550,8 +550,8 @@
         return natural;
     }
 
-    // Pinned at its own height at the top; Mode as tall as its tools need; Recent from under Mode to the column's bottom,
-    // so no gap is left below it. Where the column has room, Mode sits at its middle, never higher than under a Pinned card
+    // Pinned at its own height at the top; Mode as tall as its tools need; Recent as tall as its chips (#306), its bottom on
+    // the column's bottom, so the room between Mode and Recent stays empty. Where the column has room, Mode sits at its middle, never higher than under a Pinned card
     // whose chips take two rows, so a second row of pins moves neither Mode nor Recent (Chris, 2026-11-17); without the
     // room, the cards stack top-down and Mode gives up height so Recent keeps what it needs, its body scrolling.
     function placeRightColumn(cards, x, width, columnHeight) {
@@ -559,14 +559,15 @@
         const pins = cards.pins.node;
         Object.assign(pins.style, { left: `${x}px`, top: `${TOP_MARGIN_PX}px`, width: `${width}px` });
         const underPins = TOP_MARGIN_PX + pins.offsetHeight + CARD_GAP_PX;
+        cards.recent.node.style.width = `${width}px`;
         const recentNeeds = Math.max(MIN_SIZE.recent[1], naturalHeight(cards.recent.node));
         const modeHeight = Math.max(MIN_SIZE.mode[1], Math.min(fit.modeCardHeight(width), bottom - underPins - CARD_GAP_PX - recentNeeds));
         const middle = TOP_MARGIN_PX + Math.round((columnHeight - modeHeight) / 2);
         const underTwoRows = TOP_MARGIN_PX + fit.pinsCardHeightAtTwoRows() + CARD_GAP_PX;
         const modeTop = Math.max(underPins, Math.min(Math.max(middle, underTwoRows), bottom - recentNeeds - CARD_GAP_PX - modeHeight));
         place(cards, 'mode', x, modeTop, width, modeHeight);
-        const recentTop = modeTop + modeHeight + CARD_GAP_PX;
-        place(cards, 'recent', x, recentTop, width, Math.max(MIN_SIZE.recent[1], bottom - recentTop));
+        const recentHeight = Math.max(MIN_SIZE.recent[1], Math.min(recentNeeds, bottom - modeTop - modeHeight - CARD_GAP_PX));
+        place(cards, 'recent', x, bottom - recentHeight, width, recentHeight);
     }
 
     // Rules over Mouse in the left column, Mouse taking what Rules leaves; Rules alone takes the whole column.
