@@ -36,12 +36,9 @@ const GENERATED_SAMPLE = ['genre/compass', 'genre/shimaguni', 'paint/multicolor-
 // its gap (controller, 2026-11-16); node reports each still-differing one as `todo`, failing nothing, and fails one that
 // agrees, so the entry goes when its ticket's fix lands. None is marked on Penpa+'s page.
 const CAGE_KEY = '#137: a killer cage\'s solve-history key on this grid depends on the cell size'
-const HALF_PIXEL = '#138: a generated drag half a pixel off a point has no whole-pixel twin on solve.html'
 const SOLVE_TODO = {
   'grid/tri-cage': CAGE_KEY,
-  'grid/uniform-cage': CAGE_KEY,
-  ...Object.fromEntries(['genre-tool/combi-edgex', 'genre-tool/combi-edgexoi', 'genre/scrin', 'genre/slitherlink',
-    'genre/vertex-slitherlink'].map((id) => [id, HALF_PIXEL]))
+  'grid/uniform-cage': CAGE_KEY
 }
 
 // The ids each PR's run replays, or every id under `REPLAY_UI_CORPUS=all`; `ids` must be sorted.
