@@ -286,8 +286,8 @@ function boardPixelInPage ({ x, y }) {
 // point of `pu.type`, and a mouse event carries whole pixels. So the step's board point `x, y`, scaled to the page's cell
 // size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
-// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no neighbouring
-// pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches. A pixel outside the
+// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no pixel within a
+// pixel of the point keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches. A pixel outside the
 // canvas element is passed over for one inside it: a point on the board's edge, scaled, can round to a pixel just beyond
 // it, where the canvas's `mousemove` and `mouseup` never fire.
 function pagePixelInPage ({ x, y, num, recordedSize }) {
@@ -308,11 +308,15 @@ function pagePixelInPage ({ x, y, num, recordedSize }) {
     }
     return best
   }
+  // The pixels around `at`, nearest first. Those a pixel beyond the floor and ceiling serve when `at` is a whole pixel
+  // exactly halfway between two points: `coord_point` gives that pixel to the lower index, so only a neighbour reaches `num`.
+  const around = (v) => [Math.floor(v) - 1, Math.floor(v), Math.ceil(v), Math.ceil(v) + 1]
   const candidates = []
-  for (const cx of new Set([Math.floor(at.x), Math.ceil(at.x)])) {
-    for (const cy of new Set([Math.floor(at.y), Math.ceil(at.y)])) candidates.push({ x: cx, y: cy })
+  for (const cx of new Set(around(at.x))) {
+    for (const cy of new Set(around(at.y))) candidates.push({ x: cx, y: cy })
   }
-  candidates.sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))
+  const near = (c) => Math.hypot(c.x - at.x, c.y - at.y)
+  candidates.sort((a, b) => near(a) - near(b))
   const box = canvas.getBoundingClientRect()
   const inside = (c) => c.x >= box.left && c.x < box.right && c.y >= box.top && c.y < box.bottom
   const keepsNum = candidates.filter((c) => nearest(c) === num)
