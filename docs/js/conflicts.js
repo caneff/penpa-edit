@@ -148,7 +148,7 @@ class Conflicts {
             // Not a sudoku size
             return;
         }
-        const [box_h, box_w] = box;
+        const box_cells = this.sudoku_box_cells(n, box);
         this.check_latin_square(alphabet);
         // Check boxes
         for (let i = 0; i < n; i++) {
@@ -160,34 +160,54 @@ class Conflicts {
                     if (!(el >= 1 && el <= n)) continue;
                 }
 
-                // Get coordinates of this box's top-left corner
-                let bi = box_h * ((i / box_h) | 0);
-                let bj = box_w * ((j / box_w) | 0);
+                for (const [kk, ll] of box_cells(i, j)) {
+                    if (kk === i && ll === j)
+                        continue;
 
-                for (let k = 0; k < box_h; k++) {
-                    for (let l = 0; l < box_w; l++) {
-                        let kk = bi + k;
-                        let ll = bj + l;
-                        if (kk === i && ll === j)
-                            continue;
+                    this.add_conflict_value(ll, kk, el);
 
-                        this.add_conflict_value(ll, kk, el);
+                    const el2 = data[kk][ll];
+                    if (el2 == undefined) continue;
 
-                        const el2 = data[kk][ll];
-                        if (el2 == undefined) continue;
-
-                        // caneff: compare as strings, a digit is a number here.
-                        if (alphabet) {
-                            if (String(el2).toLowerCase() === String(el).toLowerCase())
-                                this.add_conflict(ll, kk);
-                        } else {
-                            if (el2 === el)
-                                this.add_conflict(ll, kk);
-                        }
+                    // caneff: compare as strings, a digit is a number here.
+                    if (alphabet) {
+                        if (String(el2).toLowerCase() === String(el).toLowerCase())
+                            this.add_conflict(ll, kk);
+                    } else {
+                        if (el2 === el)
+                            this.add_conflict(ll, kk);
                     }
                 }
             }
         }
+    }
+
+    // caneff: returns (row, col) => the [row, col] cells of that cell's box. The boxes are the drawn region lines
+    // (as `check_irregular` reads them) when any are drawn, else the size default. A region larger than the grid's
+    // side is not a box yet, so it has no cells to compare.
+    sudoku_box_cells(n, [box_h, box_w]) {
+        const regions = this.pu.getregiondata(n, n, "full");
+        const cells_of = {};
+        for (let i = 0; i < n; i++) {
+            for (let j = 0; j < n; j++) {
+                (cells_of[regions[i][j]] ||= []).push([i, j]);
+            }
+        }
+        if (Object.keys(cells_of).length > 1) {
+            return (i, j) => {
+                const cells = cells_of[regions[i][j]];
+                return cells.length > n ? [] : cells;
+            };
+        }
+        return (i, j) => {
+            const bi = box_h * ((i / box_h) | 0);
+            const bj = box_w * ((j / box_w) | 0);
+            const cells = [];
+            for (let k = 0; k < box_h; k++) {
+                for (let l = 0; l < box_w; l++) cells.push([bi + k, bj + l]);
+            }
+            return cells;
+        };
     }
 
     // Check an irregular sudoku puzzle.
