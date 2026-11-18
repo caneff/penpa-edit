@@ -1105,7 +1105,7 @@
         };
     }
 
-    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue: numbers on a square-cell grid, bands on any other.
+    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue (a scrolled board slides them over its cells, see stickCoordinates): numbers on a square-cell grid, bands on any other.
     function drawCoordinates() {
         const wanted = areCoordinatesWanted();
         boardBox.classList.toggle('ui-coordinates-on', wanted);
@@ -1123,6 +1123,16 @@
         coordinatesLayer.append(
             ...labels.columns.map((c) => label('column', c, c.at - box.left, gutter / 2)),
             ...labels.rows.map((r) => label('row', r, gutter / 2, r.at - box.top)));
+        stickCoordinates();
+    }
+
+    // Slides the column labels down and the row labels right by how far the board has scrolled past the card's top and left
+    // edges (desk.css reads the two variables), so they stay in view while the cells scroll under them.
+    function stickCoordinates() {
+        const view = window.uiKit.visibleBox(boardBox.parentElement);
+        const box = boardBox.getBoundingClientRect();
+        coordinatesLayer.style.setProperty('--ui-stick-x', `${Math.max(0, view.left - box.left)}px`);
+        coordinatesLayer.style.setProperty('--ui-stick-y', `${Math.max(0, view.top - box.top)}px`);
     }
 
     function setCoordinatesWanted(boardBody, shown) {
@@ -1263,6 +1273,7 @@
         boardBox = desk.cards.board.body.firstElementChild;
         coordinatesLayer = el('div', { class: 'ui-grid-coordinates', 'aria-hidden': 'true' });
         boardBox.append(coordinatesLayer);
+        boardBox.parentElement.addEventListener('scroll', stickCoordinates);
         openLayout();
         fitPending = Object.keys(saved).length === 0;
         layout(desk);

@@ -263,3 +263,91 @@ describe('board coordinates on a grid that is not square', () => {
     await context.close()
   })
 })
+
+// Runs in the page: the Board card's visible area (its padding box, viewport px), and how far its body scrolls. Measured here from the
+// DOM, apart from the desk's own reading of the same box, so the check does not agree with the code by construction.
+function bodyViewInPage () {
+  const body = document.querySelector('section[aria-label="Board"] .ui-body')
+  const r = body.getBoundingClientRect()
+  const left = r.left + body.clientLeft
+  const top = r.top + body.clientTop
+  return { left, top, right: left + body.clientWidth, bottom: top + body.clientHeight, scrollsX: body.scrollWidth - body.clientWidth, scrollsY: body.scrollHeight - body.clientHeight }
+}
+
+// The width of the gutter the labels sit in, at text scale 1 (desk.css `--ui-coordinates-gutter`). A label whose centre is nearer the card's edge
+// than this lies under the other axis's labels, or is clipped by the card, so only the labels beyond it are checked against the card.
+const GUTTER_PX = 24
+
+// Zooms in (at most 8 steps) and checks the board then scrolls both ways.
+async function zoomIn (page) {
+  const button = page.getByRole('button', { name: 'Zoom in' })
+  for (let i = 0; i < 8 && await button.isEnabled(); i++) await button.click()
+  const view = await page.evaluate(bodyViewInPage)
+  assert.ok(view.scrollsX > 100 && view.scrollsY > 100, `the zoomed board scrolls both ways (${view.scrollsX} x ${view.scrollsY})`)
+}
+
+// Runs in the page: how far the labels are slid to keep to the card's edges (desk.css reads these two variables).
+const stickOffsetsInPage = () => {
+  const style = document.querySelector('.ui-grid-coordinates').style
+  return { x: style.getPropertyValue('--ui-stick-x'), y: style.getPropertyValue('--ui-stick-y') }
+}
+
+// Scrolls the Board card's body a third of the way along each axis and returns the slide the labels had when the scroll event ended. The
+// handler is added after the desk's own, so it runs second, before the next frame can redraw the labels (they are redrawn every frame
+// while the coordinates are on), which would hide a missing scroll listener.
+const scrollThird = (page) => page.evaluate((read) => new Promise((resolve) => {
+  const body = document.querySelector('section[aria-label="Board"] .ui-body')
+  body.addEventListener('scroll', () => resolve(new Function(`return (${read})()`)()), { once: true })
+  body.scrollLeft = (body.scrollWidth - body.clientWidth) / 3
+  body.scrollTop = (body.scrollHeight - body.clientHeight) / 3
+}), stickOffsetsInPage.toString())
+
+// Each label's centre along its own axis, from the canvas's top left.
+async function alongBoard (page) {
+  const { canvas } = await readCells(page)
+  const labels = await page.evaluate(labelsInPage)
+  return labels.map((l) => (l.axis === 'column' ? l.cx - canvas.left : l.cy - canvas.top))
+}
+
+// After a scroll, the labels still follow their cells along the board (`before` is each label's offset from the canvas, read unscrolled), and
+// every label beyond the gutter is inside the card's visible area, a column's at the card's top edge and a row's at its left edge.
+async function assertSticky (page, before) {
+  const view = await page.evaluate(bodyViewInPage)
+  const labels = await page.evaluate(labelsInPage)
+  const along = await alongBoard(page)
+  assert.equal(labels.length, before.length, 'the same labels are drawn')
+  let shown = 0
+  labels.forEach((l, i) => {
+    assert.ok(Math.abs(along[i] - before[i]) <= SLACK_PX, `${l.axis} ${l.text} keeps its place along the board: ${along[i]} vs ${before[i]}`)
+    const isColumn = l.axis === 'column'
+    const inView = isColumn ? l.cx >= view.left + GUTTER_PX && l.cx <= view.right : l.cy >= view.top + GUTTER_PX && l.cy <= view.bottom
+    if (!inView) return
+    shown++
+    assert.ok(l.left >= view.left - SLACK_PX && l.right <= view.right + SLACK_PX && l.top >= view.top - SLACK_PX && l.bottom <= view.bottom + SLACK_PX, `${l.axis} ${l.text} is inside the card's visible area`)
+    if (isColumn) assert.ok(l.top <= view.top + GUTTER_PX + SLACK_PX, `column ${l.text} sits at the card's top edge: ${l.top} vs ${view.top}`)
+    else assert.ok(l.left <= view.left + GUTTER_PX + SLACK_PX, `row ${l.text} sits at the card's left edge: ${l.left} vs ${view.left}`)
+  })
+  assert.ok(shown >= 2, 'some labels are in view')
+}
+
+describe('board coordinates when the board is zoomed past its card and scrolled', () => {
+  for (const { name, options, columns, rows } of [
+    { name: 'a 9x9 square grid', options: { columns: 9, rows: 9 }, columns: 9, rows: 9 },
+    { name: 'a hexagon grid', options: { columns: 6, rows: 6, gridtype: 'hex' }, columns: 8, rows: 7 }
+  ]) {
+    it(`stay in view at the card's top and left edges on ${name}`, async () => {
+      const { context, page } = await openSolvePage(browser(), await boardLink(options), { served: true })
+      await turnOn(page)
+      await zoomIn(page)
+      // Unscrolled, nothing slides: the labels sit where they do at Fit.
+      assert.deepEqual(await page.evaluate(stickOffsetsInPage), { x: '0px', y: '0px' }, 'no slide before the board scrolls')
+      if (!options.gridtype) await assertAligned(page, columns, rows)
+      const home = await alongBoard(page)
+      assert.equal(home.length, columns + rows)
+      const slid = await scrollThird(page)
+      assert.ok(parseFloat(slid.x) > 0 && parseFloat(slid.y) > 0, `the scroll itself slides the labels (${slid.x}, ${slid.y})`)
+      await assertSticky(page, home)
+      await context.close()
+    })
+  }
+})

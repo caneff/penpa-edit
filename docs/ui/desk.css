@@ -127,6 +127,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(24px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
 .ui-grid-coordinates { position: absolute; inset: 0; pointer-events: none; }
 .ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(12px * var(--ui-text-scale, 1)); line-height: 1; color: #6b7280; font-variant-numeric: tabular-nums; user-select: none; }
+.ui-grid-coordinate[data-axis="column"] { transform: translate(-50%, calc(-50% + var(--ui-stick-y, 0px))); }
+.ui-grid-coordinate[data-axis="row"] { transform: translate(calc(-50% + var(--ui-stick-x, 0px)), -50%); }
 .ui-grid-band { opacity: .75; }
 .ui-dark .ui-grid-coordinate { color: #9aa0ac; }
 .ui-card-rules .ui-body { --ui-rules-text: 14px; max-height: 520px; font-size: calc(var(--ui-rules-text) * var(--ui-text-scale, 1)); color: #3b3e45; white-space: pre-wrap; tab-size: 2; overflow-wrap: anywhere; }
