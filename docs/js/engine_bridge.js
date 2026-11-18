@@ -13,7 +13,7 @@
     // The translucent grey a selected cell is filled with on this page: it darkens the white board a little and has no hue, so it
     // never reads like the conflict pink (#242). Penpa+ paints the board white in both themes.
     // MVP gap: draw_selection fills with `Puzzle.prototype.selection_fill` when it is set (a caneff: line in class_p.js).
-    Puzzle.prototype.selection_fill = 'rgba(110, 110, 110, 0.12)';
+    Puzzle.prototype.selection_fill = 'rgba(110, 110, 110, 0.05)';
 
     // Penpa+'s square-cell grids keep this many unused cells (`pu.point` ids) round the board on each side.
     const PENPA_MARGIN_CELLS = 2;
