@@ -229,7 +229,8 @@ describe('the style mark beside the tool name', () => {
     assert.equal(await settle(() => pressed.getAttribute('aria-label'), style.name), style.name)
   }
   // Where the style shows beside the tool's name: the Board title chip and the Mouse headline.
-  const places = (page) => [boardLabel(page), region(page, 'Mouse').getByRole('heading', { level: 3 })]
+  const mouseHeading = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 })
+  const places = (page) => [boardLabel(page), mouseHeading(page)]
   const markOf = (place) => place.evaluate((node) => ({
     mark: node.querySelector('.ui-mark svg')?.innerHTML ?? null,
     dots: node.querySelectorAll('.ui-dot').length,
@@ -238,15 +239,15 @@ describe('the style mark beside the tool name', () => {
   }))
   const selectedSample = (page) => region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true] svg').innerHTML()
 
-  for (const [title, mode, submode, name] of [['a dotted line style', 'line', '1', 'dotted'], ['a number text style', 'number', '1', undefined]]) {
-    it(`shows ${title} as the Mode card's own sample, scaled to the label's text, with no dot, and a tooltip of the name alone`, async () => {
+  for (const [title, mode, submode, name, boardInk] of [['a dotted line style', 'line', '1', 'dotted', null], ['a number text style', 'number', '1', 'outline', ['stroke="#000000"', 'stroke="currentColor"']]]) {
+    it(`shows ${title} as the Mode card's sample (a dark text ink in the label's colour on the Board chip), scaled to the label's text, with no dot, and a tooltip of the name alone`, async () => {
       const { page } = opened
       const style = await plainStyle(page, mode, submode, name)
       assert.ok(style, `${mode} > ${submode} has the style`)
       await chooseStyle(page, { mode, submode }, style)
       const want = await selectedSample(page)
-      for (const place of places(page)) {
-        assert.equal(await settle(async () => (await markOf(place)).mark, want), want)
+      for (const [place, expected] of [[boardLabel(page), boardInk ? want.replace(...boardInk) : want], [mouseHeading(page), want]]) {
+        assert.equal(await settle(async () => (await markOf(place)).mark, expected), expected)
         const { dots, drawn, text } = await markOf(place)
         assert.equal(dots, 0, 'no colour dot')
         assert.ok(Math.abs(drawn - text * MARK_EM) < 0.5, `the mark is ${drawn}px tall beside ${text}px text, not ${MARK_EM}em`)
@@ -254,6 +255,30 @@ describe('the style mark beside the tool name', () => {
       assert.equal(await boardLabel(page).getAttribute('title'), await labelOf(page, { mode, submode }))
     })
   }
+
+  // WCAG's contrast ratio of two `rgb(r, g, b)` colours.
+  const contrast = (a, b) => {
+    const lum = (rgb) => rgb.match(/\d+/g).slice(0, 3).map(Number).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  const MIN_INK_CONTRAST = 3
+
+  it('inks every disc-less text sample clearly against the Board chip\'s pill', async () => {
+    const { page } = opened
+    const names = await page.evaluate(() => engine.listTools().find((t) => t.mode === 'number' && t.submode === '1').styles.filter((s) => s.sample && !s.sample.disc).map((s) => s.name))
+    assert.ok(names.length > 0, 'Number has a text sample with no disc')
+    for (const name of names) {
+      await chooseStyle(page, { mode: 'number', submode: '1' }, await plainStyle(page, 'number', '1', name))
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+      const { pill, ink } = await boardLabel(page).evaluate((label) => {
+        const glyph = getComputedStyle(label.querySelector('.ui-mark svg text'))
+        // A clear fill leaves the stroke as the glyph's ink.
+        return { pill: getComputedStyle(label).backgroundColor, ink: /, 0\)$/.test(glyph.fill) ? glyph.stroke : glyph.fill }
+      })
+      assert.ok(contrast(ink, pill) >= MIN_INK_CONTRAST, `${name}: ink ${ink} on pill ${pill} is ${contrast(ink, pill).toFixed(2)}:1`)
+    }
+  })
 
   it('keeps a colour style\'s dot and shows no mark with it; a tool with no style shows neither', async () => {
     const { page } = opened

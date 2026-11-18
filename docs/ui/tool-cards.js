@@ -32,8 +32,21 @@
 
     const dot = (colour) => el('i', { class: 'ui-dot', style: `background:${colour}` });
 
+    // A text sample with no disc inked dark would vanish on the Board chip's coloured pill: it takes the label's colour there. A disc
+    // sample is its own background, so it stays.
+    function readableOnPill(sample) {
+        if (!sample || sample.disc) {
+            return sample;
+        }
+        const { fill } = sample.text;
+        // Penpa+'s outline style has a clear fill, so its ink is its stroke.
+        const inkKey = /^rgba\(.*, 0\)$/.test(fill) ? 'stroke' : 'fill';
+        return inkOn(sample.text[inkKey]) === '#ffffff' ? { ...sample, text: { ...sample.text, [inkKey]: 'currentColor' } } : sample;
+    }
+
     // A dot in the style's colour, else the Mode card's own sample of it (desk.css sizes it to a line of text); null when `style` is not one of the tool's.
-    function styleMark(tool, style) {
+    // `onPill` is the Board chip, whose pill is coloured.
+    function styleMark(tool, style, onPill = false) {
         const entry = styleOf(tool, style);
         if (!entry) {
             return null;
@@ -42,7 +55,7 @@
             return dot(entry.swatch);
         }
         const mark = el('i', { class: 'ui-mark' });
-        mark.innerHTML = styleSample(entry.name, null, entry.sample, null);
+        mark.innerHTML = styleSample(entry.name, null, onPill ? readableOnPill(entry.sample) : entry.sample, null);
         return mark;
     }
 
@@ -392,7 +405,7 @@
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held, secondColour);
             // Drawn like the current pin's chip, whose colour pins.js gives the card; the mark is the selected style's, as on the Mouse card.
-            const mark = styleMark(tool, current.style);
+            const mark = styleMark(tool, current.style, true);
             titleBarName.replaceChildren(...(mark ? [mark] : []), chipLabel(tool));
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
             // Not the element's text: a Number style's sample draws a digit.
