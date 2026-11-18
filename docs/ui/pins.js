@@ -306,15 +306,15 @@
         const modePin = pinToggle(() => engine.getTool());
         cards.mode.body.querySelector('.ui-picker-row').append(modePin.node);
 
-        // Each tool row of the picker's tree has a pin toggle at its right end, pinning the row's tool with no style.
-        const rowPins = [...cards.mode.body.querySelectorAll('.ui-trow[data-mode] .ui-tpin')].map((slot) => {
+        const { PIN_KEY, PIN_SLOT } = window.modeTree;
+        const rowPins = [...cards.mode.body.querySelectorAll(`.ui-trow[data-mode] .${PIN_SLOT}`)].map((slot) => {
             const { mode, submode } = slot.parentElement.dataset;
             const toggle = pinToggle(() => ({ mode, submode: submode || null }));
             toggle.node.setAttribute('tabindex', '-1');
             slot.append(toggle.node);
             return toggle;
         });
-        window.uiKeys.describe('Tools', [{ keys: 'P', text: 'With a tool focused in the Mode picker, pin or unpin it' }]);
+        window.uiKeys.describe('Tools', [{ keys: PIN_KEY.toUpperCase(), text: 'With a tool focused in the Mode picker, pin or unpin it' }]);
 
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 

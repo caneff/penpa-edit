@@ -1,6 +1,6 @@
 // The Mode card's tool tree: groups, modes and sub-modes (Symbols and marks one level deeper), each branch opening and closing on
-// its own, with the ARIA tree keys and `P` for a tool row's pin toggle, which pins.js puts in the row's `.ui-tpin`. The rows are built once and only shown, hidden and marked afterwards, so a rebuild never
-// lands between a mouse press and its release. Knows no `engine`.
+// its own, with the ARIA tree keys and `P` for the pin toggle a tool row holds in its `.ui-tpin` slot. The rows are built once and
+// only shown, hidden and marked afterwards, so a rebuild never lands between a mouse press and its release. Knows no `engine`.
 (function () {
     'use strict';
 
@@ -189,6 +189,8 @@
             }
         }
 
+        const pinButtonOf = (node) => node.row.querySelector(`.${PIN_SLOT} button`);
+
         function onKey(e) {
             const node = all.find((n) => n.row === e.target);
             if (!node) {
@@ -221,9 +223,11 @@
                 }
             } else if (e.key === 'Enter' || e.key === ' ') {
                 node.row.click();
-            } else if (node.tool && e.key.toLowerCase() === PIN_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                // Stopped here so the picker does not take the letter as a search.
-                node.row.querySelector('.ui-pin-toggle')?.click();
+            } else if (pinButtonOf(node) && e.key.toLowerCase() === PIN_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                // A held key repeats: only the press pins. Stopped here so the picker does not take the letter as a search.
+                if (!e.repeat) {
+                    pinButtonOf(node).click();
+                }
                 e.stopPropagation();
             } else {
                 return;
@@ -287,5 +291,5 @@
         };
     }
 
-    window.modeTree = { createModeTree, TREE_ID };
+    window.modeTree = { createModeTree, TREE_ID, PIN_KEY, PIN_SLOT };
 })();

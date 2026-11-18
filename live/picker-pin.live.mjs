@@ -86,4 +86,36 @@ describe('the picker pin toggles', () => {
     await waitForTool(page(), { mode: 'wall', submode: null })
     assert.deepEqual(await pinned(), ['Line > Normal', 'Surface'], 'picking pins nothing')
   })
+
+  const pinSnapshot = () => page().evaluate(() => window.pinBoard.snapshot())
+
+  it('pins with no style, though the current tool has one', async () => {
+    await setTool(page(), { mode: 'line', submode: '2', style: 8 })
+    await waitForTool(page(), { mode: 'line', submode: '2' })
+    await settle(async () => (await currentTool(page())).style, 8)
+    await search().click()
+    await toggleOf(WALL).click()
+    const wall = (await pinSnapshot()).find((pin) => pin.mode === 'wall')
+    assert.equal(wall.style, null)
+    await toggleOf(WALL).click()
+    assert.deepEqual(await settle(pinned, ['Line > Normal', 'Surface']), ['Line > Normal', 'Surface'])
+  })
+
+  it('pins once on a held P, not on each key repeat', async () => {
+    await row(WALL).focus()
+    await page().keyboard.down('p')
+    await page().keyboard.down('p')
+    await page().keyboard.down('p')
+    await page().keyboard.up('p')
+    assert.deepEqual(await settle(pinned, ['Line > Normal', 'Surface', 'Wall']), ['Line > Normal', 'Surface', 'Wall'])
+    await toggleOf(WALL).click()
+  })
+
+  it('leaves the pins alone on Ctrl+P', async () => {
+    await row(WALL).focus()
+    await page().keyboard.press('Control+p')
+    // Nothing is meant to happen: the pins are read once the key has been handled, by a later frame.
+    await page().evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
+    assert.deepEqual(await pinned(), ['Line > Normal', 'Surface'])
+  })
 })
