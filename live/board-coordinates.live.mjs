@@ -181,6 +181,22 @@ describe('board coordinates on a square-cell grid', () => {
     await context.close()
   })
 
+  it('draw at 15 px, and no label overlaps the cells on the board\'s edge', async () => {
+    const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
+    await turnOn(page)
+    const sizes = await page.evaluate(() => [...document.querySelectorAll('.ui-grid-coordinate')].map((n) => getComputedStyle(n).fontSize))
+    assert.deepEqual(sizes, Array(18).fill('15px'), 'every label is 15 px at text scale 1')
+    const { cells } = await readCells(page)
+    const edge = Object.values(cells)
+    const top = Math.min(...edge.map((c) => c.top))
+    const left = Math.min(...edge.map((c) => c.left))
+    for (const l of await page.evaluate(labelsInPage)) {
+      if (l.axis === 'column') assert.ok(l.bottom <= top + SLACK_PX, `column ${l.text} ends at ${l.bottom}, above the top row of cells at ${top}`)
+      else assert.ok(l.right <= left + SLACK_PX, `row ${l.text} ends at ${l.right}, left of the first column of cells at ${left}`)
+    }
+    await context.close()
+  })
+
   it('number a rectangular grid by its own rows and columns', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 6, rows: 8 }), { served: true })
     await turnOn(page)
@@ -276,7 +292,7 @@ function bodyViewInPage () {
 
 // The width of the gutter the labels sit in, at text scale 1 (desk.css `--ui-coordinates-gutter`). A label whose centre is nearer the card's edge
 // than this lies under the other axis's labels, or is clipped by the card, so only the labels beyond it are checked against the card.
-const GUTTER_PX = 24
+const GUTTER_PX = 30
 
 // Zooms in (at most 8 steps) and checks the board then scrolls both ways.
 async function zoomIn (page) {
