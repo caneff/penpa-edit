@@ -91,7 +91,7 @@
             }
         }
 
-        // A change to the board (a digit, a tool) or to its size (a puzzle that grew a column) is looked at once the frame is drawn.
+        // A change to the board (a digit, a tool, a puzzle that grew a column) is looked at once the frame is drawn.
         const queueRefit = () => {
             if (boxes === null || isFrameQueued) {
                 return;
@@ -103,7 +103,6 @@
             });
         };
         engine.on('change', queueRefit);
-        new ResizeObserver(queueRefit).observe(boardFrame);
 
         window.addEventListener('message', (event) => {
             // Only this page's own scripts, such as the userscript, are listened to.

@@ -800,7 +800,7 @@
     // solver never touched moves down from under the card above it (#199). Never while the solver drags, which would undo
     // the drag's resize.
     function restackRight(desk, cards) {
-        if (isDragging || isStreaming()) {
+        if (isDragging) {
             return;
         }
         if (refitRightColumn(desk, cards)) {
@@ -888,7 +888,7 @@
             .map((id) => [id, heightsSeen.get(id)]);
         heightsSeen.clear();
         shownIds(cards).forEach((id) => heightsSeen.set(id, cards[id].node.offsetHeight));
-        if (isDragging || isStreaming()) {
+        if (isDragging) {
             return;
         }
         grown.forEach(([id, height]) => {
