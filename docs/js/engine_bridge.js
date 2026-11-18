@@ -600,7 +600,16 @@
         return document.querySelector('.swal2-container') !== null ||
             [...document.querySelectorAll('.modal')].some((m) => m.style.display && m.style.display !== 'none');
     }
-    new MutationObserver(queueChange).observe(document.documentElement, {
+    // The watcher ignores the solve UI's root, since the UI redraws there on `change` and would wake the next one every frame
+    // (#322). The board `mount` moves in there goes unwatched with it: what the board shows changes through the hooked
+    // Puzzle methods above.
+    const UI_ROOT = '.ui-root';
+    const isPenpaPageChange = (record) => !(record.target instanceof Element && record.target.closest(UI_ROOT) !== null);
+    new MutationObserver((records) => {
+        if (records.some(isPenpaPageChange)) {
+            queueChange();
+        }
+    }).observe(document.documentElement, {
         childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']
     });
 

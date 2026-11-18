@@ -3,7 +3,7 @@
 // style, and the board's frame tells the pins apart. The UI is found by role and accessible name, the board by what Penpa+
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
-import { before, after, describe, it } from 'node:test'
+import { before, after, beforeEach, afterEach, describe, it } from 'node:test'
 import { afterChange, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
@@ -302,6 +302,18 @@ describe('the board frame', () => {
   })
 })
 
+// Fails unless the engine reports fewer than 5 changes in one second with nobody touching the page: a redraw that wakes the
+// next change loops every frame (#322).
+async function assertQuiet(page) {
+  await afterChange(page)
+  const changes = await page.evaluate(() => new Promise((resolve) => {
+    let count = 0
+    engine.on('change', () => { count += 1 })
+    setTimeout(() => resolve(count), 1000)
+  }))
+  assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+}
+
 describe('the pin toggles', () => {
   let opened
   before(async () => {
@@ -320,14 +332,7 @@ describe('the pin toggles', () => {
   })
 
   it('leaves the engine quiet while nobody touches the page', async () => {
-    const { page } = opened
-    await afterChange(page)
-    const changes = await page.evaluate(() => new Promise((resolve) => {
-      let count = 0
-      engine.on('change', () => { count += 1 })
-      setTimeout(() => resolve(count), 1000)
-    }))
-    assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+    await assertQuiet(opened.page)
   })
 
   it('shows the Mode card\'s pin pressed exactly when the current tool is pinned, and toggles it', async () => {
@@ -369,5 +374,38 @@ describe('the pin toggles', () => {
     await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: 'Unpin Wall' }).click()
     assert.deepEqual(await settle(() => chipNames(page), ['Line > Normal', 'Sudoku > Corner']), ['Line > Normal', 'Sudoku > Corner'])
     assert.equal((await currentTool(page)).mode, 'surface')
+  })
+})
+
+// The solve UI's own redraws on `change` (the coordinates' labels, the trial's depth) are no page change for the engine, and
+// Penpa+'s popups still are (#322).
+describe('the engine while the solve UI redraws itself', () => {
+  let opened
+  beforeEach(async () => { opened = await openSolve(['Line Normal', 'Sudoku Corner']) })
+  afterEach(async () => { await opened?.context.close() })
+
+  it('stays quiet with board coordinates on', async () => {
+    const { page } = opened
+    await page.evaluate(async () => (await window.deskReady).setCoordinatesWanted(true))
+    assert.ok(await page.locator('.ui-grid-coordinate').count() > 0, 'the coordinates are drawn')
+    await assertQuiet(page)
+  })
+
+  it('stays quiet with a trial open', async () => {
+    const { page } = opened
+    await page.getByRole('button', { name: 'Try' }).click()
+    await page.getByText('Trial 1').waitFor()
+    await assertQuiet(page)
+  })
+
+  it('still wakes when one of Penpa+\'s popups opens', async () => {
+    const { page } = opened
+    await assertQuiet(page)
+    const woke = await page.evaluate(() => new Promise((resolve) => {
+      engine.on('change', () => resolve(engine.getState().penpaDialogOpen))
+      setTimeout(() => resolve('no change'), 1000)
+      document.querySelector('.modal').style.display = 'block'
+    }))
+    assert.equal(woke, true, 'a change comes with the popup open')
   })
 })
