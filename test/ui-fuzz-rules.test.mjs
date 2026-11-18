@@ -206,9 +206,9 @@ describe('the UI fuzz rules', () => {
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards }, { action: action('reload') }),
         ['the reload moved Pinned from 1005,72 380x96 to 1005,300 380x96'])
     })
-    it('holds when a reload empties Recent and its card gets shorter, but fails when it moves', () => {
+    it('holds when a reload empties Recent and its card gets shorter with its bottom where it was, but fails when it moves', () => {
       const before = { cards: [card('Recent', 1005, 326, 380, 136)], recent: [pin(null, 'Line > Normal')] }
-      assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 326, 380, 98)] }, { action: action('reload'), before }), [])
+      assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 364, 380, 98)] }, { action: action('reload'), before }), [])
       assert.deepEqual(check('reload-keeps-layout-and-pins', { cards: [card('Recent', 1005, 300, 380, 98)] }, { action: action('reload'), before }),
         ['the reload moved Recent from 1005,326 380x136 to 1005,300 380x98'])
     })

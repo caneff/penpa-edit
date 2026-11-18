@@ -39,7 +39,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   resized. The places the solver gives cards hold for every puzzle; the cards' sizes hold only for the puzzle they were set on.
 - **Automatic size**: a card's width or height while the solver has not dragged that edge: the size a fresh load would
   give it. Mode and Mouse are as tall as the tallest of the pinned tools and the current tool; in a column the solver
-  has not changed, Rules and Recent take the rest of it, down to the desk's bottom. A double-click on a dragged edge's
+  has not changed, Rules takes the rest of it, and Recent is as tall as its chips (#306), both ending on the desk's bottom. A double-click on a dragged edge's
   handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
   does it for every card.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.

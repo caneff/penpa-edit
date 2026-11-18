@@ -210,6 +210,8 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* The Pinned card: one-line chips, each tinted with its pin's colour and barred with it on the left edge; the current one is filled with it. */
 .ui-pins, .ui-recent { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
 .ui-card-pins .ui-body { padding: 6px 10px; }
+/* Recent is as tall as its chips, so its body has no minimum of its own (#306). */
+.ui-card-recent .ui-body { min-height: 0; }
 .ui-chip { display: flex; align-items: center; font-size: calc(12px * var(--ui-text-scale, 1)); border: 1px solid #cfcabd; border-left: 5px solid var(--ui-pin-colour, #cfcabd); border-radius: 6px; background: #fff; white-space: nowrap; }
 .ui-chip.is-current { background: var(--ui-pin-colour); border-color: var(--ui-pin-colour); color: #fff; }
 .ui-chip button { font: inherit; color: inherit; background: transparent; border: 0; cursor: pointer; }

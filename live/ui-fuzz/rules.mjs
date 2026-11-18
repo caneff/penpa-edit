@@ -169,7 +169,7 @@ export const RULES = [
     check: ({ now, before, action }) => {
       if (action?.kind !== 'reload') return []
       // A card whose content lasts the visit only may change height on a reload, and each card stacked under it in its
-      // column must move by exactly as much: Recent's chips go, and so does Pinned's undo line (`presetUndo`). A reload can
+      // column must move by exactly as much: Recent's chips go (its bottom stays where it was), and so does Pinned's undo line (`presetUndo`). A reload can
       // also bring back another tool than the one in use (#263: it is kept only when Penpa+'s unawaited save on unload wins),
       // and the Mode card's height follows the tool (#252). The tool is #263's to check, not this rule's: when it changed,
       // Mode may change height too.
@@ -186,7 +186,8 @@ export const RULES = [
         if (!is || is.shown !== was.shown) return [`the reload ${was.shown ? 'closed' : 'opened'} ${was.name}`]
         const expected = {
           ...was.rect,
-          y: was.rect.y + above(was.rect).reduce((sum, c) => sum + grew(c.name), 0),
+          // Recent's bottom stays on the desk's bottom, so a Recent that gets shorter ends lower (#306).
+          y: was.rect.y + above(was.rect).reduce((sum, c) => sum + grew(c.name), 0) - (was.name === RECENT_CARD ? grew(was.name) : 0),
           height: was.rect.height + grew(was.name)
         }
         // A card whose rectangle is as it was never moved, whatever the column above it did.
