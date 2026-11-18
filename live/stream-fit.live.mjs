@@ -298,16 +298,17 @@ describe('while the stream fit is on', () => {
   it('answers again when the board draws outside its grid, with the ink that is then drawn', async () => {
     const { context, page } = await openSudoku()
     try {
-      // The tool and the cursor are set first: a tool change has the desk lay itself out again, which would also find the ink.
+      // The tool is set first: a tool change has the desk lay itself out again, which would also find the ink.
+      await page.evaluate(() => engine.setTool({ mode: 'number', submode: '1' }))
+      const first = await request(page)
+      const before = (await replies(page)).length
+      // A digit in the blank margin column beside the grid, whose cell the board then draws selected, widens the ink without
+      // resizing the canvas.
       await page.evaluate(() => {
-        engine.setTool({ mode: 'number', submode: '1' })
         const margin = pu.nx0 * 6 + 1
         pu.selection = [margin]
         pu.cursol = margin
       })
-      const first = await request(page)
-      const before = (await replies(page)).length
-      // A digit in the blank margin column beside the grid widens the ink without resizing the canvas.
       await page.keyboard.press('5')
       const rect = await latestReply(page, before)
       assert.notDeepEqual(rect, first, 'the ink is not where it was')
