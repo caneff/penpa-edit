@@ -355,6 +355,20 @@ export async function waitForTool (page, want, message = 'the tool settles') {
 // Two animation frames: the bridge's `change` fires in the first, and the UI has drawn it by the second.
 export const afterChange = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 
+// Fails unless the engine reports fewer than 5 changes in one second with nobody touching the page (a "nothing happened in
+// N ms" check): a redraw that wakes the next change loops every frame, about 60 a second (#322). The bound is not zero
+// because Penpa+'s own clock (`h1#timer`, outside the UI) rewrites its text once a second, which the watcher sees as a
+// change, so an idle second holds one or two.
+export async function assertQuiet (page) {
+  await afterChange(page)
+  const changes = await page.evaluate(() => new Promise((resolve) => {
+    let count = 0
+    engine.on('change', () => { count += 1 })
+    setTimeout(() => resolve(count), 1000)
+  }))
+  assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+}
+
 // What the solver has entered, the selection and the mode, read as Penpa+ would save them (`readEngineState`, defined by
 // recorder.js): what a key could change on the board.
 export const board = (page) => page.evaluate(() => {
