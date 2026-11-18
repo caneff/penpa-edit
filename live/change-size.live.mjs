@@ -5,8 +5,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  boardAgainstCard, DIGIT_CELL, linkFromNewBoard, makeNumberSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
+  ANSWER_CELL, boardAgainstCard, chipName, DIGIT_CELL, setTool, typedDigits, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
 } from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -338,6 +339,80 @@ describe('the Change size dialog', () => {
         assert.equal(await button.getAttribute('data-refused'), '')
         assert.match(await button.textContent(), /: Only a grid of square cells can change size\.$/)
       }
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+// ---- What is kept per puzzle survives a resize (#292) -------------------------------------------------------------
+
+describe('a resize keeps what the solver set on the puzzle', () => {
+  const RULES = 'Put a digit from 1 to 9 in every cell.'
+  const rules = (page) => page.getByRole('region', { name: 'Rules' })
+  const rulesSize = async (page) => {
+    const { width, height } = await rules(page).boundingBox()
+    return { width: Math.round(width), height: Math.round(height) }
+  }
+  const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
+
+  // Unpins the first pin, turns conflict detection off for this puzzle and widens the Rules card, as a solver would.
+  async function setThings (page) {
+    await page.getByRole('button', { name: 'Unpin Line > Normal' }).click()
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+    await page.locator('wa-dialog[open]').getByRole('combobox', { name: 'Conflict detection' }).click()
+    await page.getByRole('option', { name: 'Off for this puzzle' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+    const handle = await rules(page).getByTestId('resize-bottom-right').boundingBox()
+    const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 40, from.y + 30, { steps: 5 })
+    await page.mouse.up()
+  }
+
+  for (const resizes of [1, 2]) {
+    it(`keeps the pins, the conflicts-off setting and the Rules card's size after ${resizes} resize(s) and a reload`, async () => {
+      const link = await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Corner'], RULES)
+      const { context, page } = await openSolvePage(browser(), link, { served: true })
+      try {
+        await setThings(page)
+        const size = await rulesSize(page)
+        const idBefore = await page.evaluate(() => engine.getPuzzleId())
+        await page.evaluate(() => engine.changeSize('top', 1))
+        if (resizes === 2) await page.evaluate(() => engine.changeSize('left', 1))
+        assert.notEqual(await page.evaluate(() => engine.getPuzzleId()), idBefore, 'the resize moved the puzzle id')
+        assert.equal(await page.evaluate(() => engine.saveProgress()), true)
+        await page.reload()
+        await waitForDesk(page)
+        assert.deepEqual(await settle(() => pinned(page), ['Sudoku > Corner']), ['Sudoku > Corner'], 'the pin stays removed')
+        assert.equal(await page.evaluate(() => engine.getSettings().conflict_detection), 2, 'conflicts stay off')
+        assert.notEqual(await page.evaluate(() => engine.getPuzzleId()), idBefore, 'the reload kept the resized board')
+        assert.deepEqual(await settle(() => rulesSize(page), size), size, 'the Rules card keeps its width and height')
+      } finally {
+        await context.close()
+      }
+    })
+  }
+
+  it('keeps a solved puzzle\'s clock stopped when it was undone, resized and reloaded', async () => {
+    const { context, page } = await openNumberBoard({ served: true })
+    try {
+      await setTool(page, { mode: 'number', submode: '1' })
+      await page.waitForFunction(() => engine.getTimer().seconds >= 1)
+      await clickCell(page, ANSWER_CELL)
+      await page.keyboard.press('2')
+      await settle(() => page.evaluate(() => engine.getTimer().paused), true)
+      await page.getByRole('button', { name: 'Close', exact: true }).first().click()
+      await page.getByRole('button', { name: 'Undo', exact: true }).click()
+      assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the undo took the answer out')
+      await page.evaluate(() => engine.changeSize('top', 1))
+      assert.equal(await page.evaluate(() => engine.saveProgress()), true)
+      await page.reload()
+      await waitForDesk(page)
+      assert.equal((await page.evaluate(() => engine.getTimer())).paused, true, 'the clock is still stopped')
     } finally {
       await context.close()
     }

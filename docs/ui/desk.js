@@ -6,6 +6,8 @@
 (function () {
     'use strict';
 
+    const { puzzleHash } = window;
+
     const CARD_GAP_PX = 10;
     const DESK_MARGIN_PX = 14;
     const COLUMN_WIDTH_PX = 380;
@@ -280,7 +282,7 @@
     // gap to the nearer edges when the desk changes size, so zooming the browser out and back in returns the same layout.
     // `fitted` marks an entry the fitted layout wrote. Otherwise `hw` and `hh` are 1 for the axes the solver resized and
     // `placed` 1 once the solver dragged the card by its header.
-    // `puzzle` beside the cards names the puzzle the sizes were set on (`engine.getPuzzleId()`).
+    // `puzzle` beside the cards names the puzzle the sizes were set on (`puzzleHash()`).
     function readLayout() {
         let saved;
         try {
@@ -310,7 +312,7 @@
     // gave cards, the sizes left to the fit.
     function openLayout() {
         const { layout, puzzle } = readLayout();
-        if (puzzle === engine.getPuzzleId()) {
+        if (puzzle === puzzleHash()) {
             saved = layout;
             return;
         }
@@ -320,7 +322,7 @@
     }
 
     function writeLayout() {
-        localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...saved, puzzle: engine.getPuzzleId() }));
+        localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...saved, puzzle: puzzleHash() }));
     }
 
     const isMoved = (id) => saved[id]?.x !== undefined;
