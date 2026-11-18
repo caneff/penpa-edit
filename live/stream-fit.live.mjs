@@ -174,7 +174,7 @@ describe('a stream fit request', () => {
       await toggleInCardsMenu(page, 'Recent')
       const opened = await settle(async () => Object.keys(await page.evaluate(cardBoxesInPage)).sort(), ['Board', 'Mode', 'Mouse'])
       assert.deepEqual(opened, ['Board', 'Mode', 'Mouse'], 'Mode is back and Recent stays off the desk while the stream fit is on')
-      const cards = await page.evaluate(cardBoxesInPage)
+      const cards = await steady(page, cardBoxesInPage)
       for (const title of ['Mode', 'Mouse']) {
         assert.ok(inside(cards[title], asEdges(SIDE_BOX)), `${title} ${JSON.stringify(cards[title])} is in the side box`)
       }

@@ -852,9 +852,13 @@
     // A right-column card that changes height after the layout (Pinned with another row of chips) lays the column out
     // again, while the solver has moved or resized none of its cards (#181). In a column the solver changed, a card the
     // solver never touched moves down from under the card above it (#199). Never while the solver drags, which would undo
-    // the drag's resize.
+    // the drag's resize. While a stream fit is on, the stream lays the cards out instead.
     function restackRight(desk, cards) {
         if (isDragging) {
+            return;
+        }
+        if (isStreaming()) {
+            streamRefit();
             return;
         }
         if (refitRightColumn(desk, cards)) {
