@@ -111,8 +111,8 @@ describe('conflict checks', () => {
     })
 
     it('keeps the size default while the lines are partly drawn', async () => {
-      // Horizontal lines every 3 rows cut the 9x9 into two bands of 27 cells: no box yet, so the 3x3 default applies.
-      const cells = await check({ size: 9, tag: 'classic', givens: [[0, 0, 1], [2, 2, 1]], bands: 3 })
+      // Horizontal lines every 2 rows cut the 9x9 into bands of 18 cells: no box yet, so the 3x3 default applies across them.
+      const cells = await check({ size: 9, tag: 'classic', givens: [[0, 0, 1], [2, 2, 1]], bands: 2 })
       assert.deepEqual(cells, [[0, 0], [2, 2]])
     })
 
