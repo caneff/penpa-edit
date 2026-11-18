@@ -630,7 +630,16 @@
         return document.querySelector('.swal2-container') !== null ||
             [...document.querySelectorAll('.modal')].some((m) => m.style.display && m.style.display !== 'none');
     }
-    new MutationObserver(queueChange).observe(document.documentElement, {
+    // The nodes `ignoreChangesIn` was given: the UI redraws there on `change`, which would wake the next one every frame
+    // (#322). The board `mount` moves into one goes unwatched with it: what the board shows changes through the hooked
+    // Puzzle methods above.
+    const uiNodes = new Set();
+    const isPenpaPageChange = (record) => ![...uiNodes].some((node) => node.contains(record.target));
+    new MutationObserver((records) => {
+        if (records.some(isPenpaPageChange)) {
+            queueChange();
+        }
+    }).observe(document.documentElement, {
         childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']
     });
 
@@ -1371,6 +1380,14 @@
             container.appendChild(document.getElementById('dvique'));
             fixPointerOffset(canvas);
             document.body.classList.add('engine-mounted');
+        },
+
+        // Marks `node` as the UI's: what changes in it no longer wakes the `change` event, so the UI can redraw there on `change`.
+        ignoreChangesIn(node) {
+            if (!(node instanceof Node)) {
+                throw new TypeError('engine.ignoreChangesIn: node must be a DOM node');
+            }
+            uiNodes.add(node);
         },
 
         // The cell sizes `setCellSize` takes, in pixels per cell: `min` to `max`.

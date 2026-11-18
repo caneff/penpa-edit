@@ -40,6 +40,7 @@
             el('div', { class: 'ui-size-grid' }, [sideGroup('top'), sideGroup('left'), size, sideGroup('right'), sideGroup('bottom')]),
             status
         ]);
+        engine.ignoreChangesIn(dialog);
         document.body.append(dialog);
 
         // Shows the board's size and which buttons are refused; the status line says `message`, or why no side can change.
