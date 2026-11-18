@@ -181,18 +181,15 @@ describe('board coordinates on a square-cell grid', () => {
     await context.close()
   })
 
-  it('draw at 15 px, and no label overlaps the cells on the board\'s edge', async () => {
+  it('draw at 15 px and keep clear of the board by the gutter, not by Penpa+\'s canvas margin', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
     await turnOn(page)
     const sizes = await page.evaluate(() => [...document.querySelectorAll('.ui-grid-coordinate')].map((n) => getComputedStyle(n).fontSize))
-    assert.deepEqual(sizes, Array(18).fill('15px'), 'every label is 15 px at text scale 1')
-    const { cells } = await readCells(page)
-    const edge = Object.values(cells)
-    const top = Math.min(...edge.map((c) => c.top))
-    const left = Math.min(...edge.map((c) => c.left))
+    assert.deepEqual(sizes, Array(18).fill(`${LABEL_PX}px`), 'every label is 15 px at text scale 1')
+    const { canvas } = await readCells(page)
     for (const l of await page.evaluate(labelsInPage)) {
-      if (l.axis === 'column') assert.ok(l.bottom <= top + SLACK_PX, `column ${l.text} ends at ${l.bottom}, above the top row of cells at ${top}`)
-      else assert.ok(l.right <= left + SLACK_PX, `row ${l.text} ends at ${l.right}, left of the first column of cells at ${left}`)
+      const clearance = l.axis === 'column' ? canvas.top - l.bottom : canvas.left - l.right
+      assert.ok(clearance >= MIN_CLEARANCE_PX, `${l.axis} ${l.text} is ${clearance} px from the canvas edge, wanted at least ${MIN_CLEARANCE_PX}`)
     }
     await context.close()
   })
@@ -293,6 +290,10 @@ function bodyViewInPage () {
 // The width of the gutter the labels sit in, at text scale 1 (desk.css `--ui-coordinates-gutter`). A label whose centre is nearer the card's edge
 // than this lies under the other axis's labels, or is clipped by the card, so only the labels beyond it are checked against the card.
 const GUTTER_PX = 30
+// The label's font size at text scale 1 (desk.css `.ui-grid-coordinate`), and the least gap its box leaves to the canvas: a 15 px label centred
+// in a 30 px gutter leaves 7.5 px above a column label's box, while a 24 px gutter would leave 4.5 px.
+const LABEL_PX = 15
+const MIN_CLEARANCE_PX = 7
 
 // Zooms in (at most 8 steps) and checks the board then scrolls both ways.
 async function zoomIn (page) {
