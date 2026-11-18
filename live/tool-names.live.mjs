@@ -1,4 +1,4 @@
-// One name per tool across the Mode card, the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
+// One name per tool across the Mode card (the picker rows add the plain name before the Penpa+ one), the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
 // (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
@@ -13,7 +13,7 @@ const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
 const pickerRow = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"]`)
 // The Penpa+ name a picker row shows: the part in parentheses, or the whole name when the row shows one name. It drops the "Mode > " the
-// row's branch shows, so `shownName` gives it back.
+// row's branch shows, which `pickerName` puts back when the tool's shared name has it.
 const pickerPenpa = async (page, tool) => {
   const row = pickerRow(page, tool)
   const penpa = await row.locator('.ui-tpenpa').allTextContents()
@@ -56,7 +56,7 @@ describe('one name per tool', () => {
 
   // Each share of the tools is its own test, so the loop over every tool stays inside the seam's per-test timeout (#284).
   for (let share = 0; share < BOARD_SHARES; share++) {
-    it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
+    it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker row Penpa+ name and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
       const { page } = opened
       const tools = shareOf(await listedTools(page), share, BOARD_SHARES)
       assert.ok(tools.length > 0, 'the share holds tools')
@@ -90,7 +90,7 @@ describe('one name per tool', () => {
     })
   }
 
-  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker leaf, with the plain name as the chip\'s hover text', async () => {
+  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker row parentheses, with the plain name as the chip\'s hover text', async () => {
     const { page } = opened
     const composites = await page.evaluate(() => engine.listTools().filter((t) => t.mode === 'combi')
       .map(({ submode }) => ({ submode, penpa: document.getElementById(`combisub_${submode}`).textContent.replace(/\s+/g, ' ').trim() })))
@@ -121,7 +121,7 @@ describe('one name per tool', () => {
     }
     assert.deepEqual(await rowOf({ mode: 'surface' }), { plain: 'Shade cells', penpa: ['(Surface)'], smaller: true })
     assert.deepEqual(await rowOf({ mode: 'combi', submode: 'blpo' }), { plain: 'Shade + dot', penpa: ['(Black / dot)'], smaller: true })
-    assert.deepEqual(await rowOf({ mode: 'line', submode: '1' }), { plain: 'Line', penpa: ['(Normal)'], smaller: true }, 'no "Line >" under the Line branch')
+    assert.deepEqual(await rowOf({ mode: 'line', submode: '1' }), { plain: 'Normal', penpa: [], smaller: null }, 'under the Line branch, the plain name "Line" and "Line >" both give way')
     assert.deepEqual(await rowOf({ mode: 'wall' }), { plain: 'Wall', penpa: [], smaller: null }, 'matching names show once')
     assert.equal(await pickerRow(page, { mode: 'surface' }).getAttribute('title'), 'Click paints the chosen colour, right the 2nd colour; drag paints many.')
   })
