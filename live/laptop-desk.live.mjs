@@ -62,7 +62,7 @@ function readDeskInPage (names) {
     desk: rect(document.querySelector('.ui-desk')),
     cards: Object.fromEntries(names.map((name) => [name, rect(section(name))])),
     heads: Object.fromEntries(names.map((name) => [name, rect(section(name).querySelector('.ui-head'))])),
-    rulesButtons: [...section('Rules').querySelectorAll('.ui-head wa-button')].map(rect),
+    rulesButtons: [...section('Rules').querySelectorAll('.ui-head .ui-rules-text wa-button')].map(rect),
     titleMargins: [...document.querySelectorAll('.ui-head h2')].map((h2) => getComputedStyle(h2).margin),
     headButtonsFit: [...document.querySelectorAll('.ui-head')].every((head) => [...head.querySelectorAll('wa-button, .ui-tool-name')].every((node) => {
       const outer = head.getBoundingClientRect()
@@ -208,6 +208,7 @@ describe('the top bar on a laptop screen', () => {
       Restart: 'Restart',
       Pause: 'Pause (F4)',
       'Penpa+': 'Open this puzzle in Penpa+',
+      Cards: 'Cards',
       Settings: 'Settings'
     }
     // Two trials on, so the trial buttons that show only during one are there to hover.

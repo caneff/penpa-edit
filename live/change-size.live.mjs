@@ -4,9 +4,7 @@
 // back. Read through where Penpa+ draws the cells and the given.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import {
-  ANSWER_CELL, boardAgainstCard, chipName, DIGIT_CELL, setTool, typedDigits, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
-} from './page.mjs'
+import { ANSWER_CELL, boardAgainstCard, cardBodyButtons, chipName, DIGIT_CELL, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, setTool, typedDigits, typeDigitInPage, useBrowser, waitForDesk } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -354,7 +352,7 @@ describe('a resize keeps what the solver set on the puzzle', () => {
     const { width, height } = await rules(page).boundingBox()
     return { width: Math.round(width), height: Math.round(height) }
   }
-  const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
+  const pinned = async (page) => (await cardBodyButtons(page, 'Pinned', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
 
   // Unpins the first pin, turns conflict detection off for this puzzle and widens the Rules card, as a solver would.
   async function setThings (page) {

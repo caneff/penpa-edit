@@ -4,7 +4,7 @@
 // name, the tool through `engine`; the keys are real key presses, and a lost window is the `blur` event Chromium fires on it.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, storedEntries, useBrowser, waitForTool } from './page.mjs'
+import { cardBodyButtons, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, storedEntries, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -227,7 +227,7 @@ describe('after a hold', () => {
     await setTool(page, NORMAL)
     await waitForHeadline(page, 'Sudoku > Normal')
     const before = await storedEntries(page)
-    const chips = () => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin)/ }).allInnerTexts()
+    const chips = () => cardBodyButtons(page, 'Pinned', { name: /^(?!Unpin)/ }).allInnerTexts()
     const chipsBefore = await chips()
     await page.keyboard.down('Shift')
     await waitForTool(page, CORNER)

@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, assertQuiet, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { afterChange, assertQuiet, cardBodyButtons, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -15,7 +15,7 @@ const CELL = 12
 
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
-const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ })
+const pinnedChips = (page) => cardBodyButtons(page, 'Pinned', { name: /^(?!Unpin|Save pins)/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map(chipName)
 
 // The colour of the board's frame, as the Board card draws it.

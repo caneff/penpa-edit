@@ -1,9 +1,9 @@
-// The Mouse card can be closed (#183): its × hides it, the Settings dialog's "Show Mouse card" switch shows and hides it, the closed
-// state survives a reload, and with Mouse closed the fitted layout gives Rules the left column's whole height.
+// The Mouse card can be closed (#183): its × hides it, the top bar's Cards menu shows and hides it (#334), the closed state
+// survives a reload, and with Mouse closed the fitted layout gives Rules the left column's whole height.
 // Read through the cards' bounding boxes; the clicks are real.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { newBoardSolveLink, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
+import { cardsMenuItem, closeCardsMenu, newBoardSolveLink, openCardsMenu, openSolvePage, resetLayoutInSettings, toggleInCardsMenu, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 // The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a control to focus.
@@ -37,7 +37,6 @@ describe('The Mouse card closes and reopens', () => {
     const { desk, cards } = await read(page)
     return cards.Rules !== null && Math.abs(cards.Rules.h - (desk.h - 2 * TOP_MARGIN_PX)) <= ROUNDING_PX
   }
-  const settingsSwitch = (page) => page.locator('wa-switch').filter({ has: page.getByRole('switch', { name: 'Show Mouse card' }) })
 
   const assertSameSplit = (now, was) => {
     for (const name of ['Mouse', 'Rules']) {
@@ -48,18 +47,12 @@ describe('The Mouse card closes and reopens', () => {
     }
   }
 
-  const reopenFromSettings = async (page) => {
-    await openDialog(page)
-    await settingsSwitch(page).click()
+  const reopenFromMenu = async (page) => {
+    await toggleInCardsMenu(page, 'Mouse')
     await settle(async () => (await read(page)).cards.Mouse !== null, true)
   }
 
-  async function openDialog (page) {
-    await page.getByRole('button', { name: 'Settings' }).click()
-    await page.getByRole('dialog', { name: 'Settings' }).waitFor()
-  }
-
-  it('closes with its x, stays closed after a reload with Rules filling the column, and reopens from Settings', async () => {
+  it('closes with its x, stays closed after a reload with Rules filling the column, and reopens from the Cards menu', async () => {
     opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     const before = await read(page)
@@ -74,16 +67,17 @@ describe('The Mouse card closes and reopens', () => {
     assert.equal((await read(page)).cards.Mouse, null, 'Mouse is still closed after the reload')
     assert.equal(await settle(() => fillsColumn(page), true), true, 'Rules still fills the column after the reload')
 
-    await openDialog(page)
-    assert.equal(await page.getByRole('switch', { name: 'Show Mouse card' }).isChecked(), false, 'the switch shows Mouse closed')
-    await settingsSwitch(page).click()
+    await openCardsMenu(page)
+    assert.equal(await cardsMenuItem(page, 'Mouse').evaluate((node) => node.checked), false, 'the menu shows Mouse closed')
+    await cardsMenuItem(page, 'Mouse').click()
+    await closeCardsMenu(page)
     const reopened = await settle(async () => (await read(page)).cards.Mouse !== null, true)
-    assert.equal(reopened, true, 'the switch shows Mouse')
+    assert.equal(reopened, true, 'the menu shows Mouse')
     const after = await read(page)
     assertSameSplit(after, before)
 
-    await settingsSwitch(page).click()
-    assert.equal(await settle(async () => (await read(page)).cards.Mouse === null, true), true, 'the switch hides Mouse again')
+    await toggleInCardsMenu(page, 'Mouse')
+    assert.equal(await settle(async () => (await read(page)).cards.Mouse === null, true), true, 'the menu hides Mouse again')
   })
 
   it('keeps Mouse closed through Reset layout', async () => {
@@ -105,7 +99,7 @@ describe('The Mouse card closes and reopens', () => {
     await page.mouse.down()
     await page.mouse.move(head.x + 35, head.y + 25, { steps: 4 })
     await page.mouse.up()
-    await reopenFromSettings(page)
+    await reopenFromMenu(page)
     assertSameSplit(await read(page), before)
   })
 
@@ -115,19 +109,19 @@ describe('The Mouse card closes and reopens', () => {
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
     await page.setViewportSize({ width: 1500, height: 900 })
     await settle(() => fillsColumn(page), true)
-    await reopenFromSettings(page)
+    await reopenFromMenu(page)
     const { cards } = await read(page)
     const mouseBody = await page.locator('section[aria-label="Mouse"] .ui-body').evaluate((body) => ({ over: body.scrollHeight - body.clientHeight, h: body.clientHeight }))
     assert.equal(cards.Mouse.y >= cards.Rules.y + cards.Rules.h - 1 && mouseBody.h > 0 && mouseBody.over <= 0, true,
       `Mouse sits under Rules and shows its rows: ${JSON.stringify({ cards, mouseBody })}`)
   })
 
-  it('leaves focus on a control when the x is pressed from the keyboard', async () => {
+  it('leaves focus on the Cards menu button when the x is pressed from the keyboard', async () => {
     opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), undefined, SOME_RULES), { served: true, contextOptions: FULL_HD })
     const { page } = opened
     await page.getByRole('button', { name: 'Close Mouse card' }).focus()
     await page.keyboard.press('Enter')
-    assert.equal(await settle(() => page.evaluate(() => document.activeElement.closest('section[aria-label="Rules"]') !== null), true), true)
+    assert.equal(await settle(() => page.evaluate(() => document.activeElement.closest('wa-dropdown')?.querySelector('[slot="trigger"]') === document.activeElement), true), true)
   })
 
   it('keeps a zoom the solver set when Mouse closes and opens', async () => {
@@ -141,7 +135,7 @@ describe('The Mouse card closes and reopens', () => {
     await page.getByRole('button', { name: 'Close Mouse card' }).click()
     await settle(() => fillsColumn(page), true)
     assert.equal(await cellSize(), zoomed, 'closing Mouse keeps the zoom')
-    await reopenFromSettings(page)
+    await reopenFromMenu(page)
     assert.equal(await cellSize(), zoomed, 'opening Mouse keeps the zoom')
   })
 })

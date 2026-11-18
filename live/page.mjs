@@ -329,6 +329,34 @@ export async function resetLayoutInSettings (page) {
   await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
 }
 
+// The cards the solver can close, by name, in the Cards menu's order (#334).
+export const CLOSEABLE_CARDS = ['Rules', 'Mouse', 'Pinned', 'Mode', 'Recent']
+
+// The Cards menu's box for the card `name`.
+export const cardsMenuItem = (page, name) => page.getByRole('menuitemcheckbox', { name, exact: true })
+
+// Opens the top bar's Cards menu and waits for its boxes.
+export async function openCardsMenu (page) {
+  await page.getByRole('button', { name: 'Cards', exact: true }).click()
+  await cardsMenuItem(page, CLOSEABLE_CARDS[0]).waitFor()
+}
+
+// Closes the open Cards menu with Escape, which it needs after a box is toggled, since it stays open for another.
+export async function closeCardsMenu (page) {
+  await page.keyboard.press('Escape')
+  await cardsMenuItem(page, CLOSEABLE_CARDS[0]).waitFor({ state: 'hidden' })
+}
+
+// Shows or hides the card `name` from the Cards menu, as a visitor does, and closes the menu.
+export async function toggleInCardsMenu (page, name) {
+  await openCardsMenu(page)
+  await cardsMenuItem(page, name).click()
+  await closeCardsMenu(page)
+}
+
+// The buttons in the body of the card `name`, the chips and their controls, not the ones in its header (its ×).
+export const cardBodyButtons = (page, name, options) => page.getByRole('region', { name }).locator('.ui-body').getByRole('button', options)
+
 // A chip's text is its shortcut key (Z, X, C or V) and then the tool's name; a later chip has no key.
 export const chipName = (text) => text.replace(/^[ZXCV]\s+/, '').trim()
 

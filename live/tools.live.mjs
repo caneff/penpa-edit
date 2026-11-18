@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { after, before, describe, it } from 'node:test'
-import { afterChange, chipName, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
+import { afterChange, cardBodyButtons, chipName, currentTool, linkFromNewBoard, newBoardSolveLink, openSolvePage, setTool, useBrowser } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -330,7 +330,7 @@ describe('a link with a Tab set', () => {
   after(async () => { await withTabSet?.context.close(); await withoutTabSet?.context.close() })
 
   it('still seeds the pins from the Tab set', async () => {
-    const chips = async ({ page }) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Pin current|Save pins)/ }).allInnerTexts())
+    const chips = async ({ page }) => (await cardBodyButtons(page, 'Pinned', { name: /^(?!Unpin|Pin current|Save pins)/ }).allInnerTexts())
       .map(chipName)
     assert.deepEqual((await withTabSet.page.evaluate(() => engine.tabSet())).map((t) => t.mode), ['surface', 'sudoku'])
     assert.deepEqual(await settle(() => chips(withTabSet), ['Surface', 'Sudoku > Normal']), ['Surface', 'Sudoku > Normal'])

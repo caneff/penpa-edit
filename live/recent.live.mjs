@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
 import { pinChips } from './pin-card.mjs'
-import { afterChange, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
+import { afterChange, cardBodyButtons, newBoardSolveLink, openSolvePage, setTool, useBrowser, waitForTool } from './page.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -21,7 +21,7 @@ const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolve
 // Two tools picked inside one frame make one change, so each pick below waits for it with `afterChange`.
 
 const recentCard = (page) => page.getByRole('region', { name: 'Recent' })
-const recentChips = (page) => recentCard(page).getByRole('button', { name: /^(?!Pin |Unpin )/ })
+const recentChips = (page) => cardBodyButtons(page, 'Recent', { name: /^(?!Pin |Unpin )/ })
 const recentNames = async (page) => (await recentChips(page).allInnerTexts()).map((text) => text.trim())
 
 // Tools of the tests, with the name Recent gives each: six to overflow five, and one more.
@@ -62,7 +62,7 @@ describe('the Recent card', () => {
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press('Tab')
     }
-    assert.equal(await recentCard(page).locator(':focus').count(), 0, 'Tab with pins')
+    assert.equal(await recentCard(page).locator('.ui-body :focus').count(), 0, 'Tab with pins')
     const pinChipUnpins = pinChips(page).getByRole('button', { name: /^Unpin/ })
     while (await pinChipUnpins.count()) {
       await pinChipUnpins.first().click()
@@ -71,8 +71,10 @@ describe('the Recent card', () => {
     await page.evaluate(() => document.activeElement?.blur())
     for (let i = 0; i < 40; i++) {
       await page.keyboard.press('Tab')
-      assert.equal(await recentCard(page).locator(':focus').count(), 0, `Tab press ${i + 1} without pins`)
+      assert.equal(await recentCard(page).locator('.ui-body :focus').count(), 0, `Tab press ${i + 1} without pins`)
     }
+    // Tab can stop in the Mode card's picker, whose open list floats over Recent; leaving it closes the list for the next test.
+    await page.evaluate(() => document.activeElement?.blur())
   })
 
   it('sets the tool on a click and gives focus back to the board', async () => {
