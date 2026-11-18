@@ -1,6 +1,6 @@
 // The Mode card's tool tree: groups, modes and sub-modes (Symbols and marks one level deeper), each branch opening and closing on
-// its own, with the ARIA tree keys. The rows are built once and only shown, hidden and marked afterwards, so a rebuild never
-// lands between a mouse press and its release. Knows no `engine`.
+// its own, with the ARIA tree keys and Shift+Enter for the pin toggle a tool row holds in its `.ui-tpin` slot. The rows are built once and
+// only shown, hidden and marked afterwards, so a rebuild never lands between a mouse press and its release. Knows no `engine`.
 (function () {
     'use strict';
 
@@ -8,6 +8,8 @@
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
+    const PIN_SHORTCUT = 'Shift+Enter';
+    const PIN_SLOT = 'ui-tpin';
 
     const MODE_ATTRS = (tool) => ({ 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' });
 
@@ -67,16 +69,25 @@
 
         const tree = el('div', { role: 'tree', 'aria-label': 'Tools', id: TREE_ID, class: 'ui-tree' });
 
+        // A press on the row's pin toggle pins and neither picks the tool nor reaches the row. The stop sits on the slot, not a test of
+        // `e.target`, since the toggle redraws its icon inside the click and the target is gone from the row by then.
+        function pinSlot() {
+            const slot = el('span', { class: PIN_SLOT });
+            slot.addEventListener('click', (e) => e.stopPropagation());
+            return slot;
+        }
+
         function render(node) {
             const isLeaf = Boolean(node.tool);
             const row = el('div', {
                 role: 'treeitem', 'aria-level': String(node.level), tabindex: '-1', class: 'ui-trow',
-                ...(isLeaf ? { 'aria-selected': 'false', title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
+                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [node.label]),
                 el('span', { class: 'ui-tmatch', 'aria-hidden': 'true', hidden: '' }),
-                el('span', { class: 'ui-tcount', 'aria-hidden': 'true' })
+                el('span', { class: 'ui-tcount', 'aria-hidden': 'true' }),
+                ...(isLeaf ? [pinSlot()] : [])
             ]);
             node.row = row;
             node.wrap = el('div', { role: 'none', class: `ui-tnode ui-tl${node.level}` }, [row]);
@@ -178,6 +189,8 @@
             }
         }
 
+        const pinButtonOf = (node) => node.row.querySelector(`.${PIN_SLOT} button`);
+
         function onKey(e) {
             const node = all.find((n) => n.row === e.target);
             if (!node) {
@@ -207,6 +220,11 @@
                     refresh();
                 } else {
                     focusNode(node.parent);
+                }
+            } else if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && pinButtonOf(node)) {
+                // Before the pick below, which Enter alone makes. A held key repeats: only the press pins.
+                if (!e.repeat) {
+                    pinButtonOf(node).click();
                 }
             } else if (e.key === 'Enter' || e.key === ' ') {
                 node.row.click();
@@ -272,5 +290,5 @@
         };
     }
 
-    window.modeTree = { createModeTree, TREE_ID };
+    window.modeTree = { createModeTree, TREE_ID, PIN_SHORTCUT, PIN_SLOT };
 })();
