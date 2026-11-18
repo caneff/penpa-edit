@@ -369,7 +369,7 @@ describe('the Mode card', () => {
   it('finds a tool by the name Penpa+ gives it', async () => {
     await combobox().click()
     await combobox().fill('Black / dot')
-    await opened.page.getByRole('treeitem', { name: 'Shade + dot', exact: true }).click()
+    await opened.page.getByRole('treeitem', { name: 'Black / dot', exact: true }).click()
     assert.deepEqual((await currentTool(opened.page)).submode, 'blpo')
     await combobox().click()
     await combobox().fill('Helper (x)')
@@ -503,11 +503,11 @@ describe('the Mouse card and the title bar', () => {
 
   it('gives the tool one name, in the card and in the title bar', async () => {
     await setTool(opened.page, { mode: 'line', submode: '4', style: 3 })
-    assert.equal(await settle(() => headline().textContent(), 'Line > Helper ×'), 'Line > Helper ×')
-    assert.equal(await settle(() => titleBarTool().textContent(), 'Line > Helper ×'), 'Line > Helper ×')
+    assert.equal(await settle(() => headline().textContent(), 'Line > Helper (x)'), 'Line > Helper (x)')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Line > Helper (x)'), 'Line > Helper (x)')
     await setTool(opened.page, { mode: 'combi', submode: 'akari' })
-    assert.equal(await settle(() => headline().textContent(), 'Bulbs + dots'), 'Bulbs + dots')
-    assert.equal(await settle(() => titleBarTool().textContent(), 'Bulbs + dots'), 'Bulbs + dots')
+    assert.equal(await settle(() => headline().textContent(), 'Akari'), 'Akari')
+    assert.equal(await settle(() => titleBarTool().textContent(), 'Akari'), 'Akari')
   })
 
   // The card's rows as [gesture, effect] pairs.
@@ -523,7 +523,7 @@ describe('the Mouse card and the title bar', () => {
       ['Alt + drag', 'colour in a rectangle; starting on the colour: clear it (square grids only)'],
       ['Alt + right drag', '2nd colour in a rectangle (square grids only)']]],
     [{ mode: 'line', submode: '1' }, 'Line > Normal', [['Drag', 'line through cell centres; starting on a line: clear it']]],
-    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper ×', [['Left click', '× on the grid line → clear']]],
+    [{ mode: 'lineE', submode: '4' }, 'Edge > Helper (x)', [['Left click', '× on the grid line → clear']]],
     [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on a wall: clear it']]],
     [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor on the nearest cell corner spot; cell selected'],
       ['Right click', 'cursor on the nearest cell corner spot'], ['Digit', 'number at the cursor']]],
@@ -684,7 +684,7 @@ describe('the Mouse card reads at a glance (#203)', () => {
 
   it('words no tool with "erase" or a bare "n"', () => {
     const bad = Object.entries(cards).flatMap(([key, { headline, rows }]) => [headline, ...rows.flatMap((r) => [r.gesture, r.effect])]
-      .filter((text) => /erase/i.test(text) || /\bn\b/.test(text)).map((text) => `${key}: ${text}`))
+      .filter((text) => (/erase/i.test(text) && !text.endsWith(' > Erase')) || /\bn\b/.test(text)).map((text) => `${key}: ${text}`))
     assert.deepEqual(bad, [])
   })
 

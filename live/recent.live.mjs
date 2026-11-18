@@ -32,7 +32,7 @@ const TOOLS = [
   { tool: { mode: 'number', submode: '1' }, name: 'Number > Normal' },
   { tool: { mode: 'wall', submode: null }, name: 'Wall' },
   { tool: { mode: 'surface', submode: null }, name: 'Surface' },
-  { tool: { mode: 'line', submode: '4' }, name: 'Line > Helper ×' }
+  { tool: { mode: 'line', submode: '4' }, name: 'Line > Helper (x)' }
 ]
 
 describe('the Recent card', () => {
@@ -109,7 +109,7 @@ describe('the Recent card and the pins', () => {
     for (const entry of TOOLS) {
       await use(page, entry)
     }
-    // The page opened on Surface, so Recent holds Line > Helper ×, Surface, Wall, Number, Sudoku now.
+    // The page opened on Surface, so Recent holds Line > Helper (x), Surface, Wall, Number, Sudoku now.
     const names = (list) => list.map((t) => t.name)
     const full = names([TOOLS[6], TOOLS[5], TOOLS[4], TOOLS[3], TOOLS[2]])
     assert.deepEqual(await settle(() => recentNames(page), full), full)

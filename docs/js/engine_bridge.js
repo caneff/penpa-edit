@@ -552,32 +552,12 @@
     // numbers. Multicolor's keys pick the same colours.
     const SURFACE_KEY_OF_STYLE = { 1: '1', 8: '2', 3: '3', 4: '4', 2: '5', 5: '6', 6: '7', 7: '8', 9: '9', 10: '0', 11: '11', 12: '12' };
 
-    const SUBMODE_NAMES = {
-        line: { 1: 'normal', 2: 'diagonal', 3: 'free', 5: 'middle', 4: 'helper ×' },
-        lineE: { 1: 'normal', 2: 'diagonal', 3: 'free', 6: 'middle', 4: 'helper ×', 5: 'clear' },
-        number: { 1: 'normal', 10: 'large', 6: 'medium', 5: 'small', 7: 'candidates', 3: 'quarter', 9: 'side', 8: 'long' },
-        sudoku: { 1: 'normal', 2: 'corner', 3: 'centre' },
-        cage: { 1: 'killer', 2: 'free' },
-        move: { 1: 'all', 2: 'numbers', 3: 'shapes' },
-        special: {
-            thermo: 'thermo', nobulbthermo: 'no-bulb thermo', arrows: 'sudoku arrow', direction: 'arrow',
-            squareframe: 'rectangle frame', polygon: 'polygon'
-        }
-    };
-    const COMPOSITE_NAMES = {
-        blpo: 'Shade + dot', shaka: 'Corner triangles + dot', linex: 'Line + edge ×', lineox: 'Line + cell ○ ×',
-        linedir: 'Line + direction marks', yajilin: 'Shade + line', hashi: 'Bridges', rassisillai: 'Line + cell marks',
-        edgex: 'Edges + ×', edgexoi: 'Edges + inside / outside', edgesub: 'Edges + helper line', numfl: 'Numbers by flick',
-        alfl: 'Letters by flick', blwh: 'Black + white circles', star: 'Stars + ×', akari: 'Bulbs + dots',
-        battleship: 'Ship pieces + water', tents: 'Tents + ×', mines: 'Mines + ×', doublemines: 'One or two mines + ×',
-        magnets: 'Magnet poles + −', arrowS: 'Arrows in cells'
-    };
-    // Penpa+'s shape groups, from the ms1_ / ms3_ / ms4_ ids of the Shape menu.
-    const SHAPE_GROUP_NAMES = {
+    // The sub-modes whose Penpa+ label is an icon, so it has no text to read.
+    const ICON_SUBMODE_NAMES = { number: { 3: 'quarter', 9: 'side' } };
+    // The Shape groups whose Penpa+ header is a row of glyphs, so it has no text to read.
+    const GLYPH_GROUP_NAMES = {
         circle: 'Circle', square: 'Square', triup: 'Triangle up', tridown: 'Triangle down', triright: 'Triangle right',
-        trileft: 'Triangle left', diamond: 'Diamond', hexpoint: 'Hexagon, point up', hexflat: 'Hexagon, flat',
-        ox: '○ △ □ ×', bars: 'Bars', math: 'Math', degital: 'Digital digits', arrow_B: 'Arrow', arrow_N: 'Arrow, notched',
-        arrow_tri: 'Arrow, triangle', arrow_fouredge: 'Arrows, four edges', arrow_GP: 'Arrow, graphic', battleship: 'Ship'
+        trileft: 'Triangle left', diamond: 'Diamond', ox: '○ △ □ ×', degital: 'Digital digits'
     };
     // The Composite tools that show Penpa+'s line / edge style box (subcombimode in class_p.js).
     const COMPOSITE_LINE_STYLE = ['linex', 'lineox', 'linedir', 'yajilin', 'rassisillai', 'tents'];
@@ -669,16 +649,18 @@
         const menu = document.getElementById('mode_symbol');
         const tools = [];
         let group = '';
+        let groupName = '';
         menu.querySelectorAll('[id^="ms"]').forEach((node) => {
             if (/^ms\d+$/.test(node.id)) {
                 group = '';
             } else if (/^ms\d+_/.test(node.id)) {
                 group = node.id.replace(/^ms\d+_/, '');
+                groupName = textOf(node).split(' ').filter((word) => /\p{L}/u.test(word)).join(' ') || GLYPH_GROUP_NAMES[group] || group.replace(/_/g, ' ');
             } else if (node.id.startsWith('ms_') && !hiddenInPenpa(node, menu)) {
                 const name = node.id.slice(3);
                 const size = textOf(node);
                 const inGroup = group && (name === group || name.startsWith(`${group}_`));
-                const submodeName = inGroup ? `${SHAPE_GROUP_NAMES[group] ?? group.replace(/_/g, ' ')} ${size}` : size || name;
+                const submodeName = inGroup ? `${groupName} ${size}` : size || name;
                 tools.push({ submode: name, submodeName, labels: [size, name].filter(Boolean) });
             }
         });
@@ -692,7 +674,7 @@
             if (!node || hiddenInPenpa(node, menu)) {
                 return [];
             }
-            return [{ submode: name, submodeName: COMPOSITE_NAMES[name] ?? textOf(node), labels: [textOf(node)] }];
+            return [{ submode: name, submodeName: textOf(node), labels: [textOf(node)] }];
         });
     }
 
@@ -706,7 +688,7 @@
             if (!label || hiddenInPenpa(label, container) || !penpa_modes[pu.gridtype].sub.includes(radio.id.slice(4))) {
                 return [];
             }
-            return [{ submode: radio.value, submodeName: SUBMODE_NAMES[mode]?.[radio.value] ?? textOf(label), labels: [textOf(label)] }];
+            return [{ submode: radio.value, submodeName: textOf(label) || ICON_SUBMODE_NAMES[mode]?.[radio.value], labels: [textOf(label)] }];
         });
     }
 

@@ -78,6 +78,29 @@ describe('one name per tool', () => {
     })
   }
 
+  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker leaf, with the descriptive name as hover text', async () => {
+    const { page } = opened
+    const composites = await page.evaluate(() => engine.listTools().filter((t) => t.mode === 'combi')
+      .map(({ submode }) => ({ submode, penpa: document.getElementById(`combisub_${submode}`).textContent.replace(/\s+/g, ' ').trim() })))
+    assert.ok(composites.length > 15, `${composites.length} Composite tools listed`)
+    await pin(page, composites.map(({ submode }) => ({ mode: 'combi', submode, style: null })))
+    await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, composites.length)
+    assert.deepEqual(await chipTexts(region(page, 'Pinned')), composites.map((c) => c.penpa))
+    const leaves = []
+    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerName(page, { mode: 'combi', submode })])
+    assert.deepEqual(leaves.filter(([want, got]) => want !== got), [])
+    const blpo = composites.findIndex((c) => c.submode === 'blpo')
+    assert.equal(composites[blpo].penpa, 'Black / dot')
+    assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').nth(blpo).getAttribute('title'), 'Shade + dot', 'the descriptive name is the hover text')
+  })
+
+  it('finds a Composite tool by its descriptive name, though the picker names it by Penpa+\'s', async () => {
+    const { page } = opened
+    const search = region(page, 'Mode').getByRole('combobox', { name: 'Tool' })
+    await search.fill('shade')
+    await page.locator('[role=tree] [role=treeitem] .ui-tname', { hasText: 'Black / dot' }).waitFor()
+  })
+
   it('gives a chip the tool\'s plain name as its tooltip, and none when the plain names do not know the tool', async () => {
     const { page } = opened
     const [surface] = (await listedTools(page)).filter((t) => t.mode === 'surface')
