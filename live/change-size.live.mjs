@@ -5,8 +5,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  boardAgainstCard, chipName, DIGIT_CELL, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
+  ANSWER_CELL, boardAgainstCard, chipName, DIGIT_CELL, setTool, typedDigits, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
 } from './page.mjs'
+import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
 const browser = useBrowser()
@@ -349,7 +350,10 @@ describe('the Change size dialog', () => {
 describe('a resize keeps what the solver set on the puzzle', () => {
   const RULES = 'Put a digit from 1 to 9 in every cell.'
   const rules = (page) => page.getByRole('region', { name: 'Rules' })
-  const rulesWidth = async (page) => Math.round((await rules(page).boundingBox()).width)
+  const rulesSize = async (page) => {
+    const { width, height } = await rules(page).boundingBox()
+    return { width: Math.round(width), height: Math.round(height) }
+  }
   const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
 
   // Unpins the first pin, turns conflict detection off for this puzzle and widens the Rules card, as a solver would.
@@ -370,12 +374,12 @@ describe('a resize keeps what the solver set on the puzzle', () => {
   }
 
   for (const resizes of [1, 2]) {
-    it(`keeps the pins, the conflicts-off setting and the card sizes after ${resizes} resize(s) and a reload`, async () => {
+    it(`keeps the pins, the conflicts-off setting and the Rules card's size after ${resizes} resize(s) and a reload`, async () => {
       const link = await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Corner'], RULES)
       const { context, page } = await openSolvePage(browser(), link, { served: true })
       try {
         await setThings(page)
-        const width = await rulesWidth(page)
+        const size = await rulesSize(page)
         const idBefore = await page.evaluate(() => engine.getPuzzleId())
         await page.evaluate(() => engine.changeSize('top', 1))
         if (resizes === 2) await page.evaluate(() => engine.changeSize('left', 1))
@@ -385,10 +389,32 @@ describe('a resize keeps what the solver set on the puzzle', () => {
         await waitForDesk(page)
         assert.deepEqual(await settle(() => pinned(page), ['Sudoku > Corner']), ['Sudoku > Corner'], 'the pin stays removed')
         assert.equal(await page.evaluate(() => engine.getSettings().conflict_detection), 2, 'conflicts stay off')
-        assert.equal(await settle(() => rulesWidth(page), width), width, 'the Rules card keeps its width')
+        assert.notEqual(await page.evaluate(() => engine.getPuzzleId()), idBefore, 'the reload kept the resized board')
+        assert.deepEqual(await settle(() => rulesSize(page), size), size, 'the Rules card keeps its width and height')
       } finally {
         await context.close()
       }
     })
   }
+
+  it('keeps a solved puzzle\'s clock stopped when it was undone, resized and reloaded', async () => {
+    const { context, page } = await openNumberBoard({ served: true })
+    try {
+      await setTool(page, { mode: 'number', submode: '1' })
+      await page.waitForFunction(() => engine.getTimer().seconds >= 1)
+      await clickCell(page, ANSWER_CELL)
+      await page.keyboard.press('2')
+      await settle(() => page.evaluate(() => engine.getTimer().paused), true)
+      await page.getByRole('button', { name: 'Close', exact: true }).first().click()
+      await page.getByRole('button', { name: 'Undo', exact: true }).click()
+      assert.deepEqual(await settle(() => typedDigits(page), []), [], 'the undo took the answer out')
+      await page.evaluate(() => engine.changeSize('top', 1))
+      assert.equal(await page.evaluate(() => engine.saveProgress()), true)
+      await page.reload()
+      await waitForDesk(page)
+      assert.equal((await page.evaluate(() => engine.getTimer())).paused, true, 'the clock is still stopped')
+    } finally {
+      await context.close()
+    }
+  })
 })

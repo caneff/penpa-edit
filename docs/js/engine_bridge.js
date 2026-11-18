@@ -798,13 +798,18 @@
         }
     }
 
-    // Called after a resize, with the original id the puzzle had before it.
+    // Run after the board is resized, with the original id the puzzle had before. The resize has happened whatever this does,
+    // so a store that refuses the write is reported, not thrown.
     function rememberOriginalPuzzleId(original) {
         const now = engine.getPuzzleId();
         if (now === original) {
             return;
         }
-        localStorage.setItem(ORIGINAL_IDS_KEY, JSON.stringify({ ...readOriginalIds(), [now]: original }));
+        try {
+            localStorage.setItem(ORIGINAL_IDS_KEY, JSON.stringify({ ...readOriginalIds(), [now]: original }));
+        } catch (e) {
+            console.error(`Change size: could not remember the original puzzle id (${e.message}); the pins, settings and layout kept for this puzzle are not found for the resized one.`);
+        }
     }
 
     // The sides `changeSize` takes, as the board is drawn: what the outermost line of cells there is, the axis it lies across,
@@ -1435,8 +1440,8 @@
             return md5(JSON.stringify([pu.gridtype, pu.nx, pu.ny, pu.space, givens]));
         },
 
-        // The id the puzzle had before any Change size, which what is kept per puzzle in this browser is keyed on. Only this
-        // browser knows it: a link opened elsewhere after a resize has the new id.
+        // The id the puzzle had before any Change size: this browser keys everything it keeps per puzzle on it. Only this
+        // browser knows it, so a link opened elsewhere after a resize has the new id.
         getOriginalPuzzleId() {
             const id = engine.getPuzzleId();
             return readOriginalIds()[id] ?? id;
