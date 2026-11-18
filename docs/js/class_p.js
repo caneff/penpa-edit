@@ -13502,8 +13502,14 @@ class Puzzle {
             // If using non-square mode, keep newlines.
             // Previously this only replaced plain spaces but not tabs,
             // which was problematic when pasting from Google Sheets.
-            const replaceRegex = ignoreNonSquare ? /[^\S\r\n]+/g : /\s/g;
+            // caneff: in non-square mode a tab still separates columns; keep it for the blank-cell step below
+            const replaceRegex = ignoreNonSquare ? /[^\S\r\n\t]+/g : /\s/g;
             iostring = iostring.replace(replaceRegex, '');
+            // caneff: an empty tab-delimited field (a blank Sheets cell) becomes a space, which the import loop skips.
+            // A field with several characters stays one cell per character; a line with no tab is left as it is.
+            if (ignoreNonSquare) {
+                iostring = iostring.replace(/^.*\t.*$/gm, (line) => line.split('\t').map((field) => field || ' ').join(''));
+            }
         }
 
         // Replace dots with zeros
@@ -13564,6 +13570,8 @@ class Puzzle {
                 if (nextChar.charCodeAt(0) === 10) {
                     i = c_start;
                     j++;
+                } else if (nextChar === ' ') { // caneff: a blank cell
+                    i++;
                 } else {
                     if (this.mode.qa === "pu_q" || !(this["pu_q"].number[(i + 2) + ((j + 2) * this.nx0)])) {
                         placeChar(this, i + 2, (j + 2) * this.nx0, nextChar, colorToUse);
