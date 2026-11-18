@@ -9,7 +9,8 @@ engine side's inputs derived from the tree of its merge commit (`git archive <me
 The 14 new skips are 8 changes to `docs/js/engine_bridge.js`, 5 to `live/` helpers the engine side
 does not import (`live/ui-fuzz/actions.mjs` twice, `live/ui-fuzz/rules.mjs`, `live/pin-card.mjs`,
 `live/desk-layout.mjs`), and #332's `.gitattributes`. The 14 that still run touch a script `index.html`
-loads (5), `live/page.mjs` (4), `.github/**` (4) or `live/plants.mjs` (1). The UI driver's replays
+loads (5), `live/page.mjs` (4), `.github/workflows/ci.yml` (2), `package.json`, `live/fuzz.mjs` or
+`live/plants.mjs` (1 each); the reason names the first input in the PR's file list. The UI driver's replays
 still run on every PR off the skip list, so they run on 28 of the 40 either way.
 
 | PR | #268 | #315 | Files | Why (#315's printed reason) |
@@ -38,17 +39,17 @@ still run on every PR off the skip list, so they run on 28 of the 40 either way.
 | #296 | run | run | 5 | docs/js/progress_autosave.js is an input of the engine side: the full set |
 | #293 | skip | skip | 1 | the 1 changed files are all on the skip list: every live file but the safety net's |
 | #291 | run | skip | 10 | docs/js/engine_bridge.js is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
-| #290 | run | run | 23 | .github/scripts/file-issue-once.sh is an input of the engine side: the full set |
+| #290 | run | run | 23 | live/fuzz.mjs is an input of the engine side: the full set |
 | #289 | run | skip | 7 | docs/js/engine_bridge.js is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
 | #287 | skip | skip | 8 | the 8 changed files are all on the skip list: every live file but the safety net's |
 | #286 | run | run | 14 | .github/workflows/ci.yml is an input of the engine side: the full set |
 | #285 | run | skip | 6 | docs/js/engine_bridge.js is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
 | #283 | run | skip | 8 | live/pin-card.mjs is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
-| #280 | run | run | 14 | .github/scripts/nightly-seam-issue.sh is an input of the engine side: the full set |
+| #280 | run | run | 14 | .github/workflows/ci.yml is an input of the engine side: the full set |
 | #275 | run | skip | 8 | live/desk-layout.mjs is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
 | #273 | run | run | 12 | live/page.mjs is an input of the engine side: the full set |
 | #270 | run | run | 4 | live/plants.mjs is an input of the engine side: the full set |
-| #269 | run | run | 7 | .github/workflows/ui-fuzz-nightly.yml is an input of the engine side: the full set |
+| #269 | run | run | 7 | package.json is an input of the engine side: the full set |
 | #266 | skip | skip | 3 | the 3 changed files are all on the skip list: every live file but the safety net's |
 | #262 | run | skip | 5 | docs/js/engine_bridge.js is off the skip list and no changed file is an input of the engine side: every live file but the engine side's |
 | #261 | run | run | 15 | live/page.mjs is an input of the engine side: the full set |

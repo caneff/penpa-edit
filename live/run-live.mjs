@@ -37,18 +37,19 @@ export const SAFETY_NET_FILES = [
 export const ENGINE_FILES = SAFETY_NET_FILES.filter((file) => !/^live\/ui-replay-\d+\.live\.mjs$/.test(file))
 
 // The page the engine side opens (`live/page.mjs`'s default page).
-const ENGINE_PAGE = 'docs/index.html'
+export const ENGINE_PAGE = 'docs/index.html'
 
-// What runs the engine side besides its page and its tests: the dependencies, CI, and this selection itself. A path
-// ending in `/` holds everything under it.
-const ENGINE_HARNESS = ['package.json', 'package-lock.json', '.github/', 'live/run-live.mjs']
+// What runs the engine side besides its page and its tests: the dependencies, the CI job and action that run the live
+// files, and this selection. A path ending in `/` holds everything under it.
+const ENGINE_HARNESS = ['package.json', 'package-lock.json', '.github/workflows/ci.yml', '.github/actions/',
+  'live/run-live.mjs']
 
 // A live test file outside the safety net is on the skip list: no other file imports it, and the reduced set runs it.
 const onSkipList = (path) =>
   path.startsWith('docs/ui/') || path.startsWith('research/') || path.startsWith('adr/') || path.endsWith('.md') ||
   (/^live\/[^/]+\.live\.mjs$/.test(path) && !SAFETY_NET_FILES.includes(path))
 
-// `allFiles` is every live file and `inputs` the engine side's (`engineInputs`); the result keeps `allFiles`' order.
+// `inputs` is `engineInputs`'s set; the result keeps `allFiles`' order.
 export function chooseLiveFiles (changed, allFiles, inputs) {
   if (changed.length === 0) return { files: allFiles, reason: 'no changed file: the full set' }
   const input = changed.find((path) => isInput(path, inputs))
@@ -57,7 +58,8 @@ export function chooseLiveFiles (changed, allFiles, inputs) {
   if (off) {
     return {
       files: allFiles.filter((file) => !ENGINE_FILES.includes(file)),
-      reason: `${off} is off the skip list and no changed file is an input of the engine side: every live file but the engine side's`
+      reason: `${off} is off the skip list and no changed file is an input of the engine side: ` +
+        'every live file but the engine side\'s'
     }
   }
   return {
@@ -66,12 +68,11 @@ export function chooseLiveFiles (changed, allFiles, inputs) {
   }
 }
 
-// Every file of the checkout under `root` that `page` (a path such as `docs/index.html`) can load, repo-relative: the
-// page; each quoted string in it or in a script it reaches that names a file beside the page (the page builds its
-// `<script>` and `<link>` tags from such lists, and its scripts name the theme sheets and the GIF worker the same way);
-// and each `url()` or quoted path in a stylesheet it reaches, read beside that sheet. A named path with an extension is
-// kept even when no such file exists, so a change deleting a file the page loads reaches the page. Throws when the
-// page cannot be read.
+// Every file under `root` that `page` can load, repo-relative: the page, and each file named by a quoted string or a
+// `url()` in it or in a script or sheet it reaches, read beside the page (a sheet's names beside the sheet). The page
+// builds its `<script>` and `<link>` tags from such lists, and its scripts name the theme sheets, the GIF worker and the
+// solved popup's image the same way. A named path with an extension is kept even when no such file exists, so a change
+// deleting a file the page loads reaches the page. Throws when the page is not a file.
 export function pageReach (root, page) {
   const pageDir = posix.dirname(page)
   const reached = new Set()
@@ -81,14 +82,14 @@ export function pageReach (root, page) {
     if (!/\.(html|js|css)$/.test(path) || !isFile(join(root, path))) return
     const text = readFileSync(join(root, path), 'utf8')
     const css = path.endsWith('.css')
-    const names = [...text.matchAll(/(["'`])([^"'`\s<>(){}]+?)\1/g)].map((m) => m[2])
-    if (css) names.push(...[...text.matchAll(/url\(\s*([^"')\s]+)\s*\)/g)].map((m) => m[1]))
+    const names = [...text.matchAll(/(["'`])([^"'`\s<>(){}]+?)\1/g), ...text.matchAll(/url\(\s*()([^"')\s]+)\s*\)/g)]
+      .map((m) => m[2])
     for (const name of names) {
       const target = pathNamed(css ? posix.dirname(path) : pageDir, name)
       if (target !== null && (/^\.[a-z][a-z0-9]{0,4}$/i.test(posix.extname(target)) || isFile(join(root, target)))) visit(target)
     }
   }
-  readFileSync(join(root, page))
+  if (!isFile(join(root, page))) throw new Error(`the page ${page} is not a file`)
   visit(page)
   return reached
 }
@@ -108,11 +109,10 @@ const isFile = (path) => statSync(path, { throwIfNoEntry: false })?.isFile() ?? 
 
 const isInput = (path, inputs) => inputs.has(path) || [...inputs].some((input) => input.endsWith('/') && path.startsWith(input))
 
-// The engine side's inputs in the checkout under `root`, repo-relative, a directory's ending in `/`: every file its page
-// can load (`pageReach`), every module its live files among `liveFiles` import, every file or directory under `live/` or `test/` those
-// modules name with `new URL(..., import.meta.url)`, such as the recordings, and `ENGINE_HARNESS`. A module's name for
-// `docs/` is left to `pageReach`, and one for its own directory (a base to list or run git in) holds nothing. Throws when
-// a page or module cannot be read.
+// The engine side's inputs under `root`, a directory's ending in `/`: what its page loads (`pageReach`), the modules its
+// live files among `liveFiles` import, the `live/` or `test/` paths those modules name with `new URL(...,
+// import.meta.url)` (the recordings among them), and `ENGINE_HARNESS`. A module's own directory, a base to list or run
+// git in, is no input. Throws when the page or a module cannot be read.
 export function engineInputs (root, liveFiles) {
   const inputs = new Set([...pageReach(root, ENGINE_PAGE), ...ENGINE_HARNESS])
   const visit = (path) => {

@@ -15,7 +15,6 @@ const ALL = [...SAFETY_NET_FILES, ...SOLVE_UI_FILES].sort()
 
 // The engine side's inputs as this checkout derives them, so each case below checks the real derivation.
 const INPUTS = engineInputs(fileURLToPath(new URL('..', import.meta.url)), SAFETY_NET_FILES)
-const UI_REPLAY = SAFETY_NET_FILES.filter((file) => !ENGINE_FILES.includes(file))
 const BUT_ENGINE = ALL.filter((file) => !ENGINE_FILES.includes(file))
 
 describe('chooseLiveFiles', () => {
@@ -35,7 +34,7 @@ describe('chooseLiveFiles', () => {
 
   // What index.html loads, directly or through its scripts and sheets, and what the engine side's tests import or read.
   for (const path of ['docs/index.html', 'docs/js/class_p.js', 'docs/js/progress_autosave.js', 'docs/js/libs/gif.worker.js',
-    'docs/css/base-structure.css', 'docs/css/dark_theme.css', 'docs/css/images/corners.png',
+    'docs/css/base-structure.css', 'docs/css/dark_theme.css', 'docs/css/images/corners.png', 'docs/js/images/new_year.jpg',
     'docs/fonts/fontawesome-webfont.woff2', 'docs/identity.js', 'live/recordings/value/a.json', 'live/replay.mjs',
     'live/fuzz.mjs', 'live/tier-c.mjs', 'live/tier-c-puzzles.mjs', 'live/plants.mjs', 'live/canonical-state.mjs',
     'live/page.mjs', 'live/settle.mjs', 'live/engine-replay-0.live.mjs', 'live/fuzz.live.mjs', 'live/run-live.mjs',
@@ -47,11 +46,11 @@ describe('chooseLiveFiles', () => {
 
   // Off the skip list but outside index.html's reach: the UI driver's replays still run (they replay on solve.html).
   for (const path of ['docs/solve.html', 'docs/js/engine_bridge.js', 'docs/js/penpa_layer.js', 'docs/gallery.js',
-    'test/run-live.test.mjs', 'userscript/penpa-redirect.user.js', 'live/ui-replay-0.live.mjs']) {
+    'test/run-live.test.mjs', 'userscript/penpa-redirect.user.js', 'live/ui-replay-0.live.mjs',
+    '.github/workflows/nightly.yml', '.github/scripts/file-issue-once.sh']) {
     it(`runs every live file but the engine side's for a change to ${path}, and says why`, () => {
       const { files, reason } = chooseLiveFiles([path], ALL, INPUTS)
       assert.deepEqual(files, BUT_ENGINE)
-      assert.ok(UI_REPLAY.every((file) => files.includes(file)), 'the UI driver replays run')
       assert.match(reason, /no changed file is an input of the engine side/)
     })
   }
@@ -81,7 +80,9 @@ describe('pageReach', () => {
     'docs/css/images/logo.png': '',
     'docs/css/images/corner.png': '',
     'docs/fonts/f.woff2': '',
-    'docs/js/main.js': "const w = new Worker('./js/libs/worker.js'); const theme = './css/dark.css'; const t = 'button'",
+    'docs/js/main.js': "const w = new Worker('./js/libs/worker.js'); const theme = './css/dark.css'; const t = 'button'\n" +
+      "popup({ background: 'url(js/images/solved.jpg)' })",
+    'docs/js/images/solved.jpg': '',
     'docs/js/libs/worker.js': '',
     'docs/css/dark.css': '.c { background: url(images/dark.png) }',
     'docs/css/images/dark.png': '',
@@ -94,7 +95,7 @@ describe('pageReach', () => {
     const reach = pageReach(tree(PAGE), 'docs/index.html')
     for (const path of ['docs/index.html', 'docs/css/images/logo.png', 'docs/css/base.css', 'docs/js/main.js',
       'docs/css/images/corner.png', 'docs/fonts/f.woff2', 'docs/js/libs/worker.js', 'docs/css/dark.css',
-      'docs/css/images/dark.png']) {
+      'docs/css/images/dark.png', 'docs/js/images/solved.jpg']) {
       assert.ok(reach.has(path), `${path} is reached`)
     }
   })
@@ -138,17 +139,16 @@ const ENGINE = 'live/engine-replay-0.live.mjs'
 const UI = 'live/ui-replay-0.live.mjs'
 const PINS = 'live/pins.live.mjs'
 function scratchRepo () {
-  const dir = mkdtempSync(join(tmpdir(), 'run-live-'))
+  const dir = tree({
+    ...Object.fromEntries([ENGINE, UI, PINS, 'docs/ui/pins.js', 'docs/js/class_p.js', 'docs/js/engine_bridge.js']
+      .map((file) => [file, '// one\n'])),
+    'docs/index.html': '<script>load(["./js/class_p.js", "./js/new.js"])</script>\n'
+  })
   const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
   git('init', '-q', '-b', 'master')
   git('config', 'user.name', 'test')
   git('config', 'user.email', 'test@example.com')
   cpSync(fileURLToPath(new URL('../package.json', import.meta.url)), join(dir, 'package.json'))
-  for (const file of [ENGINE, UI, PINS, 'docs/ui/pins.js', 'docs/js/class_p.js', 'docs/js/engine_bridge.js']) {
-    mkdirSync(join(dir, dirname(file)), { recursive: true })
-    writeFileSync(join(dir, file), '// one\n')
-  }
-  writeFileSync(join(dir, 'docs/index.html'), '<script>load(["./js/class_p.js", "./js/new.js"])</script>\n')
   git('add', '-A')
   git('commit', '-q', '-m', 'base')
   return { dir, git }

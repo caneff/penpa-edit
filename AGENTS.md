@@ -53,12 +53,12 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   needs (`live/run-live.mjs`, #268, #315, untracked files counted). A change to an input of the engine side runs the full
   set: a file `docs/index.html` loads, read from the page and the scripts and sheets it reaches (`pageReach`, which
   `live/page-reach.live.mjs` checks against what the page asks for), a module or `live/`/`test/` path the engine side's
-  live files import or name, `package*.json`, `.github/**` or the script itself. The engine side is the safety net's files
+  live files import or name, `package*.json`, `.github/workflows/ci.yml`, `.github/actions/**` or the script itself. The engine side is the safety net's files
   but the UI driver's replays: `live/engine-replay-*.live.mjs`, `live/replay.live.mjs`, the fuzz, Tier C, the plants'
   `live/safety-net.live.mjs` and `live/upstream-links.live.mjs`. Any other change off the skip list (`docs/ui/**`,
   `research/**`, `adr/**`, `*.md`, and the files `live/*.live.mjs` outside the safety net's) runs every live file but the
   engine side's, the UI driver's replays `live/ui-replay-*.live.mjs` included; a change made only of skip-list paths runs
-  every live file but the safety net's. No change, or a detection that fails (an unreadable base or page), runs the full
+  every live file but the safety net's. No change, or a detection that fails (an unreadable base, page or module), runs the full
   set, and it prints which set it chose and why. `npm run test:live` is the full
   set: it runs, through the same script,
   `live/**/*.live.mjs` (`node:test` + Playwright, helpers in `live/page.mjs`, `live/pin-card.mjs`, `live/desk-layout.mjs`, `live/settle.mjs`, `live/upstream-docs.mjs`, `live/canonical-state.mjs`, `live/replay.mjs`, `live/engine-replay-part.mjs`, `live/ui-replay-part.mjs`, `live/fuzz.mjs`, `live/plants.mjs`, `live/puzzlink-cases.mjs`, `live/gallery-puzzles.mjs`, `live/tier-c.mjs`, `live/tier-c-puzzles.mjs` and the UI fuzz's `live/ui-fuzz/*.mjs`), replays every

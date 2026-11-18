@@ -83,6 +83,9 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   `live/run-live.mjs`) are the recordings' replays, the fuzz, Tier C, the plants and the upstream links; a PR whose change
   cannot reach them skips them (#268), and one that cannot reach `docs/index.html` skips all but the UI driver's replays
   (#315).
+- **Engine side**: the safety net's live files but the UI driver's replays (`ENGINE_FILES` in `live/run-live.mjs`): the
+  engine driver's replays, the fuzz, Tier C, the plants and the upstream links, which open only `docs/index.html`. Its
+  inputs are what that page loads and what those files import or read; a PR that changes none of them skips it (#315).
 - **Plant**: a one-line bug served in place of a file while a test runs, to measure whether the safety net catches it
   (`live/plants.mjs`). A plant in `docs/js/` is served while recordings replay, and is caught when a replay with it differs
   from its expected file, fails its duplicate-link round trip, throws at a step, or raises a page error or `console.error`.
