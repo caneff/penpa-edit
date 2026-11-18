@@ -1,5 +1,5 @@
 // The Mode card's tool tree: groups, modes and sub-modes (Symbols and marks one level deeper), each branch opening and closing on
-// its own, with the ARIA tree keys and `P` for the pin toggle a tool row holds in its `.ui-tpin` slot. The rows are built once and
+// its own, with the ARIA tree keys and Shift+Enter for the pin toggle a tool row holds in its `.ui-tpin` slot. The rows are built once and
 // only shown, hidden and marked afterwards, so a rebuild never lands between a mouse press and its release. Knows no `engine`.
 (function () {
     'use strict';
@@ -8,7 +8,7 @@
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
-    const PIN_KEY = 'p';
+    const PIN_SHORTCUT = 'Shift+Enter';
     const PIN_SLOT = 'ui-tpin';
 
     const MODE_ATTRS = (tool) => ({ 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' });
@@ -81,7 +81,7 @@
             const isLeaf = Boolean(node.tool);
             const row = el('div', {
                 role: 'treeitem', 'aria-level': String(node.level), tabindex: '-1', class: 'ui-trow',
-                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_KEY.toUpperCase(), 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
+                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [node.label]),
@@ -221,14 +221,13 @@
                 } else {
                     focusNode(node.parent);
                 }
-            } else if (e.key === 'Enter' || e.key === ' ') {
-                node.row.click();
-            } else if (pinButtonOf(node) && e.key.toLowerCase() === PIN_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
-                // A held key repeats: only the press pins. Stopped here so the picker does not take the letter as a search.
+            } else if (e.key === 'Enter' && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && pinButtonOf(node)) {
+                // Before the pick below, which Enter alone makes. A held key repeats: only the press pins.
                 if (!e.repeat) {
                     pinButtonOf(node).click();
                 }
-                e.stopPropagation();
+            } else if (e.key === 'Enter' || e.key === ' ') {
+                node.row.click();
             } else {
                 return;
             }
@@ -291,5 +290,5 @@
         };
     }
 
-    window.modeTree = { createModeTree, TREE_ID, PIN_KEY, PIN_SLOT };
+    window.modeTree = { createModeTree, TREE_ID, PIN_SHORTCUT, PIN_SLOT };
 })();

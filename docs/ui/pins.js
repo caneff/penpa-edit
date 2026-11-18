@@ -274,8 +274,9 @@
 
         // A pin icon button for whatever tool `toolNow()` returns: pressed while that tool is pinned, hidden for a tool the link
         // does not list. `sync()` redraws it, and only touches the DOM when what it shows changed: a write to the DOM makes the
-        // engine report a `change`, which would call `sync()` again, every frame.
-        function pinToggle(toolNow) {
+        // engine report a `change`, which would call `sync()` again, every frame. A `shortcut` names its key in the label, where the
+        // tool's name would be.
+        function pinToggle(toolNow, shortcut = null) {
             const button = el('button', { type: 'button', class: 'ui-pin-toggle' });
             let drawn = '';
             function sync() {
@@ -289,7 +290,8 @@
                 drawn = now;
                 button.hidden = !known;
                 button.setAttribute('aria-pressed', String(pinned));
-                const label = `${pinned ? 'Unpin' : 'Pin'} ${known ? chipLabel(known) : ''}`.trim();
+                const verb = pinned ? 'Unpin' : 'Pin';
+                const label = shortcut ? `${verb} (${shortcut})` : `${verb} ${known ? chipLabel(known) : ''}`.trim();
                 button.setAttribute('aria-label', label);
                 button.setAttribute('title', label);
                 button.innerHTML = pinIcon(pinned);
@@ -306,15 +308,15 @@
         const modePin = pinToggle(() => engine.getTool());
         cards.mode.body.querySelector('.ui-picker-row').append(modePin.node);
 
-        const { PIN_KEY, PIN_SLOT } = window.modeTree;
+        const { PIN_SHORTCUT, PIN_SLOT } = window.modeTree;
         const rowPins = [...cards.mode.body.querySelectorAll(`.ui-trow[data-mode] .${PIN_SLOT}`)].map((slot) => {
             const { mode, submode } = slot.parentElement.dataset;
-            const toggle = pinToggle(() => ({ mode, submode: submode || null }));
+            const toggle = pinToggle(() => ({ mode, submode: submode || null }), PIN_SHORTCUT);
             toggle.node.setAttribute('tabindex', '-1');
             slot.append(toggle.node);
             return toggle;
         });
-        window.uiKeys.describe('Tools', [{ keys: PIN_KEY.toUpperCase(), text: 'With a tool focused in the Mode picker, pin or unpin it' }]);
+        window.uiKeys.describe('Tools', [{ keys: PIN_SHORTCUT, text: 'With a tool focused in the Mode picker, pin or unpin it' }]);
 
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
