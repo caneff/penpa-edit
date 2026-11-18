@@ -16,13 +16,18 @@
     const depth = (node) => 1 + Math.max(0, ...node.children.map(depth));
     const rootOf = (node) => (node.parent ? rootOf(node.parent) : node);
 
-    // What a tool row shows: the plain name first, then Penpa+'s name in parentheses, minus the "Mode > " its branch already shows. The
-    // two names are shown once when they are the same text.
+    // A row reads "Plain name (Penpa+ name)": the Penpa+ name loses the "Mode > " its branch shows, and a plain name that is only the
+    // branch's own name gives way to it. The same text is never shown twice.
     function rowNames(label, plainName, parent) {
+        const same = (a, b) => a.toLowerCase() === b.toLowerCase();
         const prefix = `${parent.label} > `;
         const penpaName = label.startsWith(prefix) ? label.slice(prefix.length) : label;
-        return penpaName.toLowerCase() === plainName.toLowerCase() ? { shown: plainName, penpa: '' } : { shown: plainName, penpa: penpaName };
+        if (same(plainName, parent.label)) {
+            return { shown: penpaName, penpa: '' };
+        }
+        return { shown: plainName, penpa: same(penpaName, plainName) ? '' : penpaName };
     }
+    const rowText = ({ shown, penpa }) => (penpa ? `${shown} (${penpa})` : shown);
 
     // The "Open to" buttons, each with the branches it opens. Modes opens down to the level of the modes: the second, or the third
     // in Symbols and marks, whose subgroups sit above its symbols.
@@ -90,7 +95,7 @@
             const isLeaf = Boolean(node.tool);
             const row = el('div', {
                 role: 'treeitem', 'aria-level': String(node.level), tabindex: '-1', class: 'ui-trow',
-                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
+                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': rowText(node.names), title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [isLeaf ? node.names.shown : node.label]),

@@ -19,7 +19,7 @@
         ['move', 'Moving things']
     ];
 
-    // 'mode/sub-mode' (a mode with none: 'mode/') -> [group, plain name, description]. The plain name is a search term, a chip's tooltip and the first name of the tree's row, which `chipLabel` follows in parentheses.
+    // 'mode/sub-mode' (a mode with none: 'mode/') -> [group, plain name, description]. The plain name is a search term, a chip's tooltip and the first name of the tree's row, with `chipLabel` after it in parentheses.
     const ENTRIES = {
         'surface/': ['shade', 'Shade cells', 'Click paints the chosen colour, right the 2nd colour; drag paints many.'],
         'multicolor/': ['shade', 'Colour selected cells', 'Select cells, then type a digit or pick a colour.'],
