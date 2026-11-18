@@ -606,7 +606,7 @@
     const axesOf = (edges) => [...(edges.some((e) => e === 'left' || e === 'right') ? ['w'] : []), ...(edges.some((e) => e === 'top' || e === 'bottom') ? ['h'] : [])];
 
     // A card's automatic height where it sits, on its own: Mode and Mouse as tall as their tools need, Rules its text, and
-    // Board and Recent down to the columns' bottom; never past that bottom, nor under the card's minimum. Pinned's
+    // Board and Recent, where it sits off the fitted layout, down to the columns' bottom; never past that bottom, nor under the card's minimum. Pinned's
     // automatic height is no height set at all. A Rules card with no rules is one line tall, under its minimum, as
     // `rulesHeightFor` fits it (#288).
     function automaticHeight(desk, cards, id) {
