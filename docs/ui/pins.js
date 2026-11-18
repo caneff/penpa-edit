@@ -30,7 +30,7 @@
     // A pin seen from the side: the head and the needle.
     const PIN_SHAPE = '<path d="M5.5 1.5h5l-.8 4.2 2.3 2.8H4l2.3-2.8z"/><path d="M8 8.5v6"/>';
     const UNPIN_ALL_ICON = `${PIN_SHAPE}<path d="M2 2l12 12"/>`;
-    // A circled minus, not a ×: a tool's name can end in one ("Stars + ×").
+    // A circled minus, not a ×: a tool's name can end in one ("○ △ □ ×, black").
     const REMOVE_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.5" ' +
         'stroke-linecap="round"><circle cx="8" cy="8" r="6.5"/><path d="M5 8h6"/></svg>';
 
