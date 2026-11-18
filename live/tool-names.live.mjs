@@ -262,7 +262,7 @@ describe('the style mark beside the tool name', () => {
     const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
     return (hi + 0.05) / (lo + 0.05)
   }
-  const MIN_INK_CONTRAST = 3
+  const MIN_INK_CONTRAST = 4.5
 
   it('inks every disc-less text sample clearly against the Board chip\'s pill', async () => {
     const { page } = opened
