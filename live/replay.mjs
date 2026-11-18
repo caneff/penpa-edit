@@ -281,20 +281,25 @@ function boardPixelInPage ({ x, y }) {
   return { x: box.left + x, y: box.top + y }
 }
 
-// Runs in the page: the whole viewport pixel a pointer step aims at, for a recording made at `recordedSize` px a cell.
+// Where board point `x, y` of a recording, made at RECORDED_CELL_PX px a cell, lies on a board drawn at `size` px a cell.
+// Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
+export function pointAtSize ({ x, y }, size) {
+  const scale = size / RECORDED_CELL_PX
+  return { x: (x - 0.5) * scale + 0.5, y: (y - 0.5) * scale + 0.5 }
+}
+
+// Runs in the page: the whole viewport pixel a pointer step aims at, `point` being its board point at the page's cell
+// size (`pointAtSize`).
 // `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position and takes the nearest
-// point of `pu.type`, and a mouse event carries whole pixels. So the step's board point `x, y`, scaled to the page's cell
-// size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
+// point of `pu.type`, and a mouse event carries whole pixels. So the step's board point is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
 // otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no neighbouring
 // pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches.
-function pagePixelInPage ({ x, y, num, recordedSize }) {
+function pagePixelInPage ({ point, num }) {
   const canvas = document.getElementById('canvas')
-  const scale = pu.size / recordedSize
   const left = canvas.offsetLeft - window.scrollX
   const top = canvas.offsetTop - window.scrollY
-  // Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
-  const at = { x: left + (x - 0.5) * scale + 0.5, y: top + (y - 0.5) * scale + 0.5 }
+  const at = { x: left + point.x, y: top + point.y }
   // As `coord_point` searches: the first point of the least distance wins.
   const nearest = (px) => {
     let best = -1
@@ -353,7 +358,7 @@ function outsideCanvasInPage () {
 export const CELL_ONLY_TOOLS = ['star', 'yajilin', 'mines', 'doublemines', 'akari']
 
 // The cell size Penpa+'s page draws a board at, so the one every recording was made at.
-const RECORDED_CELL_PX = 38
+export const RECORDED_CELL_PX = 38
 
 // How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
 // ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
@@ -529,7 +534,8 @@ function silentPress (steps, i) {
 
 function startUiDriver (page, steps, choices) {
   const pixelOf = async ({ x, y, num }) => {
-    const pixel = await page.evaluate(pagePixelInPage, { x, y, num, recordedSize: RECORDED_CELL_PX })
+    const point = pointAtSize({ x, y }, await page.evaluate(() => pu.size))
+    const pixel = await page.evaluate(pagePixelInPage, { point, num })
     await page.evaluate(clearPanelInPage, pixel)
     return pixel
   }
