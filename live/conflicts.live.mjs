@@ -7,8 +7,9 @@ const browser = useBrowser()
 
 // Runs in the page. Builds an empty `size`x`size` square grid tagged `tag`, fills `givens` ([x, y, value] with x, y
 // counted from the grid's top left) as large black question numbers, adds each `symbols` entry ([x1, y1, x2, y2,
-// symbol]) on the edge between those two cells, runs `pu.check_conflict` and returns the conflicting cells as [x, y].
-function checkInPage ({ size, tag, givens, symbols = [] }) {
+// symbol]) on the edge between those two cells, draws region lines around boxes of `boxes` = [rows, columns]
+// cells (none when absent) or only the horizontal lines between `bands` rows (a partly drawn layout), runs `pu.check_conflict` and returns the conflicting cells as [x, y].
+function checkInPage ({ size, tag, givens, symbols = [], boxes, bands, solve }) {
   document.getElementById('nb_size1').value = size
   document.getElementById('nb_size2').value = size
   create_newboard()
@@ -20,6 +21,32 @@ function checkInPage ({ size, tag, givens, symbols = [] }) {
     const edge = Object.keys(pu.point).find((k) => pu.point[k].neighbor.length === 2 && [...pu.point[k].neighbor].sort((a, b) => a - b).join(',') === pair)
     if (edge === undefined) throw new Error(`no edge between cells (${x1}, ${y1}) and (${x2}, ${y2})`)
     pu.pu_q.symbol[edge] = symbol
+  }
+  if (boxes) {
+    // A line is keyed by its two vertices; a vertex (vx, vy) counts from the grid's top left corner.
+    const vertex = (vx, vy) => pu.nx0 * pu.ny0 + (vy + 1) * pu.nx0 + vx + 1
+    const draw = (a, b) => { pu.pu_q.lineE[`${a},${b}`] = 2 }
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        if (y > 0 && y % boxes[0] === 0) draw(vertex(x, y), vertex(x + 1, y))
+        if (x > 0 && x % boxes[1] === 0) draw(vertex(x, y), vertex(x, y + 1))
+      }
+    }
+  }
+  if (bands) {
+    const vertex = (vx, vy) => pu.nx0 * pu.ny0 + (vy + 1) * pu.nx0 + vx + 1
+    for (let y = bands; y < size; y += bands) {
+      for (let x = 0; x < size; x++) pu.pu_q.lineE[`${vertex(x, y)},${vertex(x + 1, y)}`] = 2
+    }
+  }
+  if (solve) {
+    // The givens become the answer, which is also the author's solution: `check_solution` then solves unless a conflict stops it.
+    for (const [x, y, value] of givens) pu.pu_a.number[cell(x, y)] = [String(value), 2, '1']
+    pu.pu_q.number = {}
+    pu.solution = JSON.stringify(pu.make_solution())
+    pu.sol_flag = 0
+    pu.check_solution()
+    return pu.sol_flag
   }
   pu.conflicts.reset()
   pu.check_conflict('')
@@ -57,6 +84,46 @@ describe('conflict checks', () => {
     it('flags two 1s in one box of an 8x8 (2 rows by 4 columns)', async () => {
       const cells = await check({ size: 8, tag: 'classic', givens: [[0, 0, 1], [3, 1, 1]] })
       assert.deepEqual(cells, [[0, 0], [3, 1]])
+    })
+  })
+
+  describe('a classic sudoku with its boxes drawn', () => {
+    // A valid 6x6 whose boxes are 3 rows by 2 columns.
+    const solved = [[1, 2, 3, 4, 5, 6], [3, 4, 5, 6, 1, 2], [5, 6, 1, 2, 3, 4], [2, 1, 4, 3, 6, 5], [4, 3, 6, 5, 2, 1], [6, 5, 2, 1, 4, 3]]
+    const fill = solved.flatMap((row, y) => row.map((value, x) => [x, y, value]))
+
+    it('reads the drawn 3x2 boxes of a correct 6x6, not the 2x3 default', async () => {
+      assert.deepEqual(await check({ size: 6, tag: 'classic', givens: fill, boxes: [3, 2] }), [])
+    })
+
+    it('reaches solved on a correct 6x6 with drawn 3x2 boxes', async () => {
+      assert.equal(await check({ size: 6, tag: 'classic', givens: fill, boxes: [3, 2], solve: true }), 1)
+    })
+
+    it('flags two equal digits in one drawn 3x2 box', async () => {
+      const cells = await check({ size: 6, tag: 'classic', givens: [[0, 0, 1], [1, 2, 1]], boxes: [3, 2] })
+      assert.deepEqual(cells, [[0, 0], [1, 2]])
+    })
+
+    it('does not flag two digits that share only a default 2x3 box', async () => {
+      const cells = await check({ size: 6, tag: 'classic', givens: [[0, 0, 1], [2, 1, 1]], boxes: [3, 2] })
+      assert.deepEqual(cells, [])
+    })
+
+    it('keeps the size default while the lines are partly drawn', async () => {
+      // Horizontal lines every 2 rows cut the 9x9 into bands of 18 cells: no box yet, so the 3x3 default applies across them.
+      const cells = await check({ size: 9, tag: 'classic', givens: [[0, 0, 1], [2, 2, 1]], bands: 2 })
+      assert.deepEqual(cells, [[0, 0], [2, 2]])
+    })
+
+    it('flags two equal digits in one drawn 2x3 box of a 6x6', async () => {
+      const cells = await check({ size: 6, tag: 'classic', givens: [[0, 0, 1], [2, 1, 1]], boxes: [2, 3] })
+      assert.deepEqual(cells, [[0, 0], [2, 1]])
+    })
+
+    it('flags two equal digits in one drawn 3x3 box of a 9x9', async () => {
+      const cells = await check({ size: 9, tag: 'classic', givens: [[0, 0, 1], [2, 2, 1]], boxes: [3, 3] })
+      assert.deepEqual(cells, [[0, 0], [2, 2]])
     })
   })
 
