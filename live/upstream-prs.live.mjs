@@ -47,6 +47,48 @@ describe('sudoku import (PR 231)', () => {
     await context.close()
   })
 
+  // #37: a tab separates columns, so an empty tab-delimited field is a blank cell. Returns "row,col:char" for each clue,
+  // read relative to the dialog's start cell.
+  const placed = (page, text, { nonSquare = true } = {}) => page.evaluate(({ text, nonSquare }) => {
+    const el = (id) => document.getElementById(id)
+    el('sudokuIgnoreSpaces').checked = true
+    el('sudokuIgnoreNotSquare').checked = nonSquare
+    pu.pu_q.number = {}
+    el('iostring').value = text
+    pu.load_clues()
+    const r0 = parseInt(el('nb_space1').value, 10)
+    const c0 = parseInt(el('nb_space3').value, 10)
+    return Object.entries(pu.pu_q.number)
+      .map(([k, v]) => `${Math.floor(k / pu.nx0) - 2 - r0},${(k % pu.nx0) - 2 - c0}:${v[0]}`)
+      .sort()
+  }, { text, nonSquare })
+
+  it('keeps a blank cell between two tabs (a Google Sheets paste) in non-square mode', async () => {
+    const { context, page } = await openPenpa(browser())
+    assert.deepEqual(await placed(page, '5\t\t3'), ['0,0:5', '0,2:3'])
+    await context.close()
+  })
+
+  it('keeps blanks at the start, middle and end of each row of a multi-row paste', async () => {
+    const { context, page } = await openPenpa(browser())
+    const text = '\t1\t\t2\t\n3\t\t\t\t4\n\t\t5\t\t'
+    assert.deepEqual(await placed(page, text), ['0,1:1', '0,3:2', '1,0:3', '1,4:4', '2,2:5'])
+    await context.close()
+  })
+
+  it('imports 0 and . blanks as before', async () => {
+    const { context, page } = await openPenpa(browser())
+    assert.deepEqual(await placed(page, '5\t0\t3'), ['0,0:5', '0,1:0', '0,2:3'])
+    assert.deepEqual(await placed(page, '5\t.\t3'), ['0,0:5', '0,1:0', '0,2:3'])
+    await context.close()
+  })
+
+  it('imports space-padded text without tabs as before', async () => {
+    const { context, page } = await openPenpa(browser())
+    assert.deepEqual(await placed(page, '5 0 3\n 1 2 '), ['0,0:5', '0,1:0', '0,2:3', '1,0:1', '1,1:2'])
+    await context.close()
+  })
+
   it('reports a digit count that is no perfect square without replacing the input', async () => {
     const { context, page } = await openPenpa(browser())
     const result = await runImport(page, '12345', { nonSquare: false })
