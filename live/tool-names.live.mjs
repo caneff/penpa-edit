@@ -78,6 +78,28 @@ describe('one name per tool', () => {
     })
   }
 
+  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker leaf, with the plain name as the chip\'s hover text', async () => {
+    const { page } = opened
+    const composites = await page.evaluate(() => engine.listTools().filter((t) => t.mode === 'combi')
+      .map(({ submode }) => ({ submode, penpa: document.getElementById(`combisub_${submode}`).textContent.replace(/\s+/g, ' ').trim() })))
+    assert.ok(composites.length > 15, `${composites.length} Composite tools listed`)
+    await pin(page, composites.map(({ submode }) => ({ mode: 'combi', submode, style: null })))
+    await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, composites.length)
+    assert.deepEqual(await chipTexts(region(page, 'Pinned')), composites.map((c) => c.penpa))
+    const leaves = []
+    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerName(page, { mode: 'combi', submode })])
+    assert.deepEqual(leaves.filter(([want, got]) => want !== got), [])
+    const blpo = composites.findIndex((c) => c.submode === 'blpo')
+    assert.equal(composites[blpo].penpa, 'Black / dot')
+    assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').nth(blpo).getAttribute('title'), 'Shade + dot', 'the plain name is the chip\'s hover text')
+  })
+
+  it('keeps a hand name for the Number sub-modes whose Penpa+ label is an icon', async () => {
+    const { page } = opened
+    const names = await page.evaluate(() => engine.listTools().filter((t) => t.mode === 'number' && ['3', '9'].includes(t.submode)).map((t) => t.submodeName))
+    assert.deepEqual(names, ['quarter', 'side'])
+  })
+
   it('gives a chip the tool\'s plain name as its tooltip, and none when the plain names do not know the tool', async () => {
     const { page } = opened
     const [surface] = (await listedTools(page)).filter((t) => t.mode === 'surface')
@@ -109,9 +131,9 @@ describe('one name per tool', () => {
 
   it('keeps a name\'s × apart from the chip\'s remove button', async () => {
     const { page } = opened
-    await pin(page, [{ mode: 'line', submode: '4', style: null }])
+    await pin(page, [{ mode: 'symbol', submode: 'ox_B', style: null }])
     const chip = region(page, 'Pinned').locator('.ui-chip').first()
-    await settle(async () => (await chip.locator('.ui-chip-main').innerText()).includes('×'), true)
+    assert.equal(await settle(async () => (await chip.locator('.ui-chip-main').innerText()).includes('×'), true), true, 'the chip\'s name holds a ×')
     assert.equal(await chip.getByRole('button', { name: /^Unpin/ }).innerText(), '', 'the remove button has no × text')
     assert.equal(await chip.getByRole('button', { name: /^Unpin/ }).locator('svg').count(), 1, 'the remove button is an icon')
   })

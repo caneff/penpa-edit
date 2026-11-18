@@ -59,30 +59,30 @@
         'move/3': ['move', 'Move shapes', 'Drag a shape elsewhere.']
     };
 
-    // Composite sub-mode -> [group, description]. Its plain name is the engine's name for the sub-mode.
+    // Composite sub-mode -> [group, plain name, description]. The plain name is a search term and a chip's tooltip; Penpa+'s label names the tool.
     const COMPOSITE_ENTRIES = {
-        blpo: ['shade', 'Left shades a cell, right puts a dot (unshaded).'],
-        shaka: ['shade', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
-        linex: ['lines', 'Drag a line through cell centres; right on an edge: ×.'],
-        lineox: ['lines', 'Drag a line; click a cell: ○, again ×.'],
-        linedir: ['lines', 'Drag a line; marks its direction.'],
-        yajilin: ['lines', 'Click shades a cell, drag draws a line; right: dot or edge ×.'],
-        hashi: ['lines', 'Drag between cells: a bridge, again: double.'],
-        rassisillai: ['lines', 'Drag a line through cells; clicks mark cells.'],
-        edgex: ['edges', 'Drag along grid lines; right on an edge: ×.'],
-        edgexoi: ['edges', 'Drag along grid lines; click a cell: inside / outside colour.'],
-        edgesub: ['edges', 'Drag along grid lines; a second helper line.'],
-        numfl: ['numbers', 'Drag from a cell in a direction to enter a number.'],
-        alfl: ['numbers', 'Drag from a cell in a direction to enter a letter.'],
-        blwh: ['symbols', 'Left: white ○, again black ●; right: black ●.'],
-        star: ['symbols', 'Left: star; right: ×; right on a corner: dot.'],
-        akari: ['symbols', 'Left: bulb; right: dot (no bulb); right on an edge: ×.'],
-        battleship: ['symbols', 'Left cycles ship pieces; drag points a ship end; right: water.'],
-        tents: ['symbols', 'Left: tent; right: ×; drag links a tent to its tree.'],
-        mines: ['symbols', 'Left: mine; right: ×.'],
-        doublemines: ['symbols', 'Left: 1 mine, again 2; right: ×.'],
-        magnets: ['symbols', 'Places + and − poles.'],
-        arrowS: ['symbols', 'Places an arrow in a cell.']
+        blpo: ['shade', 'Shade + dot', 'Left shades a cell, right puts a dot (unshaded).'],
+        shaka: ['shade', 'Corner triangles + dot', 'Click places a dot; drag toward a corner, a half-cell triangle.'],
+        linex: ['lines', 'Line + edge ×', 'Drag a line through cell centres; right on an edge: ×.'],
+        lineox: ['lines', 'Line + cell ○ ×', 'Drag a line; click a cell: ○, again ×.'],
+        linedir: ['lines', 'Line + direction marks', 'Drag a line; marks its direction.'],
+        yajilin: ['lines', 'Shade + line', 'Click shades a cell, drag draws a line; right: dot or edge ×.'],
+        hashi: ['lines', 'Bridges', 'Drag between cells: a bridge, again: double.'],
+        rassisillai: ['lines', 'Line + cell marks', 'Drag a line through cells; clicks mark cells.'],
+        edgex: ['edges', 'Edges + ×', 'Drag along grid lines; right on an edge: ×.'],
+        edgexoi: ['edges', 'Edges + inside / outside', 'Drag along grid lines; click a cell: inside / outside colour.'],
+        edgesub: ['edges', 'Edges + helper line', 'Drag along grid lines; a second helper line.'],
+        numfl: ['numbers', 'Numbers by flick', 'Drag from a cell in a direction to enter a number.'],
+        alfl: ['numbers', 'Letters by flick', 'Drag from a cell in a direction to enter a letter.'],
+        blwh: ['symbols', 'Black + white circles', 'Left: white ○, again black ●; right: black ●.'],
+        star: ['symbols', 'Stars + ×', 'Left: star; right: ×; right on a corner: dot.'],
+        akari: ['symbols', 'Bulbs + dots', 'Left: bulb; right: dot (no bulb); right on an edge: ×.'],
+        battleship: ['symbols', 'Ship pieces + water', 'Left cycles ship pieces; drag points a ship end; right: water.'],
+        tents: ['symbols', 'Tents + ×', 'Left: tent; right: ×; drag links a tent to its tree.'],
+        mines: ['symbols', 'Mines + ×', 'Left: mine; right: ×.'],
+        doublemines: ['symbols', 'One or two mines + ×', 'Left: 1 mine, again 2; right: ×.'],
+        magnets: ['symbols', 'Magnet poles + −', 'Places + and − poles.'],
+        arrowS: ['symbols', 'Arrows in cells', 'Places an arrow in a cell.']
     };
 
     // One tool's identity, for a lookup: its mode and sub-mode.
@@ -96,7 +96,7 @@
         }
         const composite = tool.mode === 'combi' && COMPOSITE_ENTRIES[tool.submode];
         if (composite) {
-            return { group: composite[0], plainName: tool.submodeName, description: composite[1] };
+            return { group: composite[0], plainName: composite[1], description: composite[2] };
         }
         if (tool.mode === 'symbol') {
             const plainName = capitalised(submodeLabel(tool));
@@ -363,8 +363,11 @@
         return SELF_NAMING_MODES.includes(tool.mode) ? submodeLabel(tool) : `${tool.modeName} > ${capitalised(tool.submodeName)}`;
     }
 
-    // The attributes giving a chip its tooltip: the tool's plain name from `ENTRIES` ("Shade cells" for Surface), none for a tool it does not list.
-    const tooltipAttrs = (tool) => (ENTRIES[toolKey(tool)] ? { title: ENTRIES[toolKey(tool)][1] } : {});
+    // The attributes giving a chip its tooltip: the tool's plain name from `ENTRIES` or `COMPOSITE_ENTRIES` ("Shade cells" for Surface), none for a tool they do not list.
+    const tooltipAttrs = (tool) => {
+        const plainName = tool.mode === 'combi' ? COMPOSITE_ENTRIES[tool.submode]?.[1] : ENTRIES[toolKey(tool)]?.[1];
+        return plainName ? { title: plainName } : {};
+    };
 
     window.toolGuide = { tooltipAttrs, TOOL_GROUPS, NOTHING, AS_A_CLICK, SECOND_COLOUR_DOT, placeTool, looseText, searchWords, looseWords, matchesSearch, mouseRows, toolKey, chipLabel };
 })();
