@@ -57,6 +57,7 @@
     });
     const page = el('div', { class: 'ui-paste-page' }, [form]);
     setDark(page, engine.savedTheme === 'dark');
+    engine.ignoreChangesIn(page);
     document.body.append(page);
     // Web Awesome upgrades the box after this script runs; the focus waits for it.
     customElements.whenDefined('wa-input').then(() => input.focus());

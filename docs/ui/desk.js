@@ -149,6 +149,7 @@
     function addTooltip(node, text) {
         node.id ||= `ui-tooltip-target-${++tooltipCount}`;
         const tooltip = el('wa-tooltip', { for: node.id }, [text]);
+        engine.ignoreChangesIn(tooltip);
         document.body.append(tooltip);
         return tooltip;
     }
@@ -274,6 +275,7 @@
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         showRules(cards.rules.body, info.rules);
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
+        engine.ignoreChangesIn(root);
         document.body.append(root);
         return { bar, desk, cards, zoom, rulesText, closeMouse };
     }
