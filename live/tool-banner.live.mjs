@@ -132,3 +132,28 @@ describe('the tool-change banner with board coordinates on', () => {
     await context.close()
   })
 })
+
+const DESK_WIDTHS = [LAPTOP, { width: 2560, height: 1440 }]
+const FLASH_ALPHA = 0.55
+const FLASH_FONT_PX = 22
+
+// Runs in the page: the banner's computed background alpha and font size. A `color-mix` computes to `color(srgb r g b / a)`.
+function readBannerLookInPage () {
+  const style = getComputedStyle(document.querySelector('.ui-flash'))
+  const alpha = /\/\s*([\d.]+)\s*\)/.exec(style.backgroundColor)
+  return { background: style.backgroundColor, alpha: alpha === null ? 1 : Number(alpha[1]), fontSize: style.fontSize }
+}
+
+for (const viewport of DESK_WIDTHS) {
+  describe(`the tool-change banner's look at ${viewport.width}x${viewport.height}`, () => {
+    it('is translucent at 55% and 22px tall text, and still sits inside the board', async () => {
+      const { context, page } = await openSolvePage(browser(), await solveLinkOfImport(browser(), IMPORTS['sudoku-9x9']), { contextOptions: { viewport } })
+      await changeTool(page, TOOLS[1])
+      const look = await page.evaluate(readBannerLookInPage)
+      assert.equal(Math.abs(look.alpha - FLASH_ALPHA) < 0.01, true, JSON.stringify(look))
+      assert.equal(look.fontSize, `${FLASH_FONT_PX}px`, JSON.stringify(look))
+      assertTopOfBoard(await readBanner(page))
+      await context.close()
+    })
+  })
+}
