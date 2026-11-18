@@ -25,7 +25,7 @@ describe('number mode, circle submode (PR 216)', () => {
 })
 
 describe('sudoku import (PR 231)', () => {
-  // Fills the import dialog and runs it; returns the clue count and whether each error shows.
+  // Fills the import dialog and runs it; returns the clue count, where each clue sits and whether each error shows.
   const runImport = (page, text, { nonSquare }) => page.evaluate(({ text, nonSquare }) => {
     const el = (id) => document.getElementById(id)
     el('sudokuIgnoreSpaces').checked = true
@@ -33,8 +33,14 @@ describe('sudoku import (PR 231)', () => {
     pu.pu_q.number = {}
     el('iostring').value = text
     pu.load_clues()
+    // #37: "row,col:char" of each clue, read from the dialog's start cell
+    const r0 = parseInt(el('nb_space1').value, 10)
+    const c0 = parseInt(el('nb_space3').value, 10)
     return {
       clues: Object.keys(pu.pu_q.number).length,
+      placed: Object.entries(pu.pu_q.number)
+        .map(([k, v]) => `${Math.floor(k / pu.nx0) - 2 - r0},${(k % pu.nx0) - 2 - c0}:${v[0]}`)
+        .sort(),
       nonAlphanumericShown: !el('sudokuIOFail').classList.contains('is_hidden'),
       notSquareShown: !el('sudokuIOFailNonPerfect').classList.contains('is_hidden'),
       input: el('iostring').value
@@ -47,45 +53,29 @@ describe('sudoku import (PR 231)', () => {
     await context.close()
   })
 
-  // #37: a tab separates columns, so an empty tab-delimited field is a blank cell. Returns "row,col:char" for each clue,
-  // read relative to the dialog's start cell.
-  const placed = (page, text, { nonSquare = true } = {}) => page.evaluate(({ text, nonSquare }) => {
-    const el = (id) => document.getElementById(id)
-    el('sudokuIgnoreSpaces').checked = true
-    el('sudokuIgnoreNotSquare').checked = nonSquare
-    pu.pu_q.number = {}
-    el('iostring').value = text
-    pu.load_clues()
-    const r0 = parseInt(el('nb_space1').value, 10)
-    const c0 = parseInt(el('nb_space3').value, 10)
-    return Object.entries(pu.pu_q.number)
-      .map(([k, v]) => `${Math.floor(k / pu.nx0) - 2 - r0},${(k % pu.nx0) - 2 - c0}:${v[0]}`)
-      .sort()
-  }, { text, nonSquare })
-
   it('keeps a blank cell between two tabs (a Google Sheets paste) in non-square mode', async () => {
     const { context, page } = await openPenpa(browser())
-    assert.deepEqual(await placed(page, '5\t\t3'), ['0,0:5', '0,2:3'])
+    assert.deepEqual((await runImport(page, '5\t\t3', { nonSquare: true })).placed, ['0,0:5', '0,2:3'])
     await context.close()
   })
 
   it('keeps blanks at the start, middle and end of each row of a multi-row paste', async () => {
     const { context, page } = await openPenpa(browser())
     const text = '\t1\t\t2\t\n3\t\t\t\t4\n\t\t5\t\t'
-    assert.deepEqual(await placed(page, text), ['0,1:1', '0,3:2', '1,0:3', '1,4:4', '2,2:5'])
+    assert.deepEqual((await runImport(page, text, { nonSquare: true })).placed, ['0,1:1', '0,3:2', '1,0:3', '1,4:4', '2,2:5'])
     await context.close()
   })
 
-  it('imports 0 and . blanks as before', async () => {
+  it('places 0 and . as 0 clues when no tab is in the text', async () => {
     const { context, page } = await openPenpa(browser())
-    assert.deepEqual(await placed(page, '5\t0\t3'), ['0,0:5', '0,1:0', '0,2:3'])
-    assert.deepEqual(await placed(page, '5\t.\t3'), ['0,0:5', '0,1:0', '0,2:3'])
+    assert.deepEqual((await runImport(page, '5\t0\t3', { nonSquare: true })).placed, ['0,0:5', '0,1:0', '0,2:3'])
+    assert.deepEqual((await runImport(page, '5\t.\t3', { nonSquare: true })).placed, ['0,0:5', '0,1:0', '0,2:3'])
     await context.close()
   })
 
-  it('imports space-padded text without tabs as before', async () => {
+  it('ignores spaces between the cells of text with no tabs', async () => {
     const { context, page } = await openPenpa(browser())
-    assert.deepEqual(await placed(page, '5 0 3\n 1 2 '), ['0,0:5', '0,1:0', '0,2:3', '1,0:1', '1,1:2'])
+    assert.deepEqual((await runImport(page, '5 0 3\n 1 2 ', { nonSquare: true })).placed, ['0,0:5', '0,1:0', '0,2:3', '1,0:1', '1,1:2'])
     await context.close()
   })
 

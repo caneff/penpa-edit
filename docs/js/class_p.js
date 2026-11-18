@@ -13501,8 +13501,11 @@ class Puzzle {
             // caneff: in non-square mode a tab still separates columns; keep it for the blank-cell step below
             const replaceRegex = ignoreNonSquare ? /[^\S\r\n\t]+/g : /\s/g;
             iostring = iostring.replace(replaceRegex, '');
-            // caneff: an empty tab-delimited field (a blank Sheets cell) becomes a space, which the import loop skips
-            if (ignoreNonSquare) iostring = iostring.replace(/^.*\t.*$/gm, (line) => line.split('\t').map((field) => field || ' ').join(''));
+            // caneff: an empty tab-delimited field (a blank Sheets cell) becomes a space, which the import loop skips.
+            // A field with several characters stays one cell per character; a line with no tab is left as it is.
+            if (ignoreNonSquare) {
+                iostring = iostring.replace(/^.*\t.*$/gm, (line) => line.split('\t').map((field) => field || ' ').join(''));
+            }
         }
 
         // Replace dots with zeros
