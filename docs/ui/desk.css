@@ -398,3 +398,10 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-shortcuts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .ui-shortcut kbd { display: inline-block; min-width: 2.2em; padding: 1px 6px; margin-right: 4px; border: 1px solid #ddd7c8; border-radius: 4px; font: 12px ui-monospace, monospace; text-align: center; }
 .ui-dark .ui-shortcut kbd { border-color: #3a3f4b; }
+
+/* The stream fit (#314): the Board card is the box the stream shows the board in, with nothing of the card round the board. */
+.ui-card-board.is-stream { border: 0; border-radius: 0; box-shadow: none; outline: none; background: #fff; }
+.ui-dark .ui-card-board.is-stream { background: #000; }
+.ui-card-board.is-stream .ui-head, .ui-card-board.is-stream .ui-resize { display: none; }
+.ui-card-board.is-stream .ui-body { display: block; padding: 0; overflow: hidden; }
+.ui-card-board.is-stream .ui-body > * { margin: 0; box-shadow: none; border: 0; }
