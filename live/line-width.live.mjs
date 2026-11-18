@@ -6,10 +6,16 @@ import { linkFromNewBoard, openPenpa, openSolvePage, puzzleSolveLinkInPage, useB
 
 const browser = useBrowser()
 
-// Penpa+'s line style 3 is the solver's green line, 3 px wide; style 13 is the bold dash, already `pu.size * 0.1` wide.
+// Penpa+'s line style 3 is the solver's green line, 3 px wide; styles 13 (bold dash) and 17 (a wall's bold dash) are already
+// `(pu.size * 0.1) | 0` wide, which is 7 px at ZOOMED px a cell.
 const SOLVER_LINE = 3
 const SOLVER_LINE_PX = 3
-const BOLD_DASH = 13
+const CELL_SIZED_STYLES = [13, 17]
+const CELL_SIZED_PX_AT_ZOOMED = 7
+// The cell sizes the widths are read at: under Penpa+'s normal, its normal, and twice its normal.
+const SMALL = 24
+const NORMAL = 38
+const ZOOMED = 76
 // The middle cell of a 9x9 and its right-hand neighbour, as indexes of the center list.
 const LINE_FROM = 40
 const LINE_TO = 41
@@ -34,15 +40,15 @@ function lineWidthAtInPage ({ px, from, to, style }) {
   return { cellSize: engine.getState().cellSize, width: run / pu.resol }
 }
 
-// Runs in the page: the line width Penpa+'s setter leaves for `style` at `px` a cell, on the board's context and on a
-// context of its own.
+// Runs in the page: the cell size, and the line width Penpa+'s setter leaves for `style` at `px` a cell, on the board's
+// context and on a context of its own.
 function setterWidthsInPage ({ px, style }) {
   if (typeof engine !== 'undefined') engine.setCellSize(px)
   else UserSettings.displaysize = px
   const scratch = document.createElement('canvas').getContext('2d')
   set_line_style(pu.ctx, style)
   set_line_style(scratch, style)
-  return { board: pu.ctx.lineWidth, scratch: scratch.lineWidth }
+  return { cellSize: pu.size, board: pu.ctx.lineWidth, scratch: scratch.lineWidth }
 }
 
 describe('a solver line on solve.html', () => {
@@ -51,7 +57,7 @@ describe('a solver line on solve.html', () => {
     link = await linkFromNewBoard(browser(), puzzleSolveLinkInPage, { title: '', author: '', rules: '', size: 9 })
   })
 
-  it('draws at its own width up to 38 px a cell and twice as wide at 76 px', async () => {
+  it(`draws at its own width up to ${NORMAL} px a cell and twice as wide at ${ZOOMED} px`, async () => {
     const { context, page } = await openSolvePage(browser(), link, { served: true })
     try {
       const widthAt = async (px) => {
@@ -59,12 +65,12 @@ describe('a solver line on solve.html', () => {
         assert.equal(cellSize, px)
         return width
       }
-      const small = await widthAt(24)
-      const normal = await widthAt(38)
-      const zoomed = await widthAt(76)
-      assert.ok(Math.abs(small - SOLVER_LINE_PX) <= 0.5, `${small} px at 24 px a cell, want about ${SOLVER_LINE_PX}`)
-      assert.ok(Math.abs(normal - SOLVER_LINE_PX) <= 0.5, `${normal} px at 38 px a cell, want about ${SOLVER_LINE_PX}`)
-      assert.ok(Math.abs(zoomed / normal - 2) <= 0.25, `${zoomed} px at 76 px a cell against ${normal} px at 38: want about twice`)
+      const small = await widthAt(SMALL)
+      const normal = await widthAt(NORMAL)
+      const zoomed = await widthAt(ZOOMED)
+      assert.ok(Math.abs(small - SOLVER_LINE_PX) <= 0.5, `${small} px at ${SMALL} px a cell, want about ${SOLVER_LINE_PX}`)
+      assert.ok(Math.abs(normal - SOLVER_LINE_PX) <= 0.5, `${normal} px at ${NORMAL} px a cell, want about ${SOLVER_LINE_PX}`)
+      assert.ok(Math.abs(zoomed / normal - 2) <= 0.25, `${zoomed} px at ${ZOOMED} px a cell against ${normal} px at ${NORMAL}: want about twice`)
     } finally {
       await context.close()
     }
@@ -73,9 +79,12 @@ describe('a solver line on solve.html', () => {
   it('scales only the board, and a width Penpa+ already sizes by the cell only once', async () => {
     const { context, page } = await openSolvePage(browser(), link, { served: true })
     try {
-      assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: 76, style: SOLVER_LINE }), { board: 6, scratch: SOLVER_LINE_PX })
-      // Penpa+'s own bold dash at 76 px a cell: (76 * 0.1) | 0.
-      assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: 76, style: BOLD_DASH }), { board: 7, scratch: 7 })
+      assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: ZOOMED, style: SOLVER_LINE }),
+        { cellSize: ZOOMED, board: SOLVER_LINE_PX * ZOOMED / NORMAL, scratch: SOLVER_LINE_PX })
+      for (const style of CELL_SIZED_STYLES) {
+        assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: ZOOMED, style }),
+          { cellSize: ZOOMED, board: CELL_SIZED_PX_AT_ZOOMED, scratch: CELL_SIZED_PX_AT_ZOOMED }, `style ${style}`)
+      }
     } finally {
       await context.close()
     }
@@ -83,10 +92,11 @@ describe('a solver line on solve.html', () => {
 })
 
 describe("Penpa+'s own page", () => {
-  it('keeps the solver line at its own width at 76 px a cell', async () => {
+  it(`keeps the solver line at its own width at ${ZOOMED} px a cell`, async () => {
     const { context, page } = await openPenpa(browser())
     try {
-      assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: 76, style: SOLVER_LINE }), { board: SOLVER_LINE_PX, scratch: SOLVER_LINE_PX })
+      assert.deepEqual(await page.evaluate(setterWidthsInPage, { px: ZOOMED, style: SOLVER_LINE }),
+        { cellSize: ZOOMED, board: SOLVER_LINE_PX, scratch: SOLVER_LINE_PX })
     } finally {
       await context.close()
     }
