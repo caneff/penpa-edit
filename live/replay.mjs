@@ -293,8 +293,12 @@ export function pointAtSize ({ x, y }, size) {
 // `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position and takes the nearest
 // point of `pu.type`, and a mouse event carries whole pixels. So the step's board point is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
-// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no neighbouring
-// pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches.
+// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. The pixels considered
+// are the ones from one before the floor to one after the ceiling on each axis, since a point exactly midway between two
+// goes to the lower index at the whole pixel on it, and only a neighbour reaches the other. A pixel outside the canvas
+// element is passed over for one inside it: a point on the board's edge, scaled, can round to a pixel just beyond it,
+// where the canvas's `mousemove` and `mouseup` never fire. When no such pixel keeps `num`, the nearest inside the canvas
+// is taken anyway, and the comparison reports the board it reaches.
 function pagePixelInPage ({ point, num }) {
   const canvas = document.getElementById('canvas')
   const left = canvas.offsetLeft - window.scrollX
@@ -311,12 +315,17 @@ function pagePixelInPage ({ point, num }) {
     }
     return best
   }
+  const around = (v) => [Math.floor(v) - 1, Math.floor(v), Math.ceil(v), Math.ceil(v) + 1]
   const candidates = []
-  for (const cx of new Set([Math.floor(at.x), Math.ceil(at.x)])) {
-    for (const cy of new Set([Math.floor(at.y), Math.ceil(at.y)])) candidates.push({ x: cx, y: cy })
+  for (const cx of new Set(around(at.x))) {
+    for (const cy of new Set(around(at.y))) candidates.push({ x: cx, y: cy })
   }
-  candidates.sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))
-  return candidates.find((c) => nearest(c) === num) ?? candidates[0]
+  const distanceToAt = (c) => Math.hypot(c.x - at.x, c.y - at.y)
+  candidates.sort((a, b) => distanceToAt(a) - distanceToAt(b))
+  const box = canvas.getBoundingClientRect()
+  const inside = (c) => c.x >= box.left && c.x < box.right && c.y >= box.top && c.y < box.bottom
+  const keepsNum = candidates.filter((c) => nearest(c) === num)
+  return keepsNum.find(inside) ?? keepsNum[0] ?? candidates.find(inside) ?? candidates[0]
 }
 
 // Runs in the page: moves Shape mode's key panel off the board when it floats over `pixel`, as a solver drags it aside
