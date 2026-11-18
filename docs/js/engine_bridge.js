@@ -172,6 +172,86 @@
         return { left: Math.min(...xs), top: Math.min(...ys), right: Math.max(...xs), bottom: Math.max(...ys) };
     }
 
+    // The largest cell size at which `measure()` (the board's drawn width and height, CSS px) fits a `w` x `h` box, set and returned;
+    // the smallest size when none does.
+    function fitSizeTo(call, w, h, measure) {
+        const fits = () => {
+            const r = measure();
+            return r.width <= w + FIT_TOLERANCE_PX && r.height <= h + FIT_TOLERANCE_PX;
+        };
+        const drawn = measure();
+        if (!drawn.width || !drawn.height) {
+            throw new Error(`engine.${call}: the board is not drawn`);
+        }
+        // The canvas holds fixed margins besides the cells, so this estimate runs a little small; the loops settle it.
+        const perCell = UserSettings.displaysize;
+        let px = Math.floor(Math.min(w / (drawn.width / perCell), h / (drawn.height / perCell)));
+        px = Math.min(CELL_SIZE_RANGE.max, Math.max(CELL_SIZE_RANGE.min, px));
+        engine.setCellSize(px);
+        while (px > CELL_SIZE_RANGE.min && !fits()) {
+            engine.setCellSize(--px);
+        }
+        while (px < CELL_SIZE_RANGE.max) {
+            engine.setCellSize(px + 1);
+            if (!fits()) {
+                engine.setCellSize(px);
+                break;
+            }
+            px++;
+        }
+        return px;
+    }
+
+    // How many canvas rows or columns `inkRectOf` reads at a time from an edge.
+    const INK_STRIP_PX = 32;
+    // A pixel counts as ink when a channel differs from the corner's by more than this.
+    const INK_DIFFERENCE = 8;
+
+    // The ink of `canvas` on the page: from each edge in, the first strip of canvas pixels with one that differs from the corner
+    // pixel (the margin's own colour), then the first line of it. The canvas is drawn at more than one pixel per CSS px, so the
+    // box is scaled back from the canvas's pixels.
+    function inkRectOf(canvas) {
+        const context = canvas.getContext('2d');
+        const box = canvas.getBoundingClientRect();
+        if (!canvas.width || !canvas.height || !box.width) {
+            throw new Error('engine.getInkRect: the board is not drawn');
+        }
+        const corner = context.getImageData(0, 0, 1, 1).data;
+        const isInk = (data, i) => [0, 1, 2, 3].some((c) => Math.abs(data[i + c] - corner[c]) > INK_DIFFERENCE);
+        // `edgeOf` reads strips of INK_STRIP_PX lines from one edge in: `lines` is how many lines the canvas has that way, `across`
+        // how long each is, `read(from, count)` the pixels of `count` lines from `from` and `at(k, j, count)` where line `k` of a
+        // strip has its pixel `j` in them. It returns the first (from the far edge, the line after the last) line with ink.
+        const edgeOf = (lines, across, read, at, fromEnd) => {
+            for (let done = 0; done < lines; done += INK_STRIP_PX) {
+                const count = Math.min(INK_STRIP_PX, lines - done);
+                const from = fromEnd ? lines - done - count : done;
+                const data = read(from, count);
+                const order = [...Array(count).keys()];
+                for (const k of fromEnd ? order.reverse() : order) {
+                    for (let j = 0; j < across; j++) {
+                        if (isInk(data, at(k, j, count))) {
+                            return fromEnd ? from + k + 1 : from + k;
+                        }
+                    }
+                }
+            }
+            return null;
+        };
+        const rows = (from, count) => context.getImageData(0, from, canvas.width, count).data;
+        const columns = (from, count) => context.getImageData(from, 0, count, canvas.height).data;
+        const rowPixel = (k, j) => (k * canvas.width + j) * 4;
+        const columnPixel = (k, j, count) => (j * count + k) * 4;
+        const top = edgeOf(canvas.height, canvas.width, rows, rowPixel, false);
+        if (top === null) {
+            throw new Error('engine.getInkRect: the board has no ink');
+        }
+        const bottom = edgeOf(canvas.height, canvas.width, rows, rowPixel, true);
+        const left = edgeOf(canvas.width, canvas.height, columns, columnPixel, false);
+        const right = edgeOf(canvas.width, canvas.height, columns, columnPixel, true);
+        const [scaleX, scaleY] = [box.width / canvas.width, box.height / canvas.height];
+        return { left: box.left + left * scaleX, top: box.top + top * scaleY, right: box.left + right * scaleX, bottom: box.top + bottom * scaleY };
+    }
+
     // MVP gap: Penpa+ hit-tests a click as `e.pageX - canvas.offsetLeft` (main.js), which is right only while the canvas's
     // offsetParent is the page. The real page position makes it right wherever the board sits. Penpa+ also assumes
     // 1 CSS px = 1 canvas px, so the board is never scaled by CSS; setCellSize resizes it.
@@ -1352,31 +1432,25 @@
             requirePositiveNumber('fitBoard', 'w', w);
             requirePositiveNumber('fitBoard', 'h', h);
             const canvas = boardCanvas();
-            const fits = () => {
-                const r = canvas.getBoundingClientRect();
-                return r.width <= w + FIT_TOLERANCE_PX && r.height <= h + FIT_TOLERANCE_PX;
-            };
-            const drawn = canvas.getBoundingClientRect();
-            if (!drawn.width || !drawn.height) {
-                throw new Error('engine.fitBoard: the board is not drawn');
-            }
-            // The canvas holds fixed margins besides the cells, so this estimate runs a little small; the loops settle it.
-            const perCell = UserSettings.displaysize;
-            let px = Math.floor(Math.min(w / (drawn.width / perCell), h / (drawn.height / perCell)));
-            px = Math.min(CELL_SIZE_RANGE.max, Math.max(CELL_SIZE_RANGE.min, px));
-            engine.setCellSize(px);
-            while (px > CELL_SIZE_RANGE.min && !fits()) {
-                engine.setCellSize(--px);
-            }
-            while (px < CELL_SIZE_RANGE.max) {
-                engine.setCellSize(px + 1);
-                if (!fits()) {
-                    engine.setCellSize(px);
-                    break;
-                }
-                px++;
-            }
-            return px;
+            return fitSizeTo('fitBoard', w, h, () => canvas.getBoundingClientRect());
+        },
+
+        // The drawn ink on the page in viewport px, `{ left, top, right, bottom }`: the bounding box of what the canvas shows other
+        // than its own margin (the pixels that differ from the canvas's corner). Read from the pixels, so it holds whatever the
+        // board draws outside the grid, and it moves with the board's position and size.
+        getInkRect() {
+            return inkRectOf(boardCanvas());
+        },
+
+        // Like `fitBoard`, for the ink: sets the largest cell size whose drawn ink (`getInkRect`) fits a `w` x `h` box.
+        fitInk(w, h) {
+            requirePositiveNumber('fitInk', 'w', w);
+            requirePositiveNumber('fitInk', 'h', h);
+            const canvas = boardCanvas();
+            return fitSizeTo('fitInk', w, h, () => {
+                const ink = inkRectOf(canvas);
+                return { width: ink.right - ink.left, height: ink.bottom - ink.top };
+            });
         },
 
         // The board's size, blank rows and columns included, and what `changeSize` allows on each side: `add` and `remove` are
