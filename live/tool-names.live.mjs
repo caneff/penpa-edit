@@ -208,6 +208,66 @@ describe('the Board card\'s colour cue', () => {
   })
 })
 
+describe('the style mark beside the tool name', () => {
+  let opened
+  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Normal'])) })
+  after(async () => { await opened?.context.close() })
+
+  // The first style of the tool at `mode`/`submode` that has no swatch, and that has (`wantSample`) or lacks a text `sample`.
+  const plainStyle = (page, mode, submode, wantSample) => page.evaluate(([m, sm, ws]) => engine.listTools().find((t) => t.mode === m && t.submode === sm)
+    .styles.find((s) => !s.swatch && Boolean(s.sample) === ws), [mode, submode, wantSample])
+  // Where the style shows beside the tool's name: the Board title chip and the Mouse headline, each as its mark and its colour dot.
+  const places = (page) => [boardLabel(page), region(page, 'Mouse').getByRole('heading', { level: 3 })]
+  const markOf = (place) => place.evaluate((node) => ({
+    mark: node.querySelector('.ui-mark svg')?.innerHTML ?? null,
+    dots: node.querySelectorAll('.ui-dot').length,
+    box: node.querySelector('.ui-mark')?.getBoundingClientRect().height ?? 0,
+    line: parseFloat(getComputedStyle(node).fontSize)
+  }))
+  const selectedSample = (page) => region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true] svg').innerHTML()
+
+  for (const [title, mode, submode, wantSample] of [['a dashed line style', 'line', '1', false], ['a number text style', 'number', '1', true]]) {
+    it(`shows ${title} as the Mode card's own sample, scaled to one line of text, and no dot`, async () => {
+      const { page } = opened
+      const style = await plainStyle(page, mode, submode, wantSample)
+      assert.ok(style, `${mode} > ${submode} has a style with${wantSample ? '' : 'out'} a sample and no swatch`)
+      // Landing on a pin restores the pin's style, so the style is chosen once the tool is current.
+      await setTool(page, { mode, submode })
+      await waitForTool(page, { mode, submode })
+      await afterChange(page)
+      await setTool(page, { mode, submode, style: style.style })
+      const pressed = region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true]')
+      assert.equal(await settle(() => pressed.getAttribute('aria-label'), style.name), style.name)
+      const want = await selectedSample(page)
+      for (const place of places(page)) {
+        const got = await settle(async () => (await markOf(place)).mark, want)
+        assert.equal(got, want)
+        const { dots, box, line } = await markOf(place)
+        assert.equal(dots, 0, 'no colour dot')
+        assert.ok(box > 0 && box <= line * 1.5, `the mark is ${box}px tall beside ${line}px text`)
+      }
+    })
+  }
+
+  it('keeps a colour style\'s dot and shows no mark with it; a tool with no style shows neither', async () => {
+    const { page } = opened
+    await setTool(page, { mode: 'sudoku', submode: '1' })
+    await waitForTool(page, { mode: 'sudoku', submode: '1' })
+    const green = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'sudoku' && x.submode === '1').styles.find((s) => s.name === 'green'))
+    await setTool(page, { mode: 'sudoku', submode: '1', style: green.style })
+    for (const place of places(page)) {
+      await settle(async () => (await markOf(place)).dots, 1)
+      assert.deepEqual({ ...(await markOf(place)), box: 0, line: 0 }, { mark: null, dots: 1, box: 0, line: 0 })
+    }
+    const bare = await page.evaluate(() => engine.listTools().find((t) => t.styles.length === 0))
+    await setTool(page, { mode: bare.mode, submode: bare.submode })
+    for (const place of places(page)) {
+      await settle(async () => (await markOf(place)).dots, 0)
+      assert.deepEqual({ ...(await markOf(place)), box: 0, line: 0 }, { mark: null, dots: 0, box: 0, line: 0 })
+    }
+  })
+})
+
 describe('the Mouse headline at 1366x768', () => {
   let opened
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal'])) })

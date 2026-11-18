@@ -32,14 +32,29 @@
 
     const dot = (colour) => el('i', { class: 'ui-dot', style: `background:${colour}` });
 
+    // What marks the selected style beside a tool's name: a dot in its colour, else the Mode card's own sample of it (desk.css scales
+    // it to a line of text); null for a tool with no style.
+    function styleMark(tool, style) {
+        const entry = styleOf(tool, style);
+        if (!entry) {
+            return null;
+        }
+        if (entry.swatch) {
+            return dot(entry.swatch);
+        }
+        const mark = el('i', { class: 'ui-mark' });
+        mark.innerHTML = styleSample(entry.name, null, entry.sample, null);
+        return mark;
+    }
+
     // ---- The Mouse card ---------------------------------------------------------------------------------------------
 
-    // The tool's one name, with a dot in the selected style's colour; the full name is the tooltip when a narrow card cuts it.
+    // The tool's one name, with the selected style's mark; the full name is the tooltip when a narrow card cuts it.
     function headline(tool, style, held) {
         const name = chipLabel(tool);
-        const colour = styleColour(tool, style);
+        const mark = styleMark(tool, style);
         const h3 = el('h3', { class: 'ui-headline', title: name }, [
-            ...(colour ? [dot(colour)] : []),
+            ...(mark ? [mark] : []),
             el('span', { class: 'ui-hname' }, [name])
         ]);
         if (held) {
@@ -377,9 +392,9 @@
             drawn = now;
             const tool = toolFor(current);
             renderMouse(cards.mouse.body, tool, current.style, held, secondColour);
-            // Drawn like the current pin's chip, whose colour pins.js gives the card; the dot is the selected style's, as on the Mouse card.
-            const colour = styleColour(tool, current.style);
-            titleBarName.replaceChildren(...(colour ? [dot(colour)] : []), chipLabel(tool));
+            // Drawn like the current pin's chip, whose colour pins.js gives the card; the mark is the selected style's, as on the Mouse card.
+            const mark = styleMark(tool, current.style);
+            titleBarName.replaceChildren(...(mark ? [mark] : []), chipLabel(tool));
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
             titleBarName.title = titleBarName.textContent;
             mode.render(tool, current.style, orientation);
