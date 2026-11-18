@@ -45,9 +45,11 @@
     // The Rules card's own text size, kept beside the layout and cleared with it. Pixels; the - and + buttons step it.
     const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1';
     const RULES_TEXT_RANGE_PX = { min: 10, max: 20, step: 2 };
-    // Set to MOUSE_CLOSED when the solver closed the Mouse card. Kept apart from the layout, so Reset layout leaves it closed.
-    const MOUSE_CLOSED_KEY = 'chinstrap-solve-mouse-closed-v1';
-    const MOUSE_CLOSED = '1';
+    // The cards the solver can close, in the Cards menu's order. Each is kept closed per browser in its own key, set to
+    // CARD_CLOSED, apart from the layout, so Reset layout leaves it closed (#183, #334). Mouse's key is still #183's.
+    const CLOSEABLE_CARDS = ['rules', 'mouse', 'pins', 'mode', 'recent'];
+    const closedKey = (id) => `chinstrap-solve-${id}-closed-v1`;
+    const CARD_CLOSED = '1';
     // Set to COORDINATES_SHOWN when the solver turned on the board coordinates (#249, #250). The key keeps #249's name, so a setting made then holds.
     const COORDINATES_KEY = 'chinstrap-solve-grid-numbers-v1';
     const COORDINATES_SHOWN = '1';
@@ -268,14 +270,17 @@
         };
         cards.board.head.append(el('span', { class: 'ui-zoom' }, [zoom.out, zoom.in, zoom.fit]));
         const rulesText = { smaller: headButton('\u2212', 'Smaller rules text'), bigger: headButton('+', 'Bigger rules text') };
-        const closeMouse = headButton('\u00d7', 'Close Mouse card');
-        closeMouse.classList.add('ui-close');
-        cards.mouse.head.append(closeMouse);
+        const closeButtons = Object.fromEntries(CLOSEABLE_CARDS.map((id) => {
+            const button = headButton('\u00d7', `Close ${CARD_TITLES[id]} card`);
+            button.classList.add('ui-close');
+            cards[id].head.append(button);
+            return [id, button];
+        }));
         cards.rules.head.append(el('span', { class: 'ui-rules-text' }, [rulesText.smaller, rulesText.bigger]));
         showRules(cards.rules.body, info.rules);
         const root = el('div', { class: 'ui-root' }, [bar, desk]);
         document.body.append(root);
-        return { bar, desk, cards, zoom, rulesText, closeMouse };
+        return { bar, desk, cards, zoom, rulesText, closeButtons };
     }
 
     // ---- The kept layout --------------------------------------------------------------------------------------------
@@ -576,51 +581,79 @@
     // Pinned at its own height at the top; Mode as tall as its tools need; Recent as tall as its chips (#306), its bottom on
     // the column's bottom, so the room between Mode and Recent stays empty. Where the column has room, Mode sits at its middle, never higher than under a Pinned card
     // whose chips take two rows, so a second row of pins moves neither Mode nor Recent (Chris, 2026-11-17); without the
-    // room, the cards stack top-down and Mode gives up height so Recent keeps what it needs, its body scrolling.
+    // room, the cards stack top-down and Mode gives up height so Recent keeps what it needs, its body scrolling. A closed
+    // card takes no room: with Pinned closed Mode's highest place is the column's top (#334).
     function placeRightColumn(cards, x, width, columnHeight) {
         const bottom = TOP_MARGIN_PX + columnHeight;
-        const pins = cards.pins.node;
-        Object.assign(pins.style, { left: `${x}px`, top: `${TOP_MARGIN_PX}px`, width: `${width}px` });
-        const underPins = TOP_MARGIN_PX + pins.offsetHeight + CARD_GAP_PX;
-        const recentNeeds = Math.max(MIN_SIZE.recent[1], naturalHeight(cards.recent.node));
-        const modeHeight = Math.max(MIN_SIZE.mode[1], Math.min(fit.modeCardHeight(width), bottom - underPins - CARD_GAP_PX - recentNeeds));
-        const middle = TOP_MARGIN_PX + Math.round((columnHeight - modeHeight) / 2);
-        const underTwoRows = TOP_MARGIN_PX + fit.pinsCardHeightAtTwoRows() + CARD_GAP_PX;
-        const modeTop = Math.max(underPins, Math.min(Math.max(middle, underTwoRows), bottom - recentNeeds - CARD_GAP_PX - modeHeight));
-        place(cards, 'mode', x, modeTop, width, modeHeight);
-        const recentHeight = Math.max(MIN_SIZE.recent[1], Math.min(recentNeeds, bottom - modeTop - modeHeight - CARD_GAP_PX));
-        place(cards, 'recent', x, bottom - recentHeight, width, recentHeight);
+        let top = TOP_MARGIN_PX;
+        let highestMode = TOP_MARGIN_PX;
+        if (isShown(cards, 'pins')) {
+            const pins = cards.pins.node;
+            Object.assign(pins.style, { left: `${x}px`, top: `${TOP_MARGIN_PX}px`, width: `${width}px` });
+            top += pins.offsetHeight + CARD_GAP_PX;
+            highestMode = TOP_MARGIN_PX + fit.pinsCardHeightAtTwoRows() + CARD_GAP_PX;
+        }
+        const hasRecent = isShown(cards, 'recent');
+        const recentNeeds = hasRecent ? Math.max(MIN_SIZE.recent[1], naturalHeight(cards.recent.node)) : 0;
+        const recentRoom = hasRecent ? recentNeeds + CARD_GAP_PX : 0;
+        if (isShown(cards, 'mode')) {
+            const modeHeight = Math.max(MIN_SIZE.mode[1], Math.min(fit.modeCardHeight(width), bottom - top - recentRoom));
+            const middle = TOP_MARGIN_PX + Math.round((columnHeight - modeHeight) / 2);
+            const modeTop = Math.max(top, Math.min(Math.max(middle, highestMode), bottom - recentRoom - modeHeight));
+            place(cards, 'mode', x, modeTop, width, modeHeight);
+            top = modeTop + modeHeight + CARD_GAP_PX;
+        }
+        if (hasRecent) {
+            const recentHeight = Math.max(MIN_SIZE.recent[1], Math.min(recentNeeds, bottom - top));
+            place(cards, 'recent', x, bottom - recentHeight, width, recentHeight);
+        }
     }
 
-    // Rules over Mouse in the left column, Mouse taking what Rules leaves; Rules alone takes the whole column.
+    // Rules over Mouse in the left column, Mouse taking what Rules leaves; Rules alone or Mouse alone takes the whole column.
     function placeLeftColumn(cards, x, width, rulesHeight, columnHeight) {
+        if (!isShown(cards, 'rules')) {
+            place(cards, 'mouse', x, TOP_MARGIN_PX, width, columnHeight);
+            return;
+        }
         place(cards, 'rules', x, TOP_MARGIN_PX, width, rulesHeight);
         if (isShown(cards, 'mouse')) {
             place(cards, 'mouse', x, TOP_MARGIN_PX + rulesHeight + CARD_GAP_PX, width, columnHeight - CARD_GAP_PX - rulesHeight);
         }
     }
 
-    // Closing or opening Mouse after the solver changed another card: Rules and Mouse, if neither was moved or resized
-    // themselves, share the left column again, at the fitted layout's width and place. True when it did.
+    // A column's cards the solver has moved or resized none of, one of them at least placed by the fitted layout; a card
+    // closed when the desk was fitted has no entry, and counts as untouched.
+    const isColumnFitted = (ids) => ids.some((id) => saved[id]) && ids.every((id) => !saved[id] || saved[id].fitted);
+
+    // Where such a column sits on the desk as it is now: the place the fitted layout gave one of its cards, kept by its nearer
+    // edge as `keepInside` keeps it.
+    function columnPlace(desk, ids) {
+        const entry = saved[ids.find((id) => saved[id])];
+        const x = entry.x + entry.w / 2 > entry.vw / 2 ? desk.clientWidth - (entry.vw - entry.x - entry.w) - entry.w : entry.x;
+        return { x, w: entry.w };
+    }
+
+    // A card closed or opened after the solver changed another card: the left column, if the solver moved or resized
+    // neither of its cards, is shared again at the fitted layout's width and place. True when it was.
     function refitLeftColumn(desk, cards) {
-        const rules = saved.rules;
-        if (!rules?.fitted || (saved.mouse && !saved.mouse.fitted)) {
+        if (!isColumnFitted(LEFT_COLUMN) || !shownIds(cards, LEFT_COLUMN).length) {
             return false;
         }
         const columnHeight = desk.clientHeight - 2 * TOP_MARGIN_PX;
-        placeLeftColumn(cards, rules.x, rules.w, rulesHeightFor(cards, rules.w, columnHeight), columnHeight);
+        const { x, w } = columnPlace(desk, LEFT_COLUMN);
+        placeLeftColumn(cards, x, w, isShown(cards, 'rules') ? rulesHeightFor(cards, w, columnHeight) : 0, columnHeight);
         keepFitted(desk, cards, shownIds(cards, LEFT_COLUMN));
         return true;
     }
 
     // The right column laid out again where the solver has moved or resized none of its cards. True when it was.
     function refitRightColumn(desk, cards) {
-        if (!RIGHT_COLUMN.every((id) => saved[id]?.fitted)) {
+        if (!isColumnFitted(RIGHT_COLUMN) || !shownIds(cards, RIGHT_COLUMN).length) {
             return false;
         }
-        const pins = cards.pins.node;
-        placeRightColumn(cards, pins.offsetLeft, pins.offsetWidth, desk.clientHeight - 2 * TOP_MARGIN_PX);
-        keepFitted(desk, cards, RIGHT_COLUMN);
+        const { x, w } = columnPlace(desk, RIGHT_COLUMN);
+        placeRightColumn(cards, x, w, desk.clientHeight - 2 * TOP_MARGIN_PX);
+        keepFitted(desk, cards, shownIds(cards, RIGHT_COLUMN));
         return true;
     }
 
@@ -728,10 +761,14 @@
         const width = desk.clientWidth;
         const height = desk.clientHeight;
         const columnHeight = height - 2 * TOP_MARGIN_PX;
-        const leftMin = columnMinWidth(LEFT_COLUMN);
-        let rightWidth = Math.max(columnWidthFor(width), columnMinWidth(RIGHT_COLUMN));
+        // A column with every card closed takes no width, and no gap beside the board (#334).
+        const hasLeft = shownIds(cards, LEFT_COLUMN).length > 0;
+        const hasRight = shownIds(cards, RIGHT_COLUMN).length > 0;
+        const gapCount = 2 + Number(hasLeft) + Number(hasRight);
+        const leftMin = hasLeft ? columnMinWidth(LEFT_COLUMN) : 0;
+        let rightWidth = hasRight ? Math.max(columnWidthFor(width), columnMinWidth(RIGHT_COLUMN)) : 0;
 
-        const boardMax = Math.max(MIN_SIZE.board[0], width - 4 * DESK_MARGIN_PX - leftMin - rightWidth);
+        const boardMax = Math.max(MIN_SIZE.board[0], width - gapCount * DESK_MARGIN_PX - leftMin - rightWidth);
         const board = cards.board;
         board.node.style.width = `${boardMax}px`;
         setHeight(board.node, Math.max(MIN_SIZE.board[1], columnHeight));
@@ -743,13 +780,15 @@
             zoomBoardTo(zoomedTo);
         }
 
-        const leftMax = Math.max(leftMin, width - 4 * DESK_MARGIN_PX - boardWidth - rightWidth);
+        const leftMax = hasLeft ? Math.max(leftMin, width - gapCount * DESK_MARGIN_PX - boardWidth - rightWidth) : 0;
         const hasMouse = isShown(cards, 'mouse');
-        const neededHeight = (w) => (hasMouse ? fit.mouseCardHeight(w) + CARD_GAP_PX : 0) + rulesCardHeight(cards.rules, w);
+        const hasRules = isShown(cards, 'rules');
+        const neededHeight = (w) => (hasMouse ? fit.mouseCardHeight(w) : 0) + (hasRules ? rulesCardHeight(cards.rules, w) : 0) +
+            (hasMouse && hasRules ? CARD_GAP_PX : 0);
         // Both cards only get shorter as they widen, so the narrowest width that fits is found by halving; when none does,
         // the cards take all the width there is.
         let leftWidth = leftMax;
-        if (neededHeight(leftMax) <= columnHeight) {
+        if (hasLeft && neededHeight(leftMax) <= columnHeight) {
             let [low, high] = [leftMin, leftMax];
             while (high - low > LEFT_WIDTH_STEP_PX) {
                 const middle = Math.floor((low + high) / 2);
@@ -763,22 +802,23 @@
         }
         // Width left beside the board widens both side columns alike, up to SIDE_COLUMN_MAX_PX, before it becomes gaps. A
         // column never narrows here; what the left one cannot take of its half goes to the right one, and back.
-        const sideRoom = width - 4 * DESK_MARGIN_PX - boardWidth;
-        const widened = (current, target) => clamp(target, current, Math.max(current, SIDE_COLUMN_MAX_PX));
-        const leftShare = widened(leftWidth, Math.floor(sideRoom / 2));
-        rightWidth = widened(rightWidth, sideRoom - leftShare);
-        leftWidth = widened(leftWidth, sideRoom - rightWidth);
-        const rulesHeight = rulesHeightFor(cards, leftWidth, columnHeight);
+        const sideRoom = width - gapCount * DESK_MARGIN_PX - boardWidth;
+        const widened = (has, current, target) => (has ? clamp(target, current, Math.max(current, SIDE_COLUMN_MAX_PX)) : 0);
+        const leftShare = widened(hasLeft, leftWidth, Math.floor(sideRoom / 2));
+        rightWidth = widened(hasRight, rightWidth, sideRoom - leftShare);
+        leftWidth = widened(hasLeft, leftWidth, sideRoom - rightWidth);
 
-        // The spare width in four gaps a pixel apart at most, none under DESK_MARGIN_PX.
+        // The spare width in a gap on each side of every column, a pixel apart at most, none under DESK_MARGIN_PX.
         const spare = width - boardWidth - leftWidth - rightWidth;
-        const gapsUpTo = (n) => Math.max(n * DESK_MARGIN_PX, Math.round(n * spare / 4));
-        const leftX = gapsUpTo(1);
-        const boardX = leftWidth + gapsUpTo(2);
-        const rightX = leftWidth + boardWidth + gapsUpTo(3);
-        placeRightColumn(cards, rightX, rightWidth, columnHeight);
-        place(cards, 'board', boardX, TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
-        placeLeftColumn(cards, leftX, leftWidth, rulesHeight, columnHeight);
+        const gapsUpTo = (n) => Math.max(n * DESK_MARGIN_PX, Math.round(n * spare / gapCount));
+        const boardGaps = 1 + Number(hasLeft);
+        place(cards, 'board', leftWidth + gapsUpTo(boardGaps), TOP_MARGIN_PX, boardWidth, Math.max(MIN_SIZE.board[1], columnHeight));
+        if (hasRight) {
+            placeRightColumn(cards, leftWidth + boardWidth + gapsUpTo(boardGaps + 1), rightWidth, columnHeight);
+        }
+        if (hasLeft) {
+            placeLeftColumn(cards, gapsUpTo(1), leftWidth, hasRules ? rulesHeightFor(cards, leftWidth, columnHeight) : 0, columnHeight);
+        }
         keepShownInside(cards, width, height);
         keepFitted(desk, cards, shownIds(cards));
     }
@@ -805,8 +845,9 @@
         }
         if (refitRightColumn(desk, cards)) {
             // keepInside reads each card's kept place, which the refit kept, so the clamped place is kept again.
-            RIGHT_COLUMN.forEach((id) => keepInside(id, cards[id].node, desk.clientWidth, desk.clientHeight));
-            keepFitted(desk, cards, RIGHT_COLUMN);
+            const shown = shownIds(cards, RIGHT_COLUMN);
+            shown.forEach((id) => keepInside(id, cards[id].node, desk.clientWidth, desk.clientHeight));
+            keepFitted(desk, cards, shown);
         } else if (RIGHT_COLUMN.every((id) => !isMoved(id))) {
             layout({ desk, cards });
         } else {
@@ -1330,12 +1371,17 @@
         showRulesText(desk);
     }
 
-    // Resolves to `{ bar, cards, desk, stream, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted,
-    // setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard }` once the desk is built, for the
-    // files that fill the bar and the cards. `fitBoard()` fits the board to its card, as Fit does.
+    const isCardClosed = (id) => localStorage.getItem(closedKey(id)) === CARD_CLOSED;
+
+    // Resolves to `{ bar, cards, closeButtons, desk, stream, relayout, resetLayout, fit, fitToTools, closeableCards, isCardClosed, setCardClosed,
+    // areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard }` once
+    // the desk is built, for the files that fill the bar and the cards. `closeableCards` is `[id, title]` per card the solver can
+    // close, in the Cards menu's order, and `closeButtons` each one's header ×, by id. `fitBoard()` fits the board to its card, as Fit does.
     window.deskReady = engine.ready.then(() => {
         const desk = build(engine.getInfo());
-        desk.cards.mouse.node.hidden = localStorage.getItem(MOUSE_CLOSED_KEY) === MOUSE_CLOSED;
+        CLOSEABLE_CARDS.forEach((id) => {
+            desk.cards[id].node.hidden = isCardClosed(id);
+        });
         engine.mount(desk.cards.board.body);
         boardBox = desk.cards.board.body.firstElementChild;
         coordinatesLayer = el('div', { class: 'ui-grid-coordinates', 'aria-hidden': 'true' });
@@ -1398,34 +1444,32 @@
         // The tools Mode and Mouse are sized for changed. Only the side columns' heights depend on them, so the board is not
         // fitted again: a solver stepping through tools outside the pins would redraw it at every step.
         const fitToTools = () => (isStreaming() ? streamRefit() : fitAutomatic(desk.desk, desk.cards));
-        const isMouseClosed = () => desk.cards.mouse.node.hidden;
-        // Closing or opening Mouse refits a layout nobody has changed, so Rules takes the column or gives Mouse its split back.
-        const setMouseClosed = (closed) => {
+        // Closing or opening a card refits a layout nobody has changed, so the cards left take its room or give it back. A
+        // stream fit keeps Rules and Recent off the desk whatever the solver chose, and lays the desk out itself.
+        const setCardClosed = (id, closed) => {
             if (closed) {
-                localStorage.setItem(MOUSE_CLOSED_KEY, MOUSE_CLOSED);
+                localStorage.setItem(closedKey(id), CARD_CLOSED);
             } else {
-                localStorage.removeItem(MOUSE_CLOSED_KEY);
+                localStorage.removeItem(closedKey(id));
             }
-            desk.cards.mouse.node.hidden = closed;
-            if (!closed) {
+            desk.cards[id].node.hidden = closed || (isStreaming() && STREAM_HIDDEN_CARDS.includes(id));
+            if (id === 'mouse' && !closed) {
                 fit.sizeMouseBody?.();
             }
-            // A layout the solver changed keeps its other cards: only the left column is fitted again.
-            if (isFitted) {
-                isFitted = false;
-                startFit();
-            } else {
-                refitLeftColumn(desk.desk, desk.cards);
+            // A layout the solver changed keeps its other cards: only the card's own column is fitted again, if the solver
+            // left that column alone.
+            if (!isStreaming()) {
+                if (isFitted) {
+                    isFitted = false;
+                    startFit();
+                } else if (LEFT_COLUMN.includes(id)) {
+                    refitLeftColumn(desk.desk, desk.cards);
+                } else {
+                    refitRightColumn(desk.desk, desk.cards);
+                }
             }
             relayout();
         };
-        desk.closeMouse.addEventListener('click', (e) => {
-            setMouseClosed(true);
-            // A key press closed it, so the keyboard user keeps a control to stand on; a mouse click hands the keyboard back (keys.js).
-            if (e.detail === 0) {
-                (desk.rulesText.smaller.disabled ? desk.rulesText.bigger : desk.rulesText.smaller).focus();
-            }
-        });
         showRulesText(desk);
         desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));
         desk.rulesText.bigger.addEventListener('click', () => stepRulesText(desk, 1));
@@ -1457,7 +1501,8 @@
             placeBoard: ({ left, top, width, height }) => place(desk.cards, 'board', left, top, width, height),
             placeSide: (box) => placeStreamSide(desk.cards, box)
         };
-        return { bar: desk.bar, cards: desk.cards, desk: desk.desk, stream, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };
+        return { bar: desk.bar, cards: desk.cards, closeButtons: desk.closeButtons, desk: desk.desk, stream, relayout, resetLayout, fit, fitToTools,
+            closeableCards: CLOSEABLE_CARDS.map((id) => [id, CARD_TITLES[id]]), isCardClosed, setCardClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.

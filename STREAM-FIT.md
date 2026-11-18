@@ -12,7 +12,7 @@ When a stream is on, the desk makes room for it instead of the userscript magnif
   by CSS), centred on the other side; the Board card becomes the board box itself, with no header, border or shadow, and a white
   ground (black in the dark theme); the board coordinates are not drawn;
 - puts the **Pinned**, **Mode** and **Mouse** cards in the **side box**, stacked top to bottom in that order, each at its own height, or all
-  shortened in step down to their least height where the box is short. A Mouse card the solver closed stays closed;
+  shortened in step down to their least height where the box is short. A Pinned, Mode or Mouse card the solver closed stays closed;
 - takes the **Rules** and **Recent** cards off the desk (the stream's scroller shows the rules);
 - answers with the ink rect, and answers again whenever it changes.
 

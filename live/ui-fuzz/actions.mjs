@@ -23,11 +23,13 @@ const DRAG = fc.array(PICK, { minLength: 2, maxLength: MAX_DRAG_POINTS })
 const UNDO_KEY = 'Control+z'
 const REDO_KEY = 'Control+y'
 // The areas `--focus` names, each a card or a part of the page a kind declares it exercises.
-export const AREAS = ['bar', 'board', 'mouse-rules', 'pinned', 'mode', 'recent', 'layout', 'theme']
+export const AREAS = ['bar', 'board', 'pinned', 'mode', 'recent', 'layout', 'theme']
 // How many times more often a focused area's kinds are drawn.
 const FOCUS_FACTOR = 5
 // The cards a card action picks from, by name, and the resize handles by their `data-testid` suffix (desk.js).
 export const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
+// The cards the solver can close (desk.js), in the Cards menu's order.
+const CLOSEABLE_CARDS = ['Rules', 'Mouse', 'Pinned', 'Mode', 'Recent']
 export const HANDLES = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bottom-right', 'bottom-left']
 // The moves a card drag or resize picks from, in pixels, each way.
 export const MOVES = [-240, -80, -20, 0, 20, 80, 240]
@@ -437,28 +439,34 @@ export const KINDS = [
     }
   },
   {
-    kind: 'close Mouse card',
-    area: 'mouse-rules',
+    kind: 'close card',
+    area: 'layout',
     weight: 1,
-    arg: fc.constant(null),
-    label: () => 'close the Mouse card',
-    run: async (page) => {
-      const close = button(page, 'Close Mouse card')
+    arg: fc.nat({ max: CLOSEABLE_CARDS.length - 1 }),
+    label: (c) => `close the ${CLOSEABLE_CARDS[c]} card`,
+    run: async (page, c) => {
+      const close = button(page, `Close ${CLOSEABLE_CARDS[c]} card`)
       if (!await close.isVisible()) return 'already closed'
       return clickReachable(close)
     }
   },
   {
-    kind: 'reopen Mouse card',
-    area: 'mouse-rules',
+    kind: 'reopen card',
+    area: 'layout',
     weight: 1,
-    arg: fc.constant(null),
-    label: () => 'reopen the Mouse card in Settings',
-    run: (page) => inSettings(page, async (dialog) => {
-      if (await dialog.getByRole('switch', { name: 'Show Mouse card' }).isChecked()) return 'already shown'
-      // Web Awesome's switch hides its input under the track, so the click goes to the switch element.
-      await dialog.locator('wa-switch').filter({ has: page.getByRole('switch', { name: 'Show Mouse card' }) }).click()
-    })
+    arg: fc.nat({ max: CLOSEABLE_CARDS.length - 1 }),
+    label: (c) => `reopen the ${CLOSEABLE_CARDS[c]} card from the Cards menu`,
+    run: async (page, c) => {
+      await button(page, 'Cards').click()
+      const item = page.getByRole('menuitemcheckbox', { name: CLOSEABLE_CARDS[c], exact: true })
+      await item.waitFor()
+      const shown = await item.evaluate((node) => node.checked)
+      // The menu stays open after a box is toggled, so Escape closes it either way.
+      if (!shown) await item.click()
+      await page.keyboard.press('Escape')
+      await item.waitFor({ state: 'hidden' })
+      if (shown) return 'already shown'
+    }
   },
   {
     kind: 'reset layout',

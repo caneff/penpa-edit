@@ -86,8 +86,8 @@ describe('the About group in Settings', () => {
       const dialog = page.locator('wa-dialog[open]')
       const legends = await dialog.locator('fieldset > legend').allTextContents()
       assert.deepEqual(legends.slice(-3), ['Page', 'Pins', 'About'])
-      const inPage = await dialog.getByRole('group', { name: 'Page' }).getByRole('switch', { name: 'Show Mouse card' }).count()
-      assert.equal(inPage, 1, 'Show Mouse card is in the Page group')
+      const inPage = await dialog.getByRole('group', { name: 'Page' }).getByRole('switch', { name: 'Show board coordinates' }).count()
+      assert.equal(inPage, 1, 'Show board coordinates is in the Page group')
       // The words a control shows are text and attributes alike: Web Awesome's select takes its label and placeholder as attributes.
       const shown = await page.evaluate(() => [...document.querySelectorAll('wa-dialog[open] *, wa-tooltip')]
         .flatMap((node) => [node.textContent, ...['label', 'placeholder', 'hint', 'help-text', 'aria-label', 'title'].map((name) => node.getAttribute(name))])

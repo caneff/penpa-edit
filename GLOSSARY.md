@@ -46,7 +46,8 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **Board box**: the box, in viewport CSS px, where a stream shows the board; the stream fit puts the ink rect in it.
 - **Side box**: the box beside the board box, outside the stream's crop, where the stream fit puts the Mode, Pinned and Mouse cards.
 - **Ink rect**: the bounding box, in viewport CSS px, of what the board draws other than its canvas's own margin, read from the pixels; the stream fit's reply.
-- **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
+- **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Every card but the Board can be closed by its × and shown again from the top bar's **Cards menu**; a closed card stays closed through a reload and Reset layout.
+- **Cards menu**: the top bar's menu that shows or hides each card but the Board, one checkbox per card, with Reset layout as its last item.
 - **Trial**: the solve page's way to guess (#258): Try marks the undo history, and Keep or Discard later keeps or undoes
   everything entered since. Trials nest; puzz.link calls it trial mode.
 - **Stage**: one Try's mark in a trial, ended by Keep, Discard, Restart, or an undo by hand to before it; the top bar
