@@ -32,8 +32,7 @@
 
     const dot = (colour) => el('i', { class: 'ui-dot', style: `background:${colour}` });
 
-    // What marks the selected style beside a tool's name: a dot in its colour, else the Mode card's own sample of it (desk.css scales
-    // it to a line of text); null for a tool with no style.
+    // A dot in the style's colour, else the Mode card's own sample of it (desk.css sizes it to a line of text); null when `style` is not one of the tool's.
     function styleMark(tool, style) {
         const entry = styleOf(tool, style);
         if (!entry) {
@@ -396,7 +395,8 @@
             const mark = styleMark(tool, current.style);
             titleBarName.replaceChildren(...(mark ? [mark] : []), chipLabel(tool));
             // The label keeps to one line and may be cut short (desk.css), so its whole text is its tooltip.
-            titleBarName.title = titleBarName.textContent;
+            // Not the element's text: a Number style's sample draws a digit.
+            titleBarName.title = chipLabel(tool);
             mode.render(tool, current.style, orientation);
         }
 

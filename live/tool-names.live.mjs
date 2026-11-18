@@ -213,57 +213,61 @@ describe('the style mark beside the tool name', () => {
   before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Normal'])) })
   after(async () => { await opened?.context.close() })
 
-  // The first style of the tool at `mode`/`submode` that has no swatch, and that has (`wantSample`) or lacks a text `sample`.
-  const plainStyle = (page, mode, submode, wantSample) => page.evaluate(([m, sm, ws]) => engine.listTools().find((t) => t.mode === m && t.submode === sm)
-    .styles.find((s) => !s.swatch && Boolean(s.sample) === ws), [mode, submode, wantSample])
-  // Where the style shows beside the tool's name: the Board title chip and the Mouse headline, each as its mark and its colour dot.
+  // The em height desk.css gives the mark's drawing.
+  const MARK_EM = 1.1
+
+  // The style of the tool at `mode`/`submode` with no swatch, named `name` or else (no name) the first with a text `sample`.
+  const plainStyle = (page, mode, submode, name) => page.evaluate(([m, sm, n]) => engine.listTools().find((t) => t.mode === m && t.submode === sm)
+    .styles.find((s) => !s.swatch && (n ? s.name === n : Boolean(s.sample))), [mode, submode, name])
+  // Makes the tool current, then picks the style: landing on a pin restores the pin's style, so the style is chosen once the tool is current.
+  const chooseStyle = async (page, { mode, submode }, style) => {
+    await setTool(page, { mode, submode })
+    await waitForTool(page, { mode, submode })
+    await afterChange(page)
+    await setTool(page, { mode, submode, style: style.style })
+    const pressed = region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true]')
+    assert.equal(await settle(() => pressed.getAttribute('aria-label'), style.name), style.name)
+  }
+  // Where the style shows beside the tool's name: the Board title chip and the Mouse headline.
   const places = (page) => [boardLabel(page), region(page, 'Mouse').getByRole('heading', { level: 3 })]
   const markOf = (place) => place.evaluate((node) => ({
     mark: node.querySelector('.ui-mark svg')?.innerHTML ?? null,
     dots: node.querySelectorAll('.ui-dot').length,
-    box: node.querySelector('.ui-mark')?.getBoundingClientRect().height ?? 0,
-    line: parseFloat(getComputedStyle(node).fontSize)
+    drawn: node.querySelector('.ui-mark svg')?.getBoundingClientRect().height ?? 0,
+    text: parseFloat(getComputedStyle(node).fontSize)
   }))
   const selectedSample = (page) => region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true] svg').innerHTML()
 
-  for (const [title, mode, submode, wantSample] of [['a dashed line style', 'line', '1', false], ['a number text style', 'number', '1', true]]) {
-    it(`shows ${title} as the Mode card's own sample, scaled to one line of text, and no dot`, async () => {
+  for (const [title, mode, submode, name] of [['a dotted line style', 'line', '1', 'dotted'], ['a number text style', 'number', '1', undefined]]) {
+    it(`shows ${title} as the Mode card's own sample, scaled to the label's text, with no dot, and a tooltip of the name alone`, async () => {
       const { page } = opened
-      const style = await plainStyle(page, mode, submode, wantSample)
-      assert.ok(style, `${mode} > ${submode} has a style with${wantSample ? '' : 'out'} a sample and no swatch`)
-      // Landing on a pin restores the pin's style, so the style is chosen once the tool is current.
-      await setTool(page, { mode, submode })
-      await waitForTool(page, { mode, submode })
-      await afterChange(page)
-      await setTool(page, { mode, submode, style: style.style })
-      const pressed = region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true]')
-      assert.equal(await settle(() => pressed.getAttribute('aria-label'), style.name), style.name)
+      const style = await plainStyle(page, mode, submode, name)
+      assert.ok(style, `${mode} > ${submode} has the style`)
+      await chooseStyle(page, { mode, submode }, style)
       const want = await selectedSample(page)
       for (const place of places(page)) {
-        const got = await settle(async () => (await markOf(place)).mark, want)
-        assert.equal(got, want)
-        const { dots, box, line } = await markOf(place)
+        assert.equal(await settle(async () => (await markOf(place)).mark, want), want)
+        const { dots, drawn, text } = await markOf(place)
         assert.equal(dots, 0, 'no colour dot')
-        assert.ok(box > 0 && box <= line * 1.5, `the mark is ${box}px tall beside ${line}px text`)
+        assert.ok(Math.abs(drawn - text * MARK_EM) < 0.5, `the mark is ${drawn}px tall beside ${text}px text, not ${MARK_EM}em`)
       }
+      assert.equal(await boardLabel(page).getAttribute('title'), await labelOf(page, { mode, submode }))
     })
   }
 
   it('keeps a colour style\'s dot and shows no mark with it; a tool with no style shows neither', async () => {
     const { page } = opened
-    await setTool(page, { mode: 'sudoku', submode: '1' })
-    await waitForTool(page, { mode: 'sudoku', submode: '1' })
     const green = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'sudoku' && x.submode === '1').styles.find((s) => s.name === 'green'))
-    await setTool(page, { mode: 'sudoku', submode: '1', style: green.style })
+    await chooseStyle(page, { mode: 'sudoku', submode: '1' }, green)
     for (const place of places(page)) {
-      await settle(async () => (await markOf(place)).dots, 1)
-      assert.deepEqual({ ...(await markOf(place)), box: 0, line: 0 }, { mark: null, dots: 1, box: 0, line: 0 })
+      const { mark, dots } = await settle(() => markOf(place).then(({ mark, dots }) => ({ mark, dots })), { mark: null, dots: 1 })
+      assert.deepEqual({ mark, dots }, { mark: null, dots: 1 })
     }
     const bare = await page.evaluate(() => engine.listTools().find((t) => t.styles.length === 0))
     await setTool(page, { mode: bare.mode, submode: bare.submode })
     for (const place of places(page)) {
-      await settle(async () => (await markOf(place)).dots, 0)
-      assert.deepEqual({ ...(await markOf(place)), box: 0, line: 0 }, { mark: null, dots: 0, box: 0, line: 0 })
+      const { mark, dots } = await settle(() => markOf(place).then(({ mark, dots }) => ({ mark, dots })), { mark: null, dots: 0 })
+      assert.deepEqual({ mark, dots }, { mark: null, dots: 0 })
     }
   })
 })

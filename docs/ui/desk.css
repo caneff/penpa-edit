@@ -153,7 +153,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-headline { font-size: calc(22px * var(--ui-text-scale, 1)); font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: calc(11px * var(--ui-text-scale, 1)); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
-/* A non-colour style's sample, one line of the label's text tall, in the label's own colour. */
+/* A non-colour style's sample, one line of the label's text tall; a line sample takes the label's colour, a text style Penpa+'s own. */
 .ui-mark { display: inline-block; margin-right: 5px; vertical-align: -.2em; line-height: 0; }
 .ui-mark svg { width: 1.1em; height: 1.1em; }
 .ui-mrows { display: grid; gap: 4px; }
