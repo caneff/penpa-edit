@@ -1,5 +1,5 @@
 // The stream fit (#314): a stream userscript asks the desk, by window messages, to put the board's ink in a box and the Mode,
-// Pinned and Mouse cards in another, and the desk answers with the ink's rect. The contract is docs/stream-fit.md. Reaches
+// Pinned and Mouse cards in another, and the desk answers with the ink's rect. The contract is STREAM-FIT.md. Reaches
 // Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
 (function () {
     'use strict';
@@ -34,13 +34,15 @@
     }
 
     onDeskReady(({ desk, cards, stream }) => {
-        const container = cards.board.body.firstElementChild;
+        const boardFrame = cards.board.body.firstElementChild;
         let boxes = null;
         // The ink as the last reply gave it.
         let sent = null;
         let isFrameQueued = false;
+        // Whether the last layout had the side cards running past their box, so that is said once and not at every change.
+        let wasSideShort = false;
 
-        const sameInk = (a, b) => ['left', 'top', 'width', 'height'].every((key) => Math.abs(a[key] - b[key]) < INK_MOVE_PX);
+        const sameInk = (a, b) => BOX_KEYS.every((key) => Math.abs(a[key] - b[key]) < INK_MOVE_PX);
         const inkNow = () => {
             const ink = engine.getInkRect();
             return { left: ink.left, top: ink.top, width: ink.right - ink.left, height: ink.bottom - ink.top };
@@ -48,34 +50,44 @@
 
         // The ink centred in the board box, and sent.
         function fitBoardInBox(board) {
-            container.style.translate = '';
+            boardFrame.style.translate = '';
             engine.fitInk(board.width, board.height);
             const ink = inkNow();
             // Whole pixels, so the canvas is never resampled and stays crisp.
             const dx = Math.round(board.left + (board.width - ink.width) / 2 - ink.left);
             const dy = Math.round(board.top + (board.height - ink.height) / 2 - ink.top);
-            container.style.translate = `${dx}px ${dy}px`;
+            boardFrame.style.translate = `${dx}px ${dy}px`;
             sent = { ...ink, left: ink.left + dx, top: ink.top + dy };
             window.postMessage({ type: REPLY_TYPE, rect: sent }, '*');
         }
 
-        // Lays the desk out for the last request: the side cards always, the board when asked to or when its ink has changed.
-        function refit({ board: refitBoard = false } = {}) {
-            if (boxes === null) {
-                return;
-            }
+        // The requested `wanted` boxes cut to the desk and in the desk's own coordinates, or null (said in the console) when one lies outside the window.
+        function boxesOnDesk(wanted) {
             const deskBox = desk.getBoundingClientRect();
-            const board = clipToDesk(boxes.board, deskBox);
-            const side = clipToDesk(boxes.side, deskBox);
+            const board = clipToDesk(wanted.board, deskBox);
+            const side = clipToDesk(wanted.side, deskBox);
             if ([board, side].some((box) => box.width < 1 || box.height < 1)) {
                 console.warn('The stream fit boxes lie outside the window; the desk stays as it was.');
-                return;
+                return null;
             }
             const onDesk = (box) => ({ ...box, left: box.left - Math.ceil(deskBox.left), top: box.top - Math.ceil(deskBox.top) });
-            stream.placeBoard(onDesk(board));
-            stream.placeSide(onDesk(side));
+            return { board, side, boardOnDesk: onDesk(board), sideOnDesk: onDesk(side) };
+        }
+
+        // Lays the desk out for the last request: the side cards always, the board when asked to or when its ink has changed.
+        function refit({ board: refitBoard = false } = {}) {
+            const placed = boxesOnDesk(boxes);
+            if (placed === null) {
+                return;
+            }
+            stream.placeBoard(placed.boardOnDesk);
+            const fits = stream.placeSide(placed.sideOnDesk);
+            if (!fits && !wasSideShort) {
+                console.warn('The side box is smaller than the Pinned, Mode and Mouse cards at their least size; they run past it.');
+            }
+            wasSideShort = !fits;
             if (refitBoard || sent === null || !sameInk(inkNow(), sent)) {
-                fitBoardInBox(board);
+                fitBoardInBox(placed.board);
             }
         }
 
@@ -91,7 +103,7 @@
             });
         };
         engine.on('change', queueRefit);
-        new ResizeObserver(queueRefit).observe(container);
+        new ResizeObserver(queueRefit).observe(boardFrame);
 
         window.addEventListener('message', (event) => {
             // Only this page's own scripts, such as the userscript, are listened to.
@@ -103,8 +115,13 @@
                 console.warn(`Stream fit request ignored: ${problem}.`);
                 return;
             }
+            const asked = { board: event.data.board, side: event.data.side };
+            // The desk is taken over only by a request it can place.
+            if (boxesOnDesk(asked) === null) {
+                return;
+            }
             const first = boxes === null;
-            boxes = { board: event.data.board, side: event.data.side };
+            boxes = asked;
             if (first) {
                 stream.begin(refit);
             }

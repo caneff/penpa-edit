@@ -11,13 +11,13 @@ When a stream is on, the desk makes room for it instead of the userscript magnif
 - puts the board so its **ink rect** fills the **board box** on its limiting side, drawn at a whole cell size (so crisp, never scaled
   by CSS), centred on the other side; the Board card becomes the board box itself, with no header, border or shadow, and a white
   ground (black in the dark theme); the board coordinates are not drawn;
-- puts the **Mode**, **Pinned** and **Mouse** cards in the **side box**, stacked in that order, each at its own height, or all
+- puts the **Pinned**, **Mode** and **Mouse** cards in the **side box**, stacked top to bottom in that order, each at its own height, or all
   shortened in step down to their least height where the box is short. A Mouse card the solver closed stays closed;
 - takes the **Rules** and **Recent** cards off the desk (the stream's scroller shows the rules);
 - answers with the ink rect, and answers again whenever it changes.
 
-Nothing is saved: the solver's kept layout (`chinstrap-solve-layout-v1` in localStorage) is neither written nor removed while a
-stream fit is on, and neither is anything it derives. A page opened without a request, or reloaded, shows the solver's own card
+Nothing is saved: the solver's kept layout (`chinstrap-solve-layout-v1` in localStorage) and the Rules text size kept beside it are
+neither written nor removed while a stream fit is on, even by a card the solver moves or by Reset layout. A page opened without a request, or reloaded, shows the solver's own card
 places. There is no request to leave the stream fit: a reload leaves it.
 
 ## Messages
@@ -43,7 +43,7 @@ request sent before the desk is ready is lost: wait for the announcement.
 - The **board box** is where the stream shows the board. The ink rect ends up inside it, with its limiting side (the shorter relative
   to the board's shape) within one cell step of the box's size, and centred along the other. Nothing but the board is inside it.
 - The **side box** is beside it, outside the stream's crop. Its width is at least 280 px (the Mode card's least) and its height at
-  least 460 px (the three cards' least heights and gaps); a smaller side box has the cards at those least sizes, running past it.
+  least 440 px (the three cards' least heights and the two gaps between them); a smaller side box has the cards at those least sizes, running past it, and the desk says so in the console.
 - Both boxes are cut to the desk (the window below the top bar) and to whole pixels, so a box that reaches past the window gets the
   part that is in it. Boxes wholly outside the window leave the desk as it was.
 - A later request replaces the boxes; it is answered like the first.
@@ -59,7 +59,8 @@ space as the boxes. The desk sends it:
   anything drawn outside the grid that widens the ink. A change inside the grid does not move the ink and sends nothing.
 
 A reply can repeat the last rect (a resize that left the cut boxes as they were). A puzzle another link opens reloads the page,
-which announces itself again: send the request again.
+which announces itself again, and a reload is no stream fit until a request comes: the userscript sends its request again after
+every announcement.
 
 ## Not covered
 

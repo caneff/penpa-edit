@@ -326,14 +326,19 @@
 
     // While a stream fit is on, the kept layout is the solver's alone: no write or removal reaches it (#314).
     function writeLayout() {
-        if (streamRefit === null) {
+        if (!isStreaming()) {
             localStorage.setItem(LAYOUT_KEY, JSON.stringify({ ...saved, puzzle: puzzleHash() }));
         }
     }
 
-    function forgetLayout() {
-        if (streamRefit === null) {
-            localStorage.removeItem(LAYOUT_KEY);
+    // Drops the kept layout, and with `withRulesText` the Rules text size kept beside it.
+    function forgetLayout(withRulesText = false) {
+        if (isStreaming()) {
+            return;
+        }
+        localStorage.removeItem(LAYOUT_KEY);
+        if (withRulesText) {
+            localStorage.removeItem(RULES_TEXT_KEY);
         }
     }
 
@@ -384,10 +389,10 @@
     const fit = { mouseCardHeight: null, modeCardHeight: null, sizeMouseBody: null, pinsCardHeightAtTwoRows: null };
     // True until the fit pass has run for the desk as it was opened or last reset.
     let fitPending = true;
-    // Set by `stream.begin` (docs/ui/stream-fit.js) for as long as a stream fit is on: `streamRefit({ board })` lays the desk out
-    // for the stream again, the board fitted again only with `board`, and takes the place of every layout of the solver's.
-    // Nothing leaves it until the page is reloaded.
+    // While a stream fit is on, `streamRefit({ board })` lays the desk out for the stream again, the board fitted again only with
+    // `board`, and takes the place of every layout of the solver's. Nothing leaves a stream fit until the page is reloaded.
     let streamRefit = null;
+    const isStreaming = () => streamRefit !== null;
 
     // Drops the layout in memory, so the next `layout` fits the desk to the window and puzzle.
     function startFit() {
@@ -795,7 +800,7 @@
     // solver never touched moves down from under the card above it (#199). Never while the solver drags, which would undo
     // the drag's resize.
     function restackRight(desk, cards) {
-        if (isDragging || streamRefit !== null) {
+        if (isDragging || isStreaming()) {
             return;
         }
         if (refitRightColumn(desk, cards)) {
@@ -883,7 +888,7 @@
             .map((id) => [id, heightsSeen.get(id)]);
         heightsSeen.clear();
         shownIds(cards).forEach((id) => heightsSeen.set(id, cards[id].node.offsetHeight));
-        if (isDragging || streamRefit !== null) {
+        if (isDragging || isStreaming()) {
             return;
         }
         grown.forEach(([id, height]) => {
@@ -952,24 +957,19 @@
         drawCoordinates();
     }
 
-    // The Board card as the box `{ left, top, width, height }` of the desk, which the board is then placed in.
-    function placeStreamBoard(cards, box) {
-        place(cards, 'board', box.left, box.top, box.width, box.height);
-    }
-
     // Pinned, Mode and Mouse stacked in the box `{ left, top, width, height }` of the desk, each at its own height, or all
-    // shortened in step down to their least where the box is too short; the cards do not go under their least size, so a
-    // box shorter than their least heights together has them run past its bottom.
+    // shortened in step down to their least where the box is short. True when they fit the box; the cards never go under their
+    // least size, so a box smaller than that has them run past its edge.
     function placeStreamSide(cards, box) {
         const ids = shownIds(cards, STREAM_SIDE_CARDS);
-        ids.forEach((id) => {
-            Object.assign(cards[id].node.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${Math.max(MIN_SIZE[id][0], box.width)}px` });
-        });
         const width = Math.max(columnMinWidth(ids), box.width);
+        ids.forEach((id) => {
+            Object.assign(cards[id].node.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${width}px` });
+        });
         const wanted = {
             pins: Math.max(MIN_SIZE.pins[1], naturalHeight(cards.pins.node)),
-            mode: fit.modeCardHeight ? fit.modeCardHeight(width) : MIN_SIZE.mode[1],
-            mouse: fit.mouseCardHeight ? fit.mouseCardHeight(width) : MIN_SIZE.mouse[1]
+            mode: fit.modeCardHeight(width),
+            mouse: fit.mouseCardHeight(width)
         };
         const excess = ids.reduce((sum, id) => sum + wanted[id], 0) + (ids.length - 1) * CARD_GAP_PX - box.height;
         const spare = ids.reduce((sum, id) => sum + wanted[id] - MIN_SIZE[id][1], 0);
@@ -980,6 +980,7 @@
             place(cards, id, box.left, top, width, height);
             top += height + CARD_GAP_PX;
         });
+        return width <= box.width && top - CARD_GAP_PX <= box.top + box.height;
     }
 
     // ---- The top bar's heading ----------------------------------------------------------------------------------------
@@ -1135,7 +1136,7 @@
 
     const areCoordinatesWanted = () => localStorage.getItem(COORDINATES_KEY) === COORDINATES_SHOWN;
     // The coordinates are drawn when the solver wants them, except while a stream fit is on, which crops to the board.
-    const areCoordinatesShown = () => areCoordinatesWanted() && streamRefit === null;
+    const areCoordinatesShown = () => areCoordinatesWanted() && !isStreaming();
 
     // The room the coordinates take beside and above the canvas, which the fit leaves out.
     const coordinatesGutter = () => (boardBox.classList.contains('ui-coordinates-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
@@ -1216,7 +1217,7 @@
     // Redrawing the board can change the room it has (a scrollbar going, the layout settling), so the fit repeats until
     // the room it was made for is the room that is left, at most FIT_PASSES times.
     function fitBoard(boardBody) {
-        if (streamRefit !== null) {
+        if (isStreaming()) {
             streamRefit({ board: true });
             return;
         }
@@ -1259,7 +1260,7 @@
         const focus = engine.getFocusRect();
         const cell = focus ? focus.cell : null;
         // The stream fit keeps the board where it put it.
-        if (cell === cursorCell || streamRefit !== null) {
+        if (cell === cursorCell || isStreaming()) {
             return;
         }
         cursorCell = cell;
@@ -1332,7 +1333,7 @@
         openLayout();
         fitPending = Object.keys(saved).length === 0;
         layout(desk);
-        const relayout = () => (streamRefit === null ? layout(desk) : streamRefit());
+        const relayout = () => (isStreaming() ? streamRefit() : layout(desk));
         // A fitted layout nobody has changed is fitted again, so a window resized and back gets the layout a reload would: at
         // the first resize, and while the window keeps changing only kept inside it, once more when it stops. A layout the
         // solver made keeps its cards, each by its nearer edges, and is mended where the smaller window put cards over each other.
@@ -1342,7 +1343,7 @@
             relayout();
         };
         window.addEventListener('resize', () => {
-            if (streamRefit !== null) {
+            if (isStreaming()) {
                 streamRefit({ board: true });
                 return;
             }
@@ -1379,14 +1380,13 @@
             startFit();
             placesKept = null;
             isZoomed = false;
-            forgetLayout();
-            localStorage.removeItem(RULES_TEXT_KEY);
+            forgetLayout(true);
             showRulesText(desk);
             relayout();
         };
         // The tools Mode and Mouse are sized for changed. Only the side columns' heights depend on them, so the board is not
         // fitted again: a solver stepping through tools outside the pins would redraw it at every step.
-        const fitToTools = () => (streamRefit === null ? fitAutomatic(desk.desk, desk.cards) : streamRefit());
+        const fitToTools = () => (isStreaming() ? streamRefit() : fitAutomatic(desk.desk, desk.cards));
         const isMouseClosed = () => desk.cards.mouse.node.hidden;
         // Closing or opening Mouse refits a layout nobody has changed, so Rules takes the column or gives Mouse its split back.
         const setMouseClosed = (closed) => {
@@ -1432,7 +1432,7 @@
         // zoomed, which only Fit or a layout reset drops. The card is watched, not its body, since a scrollbar appearing
         // narrows the body and would undo the zoom at once.
         new ResizeObserver(() => {
-            if (streamRefit !== null) {
+            if (isStreaming()) {
                 return;
             }
             if (!isZoomed) {
@@ -1443,7 +1443,7 @@
         }).observe(desk.cards.board.node);
         const stream = {
             begin: (refit) => beginStream(desk.cards, refit),
-            placeBoard: (box) => placeStreamBoard(desk.cards, box),
+            placeBoard: ({ left, top, width, height }) => place(desk.cards, 'board', left, top, width, height),
             placeSide: (box) => placeStreamSide(desk.cards, box)
         };
         return { bar: desk.bar, cards: desk.cards, desk: desk.desk, stream, relayout, resetLayout, fit, fitToTools, isMouseClosed, setMouseClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };

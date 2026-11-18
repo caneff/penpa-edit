@@ -4,6 +4,7 @@
 // the board's pixels in a screenshot, the cards against their boxes, and the kept layout against its text in localStorage.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { steady } from './desk-layout.mjs'
 import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
@@ -15,6 +16,7 @@ const READY = 'chinstrap:stream-fit-ready'
 const REQUEST = 'chinstrap:stream-fit'
 const REPLY = 'chinstrap:stream-fit-rect'
 const LAYOUT_KEY = 'chinstrap-solve-layout-v1'
+const RULES_TEXT_KEY = 'chinstrap-solve-rules-text-v1'
 
 // The boxes of a 1400 x 900 window under the top bar: the board's, and the side's beside it.
 const BOARD_BOX = { left: 40, top: 100, width: 760, height: 700 }
@@ -54,15 +56,9 @@ async function request (page, board = BOARD_BOX, side = SIDE_BOX) {
 async function latestReply (page, before) {
   const count = await settle(async () => (await replies(page)).length > before, true)
   assert.equal(count, true, 'the desk replied')
-  let last = null
-  await settle(async () => {
-    const all = await replies(page)
-    const now = JSON.stringify(all[all.length - 1])
-    const same = now === last
-    last = now
-    return same
-  }, true)
-  return JSON.parse(last).rect
+  // Once no further reply is coming.
+  const last = await steady(page, (type) => window.messagesSeen.filter((m) => m?.type === type).at(-1), REPLY)
+  return last.rect
 }
 
 // Runs in the page: the box of each shown card by its title.
@@ -232,6 +228,96 @@ describe('the reply after a change', () => {
   })
 })
 
+describe('a request the desk cannot use', () => {
+  const rulesShown = (page) => page.evaluate(() => !!document.querySelector('section[aria-label="Rules"]')?.getBoundingClientRect().width)
+
+  it('leaves the desk as it was when a box lies outside the window', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      const before = (await replies(page)).length
+      await page.evaluate(([type, side]) => window.postMessage({ type, board: { left: 2000, top: 100, width: 300, height: 300 }, side }, '*'), [REQUEST, SIDE_BOX])
+      await settle(async () => (await replies(page)).length, before + 1)
+      assert.equal((await replies(page)).length, before, 'no reply')
+      assert.equal(await rulesShown(page), true, 'the Rules card is still on the desk')
+      assert.equal(await page.getByRole('button', { name: 'Zoom in' }).isVisible(), true, 'the Board card still has its header')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('ignores a request whose boxes are not boxes, and one from another window', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      const before = (await replies(page)).length
+      await page.evaluate(([type, side]) => {
+        window.postMessage({ type, board: { left: 'a', top: 100, width: 300, height: 300 }, side }, '*')
+        window.postMessage({ type, board: { left: 10, top: 100, width: 0, height: 300 }, side }, '*')
+        const frame = document.createElement('iframe')
+        document.body.append(frame)
+        // Run in the frame's own realm, so the message's source is the frame.
+        frame.contentWindow.eval(`parent.postMessage(${JSON.stringify({ type, board: { left: 40, top: 100, width: 300, height: 300 }, side })}, '*')`)
+      }, [REQUEST, SIDE_BOX])
+      await settle(async () => (await replies(page)).length, before + 1)
+      assert.equal((await replies(page)).length, before, 'no reply')
+      assert.equal(await rulesShown(page), true, 'the Rules card is still on the desk')
+    } finally {
+      await context.close()
+    }
+  })
+})
+
+describe('while the stream fit is on', () => {
+  it('draws no board coordinates, though the solver wants them', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      const coordinates = () => page.locator('.ui-grid-coordinate').count()
+      await page.evaluate(async () => (await window.deskReady).setCoordinatesWanted(true))
+      assert.ok(await coordinates() > 0, 'the coordinates are drawn before the request')
+      await request(page)
+      assert.equal(await coordinates(), 0)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('keeps the side cards in the side box when the Pinned card grows', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      await request(page)
+      await page.evaluate(() => window.pinBoard.replace(engine.listTools().slice(0, 9)))
+      const cardsInBox = async () => {
+        const boxes = await page.evaluate(cardBoxesInPage)
+        return ['Pinned', 'Mode', 'Mouse'].filter((title) => !inside(boxes[title], asEdges(SIDE_BOX)))
+      }
+      assert.deepEqual(await settle(cardsInBox, []), [], 'every side card is in the side box')
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('answers again when the board draws outside its grid, with the ink that is then drawn', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      const first = await request(page)
+      const before = (await replies(page)).length
+      // A digit in the blank margin column beside the grid widens the ink without resizing the canvas.
+      await page.evaluate(() => {
+        engine.setTool({ mode: 'number', submode: '1' })
+        const margin = pu.nx0 * 6 + 1
+        pu.selection = [margin]
+        pu.cursol = margin
+      })
+      await page.keyboard.press('5')
+      const rect = await latestReply(page, before)
+      assert.notDeepEqual(rect, first, 'the ink is not where it was')
+      assert.ok(inside(asEdges(rect), asEdges(BOARD_BOX)), `the ink ${JSON.stringify(rect)} is in the board box`)
+      await assertRectIsDrawnInk(page, rect)
+    } finally {
+      await context.close()
+    }
+  })
+})
+
 describe('the kept layout', () => {
   it('is untouched by a stream fit, and a reload without the request opens the solver\'s own places', async () => {
     const { context, page } = await openSudoku()
@@ -243,8 +329,9 @@ describe('the kept layout', () => {
       await page.mouse.move(head.x - 60, head.y + 120, { steps: 5 })
       await page.mouse.up()
       const keptText = () => page.evaluate((key) => localStorage.getItem(key), LAYOUT_KEY)
-      const kept = await settle(keptText, await keptText())
-      assert.notEqual(kept, null, 'the move kept a layout')
+      assert.equal(await settle(async () => (await keptText()) !== null, true), true, 'the move kept a layout')
+      const kept = await keptText()
+      await page.evaluate((key) => localStorage.setItem(key, '18'), RULES_TEXT_KEY)
       const own = (await page.evaluate(cardBoxesInPage)).Mode
 
       await request(page)
@@ -260,6 +347,7 @@ describe('the kept layout', () => {
       await page.mouse.up()
       await resetLayoutInSettings(page)
       assert.equal(await keptText(), kept, 'a move and Reset layout during the stream fit leave the kept layout as it was')
+      assert.equal(await page.evaluate((key) => localStorage.getItem(key), RULES_TEXT_KEY), '18', 'and the Rules text size kept beside it')
 
       await page.setViewportSize({ width: 1400, height: 900 })
       await page.reload()

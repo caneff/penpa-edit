@@ -174,14 +174,14 @@
 
     // The largest cell size at which `measure()` (the board's drawn width and height, CSS px) fits a `w` x `h` box, set and returned;
     // the smallest size when none does.
-    function fitSizeTo(w, h, measure) {
+    function fitSizeTo(call, w, h, measure) {
         const fits = () => {
             const r = measure();
             return r.width <= w + FIT_TOLERANCE_PX && r.height <= h + FIT_TOLERANCE_PX;
         };
         const drawn = measure();
         if (!drawn.width || !drawn.height) {
-            throw new Error('engine.fitBoard: the board is not drawn');
+            throw new Error(`engine.${call}: the board is not drawn`);
         }
         // The canvas holds fixed margins besides the cells, so this estimate runs a little small; the loops settle it.
         const perCell = UserSettings.displaysize;
@@ -218,9 +218,10 @@
         }
         const corner = context.getImageData(0, 0, 1, 1).data;
         const isInk = (data, i) => [0, 1, 2, 3].some((c) => Math.abs(data[i + c] - corner[c]) > INK_DIFFERENCE);
-        // Strips run along one edge: `across` is the length of a line in canvas px, `lines` how many lines the canvas has the
-        // other way, and `read(from, count)` the pixels of that many lines starting at `from`, each line `across` pixels long.
-        const edgeOf = (lines, across, read, fromEnd) => {
+        // `edgeOf` reads strips of INK_STRIP_PX lines from one edge in: `lines` is how many lines the canvas has that way, `across`
+        // how long each is, `read(from, count)` the pixels of `count` lines from `from` and `at(k, j, count)` where line `k` of a
+        // strip has its pixel `j` in them. It returns the first (from the far edge, the line after the last) line with ink.
+        const edgeOf = (lines, across, read, at, fromEnd) => {
             for (let done = 0; done < lines; done += INK_STRIP_PX) {
                 const count = Math.min(INK_STRIP_PX, lines - done);
                 const from = fromEnd ? lines - done - count : done;
@@ -228,7 +229,7 @@
                 const order = [...Array(count).keys()];
                 for (const k of fromEnd ? order.reverse() : order) {
                     for (let j = 0; j < across; j++) {
-                        if (isInk(data, (k * across + j) * 4)) {
+                        if (isInk(data, at(k, j, count))) {
                             return fromEnd ? from + k + 1 : from + k;
                         }
                     }
@@ -237,24 +238,16 @@
             return null;
         };
         const rows = (from, count) => context.getImageData(0, from, canvas.width, count).data;
-        // A strip of columns is read as rows of a transposed copy, so one scan serves both directions.
-        const columns = (from, count) => {
-            const { data } = context.getImageData(from, 0, count, canvas.height);
-            const turned = new Uint8ClampedArray(data.length);
-            for (let x = 0; x < count; x++) {
-                for (let y = 0; y < canvas.height; y++) {
-                    turned.set(data.subarray((y * count + x) * 4, (y * count + x) * 4 + 4), (x * canvas.height + y) * 4);
-                }
-            }
-            return turned;
-        };
-        const top = edgeOf(canvas.height, canvas.width, rows, false);
+        const columns = (from, count) => context.getImageData(from, 0, count, canvas.height).data;
+        const rowPixel = (k, j) => (k * canvas.width + j) * 4;
+        const columnPixel = (k, j, count) => (j * count + k) * 4;
+        const top = edgeOf(canvas.height, canvas.width, rows, rowPixel, false);
         if (top === null) {
             throw new Error('engine.getInkRect: the board has no ink');
         }
-        const bottom = edgeOf(canvas.height, canvas.width, rows, true);
-        const left = edgeOf(canvas.width, canvas.height, columns, false);
-        const right = edgeOf(canvas.width, canvas.height, columns, true);
+        const bottom = edgeOf(canvas.height, canvas.width, rows, rowPixel, true);
+        const left = edgeOf(canvas.width, canvas.height, columns, columnPixel, false);
+        const right = edgeOf(canvas.width, canvas.height, columns, columnPixel, true);
         const [scaleX, scaleY] = [box.width / canvas.width, box.height / canvas.height];
         return { left: box.left + left * scaleX, top: box.top + top * scaleY, right: box.left + right * scaleX, bottom: box.top + bottom * scaleY };
     }
@@ -1439,7 +1432,7 @@
             requirePositiveNumber('fitBoard', 'w', w);
             requirePositiveNumber('fitBoard', 'h', h);
             const canvas = boardCanvas();
-            return fitSizeTo(w, h, () => canvas.getBoundingClientRect());
+            return fitSizeTo('fitBoard', w, h, () => canvas.getBoundingClientRect());
         },
 
         // The drawn ink on the page in viewport px, `{ left, top, right, bottom }`: the bounding box of what the canvas shows other
@@ -1454,7 +1447,7 @@
             requirePositiveNumber('fitInk', 'w', w);
             requirePositiveNumber('fitInk', 'h', h);
             const canvas = boardCanvas();
-            return fitSizeTo(w, h, () => {
+            return fitSizeTo('fitInk', w, h, () => {
                 const ink = inkRectOf(canvas);
                 return { width: ink.right - ink.left, height: ink.bottom - ink.top };
             });
