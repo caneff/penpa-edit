@@ -10,7 +10,7 @@
     // A button the mouse reaches and Tab does not.
     const OUT_OF_TAB_ORDER = { tabindex: '-1' };
 
-    onDeskReady(({ cards }) => {
+    onDeskReady(({ cards, fitToTools }) => {
         const tools = engine.listTools();
         const toolOf = (entry) => tools.find((t) => toolKey(t) === toolKey(entry));
 
@@ -52,8 +52,14 @@
             const shown = entries.filter((entry) => !window.pinBoard.isPinned(entry)).slice(0, MAX_ENTRIES);
             const signature = JSON.stringify([shown, currentKey]);
             if (signature !== drawn) {
+                const isFirstDraw = drawn === '';
                 drawn = signature;
                 strip.replaceChildren(...shown.map((entry) => chip(entry, toolKey(entry) === currentKey)));
+                // Recent is as tall as its chips (#306), so the desk fits it again; the first draw comes before the tool cards
+                // give the desk their sizes, and the desk's first layout fits it.
+                if (!isFirstDraw) {
+                    fitToTools();
+                }
             }
         }
 
