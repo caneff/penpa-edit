@@ -11,7 +11,19 @@ const region = (page, name) => page.getByRole('region', { name })
 const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
-const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
+const pickerRow = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"]`)
+// The Penpa+ name a picker row shows: the part in parentheses, or the whole name when the row shows one name. It drops the "Mode > " the
+// row's branch shows, so `shownName` gives it back.
+const pickerPenpa = async (page, tool) => {
+  const row = pickerRow(page, tool)
+  const penpa = await row.locator('.ui-tpenpa').allTextContents()
+  return penpa.length ? penpa[0].slice(1, -1) : row.locator('.ui-tname').textContent()
+}
+const pickerName = async (page, tool) => {
+  const penpa = await pickerPenpa(page, tool)
+  const branch = await pickerRow(page, tool).evaluate((row) => row.parentElement.parentElement.previousElementSibling?.querySelector('.ui-tname')?.textContent)
+  return (await labelOf(page, tool)).startsWith(`${branch} > `) ? `${branch} > ${penpa}` : penpa
+}
 // The chip name the shared name gives `tool`.
 const labelOf = (page, tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
 // Waits until the first Recent chip is `tool`'s, not an earlier tool's still on show, and returns it.
@@ -87,11 +99,39 @@ describe('one name per tool', () => {
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, composites.length)
     assert.deepEqual(await chipTexts(region(page, 'Pinned')), composites.map((c) => c.penpa))
     const leaves = []
-    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerName(page, { mode: 'combi', submode })])
+    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerPenpa(page, { mode: 'combi', submode })])
     assert.deepEqual(leaves.filter(([want, got]) => want !== got), [])
     const blpo = composites.findIndex((c) => c.submode === 'blpo')
     assert.equal(composites[blpo].penpa, 'Black / dot')
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').nth(blpo).getAttribute('title'), 'Shade + dot', 'the plain name is the chip\'s hover text')
+  })
+
+  it('shows a picker row as the plain name, then Penpa+\'s name in smaller parentheses, once when they match, without the mode its branch shows', async () => {
+    const { page } = opened
+    const rowOf = async (tool) => {
+      const row = pickerRow(page, tool)
+      return {
+        plain: await row.locator('.ui-tname').textContent(),
+        penpa: await row.locator('.ui-tpenpa').allTextContents(),
+        smaller: await row.evaluate((r) => {
+          const part = r.querySelector('.ui-tpenpa')
+          return part ? parseFloat(getComputedStyle(part).fontSize) < parseFloat(getComputedStyle(r.querySelector('.ui-tname')).fontSize) : null
+        })
+      }
+    }
+    assert.deepEqual(await rowOf({ mode: 'surface' }), { plain: 'Shade cells', penpa: ['(Surface)'], smaller: true })
+    assert.deepEqual(await rowOf({ mode: 'combi', submode: 'blpo' }), { plain: 'Shade + dot', penpa: ['(Black / dot)'], smaller: true })
+    assert.deepEqual(await rowOf({ mode: 'line', submode: '1' }), { plain: 'Line', penpa: ['(Normal)'], smaller: true }, 'no "Line >" under the Line branch')
+    assert.deepEqual(await rowOf({ mode: 'wall' }), { plain: 'Wall', penpa: [], smaller: null }, 'matching names show once')
+    assert.equal(await pickerRow(page, { mode: 'surface' }).getAttribute('title'), 'Click paints the chosen colour, right the 2nd colour; drag paints many.')
+  })
+
+  it('keeps Penpa+\'s name alone on the Board label and the Pinned chip of a tool the picker shows by its plain name', async () => {
+    const { page } = opened
+    await pin(page, [{ mode: 'line', submode: '1', style: null }])
+    await setTool(page, { mode: 'line', submode: '1' })
+    assert.equal(await settle(async () => (await chipTexts(region(page, 'Pinned')))[0], 'Line > Normal'), 'Line > Normal')
+    assert.equal(await settle(() => boardLabel(page).textContent(), 'Line > Normal'), 'Line > Normal')
   })
 
   it('keeps a hand name for the Number sub-modes whose Penpa+ label is an icon', async () => {
