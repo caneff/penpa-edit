@@ -103,7 +103,7 @@ describe('the picker pin toggles', () => {
 
   it('pins once on a held P, not on each key repeat', async () => {
     await row(WALL).focus()
-    await page().keyboard.down('p')
+    // Two presses: an odd count of toggles would end pinned either way.
     await page().keyboard.down('p')
     await page().keyboard.down('p')
     await page().keyboard.up('p')
