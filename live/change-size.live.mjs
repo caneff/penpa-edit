@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import {
-  boardAgainstCard, DIGIT_CELL, linkFromNewBoard, makeNumberSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
+  boardAgainstCard, chipName, DIGIT_CELL, linkFromNewBoard, makeNumberSolveLink, newBoardSolveLink, openSolvePage, typeDigitInPage, useBrowser, waitForDesk
 } from './page.mjs'
 import { settle } from './settle.mjs'
 
@@ -342,4 +342,53 @@ describe('the Change size dialog', () => {
       await context.close()
     }
   })
+})
+
+// ---- What is kept per puzzle survives a resize (#292) -------------------------------------------------------------
+
+describe('a resize keeps what the solver set on the puzzle', () => {
+  const RULES = 'Put a digit from 1 to 9 in every cell.'
+  const rules = (page) => page.getByRole('region', { name: 'Rules' })
+  const rulesWidth = async (page) => Math.round((await rules(page).boundingBox()).width)
+  const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
+
+  // Unpins the first pin, turns conflict detection off for this puzzle and widens the Rules card, as a solver would.
+  async function setThings (page) {
+    await page.getByRole('button', { name: 'Unpin Line > Normal' }).click()
+    await page.getByRole('button', { name: 'Settings', exact: true }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+    await page.locator('wa-dialog[open]').getByRole('combobox', { name: 'Conflict detection' }).click()
+    await page.getByRole('option', { name: 'Off for this puzzle' }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+    const handle = await rules(page).getByTestId('resize-bottom-right').boundingBox()
+    const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 }
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(from.x + 40, from.y + 30, { steps: 5 })
+    await page.mouse.up()
+  }
+
+  for (const resizes of [1, 2]) {
+    it(`keeps the pins, the conflicts-off setting and the card sizes after ${resizes} resize(s) and a reload`, async () => {
+      const link = await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Corner'], RULES)
+      const { context, page } = await openSolvePage(browser(), link, { served: true })
+      try {
+        await setThings(page)
+        const width = await rulesWidth(page)
+        const idBefore = await page.evaluate(() => engine.getPuzzleId())
+        await page.evaluate(() => engine.changeSize('top', 1))
+        if (resizes === 2) await page.evaluate(() => engine.changeSize('left', 1))
+        assert.notEqual(await page.evaluate(() => engine.getPuzzleId()), idBefore, 'the resize moved the puzzle id')
+        assert.equal(await page.evaluate(() => engine.saveProgress()), true)
+        await page.reload()
+        await waitForDesk(page)
+        assert.deepEqual(await settle(() => pinned(page), ['Sudoku > Corner']), ['Sudoku > Corner'], 'the pin stays removed')
+        assert.equal(await page.evaluate(() => engine.getSettings().conflict_detection), 2, 'conflicts stay off')
+        assert.equal(await settle(() => rulesWidth(page), width), width, 'the Rules card keeps its width')
+      } finally {
+        await context.close()
+      }
+    })
+  }
 })

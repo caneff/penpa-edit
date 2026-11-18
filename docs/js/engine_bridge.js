@@ -289,7 +289,7 @@
     const solvedHandlers = new Set();
 
     // Kept per puzzle, so a reload of a board that was solved and then undone still opens with the clock stopped.
-    const solvedKey = () => `chinstrap-solved-v1-${engine.getPuzzleId()}`;
+    const solvedKey = () => `chinstrap-solved-v1-${engine.getOriginalPuzzleId()}`;
 
     function latchSolved() {
         latched = true;
@@ -783,6 +783,29 @@
     // ---- Change size ------------------------------------------------------------------------------------------------
 
     const NOT_SQUARE = 'Only a grid of square cells can change size.';
+
+    // A resize moves the puzzle id, so this browser keeps, for each id a resize made, the id the puzzle had before it. Always
+    // the first id: a second resize maps its new id to the same original.
+    const ORIGINAL_IDS_KEY = 'chinstrap-original-puzzle-ids-v1';
+
+    function readOriginalIds() {
+        try {
+            return JSON.parse(localStorage.getItem(ORIGINAL_IDS_KEY)) ?? {};
+        } catch (e) {
+            // Only the link between a resized puzzle and its saved state is lost, and the next resize writes a fresh map.
+            console.warn(`${ORIGINAL_IDS_KEY} is unreadable (${e.message}); resized puzzles are kept under their new ids.`);
+            return {};
+        }
+    }
+
+    // Called after a resize, with the original id the puzzle had before it.
+    function rememberOriginalPuzzleId(original) {
+        const now = engine.getPuzzleId();
+        if (now === original) {
+            return;
+        }
+        localStorage.setItem(ORIGINAL_IDS_KEY, JSON.stringify({ ...readOriginalIds(), [now]: original }));
+    }
 
     // The sides `changeSize` takes, as the board is drawn: what the outermost line of cells there is, the axis it lies across,
     // which way is outward on that axis, and the side of Penpa+'s unturned board it is at each `get_orientation` value (0 to
@@ -1397,7 +1420,9 @@
             }
             // MVP gap: Penpa+'s Change Size buttons call `resize_top` and its siblings; 'white' makes the row blank board outside
             // the grid (`pu.space`), and a removal takes only such a row.
+            const before = engine.getOriginalPuzzleId();
             pu[penpaSideOf(side).resize](change, 'white');
+            rememberOriginalPuzzleId(before);
         },
 
         // A key for the open puzzle that the solver's progress never changes, so a history copy of its link (which carries the
@@ -1408,6 +1433,13 @@
             boardCanvas();
             const { command_undo, command_redo, command_replay, deletelineE, ...givens } = pu.pu_q;
             return md5(JSON.stringify([pu.gridtype, pu.nx, pu.ny, pu.space, givens]));
+        },
+
+        // The id the puzzle had before any Change size, which what is kept per puzzle in this browser is keyed on. Only this
+        // browser knows it: a link opened elsewhere after a resize has the new id.
+        getOriginalPuzzleId() {
+            const id = engine.getPuzzleId();
+            return readOriginalIds()[id] ?? id;
         },
 
         // The puzzle's text as the link carries it: Title, Author and Rules, plain text.
