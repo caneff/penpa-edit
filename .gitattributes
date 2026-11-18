@@ -6,6 +6,7 @@
 /CLAUDE.md merge=ours
 /CODING_STANDARDS.md merge=ours
 /GLOSSARY.md merge=ours
+/STREAM-FIT.md merge=ours
 .agents/** merge=ours
 research/** merge=ours
 adr/** merge=ours

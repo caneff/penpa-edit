@@ -42,6 +42,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   has not changed, Rules takes the rest of it, and Recent is as tall as its chips (#306), both ending on the desk's bottom. A double-click on a dragged edge's
   handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
   does it for every card.
+- **Stream fit**: the desk laying itself out for a stream (`STREAM-FIT.md`): on a request from the stream userscript, the board's ink fills the board box and the Mode, Pinned and Mouse cards sit in the side box. Never kept in the layout.
+- **Board box**: the box, in viewport CSS px, where a stream shows the board; the stream fit puts the ink rect in it.
+- **Side box**: the box beside the board box, outside the stream's crop, where the stream fit puts the Mode, Pinned and Mouse cards.
+- **Ink rect**: the bounding box, in viewport CSS px, of what the board draws other than its canvas's own margin, read from the pixels; the stream fit's reply.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Trial**: the solve page's way to guess (#258): Try marks the undo history, and Keep or Discard later keeps or undoes
   everything entered since. Trials nest; puzz.link calls it trial mode.
