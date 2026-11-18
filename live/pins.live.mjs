@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { afterChange, assertQuiet, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -320,14 +320,7 @@ describe('the pin toggles', () => {
   })
 
   it('leaves the engine quiet while nobody touches the page', async () => {
-    const { page } = opened
-    await afterChange(page)
-    const changes = await page.evaluate(() => new Promise((resolve) => {
-      let count = 0
-      engine.on('change', () => { count += 1 })
-      setTimeout(() => resolve(count), 1000)
-    }))
-    assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+    await assertQuiet(opened.page)
   })
 
   it('shows the Mode card\'s pin pressed exactly when the current tool is pinned, and toggles it', async () => {
