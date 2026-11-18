@@ -148,6 +148,36 @@
         }
     };
 
+    // ---- Line widths: Penpa+'s `set_line_style` gives most styles a fixed pixel width, right at its normal 38 px a cell and
+    // hair-thin on a zoomed board, so on the board's own context the width grows with the cell past that size (#330). Only the
+    // board: the bridge's swatch reads and Penpa+'s panel draw at sizes of their own. The grid and the outer frame grow half
+    // as much as the rest, so a zoomed board's solving marks stand out from them (Chris, 2026-11-18).
+    const PENPA_NORMAL_CELL_SIZE = 38;
+    // The styles whose width set_line_style already takes from `pu.size`: 13 (bold dash) and 17 (a wall's bold dash).
+    const CELL_SIZED_LINE_STYLES = new Set([13, 17]);
+    const FRAME_GROWTH_SHARE = 0.5;
+    // True while Penpa+ draws the grid and the outer frame: its draw_frame and draw_frameBold, which no grid class overrides.
+    let drawingFrame = false;
+    for (const name of ['draw_frame', 'draw_frameBold']) {
+        const penpaDraw = Puzzle.prototype[name];
+        Puzzle.prototype[name] = function () {
+            drawingFrame = true;
+            try {
+                return penpaDraw.apply(this, arguments);
+            } finally {
+                drawingFrame = false;
+            }
+        };
+    }
+    const penpaSetLineStyle = window.set_line_style;
+    window.set_line_style = function (ctx, type) {
+        penpaSetLineStyle.apply(this, arguments);
+        if (ctx === pu.ctx && !CELL_SIZED_LINE_STYLES.has(type)) {
+            const growth = Math.max(1, pu.size / PENPA_NORMAL_CELL_SIZE) - 1;
+            ctx.lineWidth *= 1 + growth * (drawingFrame ? FRAME_GROWTH_SHARE : 1);
+        }
+    };
+
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
