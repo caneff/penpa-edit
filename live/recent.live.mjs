@@ -73,6 +73,8 @@ describe('the Recent card', () => {
       await page.keyboard.press('Tab')
       assert.equal(await recentCard(page).locator('.ui-body :focus').count(), 0, `Tab press ${i + 1} without pins`)
     }
+    // Tab can stop in the Mode card's picker, whose open list floats over Recent; leaving it closes the list for the next test.
+    await page.evaluate(() => document.activeElement?.blur())
   })
 
   it('sets the tool on a click and gives focus back to the board', async () => {
