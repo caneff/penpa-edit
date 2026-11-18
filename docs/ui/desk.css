@@ -354,11 +354,13 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-dark .ui-settings-about { color: #a9b0bd; }
 .ui-dark .ui-tag { background: #2f3c5c; color: #b7caff; }
 
-/* The pin toggles: beside the Mode card's picker and inside each Recent chip. */
+/* The pin toggles: beside the Mode card's picker, on each tool row of its tree and inside each Recent chip. */
 .ui-picker-row { display: flex; gap: 6px; align-items: flex-start; }
 .ui-picker-row > .ui-picker { flex: 1; min-width: 0; }
 .ui-chip .ui-pin-toggle, .ui-pin-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 4px 6px; border: 0; background: transparent; color: inherit; cursor: pointer; opacity: .6; }
 .ui-picker-row > .ui-pin-toggle { border: 1px solid #cfcabd; border-radius: 6px; background: #fff; }
+.ui-tpin { display: inline-flex; flex: none; }
+.ui-trow .ui-pin-toggle { padding: 2px 4px; }
 .ui-pin-toggle:hover, .ui-pin-toggle[aria-pressed="true"] { opacity: 1; }
 .ui-pin-toggle:focus-visible { outline: 2px solid #3b6fd4; outline-offset: 1px; }
 .ui-dark .ui-picker-row > .ui-pin-toggle { background: #1b1e24; border-color: #4a5060; color: #e3e6eb; }

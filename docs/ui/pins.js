@@ -1,4 +1,4 @@
-// The Pinned card, the Tab cycle, the pin toggles (the Mode card's, and `window.pinBoard.toggleButton` for the Recent chips) and
+// The Pinned card, the Tab cycle, the pin toggles (the Mode card's, the picker's rows', and `window.pinBoard.toggleButton` for the Recent chips) and
 // the colour that says which tool is current. A pin is a mode, a sub-mode and the last
 // style used on it; the pins are seeded once per puzzle from the link's Tab set and kept per puzzle in localStorage.
 // Reaches Penpa+ only through `engine` (test/ui-boundary.test.mjs fails otherwise).
@@ -16,7 +16,7 @@
     // Tab and Enter step to the next pin, and with Shift to the previous one.
     const STEP_KEYS = ['Tab', 'Enter'];
     const NUMBER_MODE = 'number';
-    const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, or on a Recent chip, to pin a tool.';
+    const EMPTY_NOTE_TEXT = 'Nothing pinned. Use the pin button beside the Mode picker, on a row of its list, or on a Recent chip, to pin a tool.';
     // Colour number `n` is the golden angle times `n` around the hue wheel, so each new colour lands in the widest gap left and no
     // count of pins runs out. Every hue is lit to one luminance: white on 0.16 is 5:1, past WCAG's 4.5:1 for a filled chip and the
     // Board label, while as light as that allows, so hues are told apart at chip size.
@@ -306,6 +306,16 @@
         const modePin = pinToggle(() => engine.getTool());
         cards.mode.body.querySelector('.ui-picker-row').append(modePin.node);
 
+        // Each tool row of the picker's tree has a pin toggle at its right end, pinning the row's tool with no style.
+        const rowPins = [...cards.mode.body.querySelectorAll('.ui-trow[data-mode] .ui-tpin')].map((slot) => {
+            const { mode, submode } = slot.parentElement.dataset;
+            const toggle = pinToggle(() => ({ mode, submode: submode || null }));
+            toggle.node.setAttribute('tabindex', '-1');
+            slot.append(toggle.node);
+            return toggle;
+        });
+        window.uiKeys.describe('Tools', [{ keys: 'P', text: 'With a tool focused in the Mode picker, pin or unpin it' }]);
+
         // ---- The cue: frame, title bar and flash ------------------------------------------------------------------------
 
         const flash = el('div', { class: 'ui-flash', 'aria-hidden': 'true' });
@@ -377,6 +387,7 @@
             followTool();
             // Between two unpinned tools the signature holds, yet the Mode card's pin names the new one.
             modePin.sync();
+            rowPins.forEach((toggle) => toggle.sync());
             const index = pinIndexOf(engine.getTool());
             const signature = JSON.stringify([pins, index]);
             if (signature === drawn) {

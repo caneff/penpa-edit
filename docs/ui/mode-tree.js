@@ -1,5 +1,5 @@
 // The Mode card's tool tree: groups, modes and sub-modes (Symbols and marks one level deeper), each branch opening and closing on
-// its own, with the ARIA tree keys. The rows are built once and only shown, hidden and marked afterwards, so a rebuild never
+// its own, with the ARIA tree keys and `P` for a tool row's pin toggle, which pins.js puts in the row's `.ui-tpin`. The rows are built once and only shown, hidden and marked afterwards, so a rebuild never
 // lands between a mouse press and its release. Knows no `engine`.
 (function () {
     'use strict';
@@ -8,6 +8,8 @@
     const { el } = window.uiKit;
 
     const TREE_ID = 'tool-tree';
+    const PIN_KEY = 'p';
+    const PIN_SLOT = 'ui-tpin';
 
     const MODE_ATTRS = (tool) => ({ 'data-mode': tool.mode, 'data-submode': tool.submode ?? '' });
 
@@ -67,16 +69,25 @@
 
         const tree = el('div', { role: 'tree', 'aria-label': 'Tools', id: TREE_ID, class: 'ui-tree' });
 
+        // A press on the row's pin toggle pins and neither picks the tool nor reaches the row. The stop sits on the slot, not a test of
+        // `e.target`, since the toggle redraws its icon inside the click and the target is gone from the row by then.
+        function pinSlot() {
+            const slot = el('span', { class: PIN_SLOT });
+            slot.addEventListener('click', (e) => e.stopPropagation());
+            return slot;
+        }
+
         function render(node) {
             const isLeaf = Boolean(node.tool);
             const row = el('div', {
                 role: 'treeitem', 'aria-level': String(node.level), tabindex: '-1', class: 'ui-trow',
-                ...(isLeaf ? { 'aria-selected': 'false', title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
+                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_KEY.toUpperCase(), 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
                 el('span', { class: 'ui-tname' }, [node.label]),
                 el('span', { class: 'ui-tmatch', 'aria-hidden': 'true', hidden: '' }),
-                el('span', { class: 'ui-tcount', 'aria-hidden': 'true' })
+                el('span', { class: 'ui-tcount', 'aria-hidden': 'true' }),
+                ...(isLeaf ? [pinSlot()] : [])
             ]);
             node.row = row;
             node.wrap = el('div', { role: 'none', class: `ui-tnode ui-tl${node.level}` }, [row]);
@@ -210,6 +221,10 @@
                 }
             } else if (e.key === 'Enter' || e.key === ' ') {
                 node.row.click();
+            } else if (node.tool && e.key.toLowerCase() === PIN_KEY && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                // Stopped here so the picker does not take the letter as a search.
+                node.row.querySelector('.ui-pin-toggle')?.click();
+                e.stopPropagation();
             } else {
                 return;
             }
