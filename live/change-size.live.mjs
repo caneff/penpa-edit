@@ -354,7 +354,7 @@ describe('a resize keeps what the solver set on the puzzle', () => {
     const { width, height } = await rules(page).boundingBox()
     return { width: Math.round(width), height: Math.round(height) }
   }
-  const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ }).allInnerTexts()).map(chipName)
+  const pinned = async (page) => (await page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins|Close )/ }).allInnerTexts()).map(chipName)
 
   // Unpins the first pin, turns conflict detection off for this puzzle and widens the Rules card, as a solver would.
   async function setThings (page) {

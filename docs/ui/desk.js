@@ -625,33 +625,39 @@
     // closed when the desk was fitted has no entry, and counts as untouched.
     const isColumnFitted = (ids) => ids.some((id) => saved[id]) && ids.every((id) => !saved[id] || saved[id].fitted);
 
-    // Where such a column sits on the desk as it is now: the place the fitted layout gave one of its cards, kept by its nearer
-    // edge as `keepInside` keeps it.
-    function columnPlace(desk, ids) {
+    // Where such a column sits on the desk as it is now: where a shown card of it is, other than `opening`, which still has the
+    // place it had when it closed; else the place the fitted layout gave one of its cards, kept by its nearer edge as
+    // `keepInside` keeps it.
+    function columnPlace(desk, cards, ids, opening) {
+        const live = shownIds(cards, ids).find((id) => id !== opening);
+        if (live) {
+            return { x: cards[live].node.offsetLeft, w: cards[live].node.offsetWidth };
+        }
         const entry = saved[ids.find((id) => saved[id])];
         const x = entry.x + entry.w / 2 > entry.vw / 2 ? desk.clientWidth - (entry.vw - entry.x - entry.w) - entry.w : entry.x;
         return { x, w: entry.w };
     }
 
-    // A card closed or opened after the solver changed another card: the left column, if the solver moved or resized
-    // neither of its cards, is shared again at the fitted layout's width and place. True when it was.
-    function refitLeftColumn(desk, cards) {
+    // A card closed or opened (`opening`, when one is) after the solver changed another card: the left column, if the solver
+    // moved or resized neither of its cards, is shared again at the fitted layout's width and place. True when it was.
+    function refitLeftColumn(desk, cards, opening = null) {
         if (!isColumnFitted(LEFT_COLUMN) || !shownIds(cards, LEFT_COLUMN).length) {
             return false;
         }
         const columnHeight = desk.clientHeight - 2 * TOP_MARGIN_PX;
-        const { x, w } = columnPlace(desk, LEFT_COLUMN);
+        const { x, w } = columnPlace(desk, cards, LEFT_COLUMN, opening);
         placeLeftColumn(cards, x, w, isShown(cards, 'rules') ? rulesHeightFor(cards, w, columnHeight) : 0, columnHeight);
         keepFitted(desk, cards, shownIds(cards, LEFT_COLUMN));
         return true;
     }
 
-    // The right column laid out again where the solver has moved or resized none of its cards. True when it was.
-    function refitRightColumn(desk, cards) {
+    // The right column laid out again where the solver has moved or resized none of its cards, `opening` the card just
+    // opened, when one was. True when it was.
+    function refitRightColumn(desk, cards, opening = null) {
         if (!isColumnFitted(RIGHT_COLUMN) || !shownIds(cards, RIGHT_COLUMN).length) {
             return false;
         }
-        const { x, w } = columnPlace(desk, RIGHT_COLUMN);
+        const { x, w } = columnPlace(desk, cards, RIGHT_COLUMN, opening);
         placeRightColumn(cards, x, w, desk.clientHeight - 2 * TOP_MARGIN_PX);
         keepFitted(desk, cards, shownIds(cards, RIGHT_COLUMN));
         return true;
@@ -1462,10 +1468,9 @@
                 if (isFitted) {
                     isFitted = false;
                     startFit();
-                } else if (LEFT_COLUMN.includes(id)) {
-                    refitLeftColumn(desk.desk, desk.cards);
                 } else {
-                    refitRightColumn(desk.desk, desk.cards);
+                    const refitColumn = LEFT_COLUMN.includes(id) ? refitLeftColumn : refitRightColumn;
+                    refitColumn(desk.desk, desk.cards, closed ? null : id);
                 }
             }
             relayout();

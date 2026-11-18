@@ -15,7 +15,7 @@ const CELL = 12
 
 const openSolve = async (tabSet) => openSolvePage(browser(), await newBoardSolveLink(browser(), tabSet))
 
-const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins)/ })
+const pinnedChips = (page) => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Save pins|Close )/ })
 const chipNames = async (page) => (await pinnedChips(page).allInnerTexts()).map(chipName)
 
 // The colour of the board's frame, as the Board card draws it.

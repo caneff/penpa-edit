@@ -227,7 +227,7 @@ describe('after a hold', () => {
     await setTool(page, NORMAL)
     await waitForHeadline(page, 'Sudoku > Normal')
     const before = await storedEntries(page)
-    const chips = () => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin)/ }).allInnerTexts()
+    const chips = () => page.getByRole('region', { name: 'Pinned' }).getByRole('button', { name: /^(?!Unpin|Close )/ }).allInnerTexts()
     const chipsBefore = await chips()
     await page.keyboard.down('Shift')
     await waitForTool(page, CORNER)
