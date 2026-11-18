@@ -20,7 +20,7 @@ describe('the Mode card tree', () => {
 
   // Every treeitem on the page as [name, level, expanded], whether or not a folded branch hides it.
   const outline = () => tree().locator('[role=treeitem]').evaluateAll((rows) => rows.map((row) => ({
-    name: row.querySelector('.ui-tname').textContent,
+    name: [...row.querySelectorAll('.ui-tname, .ui-tpenpa')].map((part) => part.textContent).join(' '),
     level: Number(row.getAttribute('aria-level')),
     expanded: row.getAttribute('aria-expanded'),
     hidden: row.closest('[hidden]') !== null
@@ -60,7 +60,7 @@ describe('the Mode card tree', () => {
     await reopen({ mode: 'line', submode: '2' })
     assert.equal(await item('Lines through cells').getAttribute('aria-expanded'), 'true')
     assert.equal(await item('Line', 2).getAttribute('aria-expanded'), 'true')
-    assert.equal(await item('Line > Diagonal').getAttribute('aria-selected'), 'true')
+    assert.equal(await item('Diagonal line (Diagonal)').getAttribute('aria-selected'), 'true')
     assert.equal(await item('Edges and walls').getAttribute('aria-expanded'), 'false')
     assert.equal(await item('Shading and colour').getAttribute('aria-expanded'), 'false')
     await opened.page.keyboard.press('Escape')
@@ -72,10 +72,10 @@ describe('the Mode card tree', () => {
     assert.equal(await item('Edges and walls').getAttribute('aria-expanded'), 'true')
     await item('Edge', 2).click()
     assert.equal(await item('Edge', 2).getAttribute('aria-expanded'), 'true')
-    assert.equal((await visibleNames()).includes('Edge > Erase'), true, 'the Edge mode shows its sub-modes')
+    assert.equal((await visibleNames()).includes('Clear grid lines (Erase)'), true, 'the Edge mode shows its sub-modes')
     await item('Edge', 2).click()
     assert.equal(await item('Edge', 2).getAttribute('aria-expanded'), 'false')
-    assert.equal((await visibleNames()).includes('Edge > Erase'), false)
+    assert.equal((await visibleNames()).includes('Clear grid lines (Erase)'), false)
     await item('Edges and walls').click()
     assert.equal(await item('Edges and walls').getAttribute('aria-expanded'), 'false')
     assert.equal((await currentTool(opened.page)).mode, 'surface', 'folding picks nothing')
@@ -84,10 +84,10 @@ describe('the Mode card tree', () => {
 
   it('opens and closes with Right and Left, and moves with Up, Down, Home and Left to the parent', async () => {
     const { page } = opened
-    const focused = () => page.evaluate(() => document.activeElement.querySelector('.ui-tname')?.textContent)
+    const focused = () => page.evaluate(() => [...document.activeElement.querySelectorAll('.ui-tname, .ui-tpenpa')].map((part) => part.textContent).join(' '))
     await reopen()
     await search().press('ArrowDown')
-    assert.equal(await focused(), 'Surface', 'Down from the field enters the tree at the current tool')
+    assert.equal(await focused(), 'Shade cells (Surface)', 'Down from the field enters the tree at the current tool')
     await page.keyboard.press('Home')
     assert.equal(await focused(), 'Shading and colour')
     await page.keyboard.press('ArrowLeft')
@@ -121,8 +121,8 @@ describe('the Mode card tree', () => {
     assert.equal(rows.filter((r) => r.level === 1 && r.expanded !== 'true').length, 0, 'every group is open')
     const modesShown = await visibleNames()
     assert.ok(modesShown.includes('Line'), `Line shows: ${modesShown}`)
-    assert.equal(modesShown.includes('Line > Diagonal'), false, 'its sub-modes stay folded')
-    assert.ok(modesShown.includes('Shapes') && modesShown.includes('Circle') && modesShown.includes('Akari'), `Symbols and marks shows its subgroups and their symbols: ${modesShown}`)
+    assert.equal(modesShown.includes('Diagonal line (Diagonal)'), false, 'its sub-modes stay folded')
+    assert.ok(modesShown.includes('Shapes') && modesShown.includes('Circle') && modesShown.includes('Bulbs + dots (Akari)'), `Symbols and marks shows its subgroups and their symbols: ${modesShown}`)
     assert.equal(modesShown.includes('Circle XS'), false, 'the sizes stay folded')
     await openTo('Everything')
     assert.ok((await visibleNames()).includes('Circle XS'), 'Everything shows the sizes')
@@ -136,11 +136,11 @@ describe('the Mode card tree', () => {
     const before = await outline()
     await search().fill('Diagonal')
     const names = await visibleNames()
-    assert.deepEqual(['Lines through cells', 'Line', 'Line > Diagonal', 'Edges and walls', 'Edge', 'Edge > Diagonal'].filter((n) => !names.includes(n)), [], `ancestors and leaves show: ${names}`)
+    assert.deepEqual(['Lines through cells', 'Line', 'Diagonal line (Diagonal)', 'Edges and walls', 'Edge', 'Diagonal edge line (Diagonal)'].filter((n) => !names.includes(n)), [], `ancestors and leaves show: ${names}`)
     assert.equal(names.includes('Wall'), false, 'a non-matching sibling is hidden')
     assert.equal(names.includes('Numbers and letters'), false, 'a group with no match is hidden')
     assert.equal(await item('Line', 2).getAttribute('aria-expanded'), 'true')
-    assert.equal(await tree().getByRole('treeitem', { name: /> Diagonal$/ }).count(), 2, 'Line and Edge each have one')
+    assert.equal(await tree().getByRole('treeitem', { name: /\(Diagonal\)$/ }).count(), 2, 'Line and Edge each have one')
     await search().fill('')
     assert.deepEqual(await outline(), before, 'the open and closed branches come back as before')
     await search().fill('zzzz')
@@ -184,7 +184,7 @@ describe('the Mode card tree', () => {
   it('finds a tool by what Penpa+ calls it and by its description, and a symbol by its size', async () => {
     await reopen()
     await search().fill('Black / dot')
-    assert.deepEqual(await visibleNames(), ['Shading and colour', 'Black / dot'])
+    assert.deepEqual(await visibleNames(), ['Shading and colour', 'Shade + dot (Black / dot)'])
     await search().fill('circle xs')
     assert.equal((await visibleNames()).includes('Circle XS'), true)
     await search().fill('genre kakuro')
@@ -192,11 +192,12 @@ describe('the Mode card tree', () => {
     await opened.page.keyboard.press('Escape')
   })
 
-  it('lists Surface as Surface, and finds it by its plain name "shade" as well as by "Surface", and Enter picks it"', async () => {
+  it('lists Surface as "Shade cells (Surface)", finds it by "shade" as well as by "Surface", and Enter picks it', async () => {
     await reopen({ mode: 'line', submode: '1' })
     for (const typed of ['shade', 'Surface']) {
       await search().fill(typed)
-      assert.equal(await tree().locator('[role=treeitem][data-mode=surface]:visible .ui-tname').textContent(), 'Surface', `"${typed}" finds Surface under its shared name`)
+      assert.equal(await item('Shade cells (Surface)').count(), 1, `"${typed}" finds Surface under its plain name and Penpa+'s`)
+      assert.equal(await tree().locator('[role=treeitem][data-mode=surface]:visible').locator('.ui-tname, .ui-tpenpa').allTextContents().then((parts) => parts.join(' ')), 'Shade cells (Surface)')
     }
     for (const typed of ['shade', 'Shade cells']) {
       await reopen({ mode: 'line', submode: '1' })
@@ -204,6 +205,16 @@ describe('the Mode card tree', () => {
       await search().press('Enter')
       assert.equal((await currentTool(opened.page)).mode, 'surface', `Enter on "${typed}" picks Surface`)
     }
+    await opened.page.keyboard.press('Escape')
+  })
+
+  it('finds the row under Line, which reads without "Line >", by the full name "line > normal", which only the full Penpa+ name holds', async () => {
+    await reopen()
+    await search().fill('line > normal')
+    const row = tree().locator('[role=treeitem][data-mode=line][data-submode="1"]:visible')
+    assert.equal(await row.count(), 1)
+    assert.equal(await row.locator('.ui-tname').textContent(), 'Normal', 'the plain name "Line" is the branch\'s own, so the row shows only Normal')
+    assert.equal(await row.locator('.ui-tpenpa').count(), 0)
     await opened.page.keyboard.press('Escape')
   })
 
@@ -281,12 +292,12 @@ describe('the Mode card tree', () => {
     const hint = (name) => item(name).locator('.ui-tmatch')
     for (const typed of ['linex', 'line x', 'Line X', 'LineX']) {
       await search().fill(typed)
-      assert.equal(await item('Line x').count(), 1, `"${typed}" finds the Line x composite tool`)
+      assert.equal(await item('Line + edge × (Line x)').count(), 1, `"${typed}" finds the Line x composite tool`)
     }
     await search().fill('linex')
-    assert.equal(await hint('Line x').textContent(), 'Penpa+: linex', 'the row says which old name matched, here the internal one')
+    assert.equal(await hint('Line + edge × (Line x)').textContent(), 'Penpa+: linex', 'the row says which old name matched, here the internal one')
     await search().fill('line x')
-    assert.equal(await hint('Line x').isVisible(), false, 'the row\'s own label holds the typed name, so it needs no hint')
+    assert.equal(await hint('Line + edge × (Line x)').isVisible(), false, 'the row\'s own label holds the typed name, so it needs no hint')
     await search().fill('edgeauxline')
     assert.equal(await tree().locator('[role=treeitem][data-submode=edgesub]:visible').count(), 1, 'a loose match finds the label')
     assert.equal(await tree().locator('[role=treeitem][data-submode=edgesub]:visible .ui-tmatch').isVisible(), false, 'its own label holds it')
@@ -295,9 +306,9 @@ describe('the Mode card tree', () => {
     await search().fill('bridges')
     assert.equal(await tree().locator('[role=treeitem][data-submode=hashi]:visible').count(), 1, 'the plain name "Bridges" finds the tool Penpa+ labels Hashi')
     await search().fill('c(o)m-bi')
-    assert.equal(await item('Line x').count(), 1, 'punctuation inside a typed word is ignored')
+    assert.equal(await item('Line + edge × (Line x)').count(), 1, 'punctuation inside a typed word is ignored')
     await search().fill('combi')
-    assert.equal(await item('Line x').count(), 1, 'the internal mode name finds its sub-modes')
+    assert.equal(await item('Line + edge × (Line x)').count(), 1, 'the internal mode name finds its sub-modes')
     await search().fill('helperx')
     await search().press('Enter')
     assert.deepEqual([(await currentTool(opened.page)).mode, (await currentTool(opened.page)).submode], ['line', '4'], 'the sub-mode label "Helper (x)" is found without its space and brackets')
@@ -310,7 +321,7 @@ describe('the Mode card tree', () => {
     await search().fill('3')
     assert.equal(await tree().getByRole('treeitem').count(), 0, 'a radio\'s bare digit value is not a name')
     await search().fill('×')
-    assert.equal(await item('Line x').count(), 1, 'a word of symbols still searches as typed')
+    assert.equal(await item('Line + edge × (Line x)').count(), 1, 'a word of symbols still searches as typed')
     const shown = await tree().locator('[role=treeitem][data-mode]').evaluateAll((rows) => rows.filter((row) => !row.closest('[hidden]')).length)
     assert.equal(shown < 40, true, 'a word of symbols filters instead of showing every tool')
     await search().fill('Diagonal')
@@ -325,7 +336,7 @@ describe('the Mode card tree', () => {
     await reopen()
     await item('Lines through cells').click()
     await item('Line', 2).click()
-    await item('Line > Free').click()
+    await item('Free line (Free)').click()
     assert.equal((await currentTool(page)).submode, '3')
     assert.equal(await settle(() => page.evaluate(() => document.activeElement === document.body), true), true)
     assert.equal(await search().getAttribute('aria-expanded'), 'false')
@@ -354,7 +365,7 @@ describe('the Mode card tree', () => {
     await setTool(page, { mode: 'line', submode: '3' })
     await afterChange(page)
     await afterChange(page)
-    assert.equal(await item('Line > Free').getAttribute('aria-selected'), 'true', 'the tree followed the change')
+    assert.equal(await item('Free line (Free)').getAttribute('aria-selected'), 'true', 'the tree followed the change')
     assert.equal(await item('Lines through cells').getAttribute('data-kept'), 'yes')
     await page.keyboard.press('Escape')
   })
@@ -362,8 +373,8 @@ describe('the Mode card tree', () => {
   it('marks the tool set from outside as selected', async () => {
     await setTool(opened.page, { mode: 'number', submode: '7' })
     await search().click()
-    assert.equal(await item('Number > Candidates').getAttribute('aria-selected'), 'true')
-    assert.equal(await item('Line > Normal').first().getAttribute('aria-selected'), 'false')
+    assert.equal(await item('Candidates').getAttribute('aria-selected'), 'true')
+    assert.equal(await item('Normal').first().getAttribute('aria-selected'), 'false')
     await opened.page.keyboard.press('Escape')
   })
 })
@@ -377,7 +388,7 @@ describe('Symbols and marks in the tree', () => {
   const tree = () => mode().getByRole('tree', { name: 'Tools' })
   // The names of the treeitems directly under `name`, read from the open outline.
   const childrenOf = (name) => tree().locator('[role=treeitem]').evaluateAll((rows, parent) => {
-    const names = rows.map((row) => ({ name: row.querySelector('.ui-tname').textContent, level: Number(row.getAttribute('aria-level')) }))
+    const names = rows.map((row) => ({ name: [...row.querySelectorAll('.ui-tname, .ui-tpenpa')].map((part) => part.textContent).join(' '), level: Number(row.getAttribute('aria-level')) }))
     const at = names.findIndex((row) => row.name === parent)
     const out = []
     for (const row of names.slice(at + 1)) {
@@ -398,7 +409,8 @@ describe('Symbols and marks in the tree', () => {
 
   it('files each subgroup\'s symbols, with sizes and colours a level below', async () => {
     assert.deepEqual(await childrenOf('Solving marks'), [
-      'Yin-Yang', 'Battleship', 'Star Battle', 'Tent', 'Magnets', 'Minesweeper', 'DoubleMines', 'Akari'
+      'Black + white circles (Yin-Yang)', 'Ship pieces + water (Battleship)', 'Stars + × (Star Battle)', 'Tents + × (Tent)', 'Magnet poles + − (Magnets)',
+      'Mines + × (Minesweeper)', 'One or two mines + × (DoubleMines)', 'Bulbs + dots (Akari)'
     ])
     assert.deepEqual(await childrenOf('Shapes'), [
       'Circle', 'Square', 'Diamond', 'Triangle up', 'Triangle down', 'Triangle left', 'Triangle right', 'Hexagon, point up', 'Hexagon, flat'
@@ -407,7 +419,7 @@ describe('Symbols and marks in the tree', () => {
     assert.deepEqual(await childrenOf('Square'), ['Square XL', 'Square L', 'Square M', 'Square S', 'Square XS'])
     assert.deepEqual(await childrenOf('Arrows'), [
       'Arrow', 'Arrow, notched', 'Arrow, triangle', 'Edge arrows', 'Arrow, graphic', 'Arrow, graphic, in a circle', 'Arrow, short and fat',
-      'Arrow, small', 'Arrow cross', 'Arrows, 8-way', 'Arrow tips', 'Arrows'
+      'Arrow, small', 'Arrow cross', 'Arrows, 8-way', 'Arrow tips', 'Arrows in cells (Arrows)'
     ])
     assert.deepEqual(await childrenOf('Arrow'), ['Fat Black', 'Fat Grey', 'Fat White'])
     assert.deepEqual(await childrenOf('Edge arrows'), ['Edge arrows, black', 'Edge arrows, grey', 'Edge arrows, green'])
