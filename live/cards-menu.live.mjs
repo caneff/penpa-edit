@@ -231,7 +231,9 @@ describe('Each closeable card closes by its x and reopens from the Cards menu', 
     const { page } = opened
     // Pinned is the column's first card, so its own place from before the resize must not be read as the column's.
     await closeByX(page, 'Pinned')
-    await dragHeader(page, 'Board', 20, 10)
+    // A hand-sized Rules card ends the fitted layout without moving a card over the right column, which the resize would
+    // mend by fitting the whole desk again.
+    await dragHandle(page, 'Rules', 'bottom', 0, -60)
     await page.setViewportSize({ width: 1700, height: 1000 })
     const resized = await read(page)
     await toggleInCardsMenu(page, 'Pinned')
