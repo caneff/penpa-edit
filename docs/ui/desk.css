@@ -253,7 +253,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 /* The flash: the tool's name over the top of the board for a moment on each change, in the tool's colour; it never takes a click.
    `pins.js` sets its left and top from the board's visible part. */
 .ui-flash { position: absolute; transform: translateX(-50%); z-index: 5; pointer-events: none;
-    padding: 1px 14px; border-radius: 999px; background: color-mix(in srgb, var(--ui-flash-colour) 80%, transparent); text-transform: none; letter-spacing: 0; color: #fff; font-size: 15px; font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
+    padding: 3px 20px; border-radius: 999px; background: color-mix(in srgb, var(--ui-flash-colour) 55%, transparent); text-transform: none; letter-spacing: 0; color: #fff; font-size: 22px; text-shadow: 0 1px 2px rgb(0 0 0 / 45%); font-weight: 700; line-height: 1.2; white-space: nowrap; opacity: 0; }
 .ui-flash.is-flashing { animation: ui-flash .8s ease-out; }
 @keyframes ui-flash { 0%, 55% { opacity: 1; } 100% { opacity: 0; } }
 
