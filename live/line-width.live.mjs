@@ -16,23 +16,44 @@ const CELL_SIZED_PX_AT_ZOOMED = 7
 const SMALL = 24
 const NORMAL = 38
 const ZOOMED = 76
-// The middle cell of a 9x9 and its right-hand neighbour, as indexes of the center list.
-const LINE_FROM = 40
-const LINE_TO = 41
+// The middle cell of a 9x9 and its right-hand neighbour, and the first cell of the middle row, as indexes of the center list.
+const MIDDLE_CELL = 40
+const RIGHT_OF_MIDDLE = 41
+const ROW_START = 36
+// Where each line is measured: across the solver's line a quarter cell right of the middle cell's centre, across the grid line
+// between the middle cell and its neighbour, and across the outer frame at the row's left end; each a quarter cell off the
+// lines that cross it.
+const ACROSS_SOLVER_LINE = { cell: MIDDLE_CELL, dx: 0.25, dy: 0, scan: 'down' }
+const ACROSS_GRID_LINE = { cell: MIDDLE_CELL, dx: 0.5, dy: 0.25, scan: 'right' }
+const ACROSS_FRAME = { cell: ROW_START, dx: -0.5, dy: 0.25, scan: 'right' }
+// How much wider the solver's line and the grid and frame draw at ZOOMED px a cell than at NORMAL (Chris, 2026-11-18): the
+// grid and frame grow half as much.
+const SOLVER_LINE_GROWTH = 2
+const FRAME_GROWTH = 1.5
+const GROWTH_TOLERANCE = 0.25
 
-// Runs in the page: draws a solver's line from the cell at `from` to the cell at `to` of the center list at `px` a cell, and
-// returns how wide it is across, in CSS px. The width is the count of pixels, down a column a quarter cell right of the first
-// cell's centre, at least half as far from white as the line's own colour, over the canvas's resolution.
-function lineWidthAtInPage ({ px, from, to, style }) {
+// Runs in the page: at `px` a cell, with the solver's line `solverLine` drawn (`{ from, to, style }`, cells as indexes of the
+// center list) or none, how wide the line is that crosses the point `dx`, `dy` cell widths from the centre of the cell at
+// `cell`, in CSS px. The width is the count of pixels, on a strip 0.8 cell long centred on that point (`down` a column or
+// `right` along a row), at least half as far from white as the darkest of them, over the canvas's resolution. A pixel is read
+// over white, since the canvas round the board may be transparent.
+function lineWidthAtInPage ({ px, solverLine, cell, dx, dy, scan }) {
   engine.setCellSize(px)
-  const [a, b] = [pu.centerlist[from], pu.centerlist[to]].sort((x, y) => x - y)
-  pu.pu_a.line = { [`${a},${b}`]: style }
+  pu.pu_a.line = {}
+  if (solverLine) {
+    const [a, b] = [pu.centerlist[solverLine.from], pu.centerlist[solverLine.to]].sort((x, y) => x - y)
+    pu.pu_a.line[`${a},${b}`] = solverLine.style
+  }
   pu.redraw()
-  const { x, y } = pu.point[pu.centerlist[from]]
-  const column = Math.round((x + pu.size * 0.25) * pu.resol)
-  const top = Math.round((y - pu.size * 0.4) * pu.resol)
-  const { data } = pu.ctx.getImageData(column, top, 1, Math.round(pu.size * 0.8 * pu.resol))
-  const fromWhite = (i) => (255 * 3 - data[i] - data[i + 1] - data[i + 2])
+  const centre = pu.point[pu.centerlist[cell]]
+  const x = (centre.x + pu.size * dx) * pu.resol
+  const y = (centre.y + pu.size * dy) * pu.resol
+  const reach = pu.size * 0.4 * pu.resol
+  const length = Math.round(reach * 2)
+  const { data } = scan === 'down'
+    ? pu.ctx.getImageData(Math.round(x), Math.round(y - reach), 1, length)
+    : pu.ctx.getImageData(Math.round(x - reach), Math.round(y), length, 1)
+  const fromWhite = (i) => (255 * 3 - data[i] - data[i + 1] - data[i + 2]) * data[i + 3] / 255
   let deepest = 0
   for (let i = 0; i < data.length; i += 4) deepest = Math.max(deepest, fromWhite(i))
   let run = 0
@@ -51,26 +72,46 @@ function setterWidthsInPage ({ px, style }) {
   return { cellSize: pu.size, board: pu.ctx.lineWidth, scratch: scratch.lineWidth }
 }
 
-describe('a solver line on solve.html', () => {
+// The width of the line `where` names on `page` at `px` a cell, with the solver's line `solverLine` drawn or none.
+async function widthAt (page, px, where, solverLine = null) {
+  const { cellSize, width } = await page.evaluate(lineWidthAtInPage, { px, solverLine, ...where })
+  assert.equal(cellSize, px)
+  return width
+}
+
+describe('line widths on solve.html', () => {
   let link
   before(async () => {
     link = await linkFromNewBoard(browser(), puzzleSolveLinkInPage, { title: '', author: '', rules: '', size: 9 })
   })
 
-  it(`draws at its own width up to ${NORMAL} px a cell and twice as wide at ${ZOOMED} px`, async () => {
+  it(`draw a solver's line at its own width up to ${NORMAL} px a cell and twice as wide at ${ZOOMED} px`, async () => {
     const { context, page } = await openSolvePage(browser(), link, { served: true })
     try {
-      const widthAt = async (px) => {
-        const { cellSize, width } = await page.evaluate(lineWidthAtInPage, { px, from: LINE_FROM, to: LINE_TO, style: SOLVER_LINE })
-        assert.equal(cellSize, px)
-        return width
-      }
-      const small = await widthAt(SMALL)
-      const normal = await widthAt(NORMAL)
-      const zoomed = await widthAt(ZOOMED)
+      const solverLine = { from: MIDDLE_CELL, to: RIGHT_OF_MIDDLE, style: SOLVER_LINE }
+      const small = await widthAt(page, SMALL, ACROSS_SOLVER_LINE, solverLine)
+      const normal = await widthAt(page, NORMAL, ACROSS_SOLVER_LINE, solverLine)
+      const zoomed = await widthAt(page, ZOOMED, ACROSS_SOLVER_LINE, solverLine)
       assert.ok(Math.abs(small - SOLVER_LINE_PX) <= 0.5, `${small} px at ${SMALL} px a cell, want about ${SOLVER_LINE_PX}`)
       assert.ok(Math.abs(normal - SOLVER_LINE_PX) <= 0.5, `${normal} px at ${NORMAL} px a cell, want about ${SOLVER_LINE_PX}`)
-      assert.ok(Math.abs(zoomed / normal - 2) <= 0.25, `${zoomed} px at ${ZOOMED} px a cell against ${normal} px at ${NORMAL}: want about twice`)
+      assert.ok(Math.abs(zoomed / normal - SOLVER_LINE_GROWTH) <= GROWTH_TOLERANCE,
+        `${zoomed} px at ${ZOOMED} px a cell against ${normal} px at ${NORMAL}: want about ${SOLVER_LINE_GROWTH} times`)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it(`draw the grid and the outer frame half as much wider at ${ZOOMED} px a cell, and as before at ${SMALL}`, async () => {
+    const { context, page } = await openSolvePage(browser(), link, { served: true })
+    try {
+      for (const [name, where] of [['grid line', ACROSS_GRID_LINE], ['outer frame', ACROSS_FRAME]]) {
+        const small = await widthAt(page, SMALL, where)
+        const normal = await widthAt(page, NORMAL, where)
+        const zoomed = await widthAt(page, ZOOMED, where)
+        assert.equal(small, normal, `the ${name} at ${SMALL} px a cell against ${NORMAL}`)
+        assert.ok(Math.abs(zoomed / normal - FRAME_GROWTH) <= GROWTH_TOLERANCE,
+          `the ${name}: ${zoomed} px at ${ZOOMED} px a cell against ${normal} px at ${NORMAL}: want about ${FRAME_GROWTH} times`)
+      }
     } finally {
       await context.close()
     }
