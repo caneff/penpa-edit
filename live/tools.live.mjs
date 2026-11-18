@@ -77,10 +77,14 @@ describe('engine.listTools', () => {
 
 // Runs in the page: draws one edge of the cell at `cell` in pen style `style` into `mode`'s layer and returns the pixel
 // beside the edge's middle as [r, g, b], then takes the edge off again. Penpa+ draws the grid line over a wall, so the
-// pixel is a little off the grid line, still inside the 3 px pen.
+// pixel is a little off the grid line, still inside the 3 px pen. On solve.html both lines grow with the cell (#330), so the
+// offset grows as the pen does: its width on the board over its width on a canvas of its own.
 function penPixelInPage ({ mode, style, cell }) {
   const corners = pu.point[pu.centerlist[cell]].surround
-  const OFF_GRID = 0.9
+  const scratch = document.createElement('canvas').getContext('2d')
+  set_line_style(scratch, style)
+  set_line_style(pu.ctx, style)
+  const OFF_GRID = 0.9 * pu.ctx.lineWidth / scratch.lineWidth
   const key = `${corners[0]},${corners[1]}`
   const [a, b] = [pu.point[corners[0]], pu.point[corners[1]]]
   pu[pu.mode.qa][mode][key] = style
