@@ -281,22 +281,29 @@ function boardPixelInPage ({ x, y }) {
   return { x: box.left + x, y: box.top + y }
 }
 
-// Runs in the page: the whole viewport pixel a pointer step aims at, for a recording made at `recordedSize` px a cell.
+// Where board point `x, y` of a recording, made at RECORDED_CELL_PX px a cell, lies on a board drawn at `size` px a cell.
+// Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
+export function pointAtSize ({ x, y }, size) {
+  const scale = size / RECORDED_CELL_PX
+  return { x: (x - 0.5) * scale + 0.5, y: (y - 0.5) * scale + 0.5 }
+}
+
+// Runs in the page: the whole viewport pixel a pointer step aims at, `point` being its board point at the page's cell
+// size (`pointAtSize`).
 // `coord_point` subtracts the canvas's `offsetLeft` and `offsetTop` from a pointer's page position and takes the nearest
-// point of `pu.type`, and a mouse event carries whole pixels. So the step's board point `x, y`, scaled to the page's cell
-// size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
+// point of `pu.type`, and a mouse event carries whole pixels. So the step's board point is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
-// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no pixel within a
-// pixel of the point keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches. A pixel outside the
-// canvas element is passed over for one inside it: a point on the board's edge, scaled, can round to a pixel just beyond
-// it, where the canvas's `mousemove` and `mouseup` never fire.
-function pagePixelInPage ({ x, y, num, recordedSize }) {
+// otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. The pixels considered
+// are the ones from one before the floor to one after the ceiling on each axis, since a point exactly midway between two
+// goes to the lower index at the whole pixel on it, and only a neighbour reaches the other. A pixel outside the canvas
+// element is passed over for one inside it: a point on the board's edge, scaled, can round to a pixel just beyond it,
+// where the canvas's `mousemove` and `mouseup` never fire. When no such pixel keeps `num`, the nearest inside the canvas
+// is taken anyway, and the comparison reports the board it reaches.
+function pagePixelInPage ({ point, num }) {
   const canvas = document.getElementById('canvas')
-  const scale = pu.size / recordedSize
   const left = canvas.offsetLeft - window.scrollX
   const top = canvas.offsetTop - window.scrollY
-  // Penpa+ draws every point half a pixel off its cell grid at any cell size, so that half pixel is not scaled.
-  const at = { x: left + (x - 0.5) * scale + 0.5, y: top + (y - 0.5) * scale + 0.5 }
+  const at = { x: left + point.x, y: top + point.y }
   // As `coord_point` searches: the first point of the least distance wins.
   const nearest = (px) => {
     let best = -1
@@ -308,15 +315,13 @@ function pagePixelInPage ({ x, y, num, recordedSize }) {
     }
     return best
   }
-  // The pixels around `at`, nearest first. Those a pixel beyond the floor and ceiling serve when `at` is a whole pixel
-  // exactly halfway between two points: `coord_point` gives that pixel to the lower index, so only a neighbour reaches `num`.
   const around = (v) => [Math.floor(v) - 1, Math.floor(v), Math.ceil(v), Math.ceil(v) + 1]
   const candidates = []
   for (const cx of new Set(around(at.x))) {
     for (const cy of new Set(around(at.y))) candidates.push({ x: cx, y: cy })
   }
-  const near = (c) => Math.hypot(c.x - at.x, c.y - at.y)
-  candidates.sort((a, b) => near(a) - near(b))
+  const distanceToAt = (c) => Math.hypot(c.x - at.x, c.y - at.y)
+  candidates.sort((a, b) => distanceToAt(a) - distanceToAt(b))
   const box = canvas.getBoundingClientRect()
   const inside = (c) => c.x >= box.left && c.x < box.right && c.y >= box.top && c.y < box.bottom
   const keepsNum = candidates.filter((c) => nearest(c) === num)
@@ -362,7 +367,7 @@ function outsideCanvasInPage () {
 export const CELL_ONLY_TOOLS = ['star', 'yajilin', 'mines', 'doublemines', 'akari']
 
 // The cell size Penpa+'s page draws a board at, so the one every recording was made at.
-const RECORDED_CELL_PX = 38
+export const RECORDED_CELL_PX = 38
 
 // How far the UI driver moves the page's clock before each step. `main.js` reads `Date.now()` for its key windows (15
 // ms after a Shift release in Sudoku, 300 ms after a 1 in Surface), which a clock paused at one instant always meets.
@@ -538,7 +543,8 @@ function silentPress (steps, i) {
 
 function startUiDriver (page, steps, choices) {
   const pixelOf = async ({ x, y, num }) => {
-    const pixel = await page.evaluate(pagePixelInPage, { x, y, num, recordedSize: RECORDED_CELL_PX })
+    const point = pointAtSize({ x, y }, await page.evaluate(() => pu.size))
+    const pixel = await page.evaluate(pagePixelInPage, { point, num })
     await page.evaluate(clearPanelInPage, pixel)
     return pixel
   }

@@ -143,8 +143,9 @@ describe('a zoom the solver set', () => {
 
 describe('a selected cell', () => {
   // A faint grey: the fill moves a channel of the cell's pixel by at least MIN and no channel by more than MAX.
-  const FILL_MIN_SHIFT = 6
-  const FILL_MAX_SHIFT = 40
+  // The window brackets the fill's alpha in docs/js/engine_bridge.js (0.05 x (255 - 110) = about 7 on white): change one, change both.
+  const FILL_MIN_SHIFT = 5
+  const FILL_MAX_SHIFT = 10
   // The most the three channels of the filled pixel may differ from each other: grey has no hue.
   const FILL_MAX_HUE = 2
   // Where the sampled pixel lies on the line from the cell's first corner (0) to its centre (1): inside the outline and its glow.

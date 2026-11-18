@@ -22,7 +22,7 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
 - **MVP**: the ChinStrap solve page behind a flag, over the engine as it stands, on every grid type and mode; the first
   milestone before the First release. Not "prototype" (the throwaway variants on `prototype/solve-ui`).
 - **Board coordinates**: the Settings switch that labels the board's columns and rows in a gutter outside the canvas, so a solver can name a place
-  in chat. A square-cell grid gets its own row and column numbers; every other shape gets reference bands.
+  in chat. When the board is scrolled in its card the labels stay at the card's top and left edges, over the cells. A square-cell grid gets its own row and column numbers; every other shape gets reference bands.
 - **Reference band**: one of the equal strips, about 1.5 cells wide, that the board coordinates cut a non-square grid's bounding box into: letters
   A, B, C... across the top, numbers 1, 2, 3... down the left. Independent of the puzzle's geometry, so "the cell at C4" is a place, not a cell id.
 - **Mode family**: one of six groups of modes by what they place and how (Value, Paint, Path, Stamp, Genre tool, Move), from `research/penpa-mode-key-map.md`.
@@ -42,6 +42,10 @@ The words this repo uses for Penpa+ and our changes to it. Terms come from Penpa
   has not changed, Rules takes the rest of it, and Recent is as tall as its chips (#306), both ending on the desk's bottom. A double-click on a dragged edge's
   handle makes that axis automatic again, and the card's place too once no size of it is the solver's; Reset layout
   does it for every card.
+- **Stream fit**: the desk laying itself out for a stream (`STREAM-FIT.md`): on a request from the stream userscript, the board's ink fills the board box and the Mode, Pinned and Mouse cards sit in the side box. Never kept in the layout.
+- **Board box**: the box, in viewport CSS px, where a stream shows the board; the stream fit puts the ink rect in it.
+- **Side box**: the box beside the board box, outside the stream's crop, where the stream fit puts the Mode, Pinned and Mouse cards.
+- **Ink rect**: the bounding box, in viewport CSS px, of what the board draws other than its canvas's own margin, read from the pixels; the stream fit's reply.
 - **Card**: one movable, resizable panel of the desk: Board, Mouse, Rules, Pinned, Mode or Recent. Mouse can be closed (its ×, or Settings' "Show Mouse card"), and stays closed through Reset layout.
 - **Trial**: the solve page's way to guess (#258): Try marks the undo history, and Keep or Discard later keeps or undoes
   everything entered since. Trials nest; puzz.link calls it trial mode.

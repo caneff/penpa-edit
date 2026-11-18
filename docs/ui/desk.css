@@ -124,9 +124,11 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .ui-card-board canvas { background: #fff; }
 /* The board coordinates sit in a gutter above and left of the canvas, outside any outside-clue band the canvas holds. */
-.ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(24px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
+.ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(30px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
 .ui-grid-coordinates { position: absolute; inset: 0; pointer-events: none; }
-.ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(12px * var(--ui-text-scale, 1)); line-height: 1; color: #6b7280; font-variant-numeric: tabular-nums; user-select: none; }
+.ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(15px * var(--ui-text-scale, 1)); line-height: 1; color: #4b5563; font-variant-numeric: tabular-nums; user-select: none; }
+.ui-grid-coordinate[data-axis="column"] { transform: translate(-50%, calc(-50% + var(--ui-stick-y, 0px))); }
+.ui-grid-coordinate[data-axis="row"] { transform: translate(calc(-50% + var(--ui-stick-x, 0px)), -50%); }
 .ui-grid-band { opacity: .75; }
 .ui-dark .ui-grid-coordinate { color: #9aa0ac; }
 .ui-card-rules .ui-body { --ui-rules-text: 14px; max-height: 520px; font-size: calc(var(--ui-rules-text) * var(--ui-text-scale, 1)); color: #3b3e45; white-space: pre-wrap; tab-size: 2; overflow-wrap: anywhere; }
@@ -153,6 +155,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-headline { font-size: calc(22px * var(--ui-text-scale, 1)); font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: calc(11px * var(--ui-text-scale, 1)); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+/* A non-colour style's sample, one line of the label's text tall; a line sample takes the label's colour, a text style Penpa+'s own. */
+.ui-mark { display: inline-block; margin-right: 5px; vertical-align: -.2em; line-height: 0; }
+.ui-mark svg { width: 1.1em; height: 1.1em; }
 .ui-mrows { display: grid; gap: 4px; }
 .ui-mrow { display: grid; grid-template-columns: calc(86px * var(--ui-text-scale, 1)) 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: calc(14px * var(--ui-text-scale, 1)); }
 .ui-mrow.is-more { background: transparent; font-size: calc(12.5px * var(--ui-text-scale, 1)); padding: 2px 8px; color: #555; }
@@ -189,6 +194,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-tl1 > .ui-trow { font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #3d3a30; margin-top: 2px; }
 .ui-tchev { width: 14px; flex: none; color: #6f6a5a; transition: transform .12s; }
 .ui-trow[aria-expanded="true"] > .ui-tchev { transform: rotate(90deg); }
+.ui-tpenpa { color: #6f6a5a; font-size: 11px; font-weight: 400; }
 .ui-tmatch { margin-left: auto; color: #8a8576; font-size: 11px; font-weight: 400; }
 .ui-tmatch:not([hidden]) + .ui-tcount { margin-left: 0; }
 .ui-tcount { margin-left: auto; color: #8a8576; font-size: 11px; }
@@ -304,7 +310,7 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-dark .ui-searching .ui-trow[aria-selected="true"]:not(.ui-tbest) { background: none; }
 .ui-dark .ui-levelbtn { background: #1b1e24; border-color: #4a5060; }
 .ui-dark .ui-tl1 > .ui-trow { color: #e3e6eb; }
-.ui-dark .ui-sub, .ui-dark .ui-none, .ui-dark .ui-levels, .ui-dark .ui-tchev, .ui-dark .ui-tcount, .ui-dark .ui-tmatch { color: #a9b0bd; }
+.ui-dark .ui-sub, .ui-dark .ui-none, .ui-dark .ui-levels, .ui-dark .ui-tchev, .ui-dark .ui-tcount, .ui-dark .ui-tmatch, .ui-dark .ui-tpenpa { color: #a9b0bd; }
 .ui-dark .ui-entry:hover, .ui-dark .ui-entry-btn:hover { background: #30343e; }
 .ui-dark .ui-entry-btn { color: #a9b0bd; }
 .ui-dark .ui-entry-star[aria-pressed="true"] { color: #e0b84a; }
@@ -396,3 +402,10 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-shortcuts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .ui-shortcut kbd { display: inline-block; min-width: 2.2em; padding: 1px 6px; margin-right: 4px; border: 1px solid #ddd7c8; border-radius: 4px; font: 12px ui-monospace, monospace; text-align: center; }
 .ui-dark .ui-shortcut kbd { border-color: #3a3f4b; }
+
+/* The stream fit (#314): the Board card is the box the stream shows the board in, with nothing of the card round the board. */
+.ui-card-board.is-stream { border: 0; border-radius: 0; box-shadow: none; outline: none; background: #fff; }
+.ui-dark .ui-card-board.is-stream { background: #000; }
+.ui-card-board.is-stream .ui-head, .ui-card-board.is-stream .ui-resize { display: none; }
+.ui-card-board.is-stream .ui-body { display: block; padding: 0; overflow: hidden; }
+.ui-card-board.is-stream .ui-body > * { margin: 0; box-shadow: none; border: 0; }

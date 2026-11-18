@@ -369,7 +369,7 @@ describe('the Mode card', () => {
   it('finds a tool by the name Penpa+ gives it', async () => {
     await combobox().click()
     await combobox().fill('Black / dot')
-    await opened.page.getByRole('treeitem', { name: 'Black / dot', exact: true }).click()
+    await opened.page.getByRole('treeitem', { name: 'Shade + dot (Black / dot)', exact: true }).click()
     assert.deepEqual((await currentTool(opened.page)).submode, 'blpo')
     await combobox().click()
     await combobox().fill('Helper (x)')
