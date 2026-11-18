@@ -4,7 +4,7 @@
 // would save (`readEngineState`, defined by recorder.js); the keys are real key presses.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
-import { afterChange, cardBodyButtons, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
+import { afterChange, assertQuiet, cardBodyButtons, chipName, currentTool, newBoardSolveLink, openSolvePage, setTool, storedEntries, typedDigits, useBrowser, waitForDesk, waitForTool } from './page.mjs'
 import { clickCell } from './replay.mjs'
 import { settle } from './settle.mjs'
 
@@ -249,7 +249,7 @@ describe('what a pin remembers', () => {
     // From pin 2, blue: Penpa+ keeps one style for all of Line, so the pick alone would come back blue.
     assert.equal((await currentTool(page)).style, 9)
     await page.getByRole('combobox', { name: 'Tool' }).fill('Drag through cell centres.')
-    await page.getByRole('treeitem', { name: 'Line > Normal', exact: true }).click()
+    await page.locator('[role=treeitem][data-mode=line][data-submode="1"]').click()
     await waitForTool(page, { mode: 'line', submode: '1' })
     assert.equal(await settle(async () => (await currentTool(page)).style, 8), 8, 'pin 1 is red again')
     const saved = await page.evaluate(() => window.pinBoard.snapshot())
@@ -320,14 +320,7 @@ describe('the pin toggles', () => {
   })
 
   it('leaves the engine quiet while nobody touches the page', async () => {
-    const { page } = opened
-    await afterChange(page)
-    const changes = await page.evaluate(() => new Promise((resolve) => {
-      let count = 0
-      engine.on('change', () => { count += 1 })
-      setTimeout(() => resolve(count), 1000)
-    }))
-    assert.ok(changes < 5, `${changes} engine changes in one idle second: a redraw keeps triggering the next`)
+    await assertQuiet(opened.page)
   })
 
   it('shows the Mode card\'s pin pressed exactly when the current tool is pinned, and toggles it', async () => {

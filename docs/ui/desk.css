@@ -158,6 +158,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-headline { font-size: calc(22px * var(--ui-text-scale, 1)); font-weight: 700; line-height: 1.2; color: #17305f; margin: 0 0 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ui-held { margin-left: 8px; padding: 1px 6px; border-radius: 4px; background: #e8a33d; color: #3a2600; font-size: calc(11px * var(--ui-text-scale, 1)); font-weight: 700; text-transform: uppercase; letter-spacing: .04em; vertical-align: 2px; }
 .ui-dot { display: inline-block; width: 13px; height: 13px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; border: 1px solid rgba(0, 0, 0, .25); }
+/* A non-colour style's sample, one line of the label's text tall; a line sample takes the label's colour, a text style Penpa+'s own. */
+.ui-mark { display: inline-block; margin-right: 5px; vertical-align: -.2em; line-height: 0; }
+.ui-mark svg { width: 1.1em; height: 1.1em; }
 .ui-mrows { display: grid; gap: 4px; }
 .ui-mrow { display: grid; grid-template-columns: calc(86px * var(--ui-text-scale, 1)) 1fr; gap: 8px; align-items: baseline; padding: 5px 8px; border-radius: 6px; background: #eef3fd; font-size: calc(14px * var(--ui-text-scale, 1)); }
 .ui-mrow.is-more { background: transparent; font-size: calc(12.5px * var(--ui-text-scale, 1)); padding: 2px 8px; color: #555; }
@@ -194,6 +197,7 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-tl1 > .ui-trow { font-weight: 700; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: #3d3a30; margin-top: 2px; }
 .ui-tchev { width: 14px; flex: none; color: #6f6a5a; transition: transform .12s; }
 .ui-trow[aria-expanded="true"] > .ui-tchev { transform: rotate(90deg); }
+.ui-tpenpa { color: #6f6a5a; font-size: 11px; font-weight: 400; }
 .ui-tmatch { margin-left: auto; color: #8a8576; font-size: 11px; font-weight: 400; }
 .ui-tmatch:not([hidden]) + .ui-tcount { margin-left: 0; }
 .ui-tcount { margin-left: auto; color: #8a8576; font-size: 11px; }
@@ -309,7 +313,7 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-dark .ui-searching .ui-trow[aria-selected="true"]:not(.ui-tbest) { background: none; }
 .ui-dark .ui-levelbtn { background: #1b1e24; border-color: #4a5060; }
 .ui-dark .ui-tl1 > .ui-trow { color: #e3e6eb; }
-.ui-dark .ui-sub, .ui-dark .ui-none, .ui-dark .ui-levels, .ui-dark .ui-tchev, .ui-dark .ui-tcount, .ui-dark .ui-tmatch { color: #a9b0bd; }
+.ui-dark .ui-sub, .ui-dark .ui-none, .ui-dark .ui-levels, .ui-dark .ui-tchev, .ui-dark .ui-tcount, .ui-dark .ui-tmatch, .ui-dark .ui-tpenpa { color: #a9b0bd; }
 .ui-dark .ui-entry:hover, .ui-dark .ui-entry-btn:hover { background: #30343e; }
 .ui-dark .ui-entry-btn { color: #a9b0bd; }
 .ui-dark .ui-entry-star[aria-pressed="true"] { color: #e0b84a; }

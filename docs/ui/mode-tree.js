@@ -16,6 +16,19 @@
     const depth = (node) => 1 + Math.max(0, ...node.children.map(depth));
     const rootOf = (node) => (node.parent ? rootOf(node.parent) : node);
 
+    // A row reads "Plain name (Penpa+ name)": the Penpa+ name loses the "Mode > " its branch shows, and a plain name that is only the
+    // branch's own name gives way to it. The same text is never shown twice.
+    function rowNames(label, plainName, parent) {
+        const same = (a, b) => a.toLowerCase() === b.toLowerCase();
+        const prefix = `${parent.label} > `;
+        const penpaName = label.startsWith(prefix) ? label.slice(prefix.length) : label;
+        if (same(plainName, parent.label)) {
+            return { shown: penpaName, penpa: '' };
+        }
+        return { shown: plainName, penpa: same(penpaName, plainName) ? '' : penpaName };
+    }
+    const rowText = ({ shown, penpa }) => (penpa ? `${shown} (${penpa})` : shown);
+
     // The "Open to" buttons, each with the branches it opens. Modes opens down to the level of the modes: the second, or the third
     // in Symbols and marks, whose subgroups sit above its symbols.
     const OPEN_TO = [
@@ -24,7 +37,7 @@
         ['Everything', () => true]
     ];
 
-    // The tree's nodes: a branch has `children`, a leaf has its `tool`, the Penpa+ names it also answers to (`oldNames`) and the text it is searched by.
+    // The tree's nodes: a branch has `children`, a leaf has its `tool`, the names its row shows (`names`), the Penpa+ names it also answers to (`oldNames`) and the text it is searched by.
     // `labelText` holds only the names on the leaf's path, so a search matching it ranks above one that needs a description.
     function buildNodes(tools) {
         const node = (parent, label, level, tool = null, place = null) => {
@@ -34,6 +47,7 @@
                 for (let at = parent; at; at = at.parent) {
                     ancestors.push(at.label);
                 }
+                made.names = rowNames(label, place.plainName, parent);
                 made.oldNames = [...tool.labels, tool.mode, /^\d*$/.test(tool.submode ?? '') ? null : tool.submode].filter(Boolean);
                 const fields = [...ancestors, label, place.plainName, place.description, tool.modeName, ...made.oldNames];
                 made.text = fields.join(' ').toLowerCase();
@@ -81,10 +95,11 @@
             const isLeaf = Boolean(node.tool);
             const row = el('div', {
                 role: 'treeitem', 'aria-level': String(node.level), tabindex: '-1', class: 'ui-trow',
-                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': node.label, title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
+                ...(isLeaf ? { 'aria-selected': 'false', 'aria-keyshortcuts': PIN_SHORTCUT, 'aria-label': rowText(node.names), title: node.description, ...MODE_ATTRS(node.tool) } : { 'aria-expanded': 'false' })
             }, [
                 el('span', { class: 'ui-tchev', 'aria-hidden': 'true' }, [isLeaf ? '' : '▸']),
-                el('span', { class: 'ui-tname' }, [node.label]),
+                el('span', { class: 'ui-tname' }, [isLeaf ? node.names.shown : node.label]),
+                ...(isLeaf && node.names.penpa ? [el('span', { class: 'ui-tpenpa' }, [`(${node.names.penpa})`])] : []),
                 el('span', { class: 'ui-tmatch', 'aria-hidden': 'true', hidden: '' }),
                 el('span', { class: 'ui-tcount', 'aria-hidden': 'true' }),
                 ...(isLeaf ? [pinSlot()] : [])

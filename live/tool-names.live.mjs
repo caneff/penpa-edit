@@ -1,4 +1,4 @@
-// One name per tool across the Mode card, the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
+// One name per tool across the Mode card (the picker rows add the plain name before the Penpa+ one), the Board card's label, the Mouse card's headline, the Pinned chips and the Recent chips
 // (#190), the tool-change banner and the Board card's colour cue, which mirrors the current pin's chip (#243). The UI is found by role and accessible name where it has one, else by its class or test id; the tool is set through `engine`.
 import assert from 'node:assert/strict'
 import { before, after, describe, it } from 'node:test'
@@ -11,7 +11,19 @@ const region = (page, name) => page.getByRole('region', { name })
 const boardLabel = (page) => page.getByTestId('board-tool-name')
 const mouseName = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 }).locator('.ui-hname')
 const modeName = (page) => region(page, 'Mode').getByRole('combobox', { name: 'Tool' }).inputValue()
-const pickerName = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"] .ui-tname`).textContent()
+const pickerRow = (page, { mode, submode }) => page.locator(`[role=tree] [role=treeitem][data-mode="${mode}"][data-submode="${submode ?? ''}"]`)
+// The Penpa+ name a picker row shows: the part in parentheses, or the whole name when the row shows one name. It drops the "Mode > " the
+// row's branch shows, which `pickerName` puts back when the tool's shared name has it.
+const pickerPenpa = async (page, tool) => {
+  const row = pickerRow(page, tool)
+  const penpa = await row.locator('.ui-tpenpa').allTextContents()
+  return penpa.length ? penpa[0].slice(1, -1) : row.locator('.ui-tname').textContent()
+}
+const pickerName = async (page, tool) => {
+  const penpa = await pickerPenpa(page, tool)
+  const branch = await pickerRow(page, tool).evaluate((row) => row.parentElement.parentElement.previousElementSibling?.querySelector('.ui-tname')?.textContent)
+  return (await labelOf(page, tool)).startsWith(`${branch} > `) ? `${branch} > ${penpa}` : penpa
+}
 // The chip name the shared name gives `tool`.
 const labelOf = (page, tool) => page.evaluate((t) => window.toolGuide.chipLabel(engine.listTools().find((x) => x.mode === t.mode && x.submode === t.submode)), tool)
 // Waits until the first Recent chip is `tool`'s, not an earlier tool's still on show, and returns it.
@@ -44,7 +56,7 @@ describe('one name per tool', () => {
 
   // Each share of the tools is its own test, so the loop over every tool stays inside the seam's per-test timeout (#284).
   for (let share = 0; share < BOARD_SHARES; share++) {
-    it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker leaf and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
+    it(`reads the same on the Board label, the Mouse headline, the Mode card, the picker row Penpa+ name and the Pinned chip, for every tool (share ${share + 1} of ${BOARD_SHARES})`, async () => {
       const { page } = opened
       const tools = shareOf(await listedTools(page), share, BOARD_SHARES)
       assert.ok(tools.length > 0, 'the share holds tools')
@@ -78,7 +90,7 @@ describe('one name per tool', () => {
     })
   }
 
-  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker leaf, with the plain name as the chip\'s hover text', async () => {
+  it('names each Composite tool by the text of its combisub_ span on the page, on the chip and the picker row parentheses, with the plain name as the chip\'s hover text', async () => {
     const { page } = opened
     const composites = await page.evaluate(() => engine.listTools().filter((t) => t.mode === 'combi')
       .map(({ submode }) => ({ submode, penpa: document.getElementById(`combisub_${submode}`).textContent.replace(/\s+/g, ' ').trim() })))
@@ -87,11 +99,39 @@ describe('one name per tool', () => {
     await settle(async () => (await chipTexts(region(page, 'Pinned'))).length, composites.length)
     assert.deepEqual(await chipTexts(region(page, 'Pinned')), composites.map((c) => c.penpa))
     const leaves = []
-    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerName(page, { mode: 'combi', submode })])
+    for (const { submode, penpa } of composites) leaves.push([penpa, await pickerPenpa(page, { mode: 'combi', submode })])
     assert.deepEqual(leaves.filter(([want, got]) => want !== got), [])
     const blpo = composites.findIndex((c) => c.submode === 'blpo')
     assert.equal(composites[blpo].penpa, 'Black / dot')
     assert.equal(await region(page, 'Pinned').locator('.ui-chip-main').nth(blpo).getAttribute('title'), 'Shade + dot', 'the plain name is the chip\'s hover text')
+  })
+
+  it('shows a picker row as the plain name, then Penpa+\'s name in smaller parentheses, once when they match, without the mode its branch shows', async () => {
+    const { page } = opened
+    const rowOf = async (tool) => {
+      const row = pickerRow(page, tool)
+      return {
+        plain: await row.locator('.ui-tname').textContent(),
+        penpa: await row.locator('.ui-tpenpa').allTextContents(),
+        smaller: await row.evaluate((r) => {
+          const part = r.querySelector('.ui-tpenpa')
+          return part ? parseFloat(getComputedStyle(part).fontSize) < parseFloat(getComputedStyle(r.querySelector('.ui-tname')).fontSize) : null
+        })
+      }
+    }
+    assert.deepEqual(await rowOf({ mode: 'surface' }), { plain: 'Shade cells', penpa: ['(Surface)'], smaller: true })
+    assert.deepEqual(await rowOf({ mode: 'combi', submode: 'blpo' }), { plain: 'Shade + dot', penpa: ['(Black / dot)'], smaller: true })
+    assert.deepEqual(await rowOf({ mode: 'line', submode: '1' }), { plain: 'Normal', penpa: [], smaller: null }, 'under the Line branch, the plain name "Line" and "Line >" both give way')
+    assert.deepEqual(await rowOf({ mode: 'wall' }), { plain: 'Wall', penpa: [], smaller: null }, 'matching names show once')
+    assert.equal(await pickerRow(page, { mode: 'surface' }).getAttribute('title'), 'Click paints the chosen colour, right the 2nd colour; drag paints many.')
+  })
+
+  it('keeps Penpa+\'s name alone on the Board label and the Pinned chip of a tool the picker shows by its plain name', async () => {
+    const { page } = opened
+    await pin(page, [{ mode: 'line', submode: '1', style: null }])
+    await setTool(page, { mode: 'line', submode: '1' })
+    assert.equal(await settle(async () => (await chipTexts(region(page, 'Pinned')))[0], 'Line > Normal'), 'Line > Normal')
+    assert.equal(await settle(() => boardLabel(page).textContent(), 'Line > Normal'), 'Line > Normal')
   })
 
   it('keeps a hand name for the Number sub-modes whose Penpa+ label is an icon', async () => {
@@ -205,6 +245,95 @@ describe('the Board card\'s colour cue', () => {
     const grey = await rgbOf(page, '#585d68')
     const want = { text: 'rgb(255, 255, 255)', pill: grey, frame: grey }
     assert.deepEqual(await settle(() => cue(page), want), want)
+  })
+})
+
+describe('the style mark beside the tool name', () => {
+  let opened
+  before(async () => { opened = await openSolvePage(browser(), await newBoardSolveLink(browser(), ['Line Normal', 'Sudoku Normal'])) })
+  after(async () => { await opened?.context.close() })
+
+  // The em height desk.css gives the mark's drawing.
+  const MARK_EM = 1.1
+
+  // The style of the tool at `mode`/`submode` with no swatch, named `name` or else (no name) the first with a text `sample`.
+  const plainStyle = (page, mode, submode, name) => page.evaluate(([m, sm, n]) => engine.listTools().find((t) => t.mode === m && t.submode === sm)
+    .styles.find((s) => !s.swatch && (n ? s.name === n : Boolean(s.sample))), [mode, submode, name])
+  // Makes the tool current, then picks the style: landing on a pin restores the pin's style, so the style is chosen once the tool is current.
+  const chooseStyle = async (page, { mode, submode }, style) => {
+    await setTool(page, { mode, submode })
+    await waitForTool(page, { mode, submode })
+    await afterChange(page)
+    await setTool(page, { mode, submode, style: style.style })
+    const pressed = region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true]')
+    assert.equal(await settle(() => pressed.getAttribute('aria-label'), style.name), style.name)
+  }
+  // Where the style shows beside the tool's name: the Board title chip and the Mouse headline.
+  const mouseHeading = (page) => region(page, 'Mouse').getByRole('heading', { level: 3 })
+  const places = (page) => [boardLabel(page), mouseHeading(page)]
+  const markOf = (place) => place.evaluate((node) => ({
+    mark: node.querySelector('.ui-mark svg')?.innerHTML ?? null,
+    dots: node.querySelectorAll('.ui-dot').length,
+    drawn: node.querySelector('.ui-mark svg')?.getBoundingClientRect().height ?? 0,
+    text: parseFloat(getComputedStyle(node).fontSize)
+  }))
+  const selectedSample = (page) => region(page, 'Mode').getByRole('group', { name: 'Style' }).locator('.ui-stylebtn[aria-pressed=true] svg').innerHTML()
+
+  for (const [title, mode, submode, name, boardInk] of [['a dotted line style', 'line', '1', 'dotted', null], ['a number text style', 'number', '1', 'outline', ['stroke="#000000"', 'stroke="currentColor"']]]) {
+    it(`shows ${title} as the Mode card's sample (a dark text ink in the label's colour on the Board chip), scaled to the label's text, with no dot, and a tooltip of the name alone`, async () => {
+      const { page } = opened
+      const style = await plainStyle(page, mode, submode, name)
+      assert.ok(style, `${mode} > ${submode} has the style`)
+      await chooseStyle(page, { mode, submode }, style)
+      const want = await selectedSample(page)
+      for (const [place, expected] of [[boardLabel(page), boardInk ? want.replace(...boardInk) : want], [mouseHeading(page), want]]) {
+        assert.equal(await settle(async () => (await markOf(place)).mark, expected), expected)
+        const { dots, drawn, text } = await markOf(place)
+        assert.equal(dots, 0, 'no colour dot')
+        assert.ok(Math.abs(drawn - text * MARK_EM) < 0.5, `the mark is ${drawn}px tall beside ${text}px text, not ${MARK_EM}em`)
+      }
+      assert.equal(await boardLabel(page).getAttribute('title'), await labelOf(page, { mode, submode }))
+    })
+  }
+
+  // WCAG's contrast ratio of two `rgb(r, g, b)` colours.
+  const contrast = (a, b) => {
+    const lum = (rgb) => rgb.match(/\d+/g).slice(0, 3).map(Number).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }).reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0)
+    const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x)
+    return (hi + 0.05) / (lo + 0.05)
+  }
+  const MIN_INK_CONTRAST = 4.5
+
+  it('inks every disc-less text sample clearly against the Board chip\'s pill', async () => {
+    const { page } = opened
+    const names = await page.evaluate(() => engine.listTools().find((t) => t.mode === 'number' && t.submode === '1').styles.filter((s) => s.sample && !s.sample.disc).map((s) => s.name))
+    assert.ok(names.length > 0, 'Number has a text sample with no disc')
+    for (const name of names) {
+      await chooseStyle(page, { mode: 'number', submode: '1' }, await plainStyle(page, 'number', '1', name))
+      await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+      const { pill, ink } = await boardLabel(page).evaluate((label) => {
+        const glyph = getComputedStyle(label.querySelector('.ui-mark svg text'))
+        // A clear fill leaves the stroke as the glyph's ink.
+        return { pill: getComputedStyle(label).backgroundColor, ink: /, 0\)$/.test(glyph.fill) ? glyph.stroke : glyph.fill }
+      })
+      assert.ok(contrast(ink, pill) >= MIN_INK_CONTRAST, `${name}: ink ${ink} on pill ${pill} is ${contrast(ink, pill).toFixed(2)}:1`)
+    }
+  })
+
+  it('keeps a colour style\'s dot and shows no mark with it; a tool with no style shows neither', async () => {
+    const { page } = opened
+    const green = await page.evaluate(() => engine.listTools().find((x) => x.mode === 'sudoku' && x.submode === '1').styles.find((s) => s.name === 'green'))
+    await chooseStyle(page, { mode: 'sudoku', submode: '1' }, green)
+    for (const place of places(page)) {
+      const { mark, dots } = await settle(() => markOf(place).then(({ mark, dots }) => ({ mark, dots })), { mark: null, dots: 1 })
+      assert.deepEqual({ mark, dots }, { mark: null, dots: 1 })
+    }
+    const bare = await page.evaluate(() => engine.listTools().find((t) => t.styles.length === 0))
+    await setTool(page, { mode: bare.mode, submode: bare.submode })
+    for (const place of places(page)) {
+      const { mark, dots } = await settle(() => markOf(place).then(({ mark, dots }) => ({ mark, dots })), { mark: null, dots: 0 })
+      assert.deepEqual({ mark, dots }, { mark: null, dots: 0 })
+    }
   })
 })
 
