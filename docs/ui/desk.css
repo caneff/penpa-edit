@@ -85,8 +85,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-rules.is-sized .ui-body { max-height: none; }
 .ui-card[hidden] { display: none; }
 .ui-close, .ui-unpin-all { order: 2; margin-left: auto; }
-/* Pinned's Unpin all takes the free room, and its × sits beside it. */
-.ui-head:has(.ui-unpin-all) .ui-close { order: 3; margin-left: 0; }
+/* A card's × is the last control of its header; Rules's - and + stay beside its title, and Pinned's Unpin all takes the free room. */
+.ui-close { order: 3; }
+.ui-head:has(.ui-unpin-all) .ui-close { margin-left: 0; }
 .ui-head { cursor: grab; }
 /* A card being dragged looks picked up. */
 .ui-card.is-dragging { box-shadow: 0 12px 32px rgba(40, 35, 20, .32); }
