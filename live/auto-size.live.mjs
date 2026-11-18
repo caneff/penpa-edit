@@ -357,7 +357,9 @@ describe('the Recent card\'s automatic height (#306)', () => {
       const first = await read(page)
       assert.deepEqual(fitsAndFlush(first), FITS, JSON.stringify(first))
       let last = first
-      for (const tool of TOOLS) {
+      // Every tool in turn: some change what Mode and Mouse need, some do not, and Recent must keep up with both.
+      const tools = await page.evaluate(() => engine.listTools().slice(0, 14).map(({ mode, submode }) => ({ mode, submode })))
+      for (const tool of tools) {
         await useTool(page, tool)
         last = await read(page)
         assert.deepEqual(fitsAndFlush(last), FITS, JSON.stringify({ tool, last }))
