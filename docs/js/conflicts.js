@@ -182,9 +182,9 @@ class Conflicts {
         }
     }
 
-    // caneff: returns (row, col) => the [row, col] cells of that cell's box. The boxes are the drawn region lines
-    // (as `check_irregular` reads them) when any are drawn, else the size default. A region larger than the grid's
-    // side is not a box yet, so it has no cells to compare.
+    // caneff: the boxes are the drawn region lines (as `check_irregular` reads them) once they split the grid into
+    // regions of at most n cells, else the size default: a region larger than that means the lines are still partly
+    // drawn, and skipping its cells would switch the box check off for them.
     sudoku_box_cells(n, [box_h, box_w]) {
         const regions = this.pu.getregiondata(n, n, "full");
         const cells_of = {};
@@ -193,11 +193,9 @@ class Conflicts {
                 (cells_of[regions[i][j]] ||= []).push([i, j]);
             }
         }
-        if (Object.keys(cells_of).length > 1) {
-            return (i, j) => {
-                const cells = cells_of[regions[i][j]];
-                return cells.length > n ? [] : cells;
-            };
+        const drawn = Object.values(cells_of);
+        if (drawn.length > 1 && drawn.every((cells) => cells.length <= n)) {
+            return (i, j) => cells_of[regions[i][j]];
         }
         return (i, j) => {
             const bi = box_h * ((i / box_h) | 0);

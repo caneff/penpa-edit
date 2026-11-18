@@ -8,8 +8,8 @@ const browser = useBrowser()
 // Runs in the page. Builds an empty `size`x`size` square grid tagged `tag`, fills `givens` ([x, y, value] with x, y
 // counted from the grid's top left) as large black question numbers, adds each `symbols` entry ([x1, y1, x2, y2,
 // symbol]) on the edge between those two cells, draws region lines around boxes of `boxes` = [rows, columns]
-// cells (none when absent), runs `pu.check_conflict` and returns the conflicting cells as [x, y].
-function checkInPage ({ size, tag, givens, symbols = [], boxes }) {
+// cells (none when absent) or only the horizontal lines between `bands` rows (a partly drawn layout), runs `pu.check_conflict` and returns the conflicting cells as [x, y].
+function checkInPage ({ size, tag, givens, symbols = [], boxes, bands, solve }) {
   document.getElementById('nb_size1').value = size
   document.getElementById('nb_size2').value = size
   create_newboard()
@@ -32,6 +32,21 @@ function checkInPage ({ size, tag, givens, symbols = [], boxes }) {
         if (x > 0 && x % boxes[1] === 0) draw(vertex(x, y), vertex(x, y + 1))
       }
     }
+  }
+  if (bands) {
+    const vertex = (vx, vy) => pu.nx0 * pu.ny0 + (vy + 1) * pu.nx0 + vx + 1
+    for (let y = bands; y < size; y += bands) {
+      for (let x = 0; x < size; x++) pu.pu_q.lineE[`${vertex(x, y)},${vertex(x + 1, y)}`] = 2
+    }
+  }
+  if (solve) {
+    // The givens become the answer, which is also the author's solution: `check_solution` then solves unless a conflict stops it.
+    for (const [x, y, value] of givens) pu.pu_a.number[cell(x, y)] = [String(value), 2, '1']
+    pu.pu_q.number = {}
+    pu.solution = JSON.stringify(pu.make_solution())
+    pu.sol_flag = 0
+    pu.check_solution()
+    return pu.sol_flag
   }
   pu.conflicts.reset()
   pu.check_conflict('')
@@ -81,6 +96,10 @@ describe('conflict checks', () => {
       assert.deepEqual(await check({ size: 6, tag: 'classic', givens: fill, boxes: [3, 2] }), [])
     })
 
+    it('reaches solved on a correct 6x6 with drawn 3x2 boxes', async () => {
+      assert.equal(await check({ size: 6, tag: 'classic', givens: fill, boxes: [3, 2], solve: true }), 1)
+    })
+
     it('flags two equal digits in one drawn 3x2 box', async () => {
       const cells = await check({ size: 6, tag: 'classic', givens: [[0, 0, 1], [1, 2, 1]], boxes: [3, 2] })
       assert.deepEqual(cells, [[0, 0], [1, 2]])
@@ -89,6 +108,12 @@ describe('conflict checks', () => {
     it('does not flag two digits that share only a default 2x3 box', async () => {
       const cells = await check({ size: 6, tag: 'classic', givens: [[0, 0, 1], [2, 1, 1]], boxes: [3, 2] })
       assert.deepEqual(cells, [])
+    })
+
+    it('keeps the size default while the lines are partly drawn', async () => {
+      // Horizontal lines every 3 rows cut the 9x9 into two bands of 27 cells: no box yet, so the 3x3 default applies.
+      const cells = await check({ size: 9, tag: 'classic', givens: [[0, 0, 1], [2, 2, 1]], bands: 3 })
+      assert.deepEqual(cells, [[0, 0], [2, 2]])
     })
 
     it('flags two equal digits in one drawn 2x3 box of a 6x6', async () => {
