@@ -605,7 +605,10 @@ class Puzzle {
                     }
                 }
                 // Sort the distance, and find the best matches
-                deltas.sort((a, b) => a.diff - b.diff);
+                // caneff: an edge on its vertices' line is off it only by rounding, which differs with the cell size; counted as 0,
+                // the stable sort keeps the order the edges were found in, so a cell's edges, and so a cage's history keys, are in
+                // the same order at every cell size (#137)
+                deltas.sort((a, b) => (a.diff < 0.001 ? 0 : a.diff) - (b.diff < 0.001 ? 0 : b.diff));
                 let edges = [];
                 for (let j = 0; j < vertices.length; j++) {
                     // Fill in the edge_to_vertex data, and add the cell to the edge's neighbour
