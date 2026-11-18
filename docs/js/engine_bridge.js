@@ -148,6 +148,20 @@
         }
     };
 
+    // ---- Line widths: Penpa+'s `set_line_style` gives most styles a fixed pixel width, right at its normal 38 px a cell and
+    // hair-thin on a zoomed board, so on the board's own context the width grows with the cell past that size (#330). Only the
+    // board: the bridge's swatch reads and Penpa+'s panel draw at sizes of their own.
+    const PENPA_NORMAL_CELL_SIZE = 38;
+    // The styles whose width set_line_style already takes from `pu.size`: 13 (bold dash) and 17 (a wall's bold dash).
+    const CELL_SIZED_LINE_STYLES = new Set([13, 17]);
+    const penpaSetLineStyle = window.set_line_style;
+    window.set_line_style = function (ctx, type) {
+        penpaSetLineStyle.apply(this, arguments);
+        if (ctx === pu.ctx && !CELL_SIZED_LINE_STYLES.has(type)) {
+            ctx.lineWidth *= Math.max(1, pu.size / PENPA_NORMAL_CELL_SIZE);
+        }
+    };
+
     // A positive finite number, or a TypeError naming the call and the argument.
     function requirePositiveNumber(call, name, value) {
         if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
