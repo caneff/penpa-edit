@@ -263,3 +263,84 @@ describe('board coordinates on a grid that is not square', () => {
     await context.close()
   })
 })
+
+// Runs in the page: the Board card's visible area (its padding box, viewport px), and how far its body scrolls.
+function bodyViewInPage () {
+  const body = document.querySelector('section[aria-label="Board"] .ui-body')
+  const r = body.getBoundingClientRect()
+  const left = r.left + body.clientLeft
+  const top = r.top + body.clientTop
+  return { left, top, right: left + body.clientWidth, bottom: top + body.clientHeight, scrollsX: body.scrollWidth - body.clientWidth, scrollsY: body.scrollHeight - body.clientHeight }
+}
+
+// Zooms in until the board scrolls both ways.
+async function zoomIn (page) {
+  const button = page.getByRole('button', { name: 'Zoom in' })
+  for (let i = 0; i < 8 && await button.isEnabled(); i++) await button.click()
+  const view = await page.evaluate(bodyViewInPage)
+  assert.ok(view.scrollsX > 100 && view.scrollsY > 100, `the zoomed board scrolls both ways (${view.scrollsX} x ${view.scrollsY})`)
+}
+
+// Scrolls the Board card's body a third of the way along each axis.
+const scrollThird = (page) => page.evaluate(() => {
+  const body = document.querySelector('section[aria-label="Board"] .ui-body')
+  body.scrollLeft = (body.scrollWidth - body.clientWidth) / 3
+  body.scrollTop = (body.scrollHeight - body.clientHeight) / 3
+})
+
+// After a scroll, every label whose own column or row is in view is inside the visible area, and the labels still follow their
+// cells along the board's own axis: `at` gives each label's offset from the canvas, read before the scroll.
+async function assertPinned (page, before) {
+  const view = await page.evaluate(bodyViewInPage)
+  const canvas = await canvasOrigin(page)
+  const labels = await page.evaluate(labelsInPage)
+  assert.equal(labels.length, before.length, 'the same labels are drawn')
+  let shown = 0
+  labels.forEach((l, i) => {
+    const along = l.axis === 'column' ? l.cx - canvas.left : l.cy - canvas.top
+    assert.ok(Math.abs(along - before[i]) <= SLACK_PX, `${l.axis} ${l.text} keeps its place along the board: ${along} vs ${before[i]}`)
+    const inView = l.axis === 'column' ? l.cx > view.left + 40 && l.cx < view.right : l.cy > view.top + 40 && l.cy < view.bottom
+    if (!inView) return
+    shown++
+    assert.ok(l.left >= view.left - SLACK_PX && l.right <= view.right + SLACK_PX && l.top >= view.top - SLACK_PX && l.bottom <= view.bottom + SLACK_PX, `${l.axis} ${l.text} is inside the card's visible area`)
+    if (l.axis === 'column') assert.ok(l.top <= view.top + 24 + SLACK_PX, `column ${l.text} sits at the card's top edge: ${l.top} vs ${view.top}`)
+    else assert.ok(l.left <= view.left + 24 + SLACK_PX, `row ${l.text} sits at the card's left edge: ${l.left} vs ${view.left}`)
+  })
+  assert.ok(shown >= 2, 'some labels are in view')
+}
+
+// Where the drawn board canvas lies (viewport px).
+async function canvasOrigin (page) {
+  const handle = await page.evaluateHandle(boardCanvasInPage)
+  try { return await page.evaluate((c) => { const r = c.getBoundingClientRect(); return { left: r.left, top: r.top } }, handle) } finally { await handle.dispose() }
+}
+
+// Each label's centre along its own axis, from the canvas's top left.
+async function alongBoard (page) {
+  const origin = await canvasOrigin(page)
+  const labels = await page.evaluate(labelsInPage)
+  return labels.map((l) => (l.axis === 'column' ? l.cx - origin.left : l.cy - origin.top))
+}
+
+describe('board coordinates when the board is zoomed past its card and scrolled', () => {
+  for (const { name, options, columns, rows } of [
+    { name: 'a 9x9 square grid', options: { columns: 9, rows: 9 }, columns: 9, rows: 9 },
+    { name: 'a hexagon grid', options: { columns: 6, rows: 6, gridtype: 'hex' }, columns: 8, rows: 7 }
+  ]) {
+    it(`stay in view at the card's top and left edges on ${name}`, async () => {
+      const { context, page } = await openSolvePage(browser(), await boardLink(options), { served: true })
+      await turnOn(page)
+      const errors = []
+      page.on('pageerror', (e) => errors.push(e.message))
+      await zoomIn(page)
+      // Offsets along the board, read unscrolled: scrolling must not change them.
+      if (!options.gridtype) await assertAligned(page, columns, rows)
+      const home = await alongBoard(page)
+      assert.equal(home.length, columns + rows)
+      await scrollThird(page)
+      await assertPinned(page, home)
+      assert.deepEqual(errors, [], 'no page error while scrolling')
+      await context.close()
+    })
+  }
+})
