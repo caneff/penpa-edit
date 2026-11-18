@@ -287,7 +287,9 @@ function boardPixelInPage ({ x, y }) {
 // size, is taken from that origin and rounded to the nearest whole pixel whose nearest point is still `num`, the one the
 // recording page chose: a point recorded halfway between two others (a corner on the edge between two edge points)
 // otherwise tips to either. Handlers read `x, y` as well, so the pixel stays the nearest such one. When no neighbouring
-// pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches.
+// pixel keeps `num` the nearest is taken anyway, and the comparison reports the board it reaches. A pixel outside the
+// canvas element is passed over for one inside it: a point on the board's edge, scaled, can round to a pixel just beyond
+// it, where the canvas's `mousemove` and `mouseup` never fire.
 function pagePixelInPage ({ x, y, num, recordedSize }) {
   const canvas = document.getElementById('canvas')
   const scale = pu.size / recordedSize
@@ -311,7 +313,10 @@ function pagePixelInPage ({ x, y, num, recordedSize }) {
     for (const cy of new Set([Math.floor(at.y), Math.ceil(at.y)])) candidates.push({ x: cx, y: cy })
   }
   candidates.sort((a, b) => Math.hypot(a.x - at.x, a.y - at.y) - Math.hypot(b.x - at.x, b.y - at.y))
-  return candidates.find((c) => nearest(c) === num) ?? candidates[0]
+  const box = canvas.getBoundingClientRect()
+  const inside = (c) => c.x >= box.left && c.x < box.right && c.y >= box.top && c.y < box.bottom
+  const keepsNum = candidates.filter((c) => nearest(c) === num)
+  return keepsNum.find(inside) ?? keepsNum[0] ?? candidates.find(inside) ?? candidates[0]
 }
 
 // Runs in the page: moves Shape mode's key panel off the board when it floats over `pixel`, as a solver drags it aside
