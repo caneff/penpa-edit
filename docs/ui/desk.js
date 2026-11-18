@@ -559,7 +559,6 @@
         const pins = cards.pins.node;
         Object.assign(pins.style, { left: `${x}px`, top: `${TOP_MARGIN_PX}px`, width: `${width}px` });
         const underPins = TOP_MARGIN_PX + pins.offsetHeight + CARD_GAP_PX;
-        cards.recent.node.style.width = `${width}px`;
         const recentNeeds = Math.max(MIN_SIZE.recent[1], naturalHeight(cards.recent.node));
         const modeHeight = Math.max(MIN_SIZE.mode[1], Math.min(fit.modeCardHeight(width), bottom - underPins - CARD_GAP_PX - recentNeeds));
         const middle = TOP_MARGIN_PX + Math.round((columnHeight - modeHeight) / 2);
@@ -606,7 +605,7 @@
     const axesOf = (edges) => [...(edges.some((e) => e === 'left' || e === 'right') ? ['w'] : []), ...(edges.some((e) => e === 'top' || e === 'bottom') ? ['h'] : [])];
 
     // A card's automatic height where it sits, on its own: Mode and Mouse as tall as their tools need, Rules its text, and
-    // Board and Recent, where it sits off the fitted layout, down to the columns' bottom; never past that bottom, nor under the card's minimum. Pinned's
+    // Board down to the columns' bottom; never past that bottom, nor under the card's minimum. Pinned's
     // automatic height is no height set at all. A Rules card with no rules is one line tall, under its minimum, as
     // `rulesHeightFor` fits it (#288).
     function automaticHeight(desk, cards, id) {
@@ -619,9 +618,24 @@
         return Math.max(minHeightOf(id, cards[id]), Math.min(content ? content(node.offsetWidth) : toBottom, toBottom));
     }
 
+    // Recent off the fitted layout is as tall as its chips, growing upward from its bottom edge as far as the card above it
+    // leaves room (#306), the way the fitted layout grows it.
+    function setRecentHeight(cards) {
+        const { node } = cards.recent;
+        const box = boxOf(node);
+        const roomTop = Math.max(TOP_MARGIN_PX, ...shownIds(cards, Object.keys(cards).filter((id) => id !== 'recent'))
+            .map((id) => boxOf(cards[id].node)).filter((other) => other.bottom <= box.top && other.left < box.right && other.right > box.left)
+            .map((other) => other.bottom + CARD_GAP_PX));
+        const height = Math.max(MIN_SIZE.recent[1], Math.min(naturalHeight(node), box.bottom - roomTop));
+        node.style.top = `${box.bottom - height}px`;
+        setHeight(node, height);
+    }
+
     function setAutomaticHeight(desk, cards, id) {
         const { node } = cards[id];
-        if (id === 'pins') {
+        if (id === 'recent') {
+            setRecentHeight(cards);
+        } else if (id === 'pins') {
             node.style.height = '';
             node.classList.remove('is-sized');
         } else {

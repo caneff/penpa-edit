@@ -241,7 +241,7 @@ describe('the desk on a laptop screen', () => {
 
   for (const viewport of LAPTOPS) {
     describe(`at ${viewport.width}x${viewport.height}`, () => {
-      it('puts no card over another, and keeps the right column in order (Recent as tall as its chips) down to the desk\'s bottom', async () => {
+      it('puts no card over another, and keeps the right column in order, Recent below Mode, down to the desk\'s bottom', async () => {
         const read = await deskSettled(await open(viewport))
         assert.deepEqual(cardOverlaps(read), [])
         const { Pinned, Mode, Recent } = read.cards

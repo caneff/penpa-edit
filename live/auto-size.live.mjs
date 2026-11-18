@@ -323,39 +323,66 @@ describe('a layout the solver changed', () => {
   })
 })
 
-// Runs in the page: the Recent card's box, and what its content needs: the card's own chrome (header, borders), the body's
-// padding, and its chips' strip, or one line of text when it has no chips.
+// Runs in the page: the Recent card's box, the height its content needs (the card's own chrome, the body's padding and its
+// chips' strip with its margin), and how much of the body is hidden.
 function readRecentInPage () {
   const card = document.querySelector('section[aria-label="Recent"]')
   const body = card.querySelector('.ui-body')
   const strip = card.querySelector('.ui-recent')
   const style = getComputedStyle(body)
-  const content = strip.offsetHeight + parseFloat(getComputedStyle(strip).marginBottom) || parseFloat(style.lineHeight)
-  const needs = card.offsetHeight - body.clientHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + content
+  const needs = card.offsetHeight - body.clientHeight + parseFloat(style.paddingTop) + parseFloat(style.paddingBottom) + strip.offsetHeight + parseFloat(getComputedStyle(strip).marginBottom)
   const box = card.getBoundingClientRect()
-  return { h: Math.round(box.height), bottom: Math.round(box.bottom), needs: Math.ceil(needs), chips: card.querySelectorAll('.ui-chip').length }
+  return { h: Math.round(box.height), bottom: Math.round(box.bottom), needs: Math.ceil(needs), hidden: body.scrollHeight - body.clientHeight, chips: card.querySelectorAll('.ui-chip').length }
 }
 
 describe('the Recent card\'s automatic height (#306)', () => {
   let opened
   afterEach(async () => { await opened?.context.close() })
 
-  const FOUR_TOOLS = [{ mode: 'line', submode: '1' }, { mode: 'line', submode: '2' }, { mode: 'sudoku', submode: '1' }, { mode: 'number', submode: '1' }]
+  const TOOLS = [{ mode: 'line', submode: '1' }, { mode: 'line', submode: '2' }, { mode: 'sudoku', submode: '1' }, { mode: 'number', submode: '1' }, { mode: 'line', submode: '5' }]
+  // The flush and fit checks of one read: Recent is as tall as its content, hides none, and ends on the Board's bottom.
+  const fitsAndFlush = (read) => ({ fits: Math.abs(read.h - read.needs) <= SLACK_PX, hidden: read.hidden <= 0, flush: Math.abs(read.bottom - read.board) <= SLACK_PX })
+  const FITS = { fits: true, hidden: true, flush: true }
+  const read = async (page) => ({ ...(await steady(page, readRecentInPage)), board: (await steady(page, readCardsInPage, ['Board'])).Board.bottom })
+  const useTool = async (page, tool) => {
+    await setTool(page, tool)
+    await waitForTool(page, tool)
+    await afterChange(page)
+  }
 
   for (const viewport of [LAPTOP, HUGE]) {
-    it(`is as tall as its content before any tool change and grows with its chips, its bottom on the Board's, at ${viewport.width}x${viewport.height}`, async () => {
+    it(`is as tall as its chips at each tool change, its bottom on the Board's, at ${viewport.width}x${viewport.height}`, async () => {
       opened = await openSolvePage(browser(), await newBoardSolveLink(browser()), { contextOptions: { viewport } })
       const { page } = opened
-      const read = async () => ({ ...(await steady(page, readRecentInPage)), board: (await steady(page, readCardsInPage, ['Board'])).Board.bottom })
-      const before = await read()
-      assert.deepEqual({ fits: Math.abs(before.h - before.needs) <= SLACK_PX, flush: Math.abs(before.bottom - before.board) <= SLACK_PX }, { fits: true, flush: true }, JSON.stringify(before))
-      for (const tool of FOUR_TOOLS) {
-        await setTool(page, tool)
-        await waitForTool(page, tool)
-        await afterChange(page)
+      const first = await read(page)
+      assert.deepEqual(fitsAndFlush(first), FITS, JSON.stringify(first))
+      let last = first
+      for (const tool of TOOLS) {
+        await useTool(page, tool)
+        last = await read(page)
+        assert.deepEqual(fitsAndFlush(last), FITS, JSON.stringify({ tool, last }))
       }
-      const after = await read()
-      assert.deepEqual({ taller: after.h > before.h, flush: Math.abs(after.bottom - after.board) <= SLACK_PX }, { taller: true, flush: true }, JSON.stringify({ before, after }))
+      assert.equal(last.h > first.h, true, JSON.stringify({ first, last }))
+    })
+
+    it(`is one line of its strip tall with no chips, under the old 80 px minimum, at ${viewport.width}x${viewport.height}`, async () => {
+      opened = await openSolvePage(browser(), await newBoardSolveLink(browser()), { contextOptions: { viewport } })
+      const { page } = opened
+      await page.evaluate(pinByNameInPage, { names: ['Surface'] })
+      const empty = await read(page)
+      assert.deepEqual({ ...fitsAndFlush(empty), chips: empty.chips, under: empty.h < 80 }, { ...FITS, chips: 0, under: true }, JSON.stringify(empty))
     })
   }
+
+  it('keeps growing with its chips once the solver has moved Pinned', async () => {
+    opened = await openSolvePage(browser(), await newBoardSolveLink(browser()), { contextOptions: { viewport: LAPTOP } })
+    const { page } = opened
+    await dragFrom(page, await headPoint(page, 'Pinned'), 0, 20)
+    const first = await read(page)
+    for (const tool of TOOLS) {
+      await useTool(page, tool)
+    }
+    const last = await read(page)
+    assert.deepEqual({ taller: last.h > first.h, hidden: last.hidden <= 0, fits: Math.abs(last.h - last.needs) <= SLACK_PX }, { taller: true, hidden: true, fits: true }, JSON.stringify({ first, last }))
+  })
 })
