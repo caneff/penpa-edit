@@ -356,8 +356,9 @@ export async function waitForTool (page, want, message = 'the tool settles') {
 export const afterChange = (page) => page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
 
 // Fails unless the engine reports fewer than 5 changes in one second with nobody touching the page (a "nothing happened in
-// N ms" check): a redraw that wakes the next change loops every frame, about 60 a second (#322). A fresh page can still
-// report one late change, so the bound is not zero.
+// N ms" check): a redraw that wakes the next change loops every frame, about 60 a second (#322). The bound is not zero
+// because Penpa+'s own clock (`h1#timer`, outside the UI) rewrites its text once a second, which the watcher sees as a
+// change, so an idle second holds one or two.
 export async function assertQuiet (page) {
   await afterChange(page)
   const changes = await page.evaluate(() => new Promise((resolve) => {
