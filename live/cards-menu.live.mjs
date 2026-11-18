@@ -229,14 +229,15 @@ describe('Each closeable card closes by its x and reopens from the Cards menu', 
   it('reopens a card into its column where the column sits now, after the window changed size while it was closed', async () => {
     opened = await open()
     const { page } = opened
-    await closeByX(page, 'Recent')
+    // Pinned is the column's first card, so its own place from before the resize must not be read as the column's.
+    await closeByX(page, 'Pinned')
     await dragHeader(page, 'Board', 20, 10)
     await page.setViewportSize({ width: 1700, height: 1000 })
     const resized = await read(page)
-    await toggleInCardsMenu(page, 'Recent')
+    await toggleInCardsMenu(page, 'Pinned')
     const { cards } = await read(page)
-    assert.equal(near(cards.Recent.x, resized.cards.Mode.x) && near(cards.Recent.w, resized.cards.Mode.w), true,
-      `Recent is back in the right column: ${JSON.stringify(cards)}`)
+    assert.equal(near(cards.Pinned.x, resized.cards.Mode.x) && near(cards.Pinned.w, resized.cards.Mode.w), true,
+      `Pinned is back in the right column: ${JSON.stringify(cards)}`)
   })
 })
 
