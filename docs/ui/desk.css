@@ -124,9 +124,9 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
 .ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .ui-card-board canvas { background: #fff; }
 /* The board coordinates sit in a gutter above and left of the canvas, outside any outside-clue band the canvas holds. */
-.ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(24px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
+.ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(30px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
 .ui-grid-coordinates { position: absolute; inset: 0; pointer-events: none; }
-.ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(12px * var(--ui-text-scale, 1)); line-height: 1; color: #6b7280; font-variant-numeric: tabular-nums; user-select: none; }
+.ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(15px * var(--ui-text-scale, 1)); line-height: 1; color: #4b5563; font-variant-numeric: tabular-nums; user-select: none; }
 .ui-grid-coordinate[data-axis="column"] { transform: translate(-50%, calc(-50% + var(--ui-stick-y, 0px))); }
 .ui-grid-coordinate[data-axis="row"] { transform: translate(calc(-50% + var(--ui-stick-x, 0px)), -50%); }
 .ui-grid-band { opacity: .75; }
