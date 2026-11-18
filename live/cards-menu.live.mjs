@@ -155,6 +155,7 @@ describe('Each closeable card closes by its x and reopens from the Cards menu', 
       await openMenu(page)
       assert.equal(await menuItem(page, name).evaluate((node) => node.checked), false, `the menu shows ${name} closed`)
       await page.keyboard.press('Escape')
+      await menuItem(page, 'Rules').waitFor({ state: 'hidden' })
       await toggleInMenu(page, name)
       assertSamePlaces(await read(page), fitted, `${name} reopened`)
     })

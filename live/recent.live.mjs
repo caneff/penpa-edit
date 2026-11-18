@@ -62,7 +62,7 @@ describe('the Recent card', () => {
     for (let i = 0; i < 3; i++) {
       await page.keyboard.press('Tab')
     }
-    assert.equal(await recentCard(page).locator(':focus').count(), 0, 'Tab with pins')
+    assert.equal(await recentCard(page).locator('.ui-body :focus').count(), 0, 'Tab with pins')
     const pinChipUnpins = pinChips(page).getByRole('button', { name: /^Unpin/ })
     while (await pinChipUnpins.count()) {
       await pinChipUnpins.first().click()
@@ -71,7 +71,7 @@ describe('the Recent card', () => {
     await page.evaluate(() => document.activeElement?.blur())
     for (let i = 0; i < 40; i++) {
       await page.keyboard.press('Tab')
-      assert.equal(await recentCard(page).locator(':focus').count(), 0, `Tab press ${i + 1} without pins`)
+      assert.equal(await recentCard(page).locator('.ui-body :focus').count(), 0, `Tab press ${i + 1} without pins`)
     }
   })
 

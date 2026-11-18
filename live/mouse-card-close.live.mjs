@@ -83,6 +83,7 @@ describe('The Mouse card closes and reopens', () => {
     await openMenu(page)
     assert.equal(await menuItem(page).evaluate((node) => node.checked), false, 'the menu shows Mouse closed')
     await page.keyboard.press('Escape')
+    await menuItem(page).waitFor({ state: 'hidden' })
     await toggleInMenu(page)
     const reopened = await settle(async () => (await read(page)).cards.Mouse !== null, true)
     assert.equal(reopened, true, 'the menu shows Mouse')
