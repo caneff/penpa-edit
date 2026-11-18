@@ -3,7 +3,7 @@
 // Read through the cards' bounding boxes; the clicks are real.
 import assert from 'node:assert/strict'
 import { afterEach, describe, it } from 'node:test'
-import { newBoardSolveLink, openSolvePage, resetLayoutInSettings, useBrowser, waitForDesk } from './page.mjs'
+import { cardsMenuItem, closeCardsMenu, newBoardSolveLink, openCardsMenu, openSolvePage, resetLayoutInSettings, toggleInCardsMenu, useBrowser, waitForDesk } from './page.mjs'
 import { settle } from './settle.mjs'
 
 // The link carries rules: with none the Rules card is one line tall and keeps neither the column nor a control to focus.
@@ -37,14 +37,6 @@ describe('The Mouse card closes and reopens', () => {
     const { desk, cards } = await read(page)
     return cards.Rules !== null && Math.abs(cards.Rules.h - (desk.h - 2 * TOP_MARGIN_PX)) <= ROUNDING_PX
   }
-  const menuItem = (page) => page.getByRole('menuitemcheckbox', { name: 'Mouse', exact: true })
-  // Toggles Mouse in the Cards menu, which stays open for another toggle until Escape closes it.
-  const toggleInMenu = async (page) => {
-    await openMenu(page)
-    await menuItem(page).click()
-    await page.keyboard.press('Escape')
-    await menuItem(page).waitFor({ state: 'hidden' })
-  }
 
   const assertSameSplit = (now, was) => {
     for (const name of ['Mouse', 'Rules']) {
@@ -56,13 +48,8 @@ describe('The Mouse card closes and reopens', () => {
   }
 
   const reopenFromMenu = async (page) => {
-    await toggleInMenu(page)
+    await toggleInCardsMenu(page, 'Mouse')
     await settle(async () => (await read(page)).cards.Mouse !== null, true)
-  }
-
-  async function openMenu (page) {
-    await page.getByRole('button', { name: 'Cards', exact: true }).click()
-    await menuItem(page).waitFor()
   }
 
   it('closes with its x, stays closed after a reload with Rules filling the column, and reopens from the Cards menu', async () => {
@@ -80,17 +67,16 @@ describe('The Mouse card closes and reopens', () => {
     assert.equal((await read(page)).cards.Mouse, null, 'Mouse is still closed after the reload')
     assert.equal(await settle(() => fillsColumn(page), true), true, 'Rules still fills the column after the reload')
 
-    await openMenu(page)
-    assert.equal(await menuItem(page).evaluate((node) => node.checked), false, 'the menu shows Mouse closed')
-    await page.keyboard.press('Escape')
-    await menuItem(page).waitFor({ state: 'hidden' })
-    await toggleInMenu(page)
+    await openCardsMenu(page)
+    assert.equal(await cardsMenuItem(page, 'Mouse').evaluate((node) => node.checked), false, 'the menu shows Mouse closed')
+    await cardsMenuItem(page, 'Mouse').click()
+    await closeCardsMenu(page)
     const reopened = await settle(async () => (await read(page)).cards.Mouse !== null, true)
     assert.equal(reopened, true, 'the menu shows Mouse')
     const after = await read(page)
     assertSameSplit(after, before)
 
-    await toggleInMenu(page)
+    await toggleInCardsMenu(page, 'Mouse')
     assert.equal(await settle(async () => (await read(page)).cards.Mouse === null, true), true, 'the menu hides Mouse again')
   })
 

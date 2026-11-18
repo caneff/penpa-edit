@@ -349,6 +349,11 @@
 
     const isMoved = (id) => saved[id]?.x !== undefined;
 
+    // The left edge on a desk `deskWidth` wide of a card `width` wide whose kept entry has a place: the kept left edge, or for
+    // a card that sat in the desk's right half, the kept gap to the right edge.
+    const anchoredLeft = (entry, deskWidth, width) =>
+        (entry.x + entry.w / 2 > entry.vw / 2 ? deskWidth - (entry.vw - entry.x - entry.w) - width : entry.x);
+
     // Whether the solver set a card's width (`hw`), height (`hh`) or place (`placed`) by hand. An entry written before #252
     // carries no such flag: its size was the solver's, and its place too once it had one.
     const isByHand = (entry, flag) => Boolean(entry && !entry.fitted && (entry[flag] ?? (flag !== 'placed' || entry.x !== undefined)));
@@ -582,16 +587,16 @@
     // the column's bottom, so the room between Mode and Recent stays empty. Where the column has room, Mode sits at its middle, never higher than under a Pinned card
     // whose chips take two rows, so a second row of pins moves neither Mode nor Recent (Chris, 2026-11-17); without the
     // room, the cards stack top-down and Mode gives up height so Recent keeps what it needs, its body scrolling. A closed
-    // card takes no room: with Pinned closed Mode's highest place is the column's top (#334).
+    // card takes no room, and with Pinned closed Mode sits at the column's top: the middle only kept room for Pinned's
+    // second row (#334, ruled 2026-11-18).
     function placeRightColumn(cards, x, width, columnHeight) {
         const bottom = TOP_MARGIN_PX + columnHeight;
+        const hasPins = isShown(cards, 'pins');
         let top = TOP_MARGIN_PX;
-        let highestMode = TOP_MARGIN_PX;
-        if (isShown(cards, 'pins')) {
+        if (hasPins) {
             const pins = cards.pins.node;
             Object.assign(pins.style, { left: `${x}px`, top: `${TOP_MARGIN_PX}px`, width: `${width}px` });
             top += pins.offsetHeight + CARD_GAP_PX;
-            highestMode = TOP_MARGIN_PX + fit.pinsCardHeightAtTwoRows() + CARD_GAP_PX;
         }
         const hasRecent = isShown(cards, 'recent');
         const recentNeeds = hasRecent ? Math.max(MIN_SIZE.recent[1], naturalHeight(cards.recent.node)) : 0;
@@ -599,7 +604,9 @@
         if (isShown(cards, 'mode')) {
             const modeHeight = Math.max(MIN_SIZE.mode[1], Math.min(fit.modeCardHeight(width), bottom - top - recentRoom));
             const middle = TOP_MARGIN_PX + Math.round((columnHeight - modeHeight) / 2);
-            const modeTop = Math.max(top, Math.min(Math.max(middle, highestMode), bottom - recentRoom - modeHeight));
+            const underTwoRows = TOP_MARGIN_PX + fit.pinsCardHeightAtTwoRows() + CARD_GAP_PX;
+            const wanted = hasPins ? Math.max(middle, underTwoRows) : TOP_MARGIN_PX;
+            const modeTop = Math.max(top, Math.min(wanted, bottom - recentRoom - modeHeight));
             place(cards, 'mode', x, modeTop, width, modeHeight);
             top = modeTop + modeHeight + CARD_GAP_PX;
         }
@@ -634,8 +641,7 @@
             return { x: cards[live].node.offsetLeft, w: cards[live].node.offsetWidth };
         }
         const entry = saved[ids.find((id) => saved[id])];
-        const x = entry.x + entry.w / 2 > entry.vw / 2 ? desk.clientWidth - (entry.vw - entry.x - entry.w) - entry.w : entry.x;
-        return { x, w: entry.w };
+        return { x: anchoredLeft(entry, desk.clientWidth, entry.w), w: entry.w };
     }
 
     // A card closed or opened (`opening`, when one is) after the solver changed another card: the left column, if the solver
@@ -964,13 +970,10 @@
         let x = node.offsetLeft;
         let y = node.offsetTop;
         if (isMoved(id)) {
-            x = entry.x;
-            y = entry.y;
             // Anchored to the nearer edge of the desk it was saved in, keeping that edge's gap.
+            x = anchoredLeft(entry, deskWidth, node.offsetWidth);
+            y = entry.y;
             const savedHeight = entry.h ?? node.offsetHeight;
-            if (entry.x + entry.w / 2 > entry.vw / 2) {
-                x = deskWidth - (entry.vw - entry.x - entry.w) - node.offsetWidth;
-            }
             if (entry.y + savedHeight / 2 > entry.vh / 2) {
                 y = deskHeight - (entry.vh - entry.y - savedHeight) - node.offsetHeight;
             }
@@ -1458,6 +1461,7 @@
             } else {
                 localStorage.removeItem(closedKey(id));
             }
+            const before = overlappingPairs(desk.cards);
             desk.cards[id].node.hidden = closed || (isStreaming() && STREAM_HIDDEN_CARDS.includes(id));
             if (id === 'mouse' && !closed) {
                 fit.sizeMouseBody?.();
@@ -1474,6 +1478,11 @@
                 }
             }
             relayout();
+            // A card opened into a column with no fitted place to give it (every card of it closed before the solver changed
+            // the layout) comes back at the default place, which can be over the Board: mended as a window resize mends it.
+            if (!isStreaming()) {
+                repairOverlaps(desk.desk, desk.cards, before);
+            }
         };
         showRulesText(desk);
         desk.rulesText.smaller.addEventListener('click', () => stepRulesText(desk, -1));

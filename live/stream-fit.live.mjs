@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { steady } from './desk-layout.mjs'
-import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, useBrowser } from './page.mjs'
+import { linkFromNewBoard, openSolvePage, resetLayoutInSettings, toggleInCardsMenu, useBrowser } from './page.mjs'
 import { settle } from './settle.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 
@@ -155,6 +155,30 @@ describe('a stream fit request', () => {
       assert.deepEqual(over, [], 'no card but the board is over the board box')
       assert.ok(!cards.Rules, 'the Rules card is not on the desk')
       assert.ok(inside(cards.Board, board) && inside(board, cards.Board), `the Board card is the board box (${JSON.stringify(cards.Board)})`)
+    } finally {
+      await context.close()
+    }
+  })
+
+  it('leaves the cards the solver closed out of the side box, and takes one opened from the Cards menu (#334)', async () => {
+    const { context, page } = await openSudoku()
+    try {
+      for (const title of ['Pinned', 'Mode', 'Recent']) {
+        await page.getByRole('region', { name: title }).getByRole('button', { name: `Close ${title} card` }).click()
+      }
+      await request(page)
+      const closed = await page.evaluate(cardBoxesInPage)
+      assert.deepEqual(Object.keys(closed).sort(), ['Board', 'Mouse'], 'only the Board and Mouse are on the desk')
+      assert.ok(inside(closed.Mouse, asEdges(SIDE_BOX)), `Mouse ${JSON.stringify(closed.Mouse)} is in the side box`)
+      await toggleInCardsMenu(page, 'Mode')
+      await toggleInCardsMenu(page, 'Recent')
+      const opened = await settle(async () => Object.keys(await page.evaluate(cardBoxesInPage)).sort(), ['Board', 'Mode', 'Mouse'])
+      assert.deepEqual(opened, ['Board', 'Mode', 'Mouse'], 'Mode is back and Recent stays off the desk while the stream fit is on')
+      const cards = await page.evaluate(cardBoxesInPage)
+      for (const title of ['Mode', 'Mouse']) {
+        assert.ok(inside(cards[title], asEdges(SIDE_BOX)), `${title} ${JSON.stringify(cards[title])} is in the side box`)
+      }
+      assert.ok(!meets(cards.Mode, cards.Mouse), 'Mode and Mouse do not overlap')
     } finally {
       await context.close()
     }

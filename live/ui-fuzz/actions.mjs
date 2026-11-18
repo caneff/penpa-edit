@@ -4,7 +4,7 @@
 // its numbers. A list names its puzzle first, so its path replays on the same one. Not a check itself.
 import fc from 'fast-check'
 import { DRAG_REACH, pointsInPage } from '../fuzz.mjs'
-import { waitForDesk } from '../page.mjs'
+import { cardsMenuItem, CLOSEABLE_CARDS, closeCardsMenu, openCardsMenu, waitForDesk } from '../page.mjs'
 import { choosePreset, closed, openList, pinnedCard, presetField, presetList, saveButton, savePreset } from '../pin-card.mjs'
 import { pickInModeCard, pointPixel } from '../replay.mjs'
 import { PIN_KEYS } from './rules.mjs'
@@ -28,8 +28,6 @@ export const AREAS = ['bar', 'board', 'pinned', 'mode', 'recent', 'layout', 'the
 const FOCUS_FACTOR = 5
 // The cards a card action picks from, by name, and the resize handles by their `data-testid` suffix (desk.js).
 export const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
-// The cards the solver can close (desk.js), in the Cards menu's order.
-const CLOSEABLE_CARDS = ['Rules', 'Mouse', 'Pinned', 'Mode', 'Recent']
 export const HANDLES = ['top', 'right', 'bottom', 'left', 'top-left', 'top-right', 'bottom-right', 'bottom-left']
 // The moves a card drag or resize picks from, in pixels, each way.
 export const MOVES = [-240, -80, -20, 0, 20, 80, 240]
@@ -457,14 +455,11 @@ export const KINDS = [
     arg: fc.nat({ max: CLOSEABLE_CARDS.length - 1 }),
     label: (c) => `reopen the ${CLOSEABLE_CARDS[c]} card from the Cards menu`,
     run: async (page, c) => {
-      await button(page, 'Cards').click()
-      const item = page.getByRole('menuitemcheckbox', { name: CLOSEABLE_CARDS[c], exact: true })
-      await item.waitFor()
+      await openCardsMenu(page)
+      const item = cardsMenuItem(page, CLOSEABLE_CARDS[c])
       const shown = await item.evaluate((node) => node.checked)
-      // The menu stays open after a box is toggled, so Escape closes it either way.
       if (!shown) await item.click()
-      await page.keyboard.press('Escape')
-      await item.waitFor({ state: 'hidden' })
+      await closeCardsMenu(page)
       if (shown) return 'already shown'
     }
   },
