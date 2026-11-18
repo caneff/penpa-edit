@@ -655,7 +655,9 @@
                 group = '';
             } else if (/^ms\d+_/.test(node.id)) {
                 group = node.id.replace(/^ms\d+_/, '');
-                groupName = textOf(node).split(' ').filter((word) => /\p{L}/u.test(word)).join(' ') || GLYPH_GROUP_NAMES[group] || group.replace(/_/g, ' ');
+                // A header's name is its words; Penpa+ adds glyph samples to some ("Bars ▮ ▯") and gives others only glyphs.
+                const headerWords = textOf(node).split(' ').filter((word) => /\p{L}/u.test(word)).join(' ');
+                groupName = headerWords || GLYPH_GROUP_NAMES[group] || group.replace(/_/g, ' ');
             } else if (node.id.startsWith('ms_') && !hiddenInPenpa(node, menu)) {
                 const name = node.id.slice(3);
                 const size = textOf(node);

@@ -16,7 +16,7 @@ const FULL_HD = { width: 1920, height: 1080 }
 const HUGE = { width: 2560, height: 1440 }
 const CARDS = ['Board', 'Mouse', 'Rules', 'Pinned', 'Mode', 'Recent']
 // The pins the ticket steps through on Icebreaker, by their chip names.
-const ICEBREAKER_PINS = ['Surface', 'Line > Normal', 'Line + edge ×']
+const ICEBREAKER_PINS = ['Surface', 'Line > Normal', 'Line x']
 // Line > Normal, and Number > Normal, whose Style and Orientation rows need more than the Mode card's smallest height.
 const TALL_PINS = ['Line > Normal', 'Number > Normal']
 // A window too short for Mode at the right column's middle once Pinned holds one row: Mode sits under where two rows

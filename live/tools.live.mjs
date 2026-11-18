@@ -527,20 +527,20 @@ describe('the Mouse card and the title bar', () => {
     [{ mode: 'wall' }, 'Wall', [['Drag', 'from the middle of an edge, across cells: a straight wall through their centres; it does not turn within a drag; starting on a wall: clear it']]],
     [{ mode: 'number', submode: '3' }, 'Number > Quarter', [['Left click', 'cursor on the nearest cell corner spot; cell selected'],
       ['Right click', 'cursor on the nearest cell corner spot'], ['Digit', 'number at the cursor']]],
-    [{ mode: 'combi', submode: 'blwh' }, 'Black + white circles', [['Left click', 'white ○ → black ● → clear'],
+    [{ mode: 'combi', submode: 'blwh' }, 'Yin-Yang', [['Left click', 'white ○ → black ● → clear'],
       ['Right click', 'black ● → white ○ → clear'], ['Drag', 'the first cell\'s change repeated on each cell'], ['Given circles', 'left alone']]],
-    [{ mode: 'special', submode: 'thermo' }, 'Thermometer', [['Left click', 'on the bulb: clear the thermometer'],
+    [{ mode: 'special', submode: 'thermo' }, 'Thermo', [['Left click', 'on the bulb: clear the thermometer'],
       ['Drag', 'thermometer from the bulb cell through cells, diagonals too; drag back to undo a step']]],
-    [{ mode: 'cage', submode: '2' }, 'Cage > Free lines', [['Drag', 'cage line through points a quarter cell in from the corners; starting on a cage line: clear it']]],
+    [{ mode: 'cage', submode: '2' }, 'Cage > Free', [['Drag', 'cage line through points a quarter cell in from the corners; starting on a cage line: clear it']]],
     [{ mode: 'move', submode: '2' }, 'Move > Numbers', [['Drag', 'a number you entered, moved to an empty cell']]],
     [{ mode: 'symbol', submode: 'circle_L' }, 'Circle L', [['Left click', 'the shape\'s first variant → clear; on another variant: the first variant'],
       ['Right click', 'cursor on the cell'], ['Digit', 'that variant (1–9) at the cursor → clear (same digit)']]],
     [{ mode: 'symbol', submode: 'cross' }, 'Cross arms', [['Left click', 'cursor on the cell'], ['Right click', 'cursor on the cell'],
       ['Digit', 'that part (1–9) of the shape added at the cursor, again: removed']]],
     // The rows past Left click, Right click and Drag that #186 corrected, which the agreed table's check does not read.
-    [{ mode: 'combi', submode: 'linex' }, 'Line + edge ×', [['Right click', '× on the edge → clear'],
+    [{ mode: 'combi', submode: 'linex' }, 'Line x', [['Right click', '× on the edge → clear'],
       ['Drag', 'line through cell centres; starting on a line: clear it'], ['Right drag', 'from an edge: × on each edge it passes; starting on a ×: clear them']]],
-    [{ mode: 'combi', submode: 'linedir' }, 'Line + direction marks', [['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on a line: clear it'],
+    [{ mode: 'combi', submode: 'linedir' }, 'Line x<>', [['Right click', 'edge: × → arrowhead one way → the other way → clear'], ['Drag', 'line through cell centres; starting on a line: clear it'],
       ['Right drag', 'from a cell toward an edge: arrowhead on that edge pointing that way → clear (same way); '
         + 'from an edge: × on each edge it passes (starting on a mark: as a right click there; starting on the last arrowhead: clear the marks it passes)']]],
     [{ mode: 'number', submode: '7' }, 'Number > Candidates', [['Left click', 'only that cell selected'],
@@ -561,7 +561,7 @@ describe('the Mouse card and the title bar', () => {
   for (const [tool, name, expected] of WORDING) {
     it(`words ${tool.mode}/${tool.submode ?? ''} as agreed`, async () => {
       await setTool(opened.page, tool)
-      await settle(() => headline().textContent(), name)
+      assert.equal(await settle(() => headline().textContent(), name), name)
       assert.deepEqual(await rows(), expected)
     })
   }
@@ -682,7 +682,7 @@ describe('the Mouse card reads at a glance (#203)', () => {
   let cards
   before(async () => { cards = await sweep() })
 
-  it('words no tool with "erase" or a bare "n"', () => {
+  it('words no tool with "erase" (bar Penpa+\'s own Edge > Erase) or a bare "n"', () => {
     const bad = Object.entries(cards).flatMap(([key, { headline, rows }]) => [headline, ...rows.flatMap((r) => [r.gesture, r.effect])]
       .filter((text) => (/erase/i.test(text) && !text.endsWith(' > Erase')) || /\bn\b/.test(text)).map((text) => `${key}: ${text}`))
     assert.deepEqual(bad, [])
