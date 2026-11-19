@@ -53,6 +53,9 @@
     // Set to COORDINATES_SHOWN when the solver turned on the board coordinates (#249, #250). The key keeps #249's name, so a setting made then holds.
     const COORDINATES_KEY = 'chinstrap-solve-grid-numbers-v1';
     const COORDINATES_SHOWN = '1';
+    // Set to GRID_NUMBERING_ALL when the solver turned "Number the grid only" off (#348); it is on until then.
+    const GRID_NUMBERING_KEY = 'chinstrap-solve-number-grid-only-v1';
+    const GRID_NUMBERING_ALL = 'all';
     // Each resize handle by name, with the edges of the card it moves. `desk.css` places and styles each by the same name.
     // What every resize handle says on hover: a double-click on it makes the axes it resizes automatic again (#252).
     const FIT_TOOLTIP = 'Double-click to fit automatically';
@@ -1194,8 +1197,13 @@
     // The coordinates are drawn when the solver wants them, except while a stream fit is on, which crops to the board.
     const areCoordinatesShown = () => areCoordinatesWanted() && !isStreaming();
 
-    // The room the coordinates take beside and above the canvas, which the fit leaves out.
+    const isGridNumberedOnly = () => localStorage.getItem(GRID_NUMBERING_KEY) !== GRID_NUMBERING_ALL;
+
+    // The width of one gutter the coordinates sit in.
     const coordinatesGutter = () => (boardBox.classList.contains('ui-coordinates-on') ? parseFloat(getComputedStyle(boardBox).paddingLeft) : 0);
+    // The room the coordinates take on one axis, which the fit leaves out: a gutter on each side when the grid alone is numbered
+    // (it is labelled on all four sides then), else one.
+    const coordinatesRoom = () => coordinatesGutter() * (isGridNumberedOnly() ? 2 : 1);
 
     // A band is about this many cells wide (#250), so a band is one to two cells wide whatever the grid's shape.
     const BAND_CELLS = 1.5;
@@ -1227,20 +1235,26 @@
     function drawCoordinates() {
         const wanted = areCoordinatesShown();
         boardBox.classList.toggle('ui-coordinates-on', wanted);
+        boardBox.classList.toggle('ui-coordinates-four-sides', wanted && isGridNumberedOnly());
         coordinatesLayer.replaceChildren();
         if (!wanted) {
             return;
         }
-        const axes = engine.getGridAxes();
+        const axes = engine.getGridAxes({ framedOnly: isGridNumberedOnly() });
         const labels = axes ? numberLabels(axes) : bandLabels(engine.getGridArea());
         const box = boardBox.getBoundingClientRect();
         const gutter = coordinatesGutter();
-        const label = (axis, { text }, left, top) => el('span', {
-            class: axes ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, style: `left:${left}px;top:${top}px`
+        const label = (axis, side, { text }, left, top) => el('span', {
+            class: axes ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, 'data-side': side, style: `left:${left}px;top:${top}px`
         }, [String(text)]);
+        const sides = [['start', 0]];
+        // The far sides repeat the numbers of a grid that is numbered alone; bands are not repeated.
+        if (axes && isGridNumberedOnly()) {
+            sides.push(['end', 1]);
+        }
         coordinatesLayer.append(
-            ...labels.columns.map((c) => label('column', c, c.at - box.left, gutter / 2)),
-            ...labels.rows.map((r) => label('row', r, gutter / 2, r.at - box.top)));
+            ...sides.flatMap(([side, far]) => labels.columns.map((c) => label('column', side, c, c.at - box.left, gutter / 2 + far * (box.height - gutter)))),
+            ...sides.flatMap(([side, far]) => labels.rows.map((r) => label('row', side, r, gutter / 2 + far * (box.width - gutter), r.at - box.top))));
         stickCoordinates();
     }
 
@@ -1251,6 +1265,21 @@
         const box = boardBox.getBoundingClientRect();
         coordinatesLayer.style.setProperty('--ui-stick-x', `${Math.max(0, view.left - box.left)}px`);
         coordinatesLayer.style.setProperty('--ui-stick-y', `${Math.max(0, view.top - box.top)}px`);
+        // The far labels slide the other way, up and left, when the board's right and bottom edges are past the card's.
+        coordinatesLayer.style.setProperty('--ui-stick-end-x', `${Math.min(0, view.right - box.right)}px`);
+        coordinatesLayer.style.setProperty('--ui-stick-end-y', `${Math.min(0, view.bottom - box.bottom)}px`);
+    }
+
+    function setGridNumberedOnly(boardBody, only) {
+        if (only) {
+            localStorage.removeItem(GRID_NUMBERING_KEY);
+        } else {
+            localStorage.setItem(GRID_NUMBERING_KEY, GRID_NUMBERING_ALL);
+        }
+        drawCoordinates();
+        if (!isZoomed) {
+            fitBoard(boardBody);
+        }
     }
 
     function setCoordinatesWanted(boardBody, shown) {
@@ -1291,8 +1320,8 @@
         drawCoordinates();
         for (let pass = 0; pass < FIT_PASSES; pass++) {
             const room = bodyRoom(boardBody);
-            const w = room.w - BOARD_FRAME_PX - coordinatesGutter();
-            const h = room.h - BOARD_FRAME_PX - coordinatesGutter();
+            const w = room.w - BOARD_FRAME_PX - coordinatesRoom();
+            const h = room.h - BOARD_FRAME_PX - coordinatesRoom();
             if (w < MIN_FIT_BOX_PX || h < MIN_FIT_BOX_PX) {
                 return;
             }
@@ -1389,7 +1418,8 @@
     const isCardClosed = (id) => localStorage.getItem(closedKey(id)) === CARD_CLOSED;
 
     // Resolves to `{ bar, cards, closeButtons, desk, stream, relayout, resetLayout, fit, fitToTools, closeableCards, isCardClosed, setCardClosed,
-    // areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard }` once
+    // areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), isGridNumberedOnly,
+    // setGridNumberedOnly: (only) => setGridNumberedOnly(desk.cards.board.body, only), fitBoard }` once
     // the desk is built, for the files that fill the bar and the cards. `closeableCards` is `[id, title]` per card the solver can
     // close, in the Cards menu's order, and `closeButtons` each one's header ×, by id. `fitBoard()` fits the board to its card, as Fit does.
     window.deskReady = engine.ready.then(() => {
@@ -1522,7 +1552,8 @@
             placeSide: (box) => placeStreamSide(desk.cards, box)
         };
         return { bar: desk.bar, cards: desk.cards, closeButtons: desk.closeButtons, desk: desk.desk, stream, relayout, resetLayout, fit, fitToTools,
-            closeableCards: CLOSEABLE_CARDS.map((id) => [id, CARD_TITLES[id]]), isCardClosed, setCardClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown), fitBoard: () => fitBoard(boardBody) };
+            closeableCards: CLOSEABLE_CARDS.map((id) => [id, CARD_TITLES[id]]), isCardClosed, setCardClosed, areCoordinatesWanted, setCoordinatesWanted: (shown) => setCoordinatesWanted(desk.cards.board.body, shown),
+            isGridNumberedOnly, setGridNumberedOnly: (only) => setGridNumberedOnly(desk.cards.board.body, only), fitBoard: () => fitBoard(boardBody) };
     });
     // A failed load needs no second report: main.js shows its error dialog. Anything else that stopped the desk is thrown
     // again, so it shows as a page error.

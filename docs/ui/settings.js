@@ -72,7 +72,7 @@
 
     const perPuzzleKey = () => PER_PUZZLE_PREFIX + puzzleHash();
 
-    onDeskReady(({ bar, resetLayout, areCoordinatesWanted, setCoordinatesWanted }) => {
+    onDeskReady(({ bar, resetLayout, areCoordinatesWanted, setCoordinatesWanted, isGridNumberedOnly, setGridNumberedOnly }) => {
         // Penpa+ turns "off for this puzzle" back on whenever it loads a puzzle, so each visit puts it back for the puzzle that has it.
         if (localStorage.getItem(perPuzzleKey()) === PER_PUZZLE_FLAG && engine.getSettings()[CONFLICT_SETTING] === CONFLICT_ON) {
             engine.setSetting(CONFLICT_SETTING, CONFLICT_OFF_THIS_PUZZLE);
@@ -146,8 +146,15 @@
         theme.addEventListener('change', () => engine.setTheme(theme.value));
 
         const coordinatesSwitch = el('wa-switch', {}, ['Show board coordinates']);
-        coordinatesSwitch.addEventListener('change', () => setCoordinatesWanted(coordinatesSwitch.checked));
-        const coordinatesRow = el('div', { class: 'ui-setting' }, [coordinatesSwitch]);
+        // A sub-option of the coordinates (#348): it is there while they are shown, and kept apart from the switch above.
+        const gridOnlySwitch = el('wa-switch', {}, ['Number the grid only']);
+        gridOnlySwitch.addEventListener('change', () => setGridNumberedOnly(gridOnlySwitch.checked));
+        coordinatesSwitch.addEventListener('change', () => {
+            setCoordinatesWanted(coordinatesSwitch.checked);
+            gridOnlySwitch.disabled = !coordinatesSwitch.checked;
+        });
+        const coordinatesRow = el('div', { class: 'ui-setting' }, [coordinatesSwitch,
+            el('div', { class: 'ui-sub-setting' }, [gridOnlySwitch])]);
 
         const resetLayoutButton = el('wa-button', { size: 's' }, ['Reset layout']);
         resetLayoutButton.addEventListener('click', () => {
@@ -193,6 +200,8 @@
             const applies = engine.getPuzzleSettings();
             settingRows.forEach((row, name) => { row.hidden = !applies.includes(name); });
             coordinatesSwitch.checked = areCoordinatesWanted();
+            gridOnlySwitch.checked = isGridNumberedOnly();
+            gridOnlySwitch.disabled = !coordinatesSwitch.checked;
             tag.hidden = current[CONFLICT_SETTING] !== CONFLICT_OFF_THIS_PUZZLE;
             cleared.textContent = '';
             theme.value = current.theme;
