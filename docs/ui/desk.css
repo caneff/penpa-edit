@@ -126,12 +126,15 @@ body.engine-mounted, body.engine-no-puzzle { overflow: hidden; background: #e7e4
    board outgrows the card it starts at the top left and the body scrolls. */
 .ui-card-board .ui-body > * { margin: auto; flex: none; position: relative; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .35); }
 .ui-card-board canvas { background: #fff; }
-/* The board coordinates sit in a gutter above and left of the canvas, outside any outside-clue band the canvas holds. */
+/* The board coordinates sit in a gutter above and left of the canvas (and below and right of it, with `ui-coordinates-four-sides`), outside any outside-clue band the canvas holds. */
 .ui-card-board .ui-body > .ui-coordinates-on { --ui-coordinates-gutter: calc(30px * var(--ui-text-scale, 1)); padding: var(--ui-coordinates-gutter) 0 0 var(--ui-coordinates-gutter); box-sizing: content-box; width: auto; }
+.ui-card-board .ui-body > .ui-coordinates-four-sides { padding: var(--ui-coordinates-gutter); }
 .ui-grid-coordinates { position: absolute; inset: 0; pointer-events: none; }
 .ui-grid-coordinate { position: absolute; transform: translate(-50%, -50%); font-size: calc(19px * var(--ui-text-scale, 1)); line-height: 1; color: #111827; font-weight: 700; font-variant-numeric: tabular-nums; user-select: none; }
 .ui-grid-coordinate[data-axis="column"] { transform: translate(-50%, calc(-50% + var(--ui-stick-y, 0px))); }
 .ui-grid-coordinate[data-axis="row"] { transform: translate(calc(-50% + var(--ui-stick-x, 0px)), -50%); }
+.ui-grid-coordinate[data-axis="column"][data-side="end"] { transform: translate(-50%, calc(-50% + var(--ui-stick-end-y, 0px))); }
+.ui-grid-coordinate[data-axis="row"][data-side="end"] { transform: translate(calc(-50% + var(--ui-stick-end-x, 0px)), -50%); }
 .ui-grid-band { opacity: .75; }
 .ui-dark .ui-grid-coordinate { color: #f3f4f6; }
 .ui-card-rules .ui-body { --ui-rules-text: 14px; max-height: 520px; font-size: calc(var(--ui-rules-text) * var(--ui-text-scale, 1)); color: #3b3e45; white-space: pre-wrap; tab-size: 2; overflow-wrap: anywhere; }
@@ -354,6 +357,7 @@ body.engine-mounted:has(.ui-dark), body.engine-no-puzzle:has(.ui-dark) { backgro
 .ui-setting { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 8px 12px; }
 .ui-setting[hidden] { display: none; }
 .ui-setting wa-select { min-width: 250px; }
+.ui-sub-setting { flex-basis: 100%; margin-left: 24px; }
 .ui-tag { padding: 2px 8px; border-radius: 999px; background: #e3ebfb; color: #2f5bb2; font-size: 11px; font-weight: 700; white-space: nowrap; }
 .ui-tag[hidden] { display: none; }
 .ui-help { flex-basis: 100%; color: #5f5b4c; font-size: 12px; }

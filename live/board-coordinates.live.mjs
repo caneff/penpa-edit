@@ -7,6 +7,7 @@ import { describe, it } from 'node:test'
 import { boardCanvasInPage, linkFromNewBoard, solveLinkOfImport, openSolvePage, useBrowser, waitForDesk } from './page.mjs'
 import { IMPORTS } from './tier-c-puzzles.mjs'
 import { settle } from './settle.mjs'
+import { FRAMED_GRID_LINK } from './framed-grid-link.mjs'
 
 const browser = useBrowser()
 const SWITCH = 'Show board coordinates'
@@ -51,7 +52,7 @@ const readCells = async (page) => {
 function labelsInPage () {
   return [...document.querySelectorAll('.ui-grid-coordinate')].map((node) => {
     const r = node.getBoundingClientRect()
-    return { text: node.textContent, axis: node.dataset.axis, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
+    return { text: node.textContent, axis: node.dataset.axis, side: node.dataset.side, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
   })
 }
 
@@ -68,8 +69,8 @@ const turnOn = async (page) => {
 async function assertAligned (page, columns, rows) {
   const { canvas, cells } = await readCells(page)
   const labels = await page.evaluate(labelsInPage)
-  const top = labels.filter((l) => l.axis === 'column')
-  const left = labels.filter((l) => l.axis === 'row')
+  const top = labels.filter((l) => l.axis === 'column' && l.side === 'start')
+  const left = labels.filter((l) => l.axis === 'row' && l.side === 'start')
   assert.deepEqual(top.map((l) => l.text), Array.from({ length: columns }, (_, i) => String(i + 1)), 'columns are numbered 1..N')
   assert.deepEqual(left.map((l) => l.text), Array.from({ length: rows }, (_, i) => String(i + 1)), 'rows are numbered 1..N')
   // Every cell of the grid, by position: the cells' own keys sort in row-major order.
@@ -128,7 +129,7 @@ async function assertBands (page, columns, rows) {
   const { area, canvas } = read
   const labels = await page.evaluate(labelsInPage)
   const check = (axis, texts, centre, from, to, outside) => {
-    const own = labels.filter((l) => l.axis === axis)
+    const own = labels.filter((l) => l.axis === axis && l.side === 'start')
     assert.deepEqual(own.map((l) => l.text), texts, `${axis} bands are named in order`)
     const width = (to - from) / own.length
     own.map(centre).forEach((c, i) => assert.ok(Math.abs(c - (from + width * (i + 0.5))) <= DRAWN_SLACK_PX, `${axis} band ${i + 1} is centred at ${from + width * (i + 0.5)}, was ${c}`))
@@ -175,19 +176,19 @@ describe('board coordinates on a square-cell grid', () => {
     await assertAligned(page, 9, 9)
     await page.reload()
     await waitForDesk(page)
-    assert.equal(await settle(async () => (await page.evaluate(labelsInPage)).length, 18), 18, 'the labels are back after a reload')
+    assert.equal(await settle(async () => (await page.evaluate(labelsInPage)).length, 36), 36, 'the labels are back after a reload')
     await assertAligned(page, 9, 9)
     assert.equal(await switchChecked(page), true, 'the switch is on after a reload')
     await context.close()
   })
 
-  it('draw at 15 px and keep clear of the board by the gutter, not by Penpa+\'s canvas margin', async () => {
+  it('draw at 19 px and keep clear of the board by the gutter, not by Penpa+\'s canvas margin', async () => {
     const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
     await turnOn(page)
     const sizes = await page.evaluate(() => [...document.querySelectorAll('.ui-grid-coordinate')].map((n) => getComputedStyle(n).fontSize))
-    assert.deepEqual(sizes, Array(18).fill(`${LABEL_PX}px`), 'every label is 15 px at text scale 1')
+    assert.deepEqual(sizes, Array(36).fill(`${LABEL_PX}px`), 'every label is 19 px at text scale 1')
     const { canvas } = await readCells(page)
-    for (const l of await page.evaluate(labelsInPage)) {
+    for (const l of (await page.evaluate(labelsInPage)).filter((n) => n.side === 'start')) {
       const clearance = l.axis === 'column' ? canvas.top - l.bottom : canvas.left - l.right
       assert.ok(clearance >= MIN_CLEARANCE_PX, `${l.axis} ${l.text} is ${clearance} px from the canvas edge, wanted at least ${MIN_CLEARANCE_PX}`)
     }
@@ -258,7 +259,7 @@ describe('board coordinates on a grid that is not square', () => {
     const hex = await boardLink({ columns: 6, rows: 6, gridtype: 'hex' })
     const { context, page } = await openSolvePage(browser(), square, { served: true })
     await turnOn(page)
-    assert.equal((await page.evaluate(labelsInPage)).length, 12)
+    assert.equal((await page.evaluate(labelsInPage)).length, 24)
     const here = page.url().split('#')[0]
     await page.goto('about:blank')
     await page.goto(here + hex)
@@ -290,10 +291,10 @@ function bodyViewInPage () {
 // The width of the gutter the labels sit in, at text scale 1 (desk.css `--ui-coordinates-gutter`). A label whose centre is nearer the card's edge
 // than this lies under the other axis's labels, or is clipped by the card, so only the labels beyond it are checked against the card.
 const GUTTER_PX = 30
-// The label's font size at text scale 1 (desk.css `.ui-grid-coordinate`), and the least gap its box leaves to the canvas: a 15 px label centred
-// in a 30 px gutter leaves 7.5 px above a column label's box, while a 24 px gutter would leave 4.5 px.
-const LABEL_PX = 15
-const MIN_CLEARANCE_PX = 7
+// The label's font size at text scale 1 (desk.css `.ui-grid-coordinate`), and the least gap its box leaves to the canvas: a 19 px label centred
+// in a 30 px gutter leaves 5.5 px above a column label's box, while a 24 px gutter would leave 2.5 px.
+const LABEL_PX = 19
+const MIN_CLEARANCE_PX = 5
 
 // Zooms in (at most 8 steps) and checks the board then scrolls both ways.
 async function zoomIn (page) {
@@ -322,7 +323,7 @@ const scrollThird = (page) => page.evaluate((read) => new Promise((resolve) => {
 // Each label's centre along its own axis, from the canvas's top left.
 async function alongBoard (page) {
   const { canvas } = await readCells(page)
-  const labels = await page.evaluate(labelsInPage)
+  const labels = (await page.evaluate(labelsInPage)).filter((l) => l.side === 'start')
   return labels.map((l) => (l.axis === 'column' ? l.cx - canvas.left : l.cy - canvas.top))
 }
 
@@ -330,7 +331,7 @@ async function alongBoard (page) {
 // every label beyond the gutter is inside the card's visible area, a column's at the card's top edge and a row's at its left edge.
 async function assertSticky (page, before) {
   const view = await page.evaluate(bodyViewInPage)
-  const labels = await page.evaluate(labelsInPage)
+  const labels = (await page.evaluate(labelsInPage)).filter((l) => l.side === 'start')
   const along = await alongBoard(page)
   assert.equal(labels.length, before.length, 'the same labels are drawn')
   let shown = 0
@@ -367,4 +368,47 @@ describe('board coordinates when the board is zoomed past its card and scrolled'
       await context.close()
     })
   }
+})
+
+describe('"Number the grid only" on a grid inside a thick frame with outside clues around it (#348)', () => {
+  const SIDES = ['start', 'end']
+  const texts = (labels, axis, side) => labels.filter((l) => l.axis === axis && l.side === side).map((l) => l.text)
+  const oneToNine = Array.from({ length: 9 }, (_, i) => String(i + 1))
+
+  it('numbers the framed grid 1 to 9 on all four sides, with no number on the clue margin', async () => {
+    const { context, page } = await openSolvePage(browser(), FRAMED_GRID_LINK, { served: true })
+    await turnOn(page)
+    const labels = await page.evaluate(() => [...document.querySelectorAll('.ui-grid-coordinate')].map((n) => ({ text: n.textContent, axis: n.dataset.axis, side: n.dataset.side })))
+    for (const axis of ['column', 'row']) for (const side of SIDES) assert.deepEqual(texts(labels, axis, side), oneToNine, `${axis} labels on the ${side} side`)
+    await context.close()
+  })
+
+  it('numbers the whole canvas on the top and left only when the option is off', async () => {
+    const { context, page } = await openSolvePage(browser(), FRAMED_GRID_LINK, { served: true })
+    await turnOn(page)
+    await page.getByRole('button', { name: 'Settings' }).click()
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor()
+    await page.locator('wa-switch').filter({ has: page.getByRole('switch', { name: 'Number the grid only' }) }).click()
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: 'Settings' }).waitFor({ state: 'hidden' })
+    const labels = await page.evaluate(() => [...document.querySelectorAll('.ui-grid-coordinate')].map((n) => ({ text: n.textContent, axis: n.dataset.axis, side: n.dataset.side })))
+    assert.equal(labels.length, 24, 'twelve columns and twelve rows, one side each')
+    assert.ok(labels.every((l) => l.side === 'start'), 'top and left only')
+    await context.close()
+  })
+
+  it('keeps the far labels at the card\'s right and bottom edges when the board is zoomed past its card and scrolled', async () => {
+    const { context, page } = await openSolvePage(browser(), await boardLink({ columns: 9, rows: 9 }), { served: true })
+    await turnOn(page)
+    await zoomIn(page)
+    await scrollThird(page)
+    const view = await page.evaluate(bodyViewInPage)
+    const far = (await page.evaluate(labelsInPage)).filter((l) => l.side === 'end')
+    assert.equal(far.length, 18)
+    for (const l of far) {
+      if (l.axis === 'column') assert.ok(l.bottom <= view.bottom + SLACK_PX && l.bottom >= view.bottom - GUTTER_PX - SLACK_PX, `column ${l.text} sits at the card's bottom edge: ${l.bottom} vs ${view.bottom}`)
+      else assert.ok(l.right <= view.right + SLACK_PX && l.right >= view.right - GUTTER_PX - SLACK_PX, `row ${l.text} sits at the card's right edge: ${l.right} vs ${view.right}`)
+    }
+    await context.close()
+  })
 })

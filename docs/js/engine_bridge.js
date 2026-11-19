@@ -194,6 +194,17 @@
         return canvas;
     }
 
+    // The box, in canvas px, round the thick frame edges Penpa+ draws (`pu.frame` value 2, not deleted), or null when there are none.
+    function thickFrameBox() {
+        const ends = Object.keys(pu.frame).filter((edge) => pu.frame[edge] === 2 && !pu.pu_q.deletelineE[edge]).flatMap((edge) => edge.split(',').map((id) => pu.point[id]));
+        if (ends.length === 0) {
+            return null;
+        }
+        const xs = ends.map((p) => p.x);
+        const ys = ends.map((p) => p.y);
+        return { left: Math.min(...xs), right: Math.max(...xs), top: Math.min(...ys), bottom: Math.max(...ys) };
+    }
+
     // The box, in canvas px, round the corners of the cell with point id `id`.
     function cellBox(id) {
         const corners = pu.point[id].surround.map((s) => pu.point[s]);
@@ -1434,10 +1445,13 @@
 
         // Where the rows and columns of a square-cell grid lie, in viewport px: the x of each column's centre, left to right, and
         // the y of each row's, top to bottom. The outside-clue margins are not rows or columns, and a cell taken out of the grid
-        // leaves its row and column in place. Null for any other grid type (`getGridArea` serves those).
+        // leaves its row and column in place. With `framedOnly`, only the rows and columns inside the thick frame: the cells a
+        // puzzle keeps outside it for its clues are left out, and the whole canvas's axes come back when no thick frame is drawn.
+        // Null for any other grid type (`getGridArea` serves those).
         // MVP gap: the grid's cells are `pu.point` ids `row * pu.nx0 + column`, the grid proper being inside PENPA_MARGIN_CELLS and
-        // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it.
-        getGridAxes() {
+        // `pu.space` on each side; `pu.centerlist` is not read, since Box mode reorders and thins it. The thick frame is the
+        // `pu.frame` edges of value 2 that `draw_frameBold` draws, read as the box round their end points.
+        getGridAxes({ framedOnly = false } = {}) {
             const origin = boardCanvas().getBoundingClientRect();
             if (!pu.grid_is_square()) {
                 return null;
@@ -1446,9 +1460,13 @@
             const firstRow = PENPA_MARGIN_CELLS + top;
             const firstColumn = PENPA_MARGIN_CELLS + left;
             const span = (count, at) => Array.from({ length: count }, (_, k) => at(k));
+            const frame = framedOnly ? thickFrameBox() : null;
+            const inside = (v, from, to) => !frame || (v > from && v < to);
             return {
-                columns: span(pu.nx0 - 2 * PENPA_MARGIN_CELLS - left - right, (k) => origin.left + pu.point[firstRow * pu.nx0 + firstColumn + k].x),
-                rows: span(pu.ny0 - 2 * PENPA_MARGIN_CELLS - top - bottom, (k) => origin.top + pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+                columns: span(pu.nx0 - 2 * PENPA_MARGIN_CELLS - left - right, (k) => pu.point[firstRow * pu.nx0 + firstColumn + k].x)
+                    .filter((x) => inside(x, frame?.left, frame?.right)).map((x) => origin.left + x),
+                rows: span(pu.ny0 - 2 * PENPA_MARGIN_CELLS - top - bottom, (k) => pu.point[(firstRow + k) * pu.nx0 + firstColumn].y)
+                    .filter((y) => inside(y, frame?.top, frame?.bottom)).map((y) => origin.top + y)
             };
         },
 
