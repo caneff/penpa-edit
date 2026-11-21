@@ -52,7 +52,7 @@ const readCells = async (page) => {
 function labelsInPage () {
   return [...document.querySelectorAll('.ui-grid-coordinate')].map((node) => {
     const r = node.getBoundingClientRect()
-    return { text: node.textContent, axis: node.dataset.axis, side: node.dataset.side, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
+    return { text: node.textContent, band: node.classList.contains('ui-grid-band'), axis: node.dataset.axis, side: node.dataset.side, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
   })
 }
 
@@ -255,7 +255,7 @@ function cellRowsInPage ({ canvas, tolerance }) {
   return ys.filter((y, i) => i === 0 || y - ys[i - 1] > tolerance)
 }
 
-// Checks the labels of a grid numbered by row: letters across as bands, and the numbers 1..N down the left, one on each row of cells' centre line.
+// Checks the labels of a grid numbered by row: letters across as bands, and the numbers 1..N down the left, one on each row of cells' centre line, repeated on the far sides.
 async function assertRowNumbers (page, columns, rows) {
   const handle = await page.evaluateHandle(boardCanvasInPage)
   let cellRows
@@ -266,7 +266,12 @@ async function assertRowNumbers (page, columns, rows) {
   assert.deepEqual(left.map((l) => l.text), Array.from({ length: rows }, (_, i) => String(i + 1)), 'rows are numbered 1..N from the top')
   left.forEach((l, i) => assert.ok(Math.abs(l.cy - cellRows[i]) <= SLACK_PX, `row ${l.text} is at its row's y ${cellRows[i]}, was ${l.cy}`))
   assert.deepEqual(labels.filter((l) => l.axis === 'column' && l.side === 'start').map((l) => l.text), bandNames(columns), 'columns are lettered')
-  assert.equal(labels.some((l) => l.side === 'end'), false, 'nothing is repeated on the far sides')
+  assert.equal(left.some((l) => l.band), false, 'row numbers are exact, so not drawn as bands')
+  assert.equal(labels.filter((l) => l.axis === 'column' && l.side === 'start').every((l) => l.band), true, 'column letters are bands')
+  // "Number the grid only" is on, so both axes repeat on the right and the bottom.
+  const far = (axis) => labels.filter((l) => l.axis === axis && l.side === 'end').map((l) => l.text)
+  assert.deepEqual(far('row'), left.map((l) => l.text), 'the row numbers repeat on the right')
+  assert.deepEqual(far('column'), bandNames(columns), 'the column letters repeat at the bottom')
 }
 
 describe('board coordinates on a grid that is not square', () => {

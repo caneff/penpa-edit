@@ -1211,29 +1211,32 @@
     // A, B, ... Z, AA, AB, ...: a grid wider than 26 bands runs on as a spreadsheet's columns do.
     const bandName = (i) => (i < LETTERS.length ? '' : bandName(Math.floor(i / LETTERS.length) - 1)) + LETTERS[i % LETTERS.length];
 
+    // 1, 2, 3... at each of `ats` (the labels of a numbered axis), and A, B, C... at each of `ats` (a band axis). A band label is approximate, so it is drawn lighter.
+    const numbered = (ats) => ats.map((at, i) => ({ at, text: i + 1, band: false }));
+    const lettered = (ats) => ats.map((at, i) => ({ at, text: bandName(i), band: true }));
+
+    // The middles of the equal bands a grid that is not square (#250) is cut into across the grid's bounding box, along one axis.
+    function bandMiddles(from, to, area) {
+        const count = Math.round((to - from) / (BAND_CELLS * area.cellWidth));
+        return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
+    }
+
     // The labels of a grid that is not square (#250): letters over equal bands across the grid's bounding box, numbers down it, each at its band's middle.
     function bandLabels(area) {
-        const bands = (from, to) => {
-            const count = Math.round((to - from) / (BAND_CELLS * area.cellWidth));
-            return Array.from({ length: count }, (_, i) => from + ((i + 0.5) * (to - from)) / count);
-        };
         return {
-            columns: bands(area.left, area.right).map((x, i) => ({ at: x, text: bandName(i) })),
-            rows: bands(area.top, area.bottom).map((y, j) => ({ at: y, text: j + 1 }))
+            columns: lettered(bandMiddles(area.left, area.right, area)),
+            rows: bandMiddles(area.top, area.bottom, area).map((at, j) => ({ at, text: j + 1, band: true }))
         };
     }
 
     // The labels of a grid of horizontal rows (#350): numbers down, one at each row's y, and letters across as `bandLabels` draws them.
     function rowLabels(rows, area) {
-        return { columns: bandLabels(area).columns, rows: rows.map((y, j) => ({ at: y, text: j + 1 })) };
+        return { columns: lettered(bandMiddles(area.left, area.right, area)), rows: numbered(rows) };
     }
 
     // The labels of a square-cell grid: its own column and row numbers, on the centre lines of the cells.
     function numberLabels(axes) {
-        return {
-            columns: axes.columns.map((x, i) => ({ at: x, text: i + 1 })),
-            rows: axes.rows.map((y, j) => ({ at: y, text: j + 1 }))
-        };
+        return { columns: numbered(axes.columns), rows: numbered(axes.rows) };
     }
 
     // Puts one label per column and row in the gutter outside the canvas, outside any outside clue (a scrolled board slides them over its cells, see stickCoordinates): numbers on a square-cell grid, numbers down and letters across on a grid of horizontal rows, bands on any other.
@@ -1248,14 +1251,15 @@
         const axes = engine.getGridAxes({ framedOnly: isGridNumberedOnly() });
         const rows = axes ? null : engine.getGridRows();
         const labels = axes ? numberLabels(axes) : rows ? rowLabels(rows, engine.getGridArea()) : bandLabels(engine.getGridArea());
+        const isNumbered = Boolean(axes || rows);
         const box = boardBox.getBoundingClientRect();
         const gutter = coordinatesGutter();
-        const label = (axis, side, { text }, left, top) => el('span', {
-            class: axes || (rows && axis === 'row') ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, 'data-side': side, style: `left:${left}px;top:${top}px`
+        const label = (axis, side, { text, band }, left, top) => el('span', {
+            class: band ? 'ui-grid-coordinate ui-grid-band' : 'ui-grid-coordinate', 'data-axis': axis, 'data-side': side, style: `left:${left}px;top:${top}px`
         }, [String(text)]);
         const sides = [['start', 0]];
-        // The far sides repeat the numbers of a grid that is numbered alone; bands are not repeated.
-        if (axes && isGridNumberedOnly()) {
+        // The far sides repeat the labels of a grid that is numbered alone, on a square-cell grid or a grid of rows; the bands of any other grid are not repeated.
+        if (isNumbered && isGridNumberedOnly()) {
             sides.push(['end', 1]);
         }
         coordinatesLayer.append(
