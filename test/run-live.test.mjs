@@ -2,12 +2,13 @@
 // file, any other change off the skip list every one but the engine side's, a change made only of skip-list paths every
 // one but the safety net's, and the parts CI spreads them over hold each file once.
 import assert from 'node:assert/strict'
-import { execFileSync, spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { ENGINE, ENV, PINS, scratchRepo, tree, UI } from './live-scratch.mjs'
 import { chooseLiveFiles, ENGINE_FILES, engineInputs, pageReach, partOf, SAFETY_NET_FILES } from '../live/run-live.mjs'
 
 const SOLVE_UI_FILES = ['live/pins.live.mjs', 'live/mouse-card.live.mjs', 'live/desk.live.mjs']
@@ -61,16 +62,6 @@ describe('chooseLiveFiles', () => {
     assert.match(reason, /no changed file/)
   })
 })
-
-// Writes `files` (path: text) under a fresh directory and returns it.
-function tree (files) {
-  const dir = mkdtempSync(join(tmpdir(), 'run-live-reach-'))
-  for (const [path, text] of Object.entries(files)) {
-    mkdirSync(join(dir, dirname(path)), { recursive: true })
-    writeFileSync(join(dir, path), text)
-  }
-  return dir
-}
 
 describe('pageReach', () => {
   const PAGE = {
@@ -133,30 +124,7 @@ describe('partOf', () => {
   })
 })
 
-// A scratch repo holding the real package.json, one engine-side file, one UI-driver replay, one solve-UI file, a page
-// naming one script and a file it does not have yet, and the solve UI's source.
-const ENGINE = 'live/engine-replay-0.live.mjs'
-const UI = 'live/ui-replay-0.live.mjs'
-const PINS = 'live/pins.live.mjs'
-function scratchRepo () {
-  const dir = tree({
-    ...Object.fromEntries([ENGINE, UI, PINS, 'docs/ui/pins.js', 'docs/js/class_p.js', 'docs/js/engine_bridge.js']
-      .map((file) => [file, '// one\n'])),
-    'docs/index.html': '<script>load(["./js/class_p.js", "./js/new.js"])</script>\n'
-  })
-  const git = (...args) => execFileSync('git', args, { cwd: dir, encoding: 'utf8' })
-  git('init', '-q', '-b', 'master')
-  git('config', 'user.name', 'test')
-  git('config', 'user.email', 'test@example.com')
-  cpSync(fileURLToPath(new URL('../package.json', import.meta.url)), join(dir, 'package.json'))
-  git('add', '-A')
-  git('commit', '-q', '-m', 'base')
-  return { dir, git }
-}
-
 const RUN_LIVE = fileURLToPath(new URL('../live/run-live.mjs', import.meta.url))
-// Without NODE_TEST_CONTEXT, which makes a child runner report to this one instead.
-const { NODE_TEST_CONTEXT, ...ENV } = process.env
 const runLive = (dir, ...args) => spawnSync(process.execPath, [RUN_LIVE, ...args], { cwd: dir, env: ENV, encoding: 'utf8' })
 const list = (dir, ...args) => {
   const out = runLive(dir, '--list', ...args)
