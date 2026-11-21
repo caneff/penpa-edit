@@ -75,10 +75,8 @@ Before you write or review code: read `CODING_STANDARDS.md`.
   `console.error` on a page `openPenpa` or `openReloader` opened fails the test it happened in (`useBrowser`), the network is stubbed, and
   waits use `settle`, never a sleep. Both cap node at `--test-concurrency=4` (`live/run-live.mjs` holds the live files' flags), so at most 4 test files run at
   once on the shared box.
-- **Narrowed**: `node live/run-narrowed.mjs --changed origin/master`: `npm test`, then the live files `npm run test:live:changed`
-  picks for the change since that ref, so a PR's run selects the tiers CI's `live` job would (#316). `--list` prints one suite
-  per line (`npm test`, then each live file). With no `--changed`, an unreadable base or an unreadable page it runs the full
-  set and says why on stderr. A worker runs this; CI and the nightly keep the full seam.
+- **Narrowed**: `node live/run-narrowed.mjs --changed origin/master`: `npm test`, then the live files CI's `live` job would run for
+  the change since that ref (`live/run-live.mjs`'s rule above); `--list` prints one suite per line. A change it cannot place runs the full set and says so (#316).
 - **CI**: `.github/workflows/ci.yml` runs `npm test` (job `unit`) and the live files spread over four runners (job `live`,
   `node live/run-live.mjs --part <k>/<n>`) on every PR and push to `master`, behind job `test`, which fails unless both
   passed; a PR runs the live files its change needs, by the rule above, and a push the full set. It also runs the
