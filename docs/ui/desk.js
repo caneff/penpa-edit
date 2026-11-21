@@ -1223,6 +1223,11 @@
         };
     }
 
+    // The labels of a grid of horizontal rows (#350): numbers down, one at each row's y, and letters across as `bandLabels` draws them.
+    function rowLabels(rows, area) {
+        return { columns: bandLabels(area).columns, rows: rows.map((y, j) => ({ at: y, text: j + 1 })) };
+    }
+
     // The labels of a square-cell grid: its own column and row numbers, on the centre lines of the cells.
     function numberLabels(axes) {
         return {
@@ -1231,7 +1236,7 @@
         };
     }
 
-    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue (a scrolled board slides them over its cells, see stickCoordinates): numbers on a square-cell grid, bands on any other.
+    // Puts one label per column and row in the gutter outside the canvas, outside any outside clue (a scrolled board slides them over its cells, see stickCoordinates): numbers on a square-cell grid, numbers down and letters across on a grid of horizontal rows, bands on any other.
     function drawCoordinates() {
         const wanted = areCoordinatesShown();
         boardBox.classList.toggle('ui-coordinates-on', wanted);
@@ -1241,11 +1246,12 @@
             return;
         }
         const axes = engine.getGridAxes({ framedOnly: isGridNumberedOnly() });
-        const labels = axes ? numberLabels(axes) : bandLabels(engine.getGridArea());
+        const rows = axes ? null : engine.getGridRows();
+        const labels = axes ? numberLabels(axes) : rows ? rowLabels(rows, engine.getGridArea()) : bandLabels(engine.getGridArea());
         const box = boardBox.getBoundingClientRect();
         const gutter = coordinatesGutter();
         const label = (axis, side, { text }, left, top) => el('span', {
-            class: axes ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, 'data-side': side, style: `left:${left}px;top:${top}px`
+            class: axes || (rows && axis === 'row') ? 'ui-grid-coordinate' : 'ui-grid-coordinate ui-grid-band', 'data-axis': axis, 'data-side': side, style: `left:${left}px;top:${top}px`
         }, [String(text)]);
         const sides = [['start', 0]];
         // The far sides repeat the numbers of a grid that is numbered alone; bands are not repeated.

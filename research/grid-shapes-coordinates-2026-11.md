@@ -22,4 +22,4 @@ Read from `docs/js/class_*.js`, `docs/js/engine_bridge.js` and `live/gallery-puz
 
 ## Not yet decided
 
-- Triangle, pyramid and the six uniform tilings keep bands. Only hex was ruled on.
+- Ruled after this note (#350): `hex`, `tri`, `pyramid` and `truncated_square` get one number per row of cells (rows grouped by the middle of each cell's box) with letters across; the other tilings keep bands. The list is `ROW_NUMBERED_GRIDS` in `engine_bridge.js`.
