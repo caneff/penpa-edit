@@ -1,6 +1,6 @@
 // The board coordinates of solve.html's Settings (#249, #250): off by default, kept across a reload, outside the canvas (so never over an
-// outside clue), following zoom and Fit. A square-cell grid gets row and column numbers 1..N aligned to the cell centres (#249); every other
-// shape gets reference bands, letters A, B, C... across the top and numbers 1, 2, 3... down the left, equal bands over the grid's bounding
+// outside clue), following zoom and Fit. A square-cell grid gets row and column numbers 1..N aligned to the cell centres (#249); a hex, tri,
+// pyramid or truncated-square grid gets one number per row of cells (#350); every other shape gets reference bands, letters A, B, C... across the top and numbers 1, 2, 3... down the left, equal bands over the grid's bounding
 // box (#250). Label positions are read against the cells Penpa+ draws.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
@@ -52,7 +52,7 @@ const readCells = async (page) => {
 function labelsInPage () {
   return [...document.querySelectorAll('.ui-grid-coordinate')].map((node) => {
     const r = node.getBoundingClientRect()
-    return { text: node.textContent, axis: node.dataset.axis, side: node.dataset.side, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
+    return { text: node.textContent, band: node.classList.contains('ui-grid-band'), axis: node.dataset.axis, side: node.dataset.side, cx: (r.left + r.right) / 2, cy: (r.top + r.bottom) / 2, left: r.left, right: r.right, top: r.top, bottom: r.bottom }
   })
 }
 
@@ -228,33 +228,71 @@ describe('board coordinates on a square-cell grid', () => {
   })
 })
 
-// Band counts for a 6 x 6 board of each shape, and a 20-side hexagon grid wide enough to run past Z. A band is about 1.5 cells wide, so these
-// are the grid's width and height over 1.5 cells, rounded.
+// Column band counts for a 6 x 6 board of each shape, and a 20-side hexagon grid wide enough to run past Z. A band is about 1.5 cells wide, so these
+// are the grid's width over 1.5 cells, rounded. `rows` is the number of rows of cells for a grid type numbered by row (#350), else the number of
+// row bands.
 const SHAPES = [
-  { gridtype: 'hex', size: 6, columns: 8, rows: 7 },
-  { gridtype: 'tri', size: 6, columns: 6, rows: 5 },
-  { gridtype: 'pyramid', size: 6, columns: 4, rows: 4 },
-  { gridtype: 'truncated_square', size: 6, columns: 9, rows: 8 },
-  { gridtype: 'hex', size: 20, columns: 28, rows: 24 }
+  { gridtype: 'hex', size: 6, columns: 8, rows: 11, byRow: true },
+  { gridtype: 'tri', size: 6, columns: 6, rows: 6, byRow: true },
+  { gridtype: 'pyramid', size: 6, columns: 4, rows: 6, byRow: true },
+  { gridtype: 'truncated_square', size: 6, columns: 9, rows: 12, byRow: true },
+  { gridtype: 'hex', size: 20, columns: 28, rows: 39, byRow: true },
+  { gridtype: 'snub_square', size: 6, columns: 12, rows: 12 },
+  { gridtype: 'cairo_pentagonal', size: 6, columns: 10, rows: 10 },
+  { gridtype: 'iso', size: 6, columns: 7, rows: 9 },
+  { gridtype: 'tetrakis_square', size: 6, columns: 12, rows: 12 },
+  { gridtype: 'rhombitrihexagonal', size: 6, columns: 10, rows: 11 },
+  { gridtype: 'deltoidal_trihexagonal', size: 6, columns: 10, rows: 11 }
 ]
 
+// Runs in the page: the y (viewport px) of the middle of every cell's drawn box, the distinct ones within `tolerance`, top to bottom.
+function cellRowsInPage ({ canvas, tolerance }) {
+  const origin = canvas.getBoundingClientRect()
+  const ys = pu.centerlist.map((id) => {
+    const corners = pu.point[id].surround.map((s) => pu.point[s].y)
+    return origin.top + (Math.min(...corners) + Math.max(...corners)) / 2
+  }).sort((a, b) => a - b)
+  return ys.filter((y, i) => i === 0 || y - ys[i - 1] > tolerance)
+}
+
+// Checks the labels of a grid numbered by row: letters across as bands, and the numbers 1..N down the left, one on each row of cells' centre line, repeated on the far sides.
+async function assertRowNumbers (page, columns, rows) {
+  const handle = await page.evaluateHandle(boardCanvasInPage)
+  let cellRows
+  try { cellRows = await page.evaluate(cellRowsInPage, { canvas: handle, tolerance: SLACK_PX }) } finally { await handle.dispose() }
+  assert.equal(cellRows.length, rows, 'the grid has this many rows of cells')
+  const labels = await page.evaluate(labelsInPage)
+  const left = labels.filter((l) => l.axis === 'row' && l.side === 'start')
+  assert.deepEqual(left.map((l) => l.text), Array.from({ length: rows }, (_, i) => String(i + 1)), 'rows are numbered 1..N from the top')
+  left.forEach((l, i) => assert.ok(Math.abs(l.cy - cellRows[i]) <= SLACK_PX, `row ${l.text} is at its row's y ${cellRows[i]}, was ${l.cy}`))
+  assert.deepEqual(labels.filter((l) => l.axis === 'column' && l.side === 'start').map((l) => l.text), bandNames(columns), 'columns are lettered')
+  assert.equal(left.some((l) => l.band), false, 'row numbers are exact, so not drawn as bands')
+  assert.equal(labels.filter((l) => l.axis === 'column' && l.side === 'start').every((l) => l.band), true, 'column letters are bands')
+  // "Number the grid only" is on, so both axes repeat on the right and the bottom.
+  const far = (axis) => labels.filter((l) => l.axis === axis && l.side === 'end').map((l) => l.text)
+  assert.deepEqual(far('row'), left.map((l) => l.text), 'the row numbers repeat on the right')
+  assert.deepEqual(far('column'), bandNames(columns), 'the column letters repeat at the bottom')
+}
+
 describe('board coordinates on a grid that is not square', () => {
-  for (const { gridtype, size, columns, rows } of SHAPES) {
-    it(`show ${columns} letters and ${rows} numbers over the whole ${gridtype} grid of size ${size} at Fit and after zooming`, async () => {
+  for (const { gridtype, size, columns, rows, byRow } of SHAPES) {
+    const what = byRow ? `${rows} numbers, one per row of cells, and ${columns} letters` : `${columns} letters and ${rows} numbers as equal bands in the`
+    it(`show ${what} ${gridtype} grid of size ${size} at Fit and after zooming`, async () => {
       const { context, page } = await openSolvePage(browser(), await boardLink({ columns: size, rows: size, gridtype }), { served: true })
       assert.deepEqual(await page.evaluate(labelsInPage), [], 'off by default')
+      const check = byRow ? () => assertRowNumbers(page, columns, rows) : () => assertBands(page, columns, rows)
       await turnOn(page)
-      await assertBands(page, columns, rows)
+      await check()
       await page.getByRole('button', { name: 'Zoom in' }).click()
       await page.getByRole('button', { name: 'Zoom in' }).click()
-      await assertBands(page, columns, rows)
+      await check()
       await page.getByRole('button', { name: 'Fit', exact: true }).click()
-      await assertBands(page, columns, rows)
+      await check()
       await context.close()
     })
   }
 
-  it('turn a square puzzle opened with the setting on into bands when the next puzzle is a hexagon grid', async () => {
+  it('turn a square puzzle opened with the setting on into row numbers and letters when the next puzzle is a hexagon grid', async () => {
     const square = await boardLink({ columns: 6, rows: 6 })
     const hex = await boardLink({ columns: 6, rows: 6, gridtype: 'hex' })
     const { context, page } = await openSolvePage(browser(), square, { served: true })
@@ -264,7 +302,7 @@ describe('board coordinates on a grid that is not square', () => {
     await page.goto('about:blank')
     await page.goto(here + hex)
     await waitForDesk(page)
-    await assertBands(page, 8, 7)
+    await assertRowNumbers(page, 8, 11)
     await context.close()
   })
 
@@ -351,7 +389,7 @@ async function assertSticky (page, before) {
 describe('board coordinates when the board is zoomed past its card and scrolled', () => {
   for (const { name, options, columns, rows } of [
     { name: 'a 9x9 square grid', options: { columns: 9, rows: 9 }, columns: 9, rows: 9 },
-    { name: 'a hexagon grid', options: { columns: 6, rows: 6, gridtype: 'hex' }, columns: 8, rows: 7 }
+    { name: 'a hexagon grid', options: { columns: 6, rows: 6, gridtype: 'hex' }, columns: 8, rows: 11 }
   ]) {
     it(`stay in view at the card's top and left edges on ${name}`, async () => {
       const { context, page } = await openSolvePage(browser(), await boardLink(options), { served: true })
