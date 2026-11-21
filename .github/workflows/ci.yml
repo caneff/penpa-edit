@@ -14,9 +14,10 @@ on:
 permissions:
   contents: read
 
-# A newer push to a PR cancels that PR's older run (#317). A cancelled run leaves its `test` check cancelled, not
-# success, and the newer push's run reports the required checks for the new head. A push to master and the nightly's call
-# (whose event is the caller's, not `pull_request`) each get a group of their own run id and are never cancelled.
+# A newer push to a PR cancels that PR's older run (#317). `test` has `if: always()`, so it still runs after the cancel,
+# sees `unit`/`live` cancelled and fails: the superseded head shows a red `test`, never success. A push to master and the
+# nightly's call (the caller's event, not `pull_request`) each get a group of their own run id and are never cancelled.
+# A re-run of an older PR run joins the PR's group and cancels a newer run in progress: re-run the newest run.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}

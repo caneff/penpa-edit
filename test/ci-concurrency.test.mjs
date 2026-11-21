@@ -9,13 +9,13 @@ const CI = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url),
 const block = CI.match(/^concurrency:\n((?: {2}.*\n)+)/m)?.[1] ?? ''
 
 describe('ci.yml concurrency', () => {
-  it('has a workflow-level concurrency block', () => {
-    assert.notEqual(block, '')
-  })
   it('cancels in progress only for a pull_request event', () => {
     assert.match(block, /cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/)
   })
-  it('groups a PR by its number and anything else by its own run, so only a PR run can be superseded', () => {
+  it('groups a PR by its number and any other run by its run id', () => {
     assert.match(block, /group: ci-\$\{\{ github\.event_name == 'pull_request' && github\.event\.pull_request\.number \|\| github\.run_id \}\}/)
+  })
+  it('has no job-level concurrency, which could cancel a master or nightly run', () => {
+    assert.doesNotMatch(CI, /^ {2,}concurrency:/m)
   })
 })
