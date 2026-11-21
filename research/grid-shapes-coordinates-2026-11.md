@@ -18,8 +18,8 @@ Read from `docs/js/class_*.js`, `docs/js/engine_bridge.js` and `live/gallery-puz
 
 - The cell centres sit on a lattice of `n = nx * 3 + 1` points per side. Row `j` is shifted by half a cell when `j` is odd, and rows are `size * sqrt(3) / 2` apart. That is a pointy-top hex layout, so a row of hexagons is the cells that share one y.
 - Chris's ruling (#350): one number per row of hexagons. Rows can be found by grouping the grid's cell centres by y, which is the same data `getGridArea()` already reads (`pu.centerlist`).
-- Open: whether the row number goes at the left edge at that row's y, which zigzags by half a cell between odd and even rows, or in a straight gutter.
+- Ruled (#350): the row number goes in a straight gutter at that row's y, not on the zigzag edge.
 
-## Not yet decided
+## Decided after this note
 
-- Triangle, pyramid and the six uniform tilings keep bands. Only hex was ruled on.
+- Ruled after this note (#350): `hex`, `tri`, `pyramid` and `truncated_square` get one number per row of cells (rows grouped by the middle of each cell's box) with letters across; the other tilings keep bands. The list is `ROW_NUMBERED_GRIDS` in `engine_bridge.js`.

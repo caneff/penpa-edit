@@ -17,6 +17,11 @@
 
     // Penpa+'s square-cell grids keep this many unused cells (`pu.point` ids) round the board on each side.
     const PENPA_MARGIN_CELLS = 2;
+    // The grid types whose cells lie in horizontal rows, one number per row (#350). Chris's list: a type not here (`snub_square`,
+    // `cairo_pentagonal`, `iso`, `tetrakis_square`, `rhombitrihexagonal`, `deltoidal_trihexagonal`, ...) keeps map-style bands.
+    const ROW_NUMBERED_GRIDS = Object.freeze(['hex', 'tri', 'pyramid', 'truncated_square']);
+    // Two cells whose middles differ in y by no more than this (canvas px) are in one row.
+    const ROW_TOLERANCE_PX = 0.5;
 
     // The board's canvas may overshoot its box by this much before it counts as not fitting.
     const FIT_TOLERANCE_PX = 0.5;
@@ -1490,6 +1495,26 @@
                 bottom: origin.top + Math.max(...boxes.map((b) => b.bottom)),
                 cellWidth: Math.sqrt(meanArea)
             };
+        },
+
+        // The y of each row of a grid built of horizontal rows of cells, in viewport px, top to bottom: the cells whose centres share
+        // one y (within ROW_TOLERANCE_PX) are one row, a cell's y being the middle of its box: an up and a down triangle of one row differ in their
+        // centroids, not in their boxes. Null for a grid type not in ROW_NUMBERED_GRIDS, whose cells do not line up in rows
+        // (`getGridArea` serves those), and for a square-cell grid, which `getGridAxes` serves.
+        // MVP gap: it reads `pu.centerlist`, so a row whose every cell Box mode has taken out of the list is missing.
+        getGridRows() {
+            const origin = boardCanvas().getBoundingClientRect();
+            if (!ROW_NUMBERED_GRIDS.includes(pu.gridtype)) {
+                return null;
+            }
+            const ys = pu.centerlist.map((id) => { const box = cellBox(id); return (box.top + box.bottom) / 2; }).sort((a, b) => a - b);
+            const rows = [];
+            ys.forEach((y) => {
+                if (rows.length === 0 || y - rows[rows.length - 1] > ROW_TOLERANCE_PX) {
+                    rows.push(y);
+                }
+            });
+            return rows.map((y) => origin.top + y);
         },
 
         // Sets the largest cell size whose board fits a `w` x `h` box (CSS px) and returns it; the smallest size when none does.
