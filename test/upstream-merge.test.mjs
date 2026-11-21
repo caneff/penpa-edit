@@ -261,7 +261,7 @@ const OWNED_PATHS = [
   'test/ui-boundary.test.mjs',
   'test/snapshots.test.mjs', 'test/constraints.test.mjs', 'test/header-text.test.mjs', 'test/canonical-state.test.mjs', 'test/ui-fuzz-rules.test.mjs', 'test/ui-fuzz-nightly.test.mjs',
   'test/userscript.test.mjs', 'test/upstream-merge.test.mjs', 'test/package-scripts.test.mjs', 'test/stub-gh.mjs', 'test/run-live.test.mjs',
-  'test/nightly-seam.test.mjs', 'test/redirect-urls.mjs', 'test/run-narrowed.test.mjs', 'test/live-scratch.mjs',
+  'test/nightly-seam.test.mjs', 'test/redirect-urls.mjs', 'test/run-narrowed.test.mjs', 'test/ci-concurrency.test.mjs', 'test/live-scratch.mjs',
   '.github/workflows/', '.github/actions/', '.github/scripts/'
 ]
 const REPO_ROOT = fileURLToPath(new URL('..', import.meta.url))
